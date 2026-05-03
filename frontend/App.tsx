@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { HelmetProvider } from 'react-helmet-async';
 import ListingsPage from './pages/ListingsPage';
+import { DEFAULT_DATA, DEFAULT_SITE_SETTINGS, getAllProperties, getSiteSettings } from './services/storage';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const AccessPage = lazy(() => import('./pages/AccessPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
@@ -370,32 +371,58 @@ const ListingsSkeleton = () => (
 );
 
 const ListingsRoute = () => {
-    const [properties, setProperties] = useState<(PropertyData & { id: string })[] | null>(null);
-    
-    const [settings, setSettings] = useState<SiteSettings | null>(null);
-    
-    const [isSyncing, setIsSyncing] = useState(true);
+    const getInitialProperties = (): (PropertyData & { id: string })[] => {
+        if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem('cache_properties');
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        return parsed;
+                    }
+                } catch {
+                    // Ignore malformed cache and fall back to defaults.
+                }
+            }
+        }
+        return [{ ...DEFAULT_DATA, id: DEFAULT_DATA.id || 'main' }];
+    };
+
+    const getInitialSettings = (): SiteSettings => {
+        if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem('cache_settings');
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (parsed && typeof parsed === 'object') {
+                        return { ...DEFAULT_SITE_SETTINGS, ...parsed };
+                    }
+                } catch {
+                    // Ignore malformed cache and fall back to defaults.
+                }
+            }
+        }
+        return { ...DEFAULT_SITE_SETTINGS };
+    };
+
+    const [properties, setProperties] = useState<(PropertyData & { id: string })[]>(getInitialProperties);
+    const [settings, setSettings] = useState<SiteSettings>(getInitialSettings);
     const [loadError, setLoadError] = useState<string | null>(null);
     
     useEffect(() => {
         let cancelled = false;
-        setIsSyncing(true);
         setLoadError(null);
 
-        import('./services/storage').then(({ getAllProperties, getSiteSettings }) => {
-            Promise.all([getAllProperties(), getSiteSettings()]).then(([data, settingsData]) => {
-                if (cancelled) return;
-                setProperties(data);
-                setSettings(settingsData);
-                setIsSyncing(false);
-                localStorage.setItem('cache_properties', JSON.stringify(data));
-                localStorage.setItem('cache_settings', JSON.stringify(settingsData));
-            }).catch(err => {
-                if (cancelled) return;
-                console.error(err);
-                setLoadError('Failed to load latest listings data.');
-                setIsSyncing(false);
-            });
+        Promise.all([getAllProperties(), getSiteSettings()]).then(([data, settingsData]) => {
+            if (cancelled) return;
+            setProperties(data);
+            setSettings(settingsData);
+            localStorage.setItem('cache_properties', JSON.stringify(data));
+            localStorage.setItem('cache_settings', JSON.stringify(settingsData));
+        }).catch(err => {
+            if (cancelled) return;
+            console.error(err);
+            setLoadError('Showing cached data. Failed to refresh latest listings.');
         });
 
         return () => {
@@ -408,19 +435,18 @@ const ListingsRoute = () => {
         localStorage.setItem('cache_settings', JSON.stringify(newSettings));
     };
 
-    if (isSyncing) {
-        return <ListingsSkeleton />;
-    }
-
-    if (loadError || !properties || !settings) {
-        return <div className="min-h-screen flex flex-col items-center justify-center text-red-500">{loadError || 'Failed to load latest listings data.'}</div>;
-    }
-
-        return (
+    return (
+        <>
+            {loadError && (
+                <div className="bg-amber-50 text-amber-800 text-center text-sm py-2 px-4 border-b border-amber-200">
+                    {loadError}
+                </div>
+            )}
             <Suspense fallback={<ListingsSkeleton />}>
                 <ListingsPage properties={properties} settings={settings} onUpdateSettings={handleUpdateSettings} />
             </Suspense>
-        );
+        </>
+    );
 }
 
 const App: React.FC = () => {
