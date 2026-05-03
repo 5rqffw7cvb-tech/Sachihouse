@@ -30,6 +30,7 @@
     "@types/morgan": "^1.9.10",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.15.2",
+    "@types/supertest": "^7.2.0",
     "supertest": "^7.1.1",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
