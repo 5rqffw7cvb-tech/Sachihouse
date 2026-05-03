@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PropertyData, SiteSettings } from '../types';
-import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Search, Heart, Home, Calendar, Mail, User, X, Check } from 'lucide-react';
+import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Search, Home, Calendar, Mail, User, X, Check } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -274,14 +274,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                     </div>
                   </div>
                 </Link>
-
-                {/* Favorite Button Overlay */}
-                <button 
-                  className="absolute top-3 right-3 p-2 bg-[#ffffff]/80 backdrop-blur-sm rounded-full text-[#1b1c1d] hover:text-[#ba1a1a] transition-colors z-10"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                >
-                  <Heart className="w-5 h-5" />
-                </button>
 
                 {/* Admin Actions Overlay */}
                 {isAdmin && (
