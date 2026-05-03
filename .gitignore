@@ -9,6 +9,14 @@
 .env.*
 !.env.example
 
+# Database dumps and backups
+*.sql
+*.dump
+*.bak
+*.backup
+backups/
+db_backups/
+
 # Dependencies
 node_modules/
 **/node_modules/
