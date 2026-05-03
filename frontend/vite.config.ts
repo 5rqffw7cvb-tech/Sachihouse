@@ -13,7 +13,11 @@ export default defineConfig(({ mode }) => {
       plugins: [react(), tailwindcss()],
       build: {
         target: 'esnext',
+        // Remove license header comments (saves ~16 KiB on vendor-misc) and drop debug code
         rollupOptions: {
+          treeshake: {
+            moduleSideEffects: false,
+          },
           output: {
             manualChunks(id) {
               if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/scheduler/')) {
@@ -48,6 +52,11 @@ export default defineConfig(({ mode }) => {
             },
           },
         },
+      },
+      // Remove /*! license */ comments and drop debugger statements for smaller output
+      esbuild: {
+        legalComments: 'none',
+        drop: ['debugger'],
       },
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),

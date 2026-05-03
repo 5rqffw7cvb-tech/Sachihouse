@@ -1,4 +1,10 @@
-import { format } from 'date-fns';
+// Use native date formatting to avoid pulling date-fns into the initial bundle
+const formatDateYMD = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 import { ApiError, apiRequest } from './api';
 import { PropertyData, SiteSettings } from '../types';
 
@@ -200,5 +206,5 @@ export const refreshBlockedDates = async (data: PropertyData) => {
 };
 
 export const isDateBlocked = (date: Date): boolean => {
-  return blockedDatesCache.has(format(date, 'yyyy-MM-dd'));
+  return blockedDatesCache.has(formatDateYMD(date));
 };
