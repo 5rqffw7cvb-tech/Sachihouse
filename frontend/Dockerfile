@@ -7,10 +7,8 @@ ARG VITE_API_BASE_URL=http://localhost:3001/api
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN npm run build
 
-FROM node:20-alpine AS runtime
-WORKDIR /app
-RUN npm install -g serve
-COPY --from=build /app/dist ./dist
-ENV PORT=3000
-EXPOSE 3000
-CMD ["sh", "-c", "serve -s dist -l ${PORT}"]
+FROM nginx:1.27-alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
+EXPOSE 8080
+CMD ["sh", "-c", "export PORT=${PORT:-8080} && nginx -g 'daemon off;'"]

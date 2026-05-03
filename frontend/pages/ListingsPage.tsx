@@ -89,6 +89,22 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     }
   };
 
+  const buildOptimizedImageUrl = (url: string, width: number) => {
+    if (!url.includes('images.unsplash.com')) {
+      return url;
+    }
+    try {
+      const parsed = new URL(url);
+      parsed.searchParams.set('auto', 'format');
+      parsed.searchParams.set('fit', 'crop');
+      parsed.searchParams.set('q', '72');
+      parsed.searchParams.set('w', String(width));
+      return parsed.toString();
+    } catch {
+      return url;
+    }
+  };
+
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
     try {
@@ -221,7 +237,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProperties.map((property, index) => {
-            const imageUrl = property.galleryImages?.find(img => img.showOnHome)?.url || "https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?auto=format&fit=crop&q=80&w=800";
+            const imageUrl = property.galleryImages?.find(img => img.showOnHome)?.url || "https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?auto=format&fit=crop&q=72&w=800";
+            const imageSrc = buildOptimizedImageUrl(imageUrl, index === 0 ? 900 : 760);
+            const imageSrcSet = `${buildOptimizedImageUrl(imageUrl, 400)} 400w, ${buildOptimizedImageUrl(imageUrl, 760)} 760w, ${buildOptimizedImageUrl(imageUrl, 900)} 900w`;
             const assignedHosts = hosts.filter((host) => host.assignedPropertyIds?.includes(property.id));
             
             return (
@@ -230,10 +248,13 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                   {/* Image Container */}
                   <div className="relative aspect-[4/3] overflow-hidden bg-[#e4e2e3]">
                     <img 
-                      src={imageUrl} 
+                      src={imageSrc}
+                      srcSet={imageSrcSet}
+                      sizes="(max-width: 767px) 92vw, (max-width: 1023px) 46vw, 30vw"
                       alt={property.name} 
                       loading={index === 0 ? "eager" : "lazy"}
                       fetchPriority={index === 0 ? "high" : "auto"}
+                      decoding="async"
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
                     />
                     {/* Badges */}
