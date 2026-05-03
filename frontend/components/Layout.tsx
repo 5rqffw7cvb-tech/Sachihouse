@@ -1,10 +1,11 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation, useParams, Outlet } from 'react-router-dom';
 import { Home, MapPin, DollarSign, BookOpen, Settings, ShieldCheck, Calculator, ThumbsUp, ExternalLink, Globe, List, ChevronLeft } from 'lucide-react';
 import { PropertyData } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Language } from '../utils/translations';
+import { getCurrentUser, subscribeToAuth } from '../services/auth';
 
 interface LayoutProps {
   data: PropertyData;
@@ -42,6 +43,15 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
   const { id } = useParams<{ id: string }>();
   const baseUrl = `/${id || 'main'}`;
   const { language, setLanguage, t } = useLanguage();
+  const [authUser, setAuthUser] = useState(getCurrentUser());
+
+  useEffect(() => {
+    let unsub = () => {};
+    subscribeToAuth((user) => setAuthUser(user)).then((fn) => { unsub = fn; });
+    return () => unsub();
+  }, []);
+
+  const canAccessAdmin = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
 
   const toggleLanguage = () => {
     const langs: Language[] = ['en', 'vi', 'ja', 'zh'];
@@ -134,9 +144,11 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
                   <span>{LANG_LABELS[language]}</span>
                </button>
                <div className="h-6 w-px bg-gray-200 mx-1"></div>
-               <Link to={`${baseUrl}/admin`} className="flex items-center text-gray-400 hover:text-gray-600 transition-colors" title={t('nav_host')}>
-                <Settings className="w-5 h-5" />
-              </Link>
+               {canAccessAdmin && (
+                 <Link to={`${baseUrl}/admin`} className="flex items-center text-gray-400 hover:text-gray-600 transition-colors" title={t('nav_host')}>
+                   <Settings className="w-5 h-5" />
+                 </Link>
+               )}
             </div>
           </div>
         </div>
@@ -256,13 +268,15 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
               </NavLink>
             );
           })}
-           <Link
-              to={`${baseUrl}/admin`}
-              className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${location.pathname === `${baseUrl}/admin` ? 'text-blue-600' : 'text-gray-400'}`}
-            >
-              <Settings className="w-6 h-6" strokeWidth={2} />
-              <span className="text-[10px] font-medium">{t('nav_host')}</span>
-            </Link>
+           {canAccessAdmin && (
+             <Link
+               to={`${baseUrl}/admin`}
+               className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${location.pathname === `${baseUrl}/admin` ? 'text-blue-600' : 'text-gray-400'}`}
+             >
+               <Settings className="w-6 h-6" strokeWidth={2} />
+               <span className="text-[10px] font-medium">{t('nav_host')}</span>
+             </Link>
+           )}
         </div>
       </div>
     </div>
