@@ -1,0 +1,396 @@
+import { Pool } from 'pg';
+import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSettingsSeed } from './seed.js';
+import { AuthUser, BlogPost, DataStore, PropertyData, SiteSettings, StoredUser } from './types.js';
+import { Role } from '../types/domain.js';
+
+export class PostgresStore implements DataStore {
+  constructor(private readonly pool: Pool) {}
+
+  async init(): Promise<void> {
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        email TEXT NOT NULL UNIQUE,
+        role TEXT NOT NULL,
+        password_hash TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS properties (
+        id TEXT PRIMARY KEY,
+        metalink TEXT NOT NULL UNIQUE,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS site_settings (
+        id INTEGER PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS property_assignments (
+        host_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        PRIMARY KEY (host_user_id, property_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS blocked_dates (
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        blocked_date DATE NOT NULL,
+        PRIMARY KEY (property_id, blocked_date)
+      );
+
+      CREATE TABLE IF NOT EXISTS blog_posts (
+        id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id BIGSERIAL PRIMARY KEY,
+        actor_user_id INTEGER,
+        action TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT');
+    await this.pool.query("UPDATE users SET name = split_part(email, '@', 1) WHERE name IS NULL OR trim(name) = ''");
+
+    const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
+    if (existing.rows[0]?.count !== '0') {
+      return;
+    }
+
+    const users = await createUserSeed();
+    for (const user of users) {
+      await this.pool.query(
+        'INSERT INTO users (id, name, email, role, password_hash) VALUES ($1, $2, $3, $4, $5)',
+        [user.id, user.name, user.email, user.role, user.passwordHash],
+      );
+    }
+
+    for (const property of propertiesSeed) {
+      await this.pool.query(
+        'INSERT INTO properties (id, metalink, data) VALUES ($1, $2, $3::jsonb)',
+        [property.id, property.metalink, JSON.stringify(property)],
+      );
+    }
+
+    await this.pool.query(
+      'INSERT INTO site_settings (id, data) VALUES (1, $1::jsonb)',
+      [JSON.stringify(siteSettingsSeed)],
+    );
+
+    for (const [propertyId, dates] of Object.entries(blockedDatesSeed)) {
+      for (const blockedDate of dates) {
+        await this.pool.query(
+          'INSERT INTO blocked_dates (property_id, blocked_date) VALUES ($1, $2)',
+          [propertyId, blockedDate],
+        );
+      }
+    }
+
+    for (const post of blogPostsSeed) {
+      await this.pool.query(
+        'INSERT INTO blog_posts (id, data, created_at, updated_at) VALUES ($1, $2::jsonb, $3, $4)',
+        [post.id, JSON.stringify(post), post.createdAt, post.updatedAt],
+      );
+    }
+
+    const host = users.find((user) => user.role === 'HOST');
+    if (host) {
+      for (const propertyId of host.assignedPropertyIds) {
+        await this.pool.query(
+          'INSERT INTO property_assignments (host_user_id, property_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [host.id, propertyId],
+        );
+      }
+    }
+  }
+
+  private async getAssignedPropertyIds(userId: number): Promise<string[]> {
+    const result = await this.pool.query<{ property_id: string }>(
+      'SELECT property_id FROM property_assignments WHERE host_user_id = $1 ORDER BY property_id',
+      [userId],
+    );
+    return result.rows.map((row: { property_id: string }) => row.property_id);
+  }
+
+  private async mapUser(row: { id: number; name: string; email: string; role: AuthUser['role'] }): Promise<AuthUser> {
+    return {
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      role: row.role,
+      assignedPropertyIds: row.role === 'HOST' ? await this.getAssignedPropertyIds(row.id) : [],
+    };
+  }
+
+  async authenticate(email: string, password: string): Promise<AuthUser | null> {
+    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; password_hash: string }>(
+      'SELECT id, name, email, role, password_hash FROM users WHERE lower(email) = lower($1)',
+      [email],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return null;
+    }
+    const bcrypt = await import('bcryptjs');
+    const matches = await bcrypt.default.compare(password, row.password_hash);
+    return matches ? this.mapUser(row) : null;
+  }
+
+  async getUserById(id: number): Promise<AuthUser | null> {
+    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>(
+      'SELECT id, name, email, role FROM users WHERE id = $1',
+      [id],
+    );
+    const row = result.rows[0];
+    return row ? this.mapUser(row) : null;
+  }
+
+  async listUsers(): Promise<AuthUser[]> {
+    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>('SELECT id, name, email, role FROM users ORDER BY id');
+    return Promise.all(result.rows.map((row: { id: number; name: string; email: string; role: AuthUser['role'] }) => this.mapUser(row)));
+  }
+
+  async createUser(name: string, email: string, password: string, role: Role, actor: AuthUser): Promise<AuthUser> {
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedName) {
+      throw new Error('Name is required.');
+    }
+    const existing = await this.pool.query<{ id: number }>('SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1', [normalizedEmail]);
+    if (existing.rowCount) {
+      throw new Error('Email is already in use.');
+    }
+
+    const idResult = await this.pool.query<{ next_id: number }>('SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM users');
+    const nextId = idResult.rows[0]?.next_id ?? 1;
+
+    const bcrypt = await import('bcryptjs');
+    const passwordHash = await bcrypt.default.hash(password, 10);
+    const insertResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>(
+      'INSERT INTO users (id, name, email, role, password_hash) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role',
+      [nextId, normalizedName, normalizedEmail, role, passwordHash],
+    );
+    const created = await this.mapUser(insertResult.rows[0]);
+    await this.writeAudit(actor.id, 'CREATE', 'user', String(created.id));
+    return created;
+  }
+
+  async updateUserName(userId: number, name: string, actor: AuthUser): Promise<AuthUser> {
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      throw new Error('Name is required.');
+    }
+
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>(
+      'UPDATE users SET name = $2 WHERE id = $1 RETURNING id, name, email, role',
+      [userId, normalizedName],
+    );
+    const row = updateResult.rows[0];
+    if (!row) {
+      throw new Error('User not found.');
+    }
+
+    await this.writeAudit(actor.id, 'UPDATE_NAME', 'user', String(userId));
+    return this.mapUser(row);
+  }
+
+  async updateUserEmail(userId: number, email: string, actor: AuthUser): Promise<AuthUser> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await this.pool.query<{ id: number }>('SELECT id FROM users WHERE lower(email) = lower($1) AND id <> $2 LIMIT 1', [normalizedEmail, userId]);
+    if (existing.rowCount) {
+      throw new Error('Email is already in use.');
+    }
+
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>(
+      'UPDATE users SET email = $2 WHERE id = $1 RETURNING id, name, email, role',
+      [userId, normalizedEmail],
+    );
+    const row = updateResult.rows[0];
+    if (!row) {
+      throw new Error('User not found.');
+    }
+
+    await this.writeAudit(actor.id, 'UPDATE_EMAIL', 'user', String(userId));
+    return this.mapUser(row);
+  }
+
+  async updateUserRole(userId: number, role: Role, actor: AuthUser): Promise<AuthUser> {
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>(
+      'UPDATE users SET role = $2 WHERE id = $1 RETURNING id, name, email, role',
+      [userId, role],
+    );
+    const row = updateResult.rows[0];
+    if (!row) {
+      throw new Error('User not found.');
+    }
+
+    if (role !== 'HOST') {
+      await this.pool.query('DELETE FROM property_assignments WHERE host_user_id = $1', [userId]);
+    }
+
+    await this.writeAudit(actor.id, 'UPDATE_ROLE', 'user', String(userId));
+    return this.mapUser(row);
+  }
+
+  async updateUserPassword(userId: number, password: string, actor: AuthUser): Promise<void> {
+    const bcrypt = await import('bcryptjs');
+    const passwordHash = await bcrypt.default.hash(password, 10);
+    const result = await this.pool.query<{ id: number }>('UPDATE users SET password_hash = $2 WHERE id = $1 RETURNING id', [userId, passwordHash]);
+    if (!result.rowCount) {
+      throw new Error('User not found.');
+    }
+    await this.writeAudit(actor.id, 'RESET_PASSWORD', 'user', String(userId));
+  }
+
+  async deleteUser(userId: number, actor: AuthUser): Promise<void> {
+    const result = await this.pool.query<{ id: number }>('DELETE FROM users WHERE id = $1 RETURNING id', [userId]);
+    if (!result.rowCount) {
+      throw new Error('User not found.');
+    }
+    await this.writeAudit(actor.id, 'DELETE', 'user', String(userId));
+  }
+
+  async listProperties(): Promise<Array<PropertyData & { id: string }>> {
+    const result = await this.pool.query<{ id: string; data: PropertyData }>('SELECT id, data FROM properties ORDER BY id');
+    return result.rows.map((row: { id: string; data: PropertyData }) => ({ ...row.data, id: row.id }));
+  }
+
+  async getProperty(idOrMetalink: string): Promise<(PropertyData & { id: string }) | null> {
+    const result = await this.pool.query<{ id: string; data: PropertyData }>(
+      'SELECT id, data FROM properties WHERE id = $1 OR metalink = $1 LIMIT 1',
+      [idOrMetalink],
+    );
+    const row = result.rows[0];
+    return row ? { ...row.data, id: row.id } : null;
+  }
+
+  async createProperty(property: PropertyData, actor: AuthUser): Promise<PropertyData & { id: string }> {
+    const id = property.id ?? `list_${Math.random().toString(36).slice(2, 7)}`;
+    const record = { ...property, id };
+    await this.pool.query(
+      'INSERT INTO properties (id, metalink, data) VALUES ($1, $2, $3::jsonb)',
+      [id, record.metalink ?? id, JSON.stringify(record)],
+    );
+    await this.writeAudit(actor.id, 'CREATE', 'property', id);
+    return record;
+  }
+
+  async saveProperty(propertyId: string, property: PropertyData, actor: AuthUser): Promise<PropertyData & { id: string }> {
+    const current = await this.getProperty(propertyId);
+    if (!current) {
+      throw new Error('Property not found.');
+    }
+    const next = { ...current, ...property, id: current.id };
+    await this.pool.query(
+      'UPDATE properties SET metalink = $2, data = $3::jsonb, updated_at = NOW() WHERE id = $1',
+      [current.id, next.metalink ?? current.id, JSON.stringify(next)],
+    );
+    await this.writeAudit(actor.id, 'UPDATE', 'property', current.id);
+    return next;
+  }
+
+  async deleteProperty(propertyId: string, actor: AuthUser): Promise<void> {
+    await this.pool.query('DELETE FROM properties WHERE id = $1', [propertyId]);
+    await this.writeAudit(actor.id, 'DELETE', 'property', propertyId);
+  }
+
+  async getSiteSettings(): Promise<SiteSettings> {
+    const result = await this.pool.query<{ data: SiteSettings }>('SELECT data FROM site_settings WHERE id = 1');
+    const stored = result.rows[0]?.data;
+    return { ...siteSettingsSeed, ...(stored ?? {}) };
+  }
+
+  async saveSiteSettings(settings: SiteSettings, actor: AuthUser): Promise<SiteSettings> {
+    const next = { ...siteSettingsSeed, ...settings };
+    await this.pool.query(
+      'INSERT INTO site_settings (id, data) VALUES (1, $1::jsonb) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()',
+      [JSON.stringify(next)],
+    );
+    await this.writeAudit(actor.id, 'UPDATE', 'site_settings', '1');
+    return next;
+  }
+
+  async listBlockedDates(propertyId: string): Promise<string[]> {
+    const property = await this.getProperty(propertyId);
+    if (!property) {
+      return [];
+    }
+    const result = await this.pool.query<{ blocked_date: string }>(
+      'SELECT blocked_date::text FROM blocked_dates WHERE property_id = $1 ORDER BY blocked_date',
+      [property.id],
+    );
+    return result.rows.map((row: { blocked_date: string }) => row.blocked_date);
+  }
+
+  async listBlogPosts(): Promise<BlogPost[]> {
+    const result = await this.pool.query<{ data: BlogPost }>('SELECT data FROM blog_posts ORDER BY created_at DESC');
+    return result.rows.map((row: { data: BlogPost }) => row.data);
+  }
+
+  async getBlogPost(id: string): Promise<BlogPost | null> {
+    const result = await this.pool.query<{ data: BlogPost }>('SELECT data FROM blog_posts WHERE id = $1', [id]);
+    return result.rows[0]?.data ?? null;
+  }
+
+  async createBlogPost(post: Omit<BlogPost, 'createdAt' | 'updatedAt'>, actor: AuthUser): Promise<BlogPost> {
+    const next: BlogPost = { ...post, createdAt: Date.now(), updatedAt: Date.now() };
+    await this.pool.query(
+      'INSERT INTO blog_posts (id, data, created_at, updated_at) VALUES ($1, $2::jsonb, $3, $4)',
+      [next.id, JSON.stringify(next), next.createdAt, next.updatedAt],
+    );
+    await this.writeAudit(actor.id, 'CREATE', 'blog_post', next.id);
+    return next;
+  }
+
+  async updateBlogPost(id: string, post: Partial<Omit<BlogPost, 'id' | 'createdAt' | 'authorId'>>, actor: AuthUser): Promise<BlogPost> {
+    const current = await this.getBlogPost(id);
+    if (!current) {
+      throw new Error('Blog post not found.');
+    }
+    const next = { ...current, ...post, updatedAt: Date.now() };
+    await this.pool.query(
+      'UPDATE blog_posts SET data = $2::jsonb, updated_at = $3 WHERE id = $1',
+      [id, JSON.stringify(next), next.updatedAt],
+    );
+    await this.writeAudit(actor.id, 'UPDATE', 'blog_post', id);
+    return next;
+  }
+
+  async deleteBlogPost(id: string, actor: AuthUser): Promise<void> {
+    await this.pool.query('DELETE FROM blog_posts WHERE id = $1', [id]);
+    await this.writeAudit(actor.id, 'DELETE', 'blog_post', id);
+  }
+
+  async assignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void> {
+    const hostCheck = await this.pool.query<{ id: number }>('SELECT id FROM users WHERE id = $1 AND role = $2', [hostUserId, 'HOST']);
+    if (!hostCheck.rowCount) {
+      throw new Error('Only HOST users can be assigned to properties.');
+    }
+    await this.pool.query(
+      'INSERT INTO property_assignments (host_user_id, property_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [hostUserId, propertyId],
+    );
+    await this.writeAudit(actor.id, 'ASSIGN_HOST', 'property', propertyId);
+  }
+
+  async unassignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void> {
+    await this.pool.query('DELETE FROM property_assignments WHERE host_user_id = $1 AND property_id = $2', [hostUserId, propertyId]);
+    await this.writeAudit(actor.id, 'UNASSIGN_HOST', 'property', propertyId);
+  }
+
+  private async writeAudit(actorUserId: number, action: string, targetType: string, targetId: string): Promise<void> {
+    await this.pool.query(
+      'INSERT INTO audit_logs (actor_user_id, action, target_type, target_id) VALUES ($1, $2, $3, $4)',
+      [actorUserId, action, targetType, targetId],
+    );
+  }
+}

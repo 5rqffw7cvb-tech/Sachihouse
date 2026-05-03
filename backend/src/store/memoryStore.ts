@@ -1,0 +1,269 @@
+import bcrypt from 'bcryptjs';
+import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSettingsSeed } from './seed.js';
+import { AuthUser, BlogPost, DataStore, PropertyData, SiteSettings, StoredUser } from './types.js';
+import { Role } from '../types/domain.js';
+
+interface MemoryState {
+  users: StoredUser[];
+  properties: Array<PropertyData & { id: string }>;
+  siteSettings: SiteSettings;
+  blogPosts: BlogPost[];
+  blockedDates: Record<string, string[]>;
+}
+
+export class MemoryStore implements DataStore {
+  private state: MemoryState | null = null;
+
+  async init(): Promise<void> {
+    if (this.state) {
+      return;
+    }
+
+    this.state = {
+      users: await createUserSeed(),
+      properties: structuredClone(propertiesSeed),
+      siteSettings: structuredClone(siteSettingsSeed),
+      blogPosts: structuredClone(blogPostsSeed),
+      blockedDates: structuredClone(blockedDatesSeed),
+    };
+  }
+
+  private assertState(): MemoryState {
+    if (!this.state) {
+      throw new Error('Memory store not initialized.');
+    }
+    return this.state;
+  }
+
+  private toAuthUser(user: StoredUser): AuthUser {
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      assignedPropertyIds: [...user.assignedPropertyIds],
+    };
+  }
+
+  async authenticate(email: string, password: string): Promise<AuthUser | null> {
+    const state = this.assertState();
+    const user = state.users.find((candidate) => candidate.email.toLowerCase() === email.toLowerCase());
+    if (!user) {
+      return null;
+    }
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    return isMatch ? this.toAuthUser(user) : null;
+  }
+
+  async getUserById(id: number): Promise<AuthUser | null> {
+    const user = this.assertState().users.find((candidate) => candidate.id === id);
+    return user ? this.toAuthUser(user) : null;
+  }
+
+  async listUsers(): Promise<AuthUser[]> {
+    return this.assertState().users.map((user) => this.toAuthUser(user));
+  }
+
+  async createUser(name: string, email: string, password: string, role: Role, _actor: AuthUser): Promise<AuthUser> {
+    const state = this.assertState();
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedName) {
+      throw new Error('Name is required.');
+    }
+    if (state.users.some((candidate) => candidate.email.toLowerCase() === normalizedEmail)) {
+      throw new Error('Email is already in use.');
+    }
+
+    const nextId = state.users.length ? Math.max(...state.users.map((user) => user.id)) + 1 : 1;
+    const passwordHash = await bcrypt.hash(password, 10);
+    const nextUser: StoredUser = {
+      id: nextId,
+      name: normalizedName,
+      email: normalizedEmail,
+      role,
+      passwordHash,
+      assignedPropertyIds: [],
+    };
+    state.users.push(nextUser);
+    return this.toAuthUser(nextUser);
+  }
+
+  async updateUserName(userId: number, name: string, _actor: AuthUser): Promise<AuthUser> {
+    const state = this.assertState();
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      throw new Error('Name is required.');
+    }
+
+    const user = state.users.find((candidate) => candidate.id === userId);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+
+    user.name = normalizedName;
+    return this.toAuthUser(user);
+  }
+
+  async updateUserEmail(userId: number, email: string, _actor: AuthUser): Promise<AuthUser> {
+    const state = this.assertState();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (state.users.some((candidate) => candidate.id !== userId && candidate.email.toLowerCase() === normalizedEmail)) {
+      throw new Error('Email is already in use.');
+    }
+
+    const user = state.users.find((candidate) => candidate.id === userId);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+
+    user.email = normalizedEmail;
+    return this.toAuthUser(user);
+  }
+
+  async updateUserRole(userId: number, role: Role, _actor: AuthUser): Promise<AuthUser> {
+    const state = this.assertState();
+    const user = state.users.find((candidate) => candidate.id === userId);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+
+    user.role = role;
+    if (role !== 'HOST') {
+      user.assignedPropertyIds = [];
+    }
+
+    return this.toAuthUser(user);
+  }
+
+  async updateUserPassword(userId: number, password: string, _actor: AuthUser): Promise<void> {
+    const state = this.assertState();
+    const user = state.users.find((candidate) => candidate.id === userId);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+
+    user.passwordHash = await bcrypt.hash(password, 10);
+  }
+
+  async deleteUser(userId: number, _actor: AuthUser): Promise<void> {
+    const state = this.assertState();
+    const index = state.users.findIndex((candidate) => candidate.id === userId);
+    if (index === -1) {
+      throw new Error('User not found.');
+    }
+    state.users.splice(index, 1);
+  }
+
+  async listProperties(): Promise<Array<PropertyData & { id: string }>> {
+    return structuredClone(this.assertState().properties);
+  }
+
+  async getProperty(idOrMetalink: string): Promise<(PropertyData & { id: string }) | null> {
+    const property = this.assertState().properties.find((item) => item.id === idOrMetalink || item.metalink === idOrMetalink);
+    return property ? structuredClone(property) : null;
+  }
+
+  async createProperty(property: PropertyData): Promise<PropertyData & { id: string }> {
+    const state = this.assertState();
+    const id = property.id ?? `list_${Math.random().toString(36).slice(2, 7)}`;
+    if (property.metalink && state.properties.some((item) => item.metalink === property.metalink)) {
+      throw new Error('Custom URL is already taken.');
+    }
+    const next = { ...structuredClone(property), id };
+    state.properties.push(next);
+    return structuredClone(next);
+  }
+
+  async saveProperty(propertyId: string, property: PropertyData): Promise<PropertyData & { id: string }> {
+    const state = this.assertState();
+    const index = state.properties.findIndex((item) => item.id === propertyId || item.metalink === propertyId);
+    if (index === -1) {
+      throw new Error('Property not found.');
+    }
+    if (property.metalink && state.properties.some((item) => item.id !== state.properties[index].id && item.metalink === property.metalink)) {
+      throw new Error('Custom URL is already taken.');
+    }
+    const current = state.properties[index];
+    const next = { ...current, ...structuredClone(property), id: current.id };
+    state.properties[index] = next;
+    return structuredClone(next);
+  }
+
+  async deleteProperty(propertyId: string): Promise<void> {
+    const state = this.assertState();
+    state.properties = state.properties.filter((item) => item.id !== propertyId);
+  }
+
+  async getSiteSettings(): Promise<SiteSettings> {
+    return structuredClone({ ...siteSettingsSeed, ...this.assertState().siteSettings });
+  }
+
+  async saveSiteSettings(settings: SiteSettings): Promise<SiteSettings> {
+    const next = { ...siteSettingsSeed, ...structuredClone(settings) };
+    this.assertState().siteSettings = next;
+    return structuredClone(next);
+  }
+
+  async listBlockedDates(propertyId: string): Promise<string[]> {
+    return [...(this.assertState().blockedDates[propertyId] ?? [])];
+  }
+
+  async listBlogPosts(): Promise<BlogPost[]> {
+    return structuredClone(this.assertState().blogPosts).sort((left, right) => right.createdAt - left.createdAt);
+  }
+
+  async getBlogPost(id: string): Promise<BlogPost | null> {
+    const post = this.assertState().blogPosts.find((item) => item.id === id);
+    return post ? structuredClone(post) : null;
+  }
+
+  async createBlogPost(post: Omit<BlogPost, 'createdAt' | 'updatedAt'>): Promise<BlogPost> {
+    const next: BlogPost = {
+      ...structuredClone(post),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    this.assertState().blogPosts.unshift(next);
+    return structuredClone(next);
+  }
+
+  async updateBlogPost(id: string, post: Partial<Omit<BlogPost, 'id' | 'createdAt' | 'authorId'>>): Promise<BlogPost> {
+    const state = this.assertState();
+    const index = state.blogPosts.findIndex((item) => item.id === id);
+    if (index === -1) {
+      throw new Error('Blog post not found.');
+    }
+    const next = { ...state.blogPosts[index], ...structuredClone(post), updatedAt: Date.now() };
+    state.blogPosts[index] = next;
+    return structuredClone(next);
+  }
+
+  async deleteBlogPost(id: string): Promise<void> {
+    const state = this.assertState();
+    state.blogPosts = state.blogPosts.filter((item) => item.id !== id);
+  }
+
+  async assignHost(propertyId: string, hostUserId: number): Promise<void> {
+    const state = this.assertState();
+    const user = state.users.find((item) => item.id === hostUserId);
+    if (!user) {
+      throw new Error('Host user not found.');
+    }
+    if (user.role !== 'HOST') {
+      throw new Error('Only HOST users can be assigned to properties.');
+    }
+    if (!user.assignedPropertyIds.includes(propertyId)) {
+      user.assignedPropertyIds.push(propertyId);
+    }
+  }
+
+  async unassignHost(propertyId: string, hostUserId: number): Promise<void> {
+    const state = this.assertState();
+    const user = state.users.find((item) => item.id === hostUserId);
+    if (!user) {
+      throw new Error('Host user not found.');
+    }
+    user.assignedPropertyIds = user.assignedPropertyIds.filter((item) => item !== propertyId);
+  }
+}

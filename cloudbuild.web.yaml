@@ -1,0 +1,42 @@
+# Cloud Build pipeline for Web (frontend)
+# Use with a trigger on frontend/** changes.
+
+substitutions:
+  _SERVICE: sachihouse-web
+  _REGION: asia-southeast1
+  _REPO: sachihouse
+  _API_BASE_URL: https://replace-with-api-url.run.app/api
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - frontend/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:$COMMIT_SHA
+      - --build-arg
+      - VITE_API_BASE_URL=${_API_BASE_URL}
+      - frontend
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:$COMMIT_SHA
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:$COMMIT_SHA
+      - --region
+      - ${_REGION}
+      - --platform
+      - managed
+      - --allow-unauthenticated
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:$COMMIT_SHA
