@@ -7,6 +7,7 @@ import { BlogSidebar } from '../components/BlogSidebar';
 import { BlogPost, blogService } from '../services/blogService';
 import { Helmet } from 'react-helmet-async';
 import { checkAuth, subscribeToAuth } from '../services/auth';
+import './blog-post.css';
 
 const BlogPostPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -120,17 +121,7 @@ const BlogPostPage: React.FC = () => {
             </div>
           )}
 
-          <div className="prose prose-lg max-w-none text-[#1b1c1d] font-['Inter']
-              prose-headings:font-['Plus_Jakarta_Sans'] prose-headings:font-bold prose-headings:text-[#1b1c1d] prose-headings:tracking-tight
-              prose-h1:text-[32px] prose-h1:mt-12 prose-h1:mb-6
-              prose-h2:text-[28px] prose-h2:mt-12 prose-h2:mb-6
-              prose-h3:text-[22px] prose-h3:mt-8 prose-h3:mb-4
-              prose-p:text-[#44474c] prose-p:leading-[1.8] prose-p:text-[18px] prose-p:mb-6
-              prose-a:text-[#041627] prose-a:underline hover:prose-a:text-blue-600 transition-colors
-              prose-li:text-[#44474c] prose-li:text-[18px] prose-li:leading-[1.8]
-              prose-strong:text-[#1b1c1d] prose-strong:font-bold
-              prose-blockquote:border-l-4 prose-blockquote:border-[#e4e2e3] prose-blockquote:pl-6 prose-blockquote:italic prose-blockquote:text-[#74777d]
-              prose-img:rounded-2xl prose-img:shadow-sm prose-img:border prose-img:border-[#e4e2e3]">
+          <div className="article-markdown max-w-none">
             <Markdown>{post.content}</Markdown>
           </div>
         </div>

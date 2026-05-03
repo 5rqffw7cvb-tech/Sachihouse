@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { HelmetProvider } from 'react-helmet-async';
 
-import ListingsPage from './pages/ListingsPage';
+const ListingsPage = lazy(() => import('./pages/ListingsPage'));
 const HomePage = lazy(() => import('./pages/HomePage'));
 const AccessPage = lazy(() => import('./pages/AccessPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
@@ -417,7 +417,11 @@ const ListingsRoute = () => {
         return <div className="min-h-screen flex flex-col items-center justify-center text-red-500">{loadError || 'Failed to load latest listings data.'}</div>;
     }
 
-    return <ListingsPage properties={properties} settings={settings} onUpdateSettings={handleUpdateSettings} />;
+        return (
+            <Suspense fallback={<ListingsSkeleton />}>
+                <ListingsPage properties={properties} settings={settings} onUpdateSettings={handleUpdateSettings} />
+            </Suspense>
+        );
 }
 
 const App: React.FC = () => {
