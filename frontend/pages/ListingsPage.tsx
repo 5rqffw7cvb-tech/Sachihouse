@@ -95,10 +95,12 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     }
     try {
       const parsed = new URL(url);
-      parsed.searchParams.set('auto', 'format');
+      parsed.searchParams.set('fm', 'webp');
       parsed.searchParams.set('fit', 'crop');
-      parsed.searchParams.set('q', '72');
+      parsed.searchParams.set('q', '55');
       parsed.searchParams.set('w', String(width));
+      // remove legacy 'auto' param since we're explicitly setting fm=webp
+      parsed.searchParams.delete('auto');
       return parsed.toString();
     } catch {
       return url;
