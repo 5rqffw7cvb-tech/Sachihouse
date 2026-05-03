@@ -25,6 +25,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingAssignmentKey, setPendingAssignmentKey] = useState<string | null>(null);
+  const [visibleCardCount, setVisibleCardCount] = useState(3);
   
   // Settings Modal State
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -95,9 +96,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     }
     try {
       const parsed = new URL(url);
-      parsed.searchParams.set('fm', 'webp');
+      parsed.searchParams.set('fm', 'avif');
       parsed.searchParams.set('fit', 'crop');
-      parsed.searchParams.set('q', '40');
+      parsed.searchParams.set('q', '32');
       parsed.searchParams.set('w', String(width));
       // remove legacy 'auto' param since we're explicitly setting fm=webp
       parsed.searchParams.delete('auto');
@@ -161,6 +162,26 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
     (p.subtitle || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  useEffect(() => {
+    const initialCount = Math.min(3, filteredProperties.length);
+    setVisibleCardCount(initialCount);
+
+    const revealAll = () => setVisibleCardCount(filteredProperties.length);
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const idleId = (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback(revealAll, { timeout: 600 });
+      return () => {
+        if ('cancelIdleCallback' in window) {
+          (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId);
+        }
+      };
+    }
+
+    const timer = window.setTimeout(revealAll, 180);
+    return () => window.clearTimeout(timer);
+  }, [filteredProperties.length]);
+
+  const visibleProperties = filteredProperties.slice(0, visibleCardCount);
 
   return (
     <div className="bg-[#fbf9fa] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
@@ -238,7 +259,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProperties.map((property, index) => {
+            {visibleProperties.map((property, index) => {
             const imageUrl = property.galleryImages?.find(img => img.showOnHome)?.url || "https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?auto=format&fit=crop&q=72&w=800";
             const imageSrc = buildOptimizedImageUrl(imageUrl, index === 0 ? 640 : 480);
             const imageSrcSet = `${buildOptimizedImageUrl(imageUrl, 320)} 320w, ${buildOptimizedImageUrl(imageUrl, 480)} 480w, ${buildOptimizedImageUrl(imageUrl, 640)} 640w`;
