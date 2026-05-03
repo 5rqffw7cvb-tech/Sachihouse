@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://sachihouse-production.up.railway.app/sitemap.xml
