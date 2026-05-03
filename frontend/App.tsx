@@ -7,8 +7,7 @@ import { PropertyData, SiteSettings } from './types';
 import { Loader2 } from 'lucide-react';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { HelmetProvider } from 'react-helmet-async';
-
-const ListingsPage = lazy(() => import('./pages/ListingsPage'));
+import ListingsPage from './pages/ListingsPage';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const AccessPage = lazy(() => import('./pages/AccessPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
