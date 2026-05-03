@@ -15,6 +15,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://images.unsplash.com">
+
+    <!-- LCP OPTIMIZATION: Preload hero listing image so browser starts fetching before JS renders -->
+    <link
+      rel="preload"
+      as="image"
+      href="https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=72&w=760"
+      imagesrcset="https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=72&w=400 400w, https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=72&w=760 760w, https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=72&w=900 900w"
+      imagesizes="(max-width: 767px) 92vw, (max-width: 1023px) 46vw, 30vw"
+      fetchpriority="high"
+    />
     
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <noscript>
