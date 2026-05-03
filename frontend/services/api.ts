@@ -73,10 +73,24 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     return undefined as T;
   }
 
-  const body = await response.json().catch(() => undefined);
+  const rawText = await response.text();
+  let body: unknown;
+  if (rawText) {
+    try {
+      body = JSON.parse(rawText);
+    } catch {
+      body = rawText;
+    }
+  }
+
   if (!response.ok) {
     const message = typeof body === 'object' && body && 'error' in body ? String((body as { error: string }).error) : `Request failed: ${response.status}`;
     throw new ApiError(message, response.status, body);
+  }
+
+  // Guard against misconfigured API base URL returning HTML/text with 200 status.
+  if (!body || typeof body === 'string') {
+    throw new ApiError('API returned unexpected response format. Verify VITE_API_BASE_URL points to backend /api.', response.status, body);
   }
 
   return body as T;

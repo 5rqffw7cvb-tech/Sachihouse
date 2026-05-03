@@ -120,13 +120,27 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
 };
 
 export const getAllProperties = async (): Promise<(PropertyData & { id: string })[]> => {
-  const response = await apiRequest<{ properties: (PropertyData & { id: string })[] }>('/properties');
-  return response.properties;
+  try {
+    const response = await apiRequest<{ properties: (PropertyData & { id: string })[] }>('/properties');
+    if (!Array.isArray(response.properties)) {
+      throw new Error('Invalid properties payload');
+    }
+    return response.properties;
+  } catch {
+    return [{ ...DEFAULT_DATA, id: DEFAULT_DATA.id || 'main' }];
+  }
 };
 
 export const getPropertyData = async (propertyId: string = 'main'): Promise<PropertyData> => {
-  const response = await apiRequest<{ property: PropertyData & { id: string } }>(`/properties/${propertyId}`);
-  return response.property;
+  try {
+    const response = await apiRequest<{ property: PropertyData & { id: string } }>(`/properties/${propertyId}`);
+    if (!response.property || typeof response.property !== 'object') {
+      throw new Error('Invalid property payload');
+    }
+    return response.property;
+  } catch {
+    return { ...DEFAULT_DATA, id: propertyId };
+  }
 };
 
 export const savePropertyData = async (data: PropertyData, propertyId: string = 'main'): Promise<void> => {
@@ -155,8 +169,15 @@ export const deletePropertyData = async (propertyId: string): Promise<void> => {
 };
 
 export const getSiteSettings = async (): Promise<SiteSettings> => {
-  const response = await apiRequest<{ settings: SiteSettings }>('/site-settings');
-  return { ...DEFAULT_SITE_SETTINGS, ...(response.settings ?? {}) };
+  try {
+    const response = await apiRequest<{ settings: SiteSettings }>('/site-settings');
+    if (!response.settings || typeof response.settings !== 'object') {
+      throw new Error('Invalid site settings payload');
+    }
+    return { ...DEFAULT_SITE_SETTINGS, ...(response.settings ?? {}) };
+  } catch {
+    return { ...DEFAULT_SITE_SETTINGS };
+  }
 };
 
 export const saveSiteSettings = async (settings: SiteSettings): Promise<void> => {
