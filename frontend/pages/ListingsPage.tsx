@@ -500,7 +500,16 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                       </div>
                       <div className="flex items-center gap-1.5 text-[#44474c]">
                         <Bath className="w-4 h-4" />
-                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.baths} Bath/Shower</span>
+                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">
+                          {property.baths}{' '}
+                          {property.bathFacilityType === 'shower_room'
+                            ? property.baths === 1
+                              ? 'Shower Room'
+                              : 'Shower Rooms'
+                            : property.baths === 1
+                              ? 'Bathroom'
+                              : 'Bathrooms'}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5 text-[#44474c]">
                         <Toilet className="w-4 h-4" />

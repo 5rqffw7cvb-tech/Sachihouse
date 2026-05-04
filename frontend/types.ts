@@ -165,6 +165,7 @@ export interface PropertyData {
   bedrooms: number;
   beds: number;
   baths: number;
+  bathFacilityType: 'bathroom' | 'shower_room';
   toilets: number;
 
   highlights: HighlightItem[];

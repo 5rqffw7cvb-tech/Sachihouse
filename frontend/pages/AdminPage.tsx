@@ -881,7 +881,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
                         <div className="md:col-span-2 rounded-xl border border-gray-200 bg-gray-50 p-4">
                             <h4 className="mb-3 text-sm font-bold text-gray-700 uppercase tracking-wide">Property Capacity</h4>
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">Guests</label>
                                     <input
@@ -913,7 +913,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Bath/Shower</label>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">Bath/Shower Count</label>
                                     <input
                                         type="number"
                                         min={1}
@@ -921,6 +921,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                         value={formData.baths}
                                         onChange={(e) => handleChange('baths', parseInt(e.target.value, 10) || 1)}
                                     />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">Bath/Shower Type</label>
+                                    <select
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                        value={formData.bathFacilityType || 'bathroom'}
+                                        onChange={(e) => handleChange('bathFacilityType', e.target.value as 'bathroom' | 'shower_room')}
+                                    >
+                                        <option value="bathroom">Bathroom</option>
+                                        <option value="shower_room">Shower room</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">Toilets</label>

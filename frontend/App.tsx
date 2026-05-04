@@ -159,6 +159,7 @@ const createDraftPropertyData = (propertyId: string): PropertyData => {
         bedrooms: 1,
         beds: 1,
         baths: 1,
+        bathFacilityType: 'bathroom',
         toilets: 1,
         highlights: [],
         accessInfo: {
