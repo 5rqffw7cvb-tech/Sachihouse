@@ -22,6 +22,7 @@ const AdminBlogPage = lazy(() => import('./pages/AdminBlogPage'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'));
 const PropertyAdminListPage = lazy(() => import('./pages/PropertyAdminListPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
+const PropertyPreviewPage = lazy(() => import('./pages/PropertyPreviewPage'));
 
 // ScrollToTop component to fix scroll position on route change in HashRouter
 const ScrollToTop = () => {
@@ -317,6 +318,7 @@ const PropertyRoutes = () => {
                 <Routes>
                     <Route element={<Layout data={data} />}>
                         <Route index element={<HomePage data={data} />} />
+                        <Route path="preview" element={<PropertyPreviewPage data={data} />} />
                         <Route path="access" element={<AccessPage data={data} />} />
                         <Route path="pricing" element={<PricingPage data={data} />} />
                         <Route path="rules" element={<RulesPage data={data} />} />
