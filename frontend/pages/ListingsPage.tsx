@@ -239,6 +239,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     new Map(allowedLocations.map((location) => [location.countryCode, location])).values(),
   );
   const provinceOptions = allowedLocations.filter((location) => location.countryCode === selectedCountryCode);
+  const selectedCountry = countryOptions.find((country) => country.countryCode === selectedCountryCode);
+  const selectedProvince = provinceOptions.find((province) => province.provinceCode === selectedProvinceCode);
 
   const scopedProperties = isHost && activeScope === 'mine'
     ? properties.filter((property) => authUser?.assignedPropertyIds?.includes(property.id))
@@ -252,11 +254,21 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const filteredProperties = scopedProperties.filter((property) => {
     const propertyCountryCode = property.location?.countryCode?.toUpperCase();
     const propertyProvinceCode = property.location?.provinceCode?.toUpperCase();
+    const propertyAddress = (property.address || '').toLowerCase();
 
-    if (selectedCountryCode && propertyCountryCode !== selectedCountryCode) {
+    const matchesCountryByAddress = !!selectedCountry && propertyAddress.includes(selectedCountry.countryName.toLowerCase());
+    const matchesCountry = !selectedCountryCode
+      || matchesCountryByAddress
+      || propertyCountryCode === selectedCountryCode;
+    if (!matchesCountry) {
       return false;
     }
-    if (selectedProvinceCode && propertyProvinceCode !== selectedProvinceCode) {
+
+    const matchesProvinceByAddress = !!selectedProvince && propertyAddress.includes(selectedProvince.provinceName.toLowerCase());
+    const matchesProvince = !selectedProvinceCode
+      || matchesProvinceByAddress
+      || propertyProvinceCode === selectedProvinceCode;
+    if (!matchesProvince) {
       return false;
     }
     if (Number.isFinite(minBedrooms) && minBedrooms > 0 && property.bedrooms < minBedrooms) {

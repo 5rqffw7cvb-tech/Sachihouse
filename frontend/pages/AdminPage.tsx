@@ -135,6 +135,14 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   };
 
   const handleSave = async () => {
+        const normalizedAddress = (formData.address || '').trim();
+        if (!normalizedAddress) {
+            setSaveStatus('error');
+            setSaveMessage('Address is required in Access Information.');
+            setActiveTab('access');
+            return;
+        }
+
     setSaveStatus('saving');
     setSaveMessage('');
     
@@ -145,6 +153,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
       // sanitize metalink
       dataToSave.metalink = dataToSave.metalink.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
     }
+        dataToSave.address = normalizedAddress;
 
     setFormData(dataToSave); // Update state
 
@@ -1551,13 +1560,16 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                 <div className="space-y-6">
                     <h3 className="font-bold text-gray-900">Access Information</h3>
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Address</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Address *</label>
                         <input 
                             type="text" 
+                            required
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
                             value={formData.address}
                             onChange={(e) => handleChange('address', e.target.value)}
+                            placeholder="Example: Koto City, Tokyo, Japan"
                         />
+                        <p className="mt-1 text-xs text-gray-500">This field is required and is used by listings filters.</p>
                     </div>
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">Google Maps Embed URL</label>

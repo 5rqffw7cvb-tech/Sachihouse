@@ -295,7 +295,13 @@ export function createApp(store: DataStore) {
   });
 
   app.post('/api/properties', requireAdmin, async (req, res) => {
-    const property = await store.createProperty(req.body as PropertyData, req.authUser!);
+    const payload = req.body as PropertyData;
+    if (typeof payload.address !== 'string' || !payload.address.trim()) {
+      return res.status(400).json({ error: 'Address is required.' });
+    }
+
+    payload.address = payload.address.trim();
+    const property = await store.createProperty(payload, req.authUser!);
     res.status(201).json({ property });
   });
 
@@ -308,7 +314,14 @@ export function createApp(store: DataStore) {
     if (!canPerformAction(req.authUser!, 'property.write', current.id)) {
       return res.status(403).json({ error: 'Property write not allowed.' });
     }
-    const property = await store.saveProperty(current.id, req.body as PropertyData, req.authUser!);
+
+    const payload = req.body as PropertyData;
+    if (typeof payload.address !== 'string' || !payload.address.trim()) {
+      return res.status(400).json({ error: 'Address is required.' });
+    }
+    payload.address = payload.address.trim();
+
+    const property = await store.saveProperty(current.id, payload, req.authUser!);
     res.json({ property });
   });
 
