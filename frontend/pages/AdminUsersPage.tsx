@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, Check, Eye, EyeOff, Loader2, Lock, Pencil, Plus, RefreshCw, Save, ShieldCheck, Trash2, X } from 'lucide-react';
+import { AlertCircle, Archive, Check, Eye, EyeOff, Loader2, Lock, Pencil, Plus, RefreshCw, RotateCcw, Save, ShieldCheck, X } from 'lucide-react';
 import { ApiUser } from '../services/api';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
 import { TopNavBar } from '../components/TopNavBar';
 import {
   assignHostToProperty,
   createUser,
-  deleteUser,
   listUsers,
   resetUserPassword,
+  setUserArchived,
   updateUserEmail,
+  updateUserCanEditBlog,
   updateUserName,
   unassignHostFromProperty,
   updateUserRole,
@@ -39,11 +40,13 @@ const AdminUsersPage: React.FC = () => {
     email: '',
     password: '',
     role: 'HOST' as UserRole,
+    canEditBlog: false,
   });
   const [isCreating, setIsCreating] = useState(false);
   const [pendingRoleUserId, setPendingRoleUserId] = useState<number | null>(null);
   const [pendingProfileSaveUserId, setPendingProfileSaveUserId] = useState<number | null>(null);
-  const [pendingDeleteUserId, setPendingDeleteUserId] = useState<number | null>(null);
+  const [pendingArchiveUserId, setPendingArchiveUserId] = useState<number | null>(null);
+  const [pendingBlogPermissionUserId, setPendingBlogPermissionUserId] = useState<number | null>(null);
   const [pendingAssignmentSaveUserId, setPendingAssignmentSaveUserId] = useState<number | null>(null);
   const [pendingResetUserId, setPendingResetUserId] = useState<number | null>(null);
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<number, string[]>>({});
@@ -128,7 +131,7 @@ const AdminUsersPage: React.FC = () => {
 
     try {
       await createUser(createForm);
-      setCreateForm({ name: '', email: '', password: '', role: 'HOST' });
+      setCreateForm({ name: '', email: '', password: '', role: 'HOST', canEditBlog: false });
       await loadData(true);
       setInfoMsg('User created successfully.');
     } catch (error) {
@@ -210,30 +213,47 @@ const AdminUsersPage: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = async (user: ApiUser) => {
+  const handleArchiveUser = async (user: ApiUser, archived: boolean) => {
     if (user.id === authUser?.id) {
-      setErrorMsg('You cannot delete your own account.');
+      setErrorMsg('You cannot archive your own account.');
       return;
     }
 
-    const confirmed = window.confirm(`Delete user ${user.email}? This action cannot be undone.`);
+    const confirmed = window.confirm(`${archived ? 'Archive' : 'Restore'} user ${user.email}?`);
     if (!confirmed) {
       return;
     }
 
     setErrorMsg(null);
     setInfoMsg(null);
-    setPendingDeleteUserId(user.id);
+    setPendingArchiveUserId(user.id);
 
     try {
-      await deleteUser(user.id);
+      await setUserArchived(user.id, archived);
       await loadData(true);
-      setInfoMsg(`User deleted: ${user.email}.`);
+      setInfoMsg(archived ? `User archived: ${user.email}.` : `User restored: ${user.email}.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete user.';
+      const message = error instanceof Error ? error.message : 'Failed to update user archive state.';
       setErrorMsg(message);
     } finally {
-      setPendingDeleteUserId(null);
+      setPendingArchiveUserId(null);
+    }
+  };
+
+  const handleBlogPermissionChange = async (user: ApiUser, canEditBlog: boolean) => {
+    setErrorMsg(null);
+    setInfoMsg(null);
+    setPendingBlogPermissionUserId(user.id);
+
+    try {
+      await updateUserCanEditBlog(user.id, canEditBlog);
+      await loadData(true);
+      setInfoMsg(`Blog editor access updated for ${user.email}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update blog editor access.';
+      setErrorMsg(message);
+    } finally {
+      setPendingBlogPermissionUserId(null);
     }
   };
 
@@ -441,7 +461,15 @@ const AdminUsersPage: React.FC = () => {
                 <option key={role} value={role}>{role}</option>
               ))}
             </select>
-            <div className="md:col-span-4">
+            <label className="md:col-span-5 inline-flex items-center gap-2 text-sm font-medium text-[#44474c]">
+              <input
+                type="checkbox"
+                checked={createForm.canEditBlog}
+                onChange={(event) => setCreateForm((prev) => ({ ...prev, canEditBlog: event.target.checked }))}
+              />
+              Grant blog editor permission
+            </label>
+            <div className="md:col-span-5">
               <button
                 type="submit"
                 disabled={isCreating}
@@ -473,6 +501,7 @@ const AdminUsersPage: React.FC = () => {
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold">Name / Email</th>
                     <th className="text-left px-4 py-3 font-semibold">Role</th>
+                    <th className="text-left px-4 py-3 font-semibold">Blog Editor</th>
                     <th className="text-left px-4 py-3 font-semibold">Assigned Properties</th>
                     <th className="text-left px-4 py-3 font-semibold">Manage Assignments</th>
                     <th className="text-left px-4 py-3 font-semibold">Reset Password</th>
@@ -523,6 +552,7 @@ const AdminUsersPage: React.FC = () => {
                             <div className="font-semibold text-[#1b1c1d]">{user.name}</div>
                             <div className="text-[#44474c]">{user.email}</div>
                             <div className="text-xs text-[#74777d]">ID: {user.id}</div>
+                            {user.archivedAt && <div className="text-xs font-semibold text-amber-700 mt-1">Archived</div>}
                           </>
                         )}
                       </td>
@@ -541,6 +571,18 @@ const AdminUsersPage: React.FC = () => {
                         {user.id === authUser?.id && (
                           <div className="text-xs text-[#74777d] mt-1">Your role cannot be edited here.</div>
                         )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <label className="inline-flex items-center gap-2 text-[#1b1c1d]">
+                          <input
+                            type="checkbox"
+                            checked={user.canEditBlog}
+                            disabled={pendingBlogPermissionUserId === user.id}
+                            onChange={(event) => handleBlogPermissionChange(user, event.target.checked)}
+                          />
+                          <span>{user.canEditBlog ? 'Enabled' : 'Disabled'}</span>
+                        </label>
+                        {pendingBlogPermissionUserId === user.id && <Loader2 className="w-4 h-4 animate-spin inline-block ml-2" />}
                       </td>
                       <td className="px-4 py-4">
                         {user.assignedPropertyIds.length === 0 ? (
@@ -628,23 +670,23 @@ const AdminUsersPage: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleStartEditProfile(user)}
-                            disabled={pendingDeleteUserId === user.id || pendingProfileSaveUserId === user.id}
+                            disabled={pendingArchiveUserId === user.id || pendingProfileSaveUserId === user.id}
                             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#041627] text-[#041627] text-xs font-semibold hover:bg-[#efedef] disabled:opacity-50"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDeleteUser(user)}
-                            disabled={pendingDeleteUserId === user.id || user.id === authUser?.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-red-300 text-red-600 text-xs font-semibold hover:bg-red-50 disabled:opacity-50"
+                            onClick={() => handleArchiveUser(user, !user.archivedAt)}
+                            disabled={pendingArchiveUserId === user.id || user.id === authUser?.id}
+                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold disabled:opacity-50 ${user.archivedAt ? 'border border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'}`}
                           >
-                            {pendingDeleteUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                            Delete
+                            {pendingArchiveUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : user.archivedAt ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                            {user.archivedAt ? 'Restore' : 'Archive'}
                           </button>
                         </div>
                         {user.id === authUser?.id && (
-                          <div className="text-xs text-[#74777d] mt-1">Your own account cannot be deleted.</div>
+                          <div className="text-xs text-[#74777d] mt-1">Your own account cannot be archived.</div>
                         )}
                       </td>
                     </tr>

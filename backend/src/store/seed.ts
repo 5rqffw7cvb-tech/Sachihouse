@@ -195,6 +195,7 @@ export async function createUserSeed(): Promise<StoredUser[]> {
       name: 'Sachi Operations Admin',
       email: 'admin@sachihouse.com',
       role: 'ADMIN',
+      canEditBlog: true,
       assignedPropertyIds: propertiesSeed.map((property) => property.id),
       passwordHash: await bcrypt.hash('admin123', 10)
     },
@@ -203,6 +204,7 @@ export async function createUserSeed(): Promise<StoredUser[]> {
       name: 'Sachi Primary Host',
       email: 'host@sachihouse.com',
       role: 'HOST',
+      canEditBlog: false,
       assignedPropertyIds: ['main'],
       passwordHash: await bcrypt.hash('host123', 10)
     }

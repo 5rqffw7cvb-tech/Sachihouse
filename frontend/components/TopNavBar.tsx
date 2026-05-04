@@ -18,6 +18,8 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
   const isAuthenticated = !!authUser;
   const canManageUsers = authUser?.role === 'ADMIN';
   const canUseMyProperties = authUser?.role === 'HOST';
+  const canManageBlog = authUser?.role === 'ADMIN' || authUser?.canEditBlog;
+  const canManageProperties = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -142,18 +144,22 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
                     <div className="px-4 py-2 border-b border-[#e4e2e3]">
                       <p className="text-sm font-medium text-[#1b1c1d] truncate">{userEmail}</p>
                     </div>
-                    <button 
-                      onClick={() => { setIsDropdownOpen(false); navigate('/admin/properties'); }}
-                      className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
-                    >
-                      Property Admin
-                    </button>
-                    <button 
-                      onClick={() => { setIsDropdownOpen(false); navigate('/blog/admin'); }}
-                      className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
-                    >
-                      Blog Admin
-                    </button>
+                    {canManageProperties && (
+                      <button 
+                        onClick={() => { setIsDropdownOpen(false); navigate('/admin/properties'); }}
+                        className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
+                      >
+                        Property Admin
+                      </button>
+                    )}
+                    {canManageBlog && (
+                      <button 
+                        onClick={() => { setIsDropdownOpen(false); navigate('/blog/admin'); }}
+                        className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
+                      >
+                        Blog Admin
+                      </button>
+                    )}
                     {canManageUsers && (
                       <button 
                         onClick={() => { setIsDropdownOpen(false); navigate('/admin/users'); }}

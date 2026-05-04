@@ -41,13 +41,15 @@ export class MemoryStore implements DataStore {
       name: user.name,
       email: user.email,
       role: user.role,
+      canEditBlog: user.canEditBlog,
+      archivedAt: user.archivedAt ?? null,
       assignedPropertyIds: [...user.assignedPropertyIds],
     };
   }
 
   async authenticate(email: string, password: string): Promise<AuthUser | null> {
     const state = this.assertState();
-    const user = state.users.find((candidate) => candidate.email.toLowerCase() === email.toLowerCase());
+    const user = state.users.find((candidate) => candidate.email.toLowerCase() === email.toLowerCase() && !candidate.archivedAt);
     if (!user) {
       return null;
     }
@@ -56,7 +58,7 @@ export class MemoryStore implements DataStore {
   }
 
   async getUserById(id: number): Promise<AuthUser | null> {
-    const user = this.assertState().users.find((candidate) => candidate.id === id);
+    const user = this.assertState().users.find((candidate) => candidate.id === id && !candidate.archivedAt);
     return user ? this.toAuthUser(user) : null;
   }
 
@@ -64,7 +66,7 @@ export class MemoryStore implements DataStore {
     return this.assertState().users.map((user) => this.toAuthUser(user));
   }
 
-  async createUser(name: string, email: string, password: string, role: Role, _actor: AuthUser): Promise<AuthUser> {
+  async createUser(name: string, email: string, password: string, role: Role, canEditBlog: boolean, _actor: AuthUser): Promise<AuthUser> {
     const state = this.assertState();
     const normalizedName = name.trim();
     const normalizedEmail = email.trim().toLowerCase();
@@ -82,7 +84,9 @@ export class MemoryStore implements DataStore {
       name: normalizedName,
       email: normalizedEmail,
       role,
+      canEditBlog,
       passwordHash,
+      archivedAt: null,
       assignedPropertyIds: [],
     };
     state.users.push(nextUser);
@@ -136,6 +140,28 @@ export class MemoryStore implements DataStore {
     return this.toAuthUser(user);
   }
 
+  async updateUserCanEditBlog(userId: number, canEditBlog: boolean, _actor: AuthUser): Promise<AuthUser> {
+    const state = this.assertState();
+    const user = state.users.find((candidate) => candidate.id === userId);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+
+    user.canEditBlog = canEditBlog;
+    return this.toAuthUser(user);
+  }
+
+  async setUserArchived(userId: number, archived: boolean, _actor: AuthUser): Promise<AuthUser> {
+    const state = this.assertState();
+    const user = state.users.find((candidate) => candidate.id === userId);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+
+    user.archivedAt = archived ? Date.now() : null;
+    return this.toAuthUser(user);
+  }
+
   async updateUserPassword(userId: number, password: string, _actor: AuthUser): Promise<void> {
     const state = this.assertState();
     const user = state.users.find((candidate) => candidate.id === userId);
@@ -155,8 +181,9 @@ export class MemoryStore implements DataStore {
     state.users.splice(index, 1);
   }
 
-  async listProperties(): Promise<Array<PropertyData & { id: string }>> {
-    return structuredClone(this.assertState().properties);
+  async listProperties(includeArchived = false): Promise<Array<PropertyData & { id: string }>> {
+    const properties = this.assertState().properties.filter((property) => includeArchived || !property.archivedAt);
+    return structuredClone(properties);
   }
 
   async getProperty(idOrMetalink: string): Promise<(PropertyData & { id: string }) | null> {
@@ -190,6 +217,21 @@ export class MemoryStore implements DataStore {
     return structuredClone(next);
   }
 
+  async setPropertyArchived(propertyId: string, archived: boolean): Promise<PropertyData & { id: string }> {
+    const state = this.assertState();
+    const index = state.properties.findIndex((item) => item.id === propertyId);
+    if (index === -1) {
+      throw new Error('Property not found.');
+    }
+
+    state.properties[index] = {
+      ...state.properties[index],
+      archivedAt: archived ? Date.now() : null,
+    };
+
+    return structuredClone(state.properties[index]);
+  }
+
   async deleteProperty(propertyId: string): Promise<void> {
     const state = this.assertState();
     state.properties = state.properties.filter((item) => item.id !== propertyId);
@@ -209,8 +251,10 @@ export class MemoryStore implements DataStore {
     return [...(this.assertState().blockedDates[propertyId] ?? [])];
   }
 
-  async listBlogPosts(): Promise<BlogPost[]> {
-    return structuredClone(this.assertState().blogPosts).sort((left, right) => right.createdAt - left.createdAt);
+  async listBlogPosts(includeArchived = false): Promise<BlogPost[]> {
+    return structuredClone(this.assertState().blogPosts)
+      .filter((post) => includeArchived || !post.archivedAt)
+      .sort((left, right) => right.createdAt - left.createdAt);
   }
 
   async getBlogPost(id: string): Promise<BlogPost | null> {
@@ -237,6 +281,22 @@ export class MemoryStore implements DataStore {
     const next = { ...state.blogPosts[index], ...structuredClone(post), updatedAt: Date.now() };
     state.blogPosts[index] = next;
     return structuredClone(next);
+  }
+
+  async setBlogPostArchived(id: string, archived: boolean): Promise<BlogPost> {
+    const state = this.assertState();
+    const index = state.blogPosts.findIndex((item) => item.id === id);
+    if (index === -1) {
+      throw new Error('Blog post not found.');
+    }
+
+    state.blogPosts[index] = {
+      ...state.blogPosts[index],
+      archivedAt: archived ? Date.now() : null,
+      updatedAt: Date.now(),
+    };
+
+    return structuredClone(state.blogPosts[index]);
   }
 
   async deleteBlogPost(id: string): Promise<void> {

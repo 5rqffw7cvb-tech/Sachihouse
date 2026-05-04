@@ -5,6 +5,8 @@ export interface AuthUser {
   name: string;
   email: string;
   role: Role;
+  canEditBlog: boolean;
+  archivedAt?: number | null;
   assignedPropertyIds: string[];
 }
 
@@ -24,6 +26,7 @@ export interface BlogPost {
   category: string;
   isFeatured: boolean;
   authorId: number;
+  archivedAt?: number | null;
 }
 
 export interface SiteSettings {
@@ -46,6 +49,7 @@ export interface SiteSettings {
 export interface PropertyData {
   id?: string;
   metalink?: string;
+  archivedAt?: number | null;
   name: string;
   subtitle: string;
   description: string;
@@ -129,24 +133,28 @@ export interface DataStore {
   authenticate(email: string, password: string): Promise<AuthUser | null>;
   getUserById(id: number): Promise<AuthUser | null>;
   listUsers(): Promise<AuthUser[]>;
-  createUser(name: string, email: string, password: string, role: Role, actor: AuthUser): Promise<AuthUser>;
+  createUser(name: string, email: string, password: string, role: Role, canEditBlog: boolean, actor: AuthUser): Promise<AuthUser>;
   updateUserName(userId: number, name: string, actor: AuthUser): Promise<AuthUser>;
   updateUserEmail(userId: number, email: string, actor: AuthUser): Promise<AuthUser>;
   updateUserRole(userId: number, role: Role, actor: AuthUser): Promise<AuthUser>;
+  updateUserCanEditBlog(userId: number, canEditBlog: boolean, actor: AuthUser): Promise<AuthUser>;
+  setUserArchived(userId: number, archived: boolean, actor: AuthUser): Promise<AuthUser>;
   updateUserPassword(userId: number, password: string, actor: AuthUser): Promise<void>;
   deleteUser(userId: number, actor: AuthUser): Promise<void>;
-  listProperties(): Promise<Array<PropertyData & { id: string }>>;
+  listProperties(includeArchived?: boolean): Promise<Array<PropertyData & { id: string }>>;
   getProperty(idOrMetalink: string): Promise<(PropertyData & { id: string }) | null>;
   createProperty(property: PropertyData, actor: AuthUser): Promise<PropertyData & { id: string }>;
   saveProperty(propertyId: string, property: PropertyData, actor: AuthUser): Promise<PropertyData & { id: string }>;
+  setPropertyArchived(propertyId: string, archived: boolean, actor: AuthUser): Promise<PropertyData & { id: string }>;
   deleteProperty(propertyId: string, actor: AuthUser): Promise<void>;
   getSiteSettings(): Promise<SiteSettings>;
   saveSiteSettings(settings: SiteSettings, actor: AuthUser): Promise<SiteSettings>;
   listBlockedDates(propertyId: string): Promise<string[]>;
-  listBlogPosts(): Promise<BlogPost[]>;
+  listBlogPosts(includeArchived?: boolean): Promise<BlogPost[]>;
   getBlogPost(id: string): Promise<BlogPost | null>;
   createBlogPost(post: Omit<BlogPost, 'createdAt' | 'updatedAt'>, actor: AuthUser): Promise<BlogPost>;
   updateBlogPost(id: string, post: Partial<Omit<BlogPost, 'id' | 'createdAt' | 'authorId'>>, actor: AuthUser): Promise<BlogPost>;
+  setBlogPostArchived(id: string, archived: boolean, actor: AuthUser): Promise<BlogPost>;
   deleteBlogPost(id: string, actor: AuthUser): Promise<void>;
   assignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void>;
   unassignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void>;

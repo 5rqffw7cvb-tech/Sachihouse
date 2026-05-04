@@ -136,6 +136,7 @@ export interface PropertyData {
   id?: string;
   name: string;
   metalink?: string;
+  archivedAt?: number | null;
   // Browser Tab Settings
   metaTitle?: string;
   metaFavicon?: string;

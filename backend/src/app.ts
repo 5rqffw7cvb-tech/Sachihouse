@@ -43,6 +43,22 @@ function toNormalizedCode(value: unknown): string | null {
   return normalized ? normalized : null;
 }
 
+function toBoolean(value: unknown): boolean | null {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value !== 'string') {
+    return null;
+  }
+  if (value === 'true') {
+    return true;
+  }
+  if (value === 'false') {
+    return false;
+  }
+  return null;
+}
+
 export function createApp(store: DataStore) {
   const app = express();
   const icalSync = new IcalSyncService({
@@ -135,7 +151,7 @@ export function createApp(store: DataStore) {
   });
 
   app.post('/api/users', requireAdmin, async (req, res) => {
-    const { name, email, password, role } = req.body ?? {};
+    const { name, email, password, role, canEditBlog } = req.body ?? {};
     if (typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: 'Name is required.' });
     }
@@ -149,7 +165,7 @@ export function createApp(store: DataStore) {
       return res.status(400).json({ error: 'Valid role is required.' });
     }
 
-    const user = await store.createUser(name, email, password, role, req.authUser!);
+    const user = await store.createUser(name, email, password, role, Boolean(canEditBlog), req.authUser!);
     return res.status(201).json({ user });
   });
 
@@ -183,6 +199,39 @@ export function createApp(store: DataStore) {
     }
 
     const user = await store.updateUserRole(userId, role, req.authUser!);
+    return res.json({ user });
+  });
+
+  app.patch('/api/users/:id/can-edit-blog', requireAdmin, async (req, res) => {
+    const userId = Number(getParam(req.params.id));
+    const canEditBlog = toBoolean(req.body?.canEditBlog);
+
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Valid user id is required.' });
+    }
+    if (canEditBlog === null) {
+      return res.status(400).json({ error: 'Valid canEditBlog flag is required.' });
+    }
+
+    const user = await store.updateUserCanEditBlog(userId, canEditBlog, req.authUser!);
+    return res.json({ user });
+  });
+
+  app.patch('/api/users/:id/archive', requireAdmin, async (req, res) => {
+    const userId = Number(getParam(req.params.id));
+    const archived = toBoolean(req.body?.archived);
+
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Valid user id is required.' });
+    }
+    if (archived === null) {
+      return res.status(400).json({ error: 'Valid archived flag is required.' });
+    }
+    if (req.authUser!.id === userId && archived) {
+      return res.status(400).json({ error: 'Cannot archive your own account.' });
+    }
+
+    const user = await store.setUserArchived(userId, archived, req.authUser!);
     return res.json({ user });
   });
 
@@ -244,6 +293,7 @@ export function createApp(store: DataStore) {
     const minGuests = toPositiveInt(minGuestsRaw);
     const countryCode = toNormalizedCode(countryCodeRaw);
     const provinceCode = toNormalizedCode(provinceCodeRaw);
+    const includeArchived = req.query.includeArchived === 'true' && !!req.authUser;
 
     if (typeof minBedroomsRaw === 'string' && minBedrooms === null) {
       return res.status(400).json({ error: 'minBedrooms must be a positive integer.' });
@@ -252,8 +302,11 @@ export function createApp(store: DataStore) {
       return res.status(400).json({ error: 'minGuests must be a positive integer.' });
     }
 
-    const properties = await store.listProperties();
+    const properties = await store.listProperties(includeArchived);
     const filtered = properties.filter((property) => {
+      if (property.archivedAt && !includeArchived) {
+        return false;
+      }
       if (minBedrooms !== null && property.bedrooms < minBedrooms) {
         return false;
       }
@@ -279,7 +332,8 @@ export function createApp(store: DataStore) {
 
   app.get('/api/properties/:id', async (req, res) => {
     const property = await store.getProperty(req.params.id);
-    if (!property) {
+    const canReadArchived = property && property.archivedAt && req.authUser && canPerformAction(req.authUser, 'property.read', property.id);
+    if (!property || (property.archivedAt && !canReadArchived)) {
       return res.status(404).json({ error: 'Property not found.' });
     }
     res.json({ property });
@@ -339,6 +393,24 @@ export function createApp(store: DataStore) {
     res.status(204).send();
   });
 
+  app.patch('/api/properties/:id/archive', requireAuth, async (req, res) => {
+    const propertyId = getParam(req.params.id);
+    const archived = toBoolean(req.body?.archived);
+    const current = await store.getProperty(propertyId);
+    if (!current) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (archived === null) {
+      return res.status(400).json({ error: 'Valid archived flag is required.' });
+    }
+    if (!canPerformAction(req.authUser!, 'property.delete', current.id)) {
+      return res.status(403).json({ error: 'Property archive not allowed.' });
+    }
+
+    const property = await store.setPropertyArchived(current.id, archived, req.authUser!);
+    res.json({ property });
+  });
+
   app.get('/api/site-settings', async (_req, res) => {
     const settings = await store.getSiteSettings();
     res.json({ settings });
@@ -349,14 +421,16 @@ export function createApp(store: DataStore) {
     res.json({ settings });
   });
 
-  app.get('/api/blog-posts', async (_req, res) => {
-    const posts = await store.listBlogPosts();
+  app.get('/api/blog-posts', async (req, res) => {
+    const includeArchived = req.query.includeArchived === 'true' && !!req.authUser && canPerformAction(req.authUser, 'blog.write');
+    const posts = await store.listBlogPosts(includeArchived);
     res.json({ posts });
   });
 
   app.get('/api/blog-posts/:id', async (req, res) => {
     const post = await store.getBlogPost(req.params.id);
-    if (!post) {
+    const canReadArchived = post && post.archivedAt && req.authUser && canPerformAction(req.authUser, 'blog.write');
+    if (!post || (post.archivedAt && !canReadArchived)) {
       return res.status(404).json({ error: 'Blog post not found.' });
     }
     res.json({ post });
@@ -377,8 +451,7 @@ export function createApp(store: DataStore) {
     if (!current) {
       return res.status(404).json({ error: 'Blog post not found.' });
     }
-    const isOwner = current.authorId === req.authUser!.id;
-    if (!(req.authUser!.role === 'ADMIN' || isOwner)) {
+    if (!canPerformAction(req.authUser!, 'blog.write')) {
       return res.status(403).json({ error: 'Blog update not allowed.' });
     }
     const post = await store.updateBlogPost(postId, req.body, req.authUser!);
@@ -391,12 +464,29 @@ export function createApp(store: DataStore) {
     if (!current) {
       return res.status(404).json({ error: 'Blog post not found.' });
     }
-    const isOwner = current.authorId === req.authUser!.id;
-    if (!(req.authUser!.role === 'ADMIN' || isOwner)) {
+    if (!canPerformAction(req.authUser!, 'blog.write')) {
       return res.status(403).json({ error: 'Blog delete not allowed.' });
     }
     await store.deleteBlogPost(postId, req.authUser!);
     res.status(204).send();
+  });
+
+  app.patch('/api/blog-posts/:id/archive', requireAuth, async (req, res) => {
+    const postId = getParam(req.params.id);
+    const archived = toBoolean(req.body?.archived);
+    const current = await store.getBlogPost(postId);
+    if (!current) {
+      return res.status(404).json({ error: 'Blog post not found.' });
+    }
+    if (archived === null) {
+      return res.status(400).json({ error: 'Valid archived flag is required.' });
+    }
+    if (!canPerformAction(req.authUser!, 'blog.write')) {
+      return res.status(403).json({ error: 'Blog archive not allowed.' });
+    }
+
+    const post = await store.setBlogPostArchived(postId, archived, req.authUser!);
+    res.json({ post });
   });
 
   app.post('/api/properties/:propertyId/hosts/:hostUserId', requireAdmin, async (req, res) => {

@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, Loader2, Pencil, Trash2, X } from 'lucide-react';
+import { AlertCircle, Archive, Loader2, Pencil, RotateCcw, X } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { getCurrentUser, checkAuth, subscribeToAuth } from '../services/auth';
-import { deletePropertyData, getAllProperties } from '../services/storage';
+import { getAllProperties, setPropertyArchived } from '../services/storage';
 import { ApiUser } from '../services/api';
 import { PropertyData } from '../types';
 
@@ -19,8 +19,8 @@ const PropertyAdminListPage: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null);
+  const [pendingArchiveId, setPendingArchiveId] = useState<string | null>(null);
 
   const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
 
@@ -50,7 +50,7 @@ const PropertyAdminListPage: React.FC = () => {
 
     setErrorMsg(null);
     try {
-      const properties = await getAllProperties();
+      const properties = await getAllProperties({ includeArchived: true });
       setAllProperties(properties);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load properties.';
@@ -88,21 +88,21 @@ const PropertyAdminListPage: React.FC = () => {
     navigate(`/${property.metalink || property.id}/admin`);
   };
 
-  const handleDelete = async (property: PropertyData & { id: string }) => {
+  const handleArchiveToggle = async (property: PropertyData & { id: string }, archived: boolean) => {
     setErrorMsg(null);
     setInfoMsg(null);
-    setPendingDeleteId(property.id);
+    setPendingArchiveId(property.id);
 
     try {
-      await deletePropertyData(property.id);
-      setAllProperties((prev) => prev.filter((item) => item.id !== property.id));
-      setConfirmDeleteId(null);
-      setInfoMsg(`Property deleted: ${property.name || property.id}`);
+      await setPropertyArchived(property.id, archived);
+      setAllProperties((prev) => prev.map((item) => item.id === property.id ? { ...item, archivedAt: archived ? Date.now() : null } : item));
+      setConfirmArchiveId(null);
+      setInfoMsg(archived ? `Property archived: ${property.name || property.id}` : `Property restored: ${property.name || property.id}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete property.';
+      const message = error instanceof Error ? error.message : 'Failed to update property archive state.';
       setErrorMsg(message);
     } finally {
-      setPendingDeleteId(null);
+      setPendingArchiveId(null);
     }
   };
 
@@ -202,50 +202,51 @@ const PropertyAdminListPage: React.FC = () => {
                 </thead>
                 <tbody>
                   {managedProperties.map((property) => {
-                    const isDeleting = pendingDeleteId === property.id;
-                    const isConfirming = confirmDeleteId === property.id;
+                    const isArchiving = pendingArchiveId === property.id;
+                    const isConfirming = confirmArchiveId === property.id;
 
                     return (
                       <tr key={property.id} className="border-t border-[#efedef] align-top">
                         <td className="px-4 py-4">
                           <div className="font-semibold text-[#1b1c1d]">{property.name || property.id}</div>
                           <div className="text-xs text-[#74777d]">{property.subtitle || 'No subtitle'}</div>
+                          {property.archivedAt && <div className="mt-1 text-xs font-semibold text-amber-700">Archived</div>}
                         </td>
                         <td className="px-4 py-4 text-[#44474c]">{property.id}</td>
                         <td className="px-4 py-4">
                           <div className="flex flex-wrap items-center gap-2">
                             <button
                               onClick={() => handleEdit(property)}
-                              disabled={isDeleting}
+                              disabled={isArchiving}
                               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#041627] text-[#041627] text-xs font-semibold hover:bg-[#efedef] disabled:opacity-50"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                               Edit
                             </button>
                             <button
-                              onClick={() => setConfirmDeleteId(property.id)}
-                              disabled={isDeleting}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-red-300 text-red-600 text-xs font-semibold hover:bg-red-50 disabled:opacity-50"
+                              onClick={() => setConfirmArchiveId(property.id)}
+                              disabled={isArchiving}
+                              className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold disabled:opacity-50 ${property.archivedAt ? 'border border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'}`}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Delete
+                              {property.archivedAt ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                              {property.archivedAt ? 'Restore' : 'Archive'}
                             </button>
                           </div>
 
                           {isConfirming && (
                             <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 flex flex-wrap items-center gap-2">
-                              <span>Confirm delete this property?</span>
+                              <span>{property.archivedAt ? 'Restore this property?' : 'Archive this property?'}</span>
                               <button
-                                onClick={() => handleDelete(property)}
-                                disabled={isDeleting}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-60"
+                                onClick={() => handleArchiveToggle(property, !property.archivedAt)}
+                                disabled={isArchiving}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-white font-semibold disabled:opacity-60 ${property.archivedAt ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'}`}
                               >
-                                {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                                Confirm Delete
+                                {isArchiving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : property.archivedAt ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                                Confirm
                               </button>
                               <button
-                                onClick={() => setConfirmDeleteId(null)}
-                                disabled={isDeleting}
+                                onClick={() => setConfirmArchiveId(null)}
+                                disabled={isArchiving}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[#c4c6cd] text-[#44474c] font-semibold hover:bg-white disabled:opacity-60"
                               >
                                 <X className="w-3.5 h-3.5" />

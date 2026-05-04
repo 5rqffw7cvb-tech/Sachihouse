@@ -149,6 +149,7 @@ export interface PropertyListFilters {
   provinceCode?: string;
   minBedrooms?: number;
   minGuests?: number;
+  includeArchived?: boolean;
 }
 
 export const getAllProperties = async (filters?: PropertyListFilters): Promise<(PropertyData & { id: string })[]> => {
@@ -164,6 +165,9 @@ export const getAllProperties = async (filters?: PropertyListFilters): Promise<(
   }
   if (filters?.minGuests && filters.minGuests > 0) {
     query.set('minGuests', String(filters.minGuests));
+  }
+  if (filters?.includeArchived) {
+    query.set('includeArchived', 'true');
   }
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
@@ -185,7 +189,10 @@ export const getPropertyData = async (propertyId: string = 'main'): Promise<Prop
       throw new Error('Invalid property payload');
     }
     return response.property;
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      throw error;
+    }
     return { ...DEFAULT_DATA, id: propertyId };
   }
 };
@@ -212,6 +219,13 @@ export const savePropertyData = async (data: PropertyData, propertyId: string = 
 export const deletePropertyData = async (propertyId: string): Promise<void> => {
   await apiRequest(`/properties/${propertyId}`, {
     method: 'DELETE',
+  });
+};
+
+export const setPropertyArchived = async (propertyId: string, archived: boolean): Promise<void> => {
+  await apiRequest(`/properties/${propertyId}/archive`, {
+    method: 'PATCH',
+    body: JSON.stringify({ archived }),
   });
 };
 

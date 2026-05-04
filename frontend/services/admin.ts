@@ -7,6 +7,7 @@ export interface CreateUserInput {
   email: string;
   password: string;
   role: UserRole;
+  canEditBlog: boolean;
 }
 
 export async function listUsers(): Promise<ApiUser[]> {
@@ -18,6 +19,22 @@ export async function createUser(input: CreateUserInput): Promise<ApiUser> {
   const response = await apiRequest<{ user: ApiUser }>('/users', {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+  return response.user;
+}
+
+export async function updateUserCanEditBlog(userId: number, canEditBlog: boolean): Promise<ApiUser> {
+  const response = await apiRequest<{ user: ApiUser }>(`/users/${userId}/can-edit-blog`, {
+    method: 'PATCH',
+    body: JSON.stringify({ canEditBlog }),
+  });
+  return response.user;
+}
+
+export async function setUserArchived(userId: number, archived: boolean): Promise<ApiUser> {
+  const response = await apiRequest<{ user: ApiUser }>(`/users/${userId}/archive`, {
+    method: 'PATCH',
+    body: JSON.stringify({ archived }),
   });
   return response.user;
 }

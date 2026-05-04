@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BlogPost, blogService } from '../services/blogService';
-import { Plus, Edit2, Trash2, Lock, Loader2, ArrowLeft, Save, ImageIcon, Check, X, PencilLine, Columns2, Eye, Bold, Italic, List, ListOrdered, Heading2, Quote, Link as LinkIcon } from 'lucide-react';
+import { Plus, Edit2, Archive, Lock, Loader2, ArrowLeft, Save, ImageIcon, Check, X, PencilLine, Columns2, Eye, Bold, Italic, List, ListOrdered, Heading2, Quote, Link as LinkIcon, RotateCcw } from 'lucide-react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { TopNavBar } from '../components/TopNavBar';
@@ -32,7 +32,7 @@ const AdminBlogPage: React.FC = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const richTextRef = useRef<HTMLDivElement | null>(null);
 
-  const canManageBlog = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
+  const canManageBlog = authUser?.role === 'ADMIN' || authUser?.canEditBlog;
 
   const toSlug = (value: string) => value
     .toLowerCase()
@@ -57,7 +57,7 @@ const AdminBlogPage: React.FC = () => {
     setInfoMsg('');
     setLoading(true);
     try {
-      const data = await blogService.getPosts();
+      const data = await blogService.getPosts(true);
       setPosts(data);
 
       const editId = searchParams.get('edit');
@@ -165,16 +165,16 @@ const AdminBlogPage: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleArchiveToggle = async (post: BlogPost, archived: boolean) => {
     setErrorMsg('');
     setInfoMsg('');
     try {
-      await blogService.deletePost(id);
-      setPosts((prev) => prev.filter((post) => post.id !== id));
+      await blogService.setArchived(post.id, archived);
+      setPosts((prev) => prev.map((item) => item.id === post.id ? { ...item, archivedAt: archived ? Date.now() : null } : item));
       setConfirmDeleteId(null);
-      setInfoMsg('Post deleted successfully.');
+      setInfoMsg(archived ? 'Post archived successfully.' : 'Post restored successfully.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete post.';
+      const message = error instanceof Error ? error.message : 'Failed to update post archive state.';
       setErrorMsg(message);
     }
   };
@@ -209,7 +209,7 @@ const AdminBlogPage: React.FC = () => {
               </div>
             </div>
             <h2 className="text-2xl font-bold text-center text-gray-900 mb-3">Blog Admin Access</h2>
-            <p className="text-sm text-[#44474c] text-center mb-6">Sign in with admin or host account to manage blog posts.</p>
+            <p className="text-sm text-[#44474c] text-center mb-6">Sign in with an admin or blog editor account to manage blog posts.</p>
             <div className="space-y-4">
               {errorMsg && <p className="text-red-500 text-sm text-center">{errorMsg}</p>}
               <button
@@ -235,7 +235,7 @@ const AdminBlogPage: React.FC = () => {
             <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
               <Lock className="w-6 h-6" />
             </div>
-            <h1 className="text-2xl font-bold text-[#1b1c1d] mb-2">Admin or host role required</h1>
+            <h1 className="text-2xl font-bold text-[#1b1c1d] mb-2">Admin or blog editor access required</h1>
             <p className="text-[#44474c] mb-6">Your current account does not have permission to access blog administration.</p>
             <Link to="/blog" className="inline-flex items-center px-5 py-2.5 rounded-full border border-[#041627] text-[#041627] font-semibold hover:bg-[#efedef] transition-colors">
               Back to blog
@@ -554,7 +554,9 @@ const AdminBlogPage: React.FC = () => {
                           <span>•</span>
                           <span>{new Date(post.updatedAt || post.createdAt).toLocaleDateString()}</span>
                           <span>•</span>
-                          {post.isFeatured ? (
+                          {post.archivedAt ? (
+                            <span className="text-amber-700 font-semibold">Archived</span>
+                          ) : post.isFeatured ? (
                             <span className="text-blue-700 font-semibold">Featured</span>
                           ) : (
                             <span className="font-semibold">Standard</span>
@@ -565,12 +567,15 @@ const AdminBlogPage: React.FC = () => {
 
                     <div className="mt-3 flex items-center gap-2">
                       <button onClick={() => startEdit(post)} className="flex-1 inline-flex items-center justify-center gap-1 text-[#041627] bg-[#efedef] px-3 py-2 rounded-lg text-xs font-semibold"><Edit2 className="w-4 h-4" />Edit</button>
-                      <button onClick={() => setConfirmDeleteId(post.id)} className="flex-1 inline-flex items-center justify-center gap-1 text-red-600 bg-red-50 px-3 py-2 rounded-lg text-xs font-semibold"><Trash2 className="w-4 h-4" />Delete</button>
+                      <button onClick={() => setConfirmDeleteId(post.id)} className={`flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold ${post.archivedAt ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'}`}>
+                        {post.archivedAt ? <RotateCcw className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                        {post.archivedAt ? 'Restore' : 'Archive'}
+                      </button>
                     </div>
 
                     {isConfirming && (
                       <div className="mt-2 flex items-center gap-2">
-                        <button onClick={() => handleDelete(post.id)} className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700">
+                        <button onClick={() => handleArchiveToggle(post, !post.archivedAt)} className={`flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-white text-xs font-semibold ${post.archivedAt ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'}`}>
                           <Check className="w-3.5 h-3.5" />Confirm
                         </button>
                         <button onClick={() => setConfirmDeleteId(null)} className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#c4c6cd] text-[#44474c] text-xs font-semibold hover:bg-[#efedef]">
@@ -617,7 +622,9 @@ const AdminBlogPage: React.FC = () => {
                         <td className="p-4 text-sm text-[#44474c]">{post.category || '-'}</td>
                         <td className="p-4 text-sm text-[#74777d]">{new Date(post.updatedAt || post.createdAt).toLocaleDateString()}</td>
                         <td className="p-4">
-                          {post.isFeatured ? (
+                          {post.archivedAt ? (
+                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">Archived</span>
+                          ) : post.isFeatured ? (
                             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Featured</span>
                           ) : (
                             <span className="text-xs bg-[#efedef] text-[#44474c] px-2 py-0.5 rounded-full font-semibold">Standard</span>
@@ -626,12 +633,15 @@ const AdminBlogPage: React.FC = () => {
                         <td className="p-4 text-right">
                           <div className="flex justify-end items-center gap-2">
                             <button onClick={() => startEdit(post)} className="inline-flex items-center gap-1 text-[#041627] hover:bg-[#efedef] px-2.5 py-1.5 rounded-lg text-xs font-semibold"><Edit2 className="w-4 h-4" />Edit</button>
-                            <button onClick={() => setConfirmDeleteId(post.id)} className="inline-flex items-center gap-1 text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded-lg text-xs font-semibold"><Trash2 className="w-4 h-4" />Delete</button>
+                            <button onClick={() => setConfirmDeleteId(post.id)} className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold ${post.archivedAt ? 'text-emerald-700 hover:bg-emerald-50' : 'text-amber-700 hover:bg-amber-50'}`}>
+                              {post.archivedAt ? <RotateCcw className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                              {post.archivedAt ? 'Restore' : 'Archive'}
+                            </button>
                           </div>
 
                           {isConfirming && (
                             <div className="mt-2 flex justify-end items-center gap-2">
-                              <button onClick={() => handleDelete(post.id)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-600 text-white text-xs font-semibold hover:bg-red-700">
+                              <button onClick={() => handleArchiveToggle(post, !post.archivedAt)} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-white text-xs font-semibold ${post.archivedAt ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'}`}>
                                 <Check className="w-3.5 h-3.5" />Confirm
                               </button>
                               <button onClick={() => setConfirmDeleteId(null)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[#c4c6cd] text-[#44474c] text-xs font-semibold hover:bg-[#efedef]">

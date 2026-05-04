@@ -2,6 +2,7 @@ import { Role } from '../types/domain.js';
 
 export interface PermissionContext {
   role: Role;
+  canEditBlog?: boolean;
   assignedPropertyIds?: string[];
 }
 
@@ -38,12 +39,16 @@ export function canPerformAction(
 
   if (context.role === 'HOST') {
     if (action === 'blog.write') {
-      return true;
+      return Boolean(context.canEditBlog);
     }
     if ((action === 'property.write' || action === 'property.read' || action === 'property.delete') && propertyId) {
       return canAccessProperty(context, propertyId);
     }
     return false;
+  }
+
+  if (action === 'blog.write') {
+    return Boolean(context.canEditBlog);
   }
 
   return action === 'property.read';

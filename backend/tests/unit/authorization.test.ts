@@ -22,4 +22,10 @@ describe('authorization domain', () => {
     expect(canPerformAction({ role: 'HOST', assignedPropertyIds: ['sachi-ojima'] }, 'property.write', 'sachi-shinjuku')).toBe(false);
     expect(canPerformAction({ role: 'HOST', assignedPropertyIds: ['sachi-ojima'] }, 'property.assignHost', 'sachi-ojima')).toBe(false);
   });
+
+  it('requires explicit blog editor permission for non-admin blog writes', () => {
+    expect(canPerformAction({ role: 'HOST', canEditBlog: false }, 'blog.write')).toBe(false);
+    expect(canPerformAction({ role: 'HOST', canEditBlog: true }, 'blog.write')).toBe(true);
+    expect(canPerformAction({ role: 'GUEST', canEditBlog: true }, 'blog.write')).toBe(true);
+  });
 });

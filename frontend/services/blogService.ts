@@ -12,11 +12,13 @@ export interface BlogPost {
   category: string;
   isFeatured: boolean;
   authorId: number;
+  archivedAt?: number | null;
 }
 
 export const blogService = {
-  async getPosts(): Promise<BlogPost[]> {
-    const response = await apiRequest<{ posts: BlogPost[] }>('/blog-posts');
+  async getPosts(includeArchived = false): Promise<BlogPost[]> {
+    const suffix = includeArchived ? '?includeArchived=true' : '';
+    const response = await apiRequest<{ posts: BlogPost[] }>(`/blog-posts${suffix}`);
     return response.posts;
   },
 
@@ -49,5 +51,12 @@ export const blogService = {
     await apiRequest(`/blog-posts/${id}`, {
       method: 'DELETE',
     });
-  }
+  },
+
+  async setArchived(id: string, archived: boolean): Promise<void> {
+    await apiRequest(`/blog-posts/${id}/archive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ archived }),
+    });
+  },
 };

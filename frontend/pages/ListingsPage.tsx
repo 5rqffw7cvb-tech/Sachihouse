@@ -4,7 +4,7 @@ import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
-import { deletePropertyData, saveSiteSettings } from '../services/storage';
+import { saveSiteSettings, setPropertyArchived } from '../services/storage';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { ApiUser } from '../services/api';
@@ -140,17 +140,17 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     e.preventDefault();
     e.stopPropagation();
 
-    if (!confirm('Are you sure you want to delete this listing? This action cannot be undone.')) {
+    if (!confirm('Archive this listing? You can restore it later from Property Administration.')) {
       return;
     }
 
     setDeletingId(propertyId);
     try {
-      await deletePropertyData(propertyId);
+      await setPropertyArchived(propertyId, true);
       setProperties(prev => prev.filter(p => p.id !== propertyId));
     } catch (error) {
-      console.error("Delete error:", error);
-      alert('Failed to delete property. Please try again.');
+      console.error("Archive error:", error);
+      alert('Failed to archive property. Please try again.');
     } finally {
       setDeletingId(null);
     }

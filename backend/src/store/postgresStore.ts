@@ -13,7 +13,9 @@ export class PostgresStore implements DataStore {
         name TEXT,
         email TEXT NOT NULL UNIQUE,
         role TEXT NOT NULL,
-        password_hash TEXT NOT NULL
+        password_hash TEXT NOT NULL,
+        can_edit_blog BOOLEAN NOT NULL DEFAULT FALSE,
+        archived_at BIGINT
       );
 
       CREATE TABLE IF NOT EXISTS properties (
@@ -59,6 +61,8 @@ export class PostgresStore implements DataStore {
     `);
 
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT');
+    await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_edit_blog BOOLEAN NOT NULL DEFAULT FALSE');
+    await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS archived_at BIGINT');
     await this.pool.query("UPDATE users SET name = split_part(email, '@', 1) WHERE name IS NULL OR trim(name) = ''");
 
     const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
@@ -71,6 +75,13 @@ export class PostgresStore implements DataStore {
       await this.pool.query(
         'INSERT INTO users (id, name, email, role, password_hash) VALUES ($1, $2, $3, $4, $5)',
         [user.id, user.name, user.email, user.role, user.passwordHash],
+      );
+    }
+
+    for (const user of users) {
+      await this.pool.query(
+        'UPDATE users SET can_edit_blog = $2, archived_at = $3 WHERE id = $1',
+        [user.id, user.canEditBlog, user.archivedAt ?? null],
       );
     }
 
@@ -121,19 +132,21 @@ export class PostgresStore implements DataStore {
     return result.rows.map((row: { property_id: string }) => row.property_id);
   }
 
-  private async mapUser(row: { id: number; name: string; email: string; role: AuthUser['role'] }): Promise<AuthUser> {
+  private async mapUser(row: { id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null }): Promise<AuthUser> {
     return {
       id: row.id,
       name: row.name,
       email: row.email,
       role: row.role,
+      canEditBlog: row.can_edit_blog,
+      archivedAt: row.archived_at,
       assignedPropertyIds: row.role === 'HOST' ? await this.getAssignedPropertyIds(row.id) : [],
     };
   }
 
   async authenticate(email: string, password: string): Promise<AuthUser | null> {
-    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; password_hash: string }>(
-      'SELECT id, name, email, role, password_hash FROM users WHERE lower(email) = lower($1)',
+    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; password_hash: string; can_edit_blog: boolean; archived_at: number | null }>(
+      'SELECT id, name, email, role, password_hash, can_edit_blog, archived_at FROM users WHERE lower(email) = lower($1) AND archived_at IS NULL',
       [email],
     );
     const row = result.rows[0];
@@ -146,8 +159,8 @@ export class PostgresStore implements DataStore {
   }
 
   async getUserById(id: number): Promise<AuthUser | null> {
-    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>(
-      'SELECT id, name, email, role FROM users WHERE id = $1',
+    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null }>(
+      'SELECT id, name, email, role, can_edit_blog, archived_at FROM users WHERE id = $1 AND archived_at IS NULL',
       [id],
     );
     const row = result.rows[0];
@@ -155,11 +168,11 @@ export class PostgresStore implements DataStore {
   }
 
   async listUsers(): Promise<AuthUser[]> {
-    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>('SELECT id, name, email, role FROM users ORDER BY id');
-    return Promise.all(result.rows.map((row: { id: number; name: string; email: string; role: AuthUser['role'] }) => this.mapUser(row)));
+    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null }>('SELECT id, name, email, role, can_edit_blog, archived_at FROM users ORDER BY id');
+    return Promise.all(result.rows.map((row) => this.mapUser(row)));
   }
 
-  async createUser(name: string, email: string, password: string, role: Role, actor: AuthUser): Promise<AuthUser> {
+  async createUser(name: string, email: string, password: string, role: Role, canEditBlog: boolean, actor: AuthUser): Promise<AuthUser> {
     const normalizedName = name.trim();
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedName) {
@@ -175,9 +188,9 @@ export class PostgresStore implements DataStore {
 
     const bcrypt = await import('bcryptjs');
     const passwordHash = await bcrypt.default.hash(password, 10);
-    const insertResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>(
-      'INSERT INTO users (id, name, email, role, password_hash) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role',
-      [nextId, normalizedName, normalizedEmail, role, passwordHash],
+    const insertResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null }>(
+      'INSERT INTO users (id, name, email, role, password_hash, can_edit_blog, archived_at) VALUES ($1, $2, $3, $4, $5, $6, NULL) RETURNING id, name, email, role, can_edit_blog, archived_at',
+      [nextId, normalizedName, normalizedEmail, role, passwordHash, canEditBlog],
     );
     const created = await this.mapUser(insertResult.rows[0]);
     await this.writeAudit(actor.id, 'CREATE', 'user', String(created.id));
@@ -190,8 +203,8 @@ export class PostgresStore implements DataStore {
       throw new Error('Name is required.');
     }
 
-    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>(
-      'UPDATE users SET name = $2 WHERE id = $1 RETURNING id, name, email, role',
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null }>(
+      'UPDATE users SET name = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at',
       [userId, normalizedName],
     );
     const row = updateResult.rows[0];
@@ -210,8 +223,8 @@ export class PostgresStore implements DataStore {
       throw new Error('Email is already in use.');
     }
 
-    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>(
-      'UPDATE users SET email = $2 WHERE id = $1 RETURNING id, name, email, role',
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null }>(
+      'UPDATE users SET email = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at',
       [userId, normalizedEmail],
     );
     const row = updateResult.rows[0];
@@ -224,8 +237,8 @@ export class PostgresStore implements DataStore {
   }
 
   async updateUserRole(userId: number, role: Role, actor: AuthUser): Promise<AuthUser> {
-    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role'] }>(
-      'UPDATE users SET role = $2 WHERE id = $1 RETURNING id, name, email, role',
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null }>(
+      'UPDATE users SET role = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at',
       [userId, role],
     );
     const row = updateResult.rows[0];
@@ -238,6 +251,34 @@ export class PostgresStore implements DataStore {
     }
 
     await this.writeAudit(actor.id, 'UPDATE_ROLE', 'user', String(userId));
+    return this.mapUser(row);
+  }
+
+  async updateUserCanEditBlog(userId: number, canEditBlog: boolean, actor: AuthUser): Promise<AuthUser> {
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null }>(
+      'UPDATE users SET can_edit_blog = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at',
+      [userId, canEditBlog],
+    );
+    const row = updateResult.rows[0];
+    if (!row) {
+      throw new Error('User not found.');
+    }
+
+    await this.writeAudit(actor.id, canEditBlog ? 'ENABLE_BLOG_EDITOR' : 'DISABLE_BLOG_EDITOR', 'user', String(userId));
+    return this.mapUser(row);
+  }
+
+  async setUserArchived(userId: number, archived: boolean, actor: AuthUser): Promise<AuthUser> {
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null }>(
+      'UPDATE users SET archived_at = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at',
+      [userId, archived ? Date.now() : null],
+    );
+    const row = updateResult.rows[0];
+    if (!row) {
+      throw new Error('User not found.');
+    }
+
+    await this.writeAudit(actor.id, archived ? 'ARCHIVE' : 'UNARCHIVE', 'user', String(userId));
     return this.mapUser(row);
   }
 
@@ -259,9 +300,11 @@ export class PostgresStore implements DataStore {
     await this.writeAudit(actor.id, 'DELETE', 'user', String(userId));
   }
 
-  async listProperties(): Promise<Array<PropertyData & { id: string }>> {
+  async listProperties(includeArchived = false): Promise<Array<PropertyData & { id: string }>> {
     const result = await this.pool.query<{ id: string; data: PropertyData }>('SELECT id, data FROM properties ORDER BY id');
-    return result.rows.map((row: { id: string; data: PropertyData }) => ({ ...row.data, id: row.id }));
+    return result.rows
+      .map((row: { id: string; data: PropertyData }) => ({ ...row.data, id: row.id }))
+      .filter((property) => includeArchived || !property.archivedAt);
   }
 
   async getProperty(idOrMetalink: string): Promise<(PropertyData & { id: string }) | null> {
@@ -298,6 +341,21 @@ export class PostgresStore implements DataStore {
     return next;
   }
 
+  async setPropertyArchived(propertyId: string, archived: boolean, actor: AuthUser): Promise<PropertyData & { id: string }> {
+    const current = await this.getProperty(propertyId);
+    if (!current) {
+      throw new Error('Property not found.');
+    }
+
+    const next = { ...current, archivedAt: archived ? Date.now() : null };
+    await this.pool.query(
+      'UPDATE properties SET data = $2::jsonb, updated_at = NOW() WHERE id = $1',
+      [current.id, JSON.stringify(next)],
+    );
+    await this.writeAudit(actor.id, archived ? 'ARCHIVE' : 'UNARCHIVE', 'property', current.id);
+    return next;
+  }
+
   async deleteProperty(propertyId: string, actor: AuthUser): Promise<void> {
     await this.pool.query('DELETE FROM properties WHERE id = $1', [propertyId]);
     await this.writeAudit(actor.id, 'DELETE', 'property', propertyId);
@@ -331,9 +389,11 @@ export class PostgresStore implements DataStore {
     return result.rows.map((row: { blocked_date: string }) => row.blocked_date);
   }
 
-  async listBlogPosts(): Promise<BlogPost[]> {
+  async listBlogPosts(includeArchived = false): Promise<BlogPost[]> {
     const result = await this.pool.query<{ data: BlogPost }>('SELECT data FROM blog_posts ORDER BY created_at DESC');
-    return result.rows.map((row: { data: BlogPost }) => row.data);
+    return result.rows
+      .map((row: { data: BlogPost }) => row.data)
+      .filter((post) => includeArchived || !post.archivedAt);
   }
 
   async getBlogPost(id: string): Promise<BlogPost | null> {
@@ -362,6 +422,21 @@ export class PostgresStore implements DataStore {
       [id, JSON.stringify(next), next.updatedAt],
     );
     await this.writeAudit(actor.id, 'UPDATE', 'blog_post', id);
+    return next;
+  }
+
+  async setBlogPostArchived(id: string, archived: boolean, actor: AuthUser): Promise<BlogPost> {
+    const current = await this.getBlogPost(id);
+    if (!current) {
+      throw new Error('Blog post not found.');
+    }
+
+    const next = { ...current, archivedAt: archived ? Date.now() : null, updatedAt: Date.now() };
+    await this.pool.query(
+      'UPDATE blog_posts SET data = $2::jsonb, updated_at = $3 WHERE id = $1',
+      [id, JSON.stringify(next), next.updatedAt],
+    );
+    await this.writeAudit(actor.id, archived ? 'ARCHIVE' : 'UNARCHIVE', 'blog_post', id);
     return next;
   }
 

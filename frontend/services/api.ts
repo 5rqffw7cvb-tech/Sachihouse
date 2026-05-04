@@ -3,6 +3,8 @@ export interface ApiUser {
   name: string;
   email: string;
   role: 'ADMIN' | 'HOST' | 'GUEST';
+  canEditBlog: boolean;
+  archivedAt?: number | null;
   assignedPropertyIds: string[];
 }
 
@@ -36,6 +38,8 @@ export function getStoredUser(): ApiUser | null {
       name: typeof parsed.name === 'string' && parsed.name.trim() ? parsed.name : parsed.email.split('@')[0],
       email: parsed.email,
       role: parsed.role as ApiUser['role'],
+      canEditBlog: Boolean(parsed.canEditBlog),
+      archivedAt: typeof parsed.archivedAt === 'number' ? parsed.archivedAt : null,
       assignedPropertyIds: Array.isArray(parsed.assignedPropertyIds) ? parsed.assignedPropertyIds : [],
     };
   } catch {

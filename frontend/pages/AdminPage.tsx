@@ -793,18 +793,18 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                 onClick={async () => {
                   if (window.confirm('Are you sure you want to delete this listing? This will redirect you to the home page.')) {
                     try {
-                      const { deletePropertyData } = await import('../services/storage');
-                      await deletePropertyData(propertyId);
+                                            const { setPropertyArchived } = await import('../services/storage');
+                                            await setPropertyArchived(propertyId, true);
                       window.location.href = '/#/';
                     } catch (e) {
-                      alert('Failed to delete listing.');
+                                            alert('Failed to archive listing.');
                     }
                   }
                 }}
                 className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-all"
               >
                 <Trash2 className="w-4 h-4" />
-                Delete
+                                Archive
               </button>
             )}
         </div>

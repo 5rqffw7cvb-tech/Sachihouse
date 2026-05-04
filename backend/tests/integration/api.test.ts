@@ -139,6 +139,7 @@ describe('API integration', () => {
     expect(response.body.user.name).toBe('New Host');
     expect(response.body.user.email).toBe('newhost@sachihouse.com');
     expect(response.body.user.role).toBe('HOST');
+    expect(response.body.user.canEditBlog).toBe(false);
 
     const hostToken = await login('newhost@sachihouse.com', 'host1234');
     expect(hostToken).toBeTruthy();
@@ -228,6 +229,106 @@ describe('API integration', () => {
       .post('/api/auth/login')
       .send({ email: 'updated-user@sachihouse.com', password: 'temp1234' })
       .expect(401);
+  });
+
+  it('allows admin to grant blog editor permission to a host', async () => {
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+    const hostToken = await login('host@sachihouse.com', 'host123');
+
+    await request(app)
+      .post('/api/blog-posts')
+      .set('Authorization', `Bearer ${hostToken}`)
+      .send({
+        id: 'blocked-post',
+        title: 'Blocked',
+        excerpt: 'Blocked',
+        content: 'Blocked',
+        category: 'Test',
+        imageUrl: '',
+        isFeatured: false,
+      })
+      .expect(403);
+
+    await request(app)
+      .patch('/api/users/2/can-edit-blog')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ canEditBlog: true })
+      .expect(200);
+
+    const elevatedHostToken = await login('host@sachihouse.com', 'host123');
+    await request(app)
+      .post('/api/blog-posts')
+      .set('Authorization', `Bearer ${elevatedHostToken}`)
+      .send({
+        id: 'editor-post',
+        title: 'Editor Post',
+        excerpt: 'Created by blog editor',
+        content: 'Hello editor',
+        category: 'Test',
+        imageUrl: '',
+        isFeatured: false,
+      })
+      .expect(201);
+  });
+
+  it('archives a user and blocks future login', async () => {
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+
+    const created = await request(app)
+      .post('/api/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Archive User', email: 'archive-user@sachihouse.com', password: 'temp1234', role: 'GUEST', canEditBlog: false })
+      .expect(201);
+
+    const userId = Number(created.body.user.id);
+
+    await request(app)
+      .patch(`/api/users/${userId}/archive`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ archived: true })
+      .expect(200);
+
+    await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'archive-user@sachihouse.com', password: 'temp1234' })
+      .expect(401);
+  });
+
+  it('archives a property and hides it from public property endpoints', async () => {
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+
+    await request(app)
+      .patch('/api/properties/main/archive')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ archived: true })
+      .expect(200);
+
+    const listResponse = await request(app).get('/api/properties').expect(200);
+    expect(listResponse.body.properties).toHaveLength(1);
+    expect(listResponse.body.properties.some((property: { id: string }) => property.id === 'main')).toBe(false);
+
+    await request(app).get('/api/properties/main').expect(404);
+  });
+
+  it('archives a blog post and hides it from public blog endpoints', async () => {
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+
+    await request(app)
+      .patch('/api/blog-posts/tokyo-family-guide/archive')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ archived: true })
+      .expect(200);
+
+    const publicList = await request(app).get('/api/blog-posts').expect(200);
+    expect(publicList.body.posts.some((post: { id: string }) => post.id === 'tokyo-family-guide')).toBe(false);
+
+    await request(app).get('/api/blog-posts/tokyo-family-guide').expect(404);
+
+    const adminList = await request(app)
+      .get('/api/blog-posts?includeArchived=true')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(adminList.body.posts.some((post: { id: string; archivedAt?: number | null }) => post.id === 'tokyo-family-guide' && Boolean(post.archivedAt))).toBe(true);
   });
 
   it('returns a calculated quote from the quote endpoint', async () => {
