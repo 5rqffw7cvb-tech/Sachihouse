@@ -85,17 +85,15 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
   const isBlogPost = /^\/blog\/[^/]+$/.test(pathname);
   const mobilePageTitle = navTitle ?? 'SachiHouse';
 
-  if (isBlogPost) {
-    return null;
-  }
-
   return (
     <>
-      <nav className={`md:hidden sticky top-0 bg-[#ffffff]/95 backdrop-blur-sm font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_2px_12px_rgba(0,0,0,0.04)] z-50 transition-transform duration-300 ${isMobileHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-        <div className="px-3 py-3 text-left">
-          <span className="text-[18px] font-bold tracking-tight text-[#1b1c1d]">{mobilePageTitle}</span>
-        </div>
-      </nav>
+      {!isBlogPost && (
+        <nav className={`md:hidden sticky top-0 bg-[#ffffff]/95 backdrop-blur-sm font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_2px_12px_rgba(0,0,0,0.04)] z-50 transition-transform duration-300 ${isMobileHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+          <div className="px-3 py-3 text-left">
+            <span className="text-[18px] font-bold tracking-tight text-[#1b1c1d]">{mobilePageTitle}</span>
+          </div>
+        </nav>
+      )}
 
       <nav className="hidden md:block bg-[#ffffff] font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_4px_20px_rgba(0,0,0,0.05)] fixed top-0 left-0 w-full z-50">
         <div className="max-w-[1280px] mx-auto flex justify-between items-center px-3 md:px-6 py-3">
