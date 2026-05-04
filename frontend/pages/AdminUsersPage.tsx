@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, Archive, Check, Eye, EyeOff, Loader2, Lock, Pencil, Plus, RefreshCw, RotateCcw, Save, ShieldCheck, X } from 'lucide-react';
+import { AlertCircle, Archive, Check, Eye, EyeOff, Loader2, Lock, Pencil, Plus, RefreshCw, RotateCcw, Save, ShieldCheck, Trash2, X } from 'lucide-react';
 import { ApiUser } from '../services/api';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
 import { TopNavBar } from '../components/TopNavBar';
 import {
   assignHostToProperty,
   createUser,
+  deleteUser,
   listUsers,
   resetUserPassword,
   setUserArchived,
@@ -46,6 +47,7 @@ const AdminUsersPage: React.FC = () => {
   const [pendingRoleUserId, setPendingRoleUserId] = useState<number | null>(null);
   const [pendingProfileSaveUserId, setPendingProfileSaveUserId] = useState<number | null>(null);
   const [pendingArchiveUserId, setPendingArchiveUserId] = useState<number | null>(null);
+  const [pendingDeleteUserId, setPendingDeleteUserId] = useState<number | null>(null);
   const [pendingBlogPermissionUserId, setPendingBlogPermissionUserId] = useState<number | null>(null);
   const [pendingAssignmentSaveUserId, setPendingAssignmentSaveUserId] = useState<number | null>(null);
   const [pendingResetUserId, setPendingResetUserId] = useState<number | null>(null);
@@ -210,6 +212,26 @@ const AdminUsersPage: React.FC = () => {
       setErrorMsg(message);
     } finally {
       setPendingProfileSaveUserId(null);
+    }
+  };
+
+  const handleDeleteUser = async (user: ApiUser) => {
+    if (user.id === authUser?.id) {
+      setErrorMsg('You cannot delete your own account.');
+      return;
+    }
+    const confirmed = window.confirm(`Permanently delete user ${user.email}? This cannot be undone.`);
+    if (!confirmed) return;
+    setPendingDeleteUserId(user.id);
+    try {
+      await deleteUser(user.id);
+      setUsers(prev => prev.filter(u => u.id !== user.id));
+      setInfoMsg(`User deleted: ${user.email}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete user.';
+      setErrorMsg(message);
+    } finally {
+      setPendingDeleteUserId(null);
     }
   };
 
@@ -684,9 +706,17 @@ const AdminUsersPage: React.FC = () => {
                             {pendingArchiveUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : user.archivedAt ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
                             {user.archivedAt ? 'Restore' : 'Archive'}
                           </button>
+                          <button
+                            onClick={() => handleDeleteUser(user)}
+                            disabled={pendingDeleteUserId === user.id || user.id === authUser?.id}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-red-300 text-red-700 text-xs font-semibold hover:bg-red-50 disabled:opacity-50"
+                          >
+                            {pendingDeleteUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                            Delete
+                          </button>
                         </div>
                         {user.id === authUser?.id && (
-                          <div className="text-xs text-[#74777d] mt-1">Your own account cannot be archived.</div>
+                          <div className="text-xs text-[#74777d] mt-1">Your own account cannot be modified.</div>
                         )}
                       </td>
                     </tr>
