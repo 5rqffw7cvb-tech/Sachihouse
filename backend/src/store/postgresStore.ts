@@ -1,6 +1,16 @@
 import { Pool } from 'pg';
 import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSettingsSeed } from './seed.js';
-import { AuthUser, BlogPost, DataStore, PropertyData, SiteSettings, StoredUser } from './types.js';
+import {
+  AuthUser,
+  BlogPost,
+  CheckInListFilters,
+  CheckInSubmission,
+  CheckInSubmissionInput,
+  DataStore,
+  PropertyData,
+  SiteSettings,
+  StoredUser,
+} from './types.js';
 import { Role } from '../types/domain.js';
 
 export class PostgresStore implements DataStore {
@@ -58,6 +68,22 @@ export class PostgresStore implements DataStore {
         target_id TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      CREATE TABLE IF NOT EXISTS checkin_submissions (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        check_in_date DATE NOT NULL,
+        check_out_date DATE NOT NULL,
+        data JSONB NOT NULL,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_checkin_submissions_property_date
+      ON checkin_submissions(property_id, check_in_date, created_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_checkin_submissions_created_at
+      ON checkin_submissions(created_at DESC);
     `);
 
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT');
@@ -460,6 +486,83 @@ export class PostgresStore implements DataStore {
   async unassignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void> {
     await this.pool.query('DELETE FROM property_assignments WHERE host_user_id = $1 AND property_id = $2', [hostUserId, propertyId]);
     await this.writeAudit(actor.id, 'UNASSIGN_HOST', 'property', propertyId);
+  }
+
+  async createCheckInSubmission(input: CheckInSubmissionInput): Promise<CheckInSubmission> {
+    const now = Date.now();
+    const row: CheckInSubmission = {
+      id: `ci_${Math.random().toString(36).slice(2, 10)}`,
+      propertyId: input.propertyId,
+      checkInDate: input.checkInDate,
+      checkOutDate: input.checkOutDate,
+      guests: input.guests,
+      consent: structuredClone(input.consent),
+      audit: structuredClone(input.audit),
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.pool.query(
+      'INSERT INTO checkin_submissions (id, property_id, check_in_date, check_out_date, data, created_at, updated_at) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)',
+      [row.id, row.propertyId, row.checkInDate, row.checkOutDate, JSON.stringify(row), row.createdAt, row.updatedAt],
+    );
+
+    return structuredClone(row);
+  }
+
+  async listCheckInSubmissions(filters?: CheckInListFilters): Promise<CheckInSubmission[]> {
+    const clauses: string[] = [];
+    const values: unknown[] = [];
+
+    if (filters?.propertyId) {
+      values.push(filters.propertyId);
+      clauses.push(`property_id = $${values.length}`);
+    }
+    if (filters?.fromDate) {
+      values.push(filters.fromDate);
+      clauses.push(`check_in_date >= $${values.length}`);
+    }
+    if (filters?.toDate) {
+      values.push(filters.toDate);
+      clauses.push(`check_in_date <= $${values.length}`);
+    }
+
+    const query = `
+      SELECT data
+      FROM checkin_submissions
+      ${clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''}
+      ORDER BY created_at DESC
+    `;
+
+    const result = await this.pool.query<{ data: CheckInSubmission }>(query, values);
+    const guestNameNeedle = filters?.guestName?.trim().toLowerCase() ?? '';
+    const nationalityNeedle = filters?.nationality?.trim().toLowerCase() ?? '';
+
+    return result.rows
+      .map((row) => row.data)
+      .filter((submission) => {
+        if (guestNameNeedle && !submission.guests.some((guest) => guest.fullName.toLowerCase().includes(guestNameNeedle))) {
+          return false;
+        }
+        if (nationalityNeedle && !submission.guests.some((guest) => guest.nationality.toLowerCase().includes(nationalityNeedle))) {
+          return false;
+        }
+        return true;
+      });
+  }
+
+  async getCheckInSubmission(id: string): Promise<CheckInSubmission | null> {
+    const result = await this.pool.query<{ data: CheckInSubmission }>('SELECT data FROM checkin_submissions WHERE id = $1 LIMIT 1', [id]);
+    return result.rows[0]?.data ?? null;
+  }
+
+  async deleteExpiredCheckInSubmissions(olderThanTimestamp: number): Promise<CheckInSubmission[]> {
+    const result = await this.pool.query<{ data: CheckInSubmission }>(
+      'DELETE FROM checkin_submissions WHERE created_at < $1 RETURNING data',
+      [olderThanTimestamp],
+    );
+
+    return result.rows.map((row) => row.data);
   }
 
   private async writeAudit(actorUserId: number, action: string, targetType: string, targetId: string): Promise<void> {

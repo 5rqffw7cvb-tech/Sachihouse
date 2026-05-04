@@ -152,6 +152,14 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
                         Property Admin
                       </button>
                     )}
+                    {canManageProperties && (
+                      <button
+                        onClick={() => { setIsDropdownOpen(false); navigate('/admin/checkin-management'); }}
+                        className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
+                      >
+                        Check-in Management
+                      </button>
+                    )}
                     {canManageBlog && (
                       <button 
                         onClick={() => { setIsDropdownOpen(false); navigate('/blog/admin'); }}

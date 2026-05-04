@@ -1,6 +1,16 @@
 import bcrypt from 'bcryptjs';
 import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSettingsSeed } from './seed.js';
-import { AuthUser, BlogPost, DataStore, PropertyData, SiteSettings, StoredUser } from './types.js';
+import {
+  AuthUser,
+  BlogPost,
+  CheckInListFilters,
+  CheckInSubmission,
+  CheckInSubmissionInput,
+  DataStore,
+  PropertyData,
+  SiteSettings,
+  StoredUser,
+} from './types.js';
 import { Role } from '../types/domain.js';
 
 interface MemoryState {
@@ -9,6 +19,7 @@ interface MemoryState {
   siteSettings: SiteSettings;
   blogPosts: BlogPost[];
   blockedDates: Record<string, string[]>;
+  checkIns: CheckInSubmission[];
 }
 
 export class MemoryStore implements DataStore {
@@ -25,6 +36,7 @@ export class MemoryStore implements DataStore {
       siteSettings: structuredClone(siteSettingsSeed),
       blogPosts: structuredClone(blogPostsSeed),
       blockedDates: structuredClone(blockedDatesSeed),
+      checkIns: [],
     };
   }
 
@@ -325,5 +337,66 @@ export class MemoryStore implements DataStore {
       throw new Error('Host user not found.');
     }
     user.assignedPropertyIds = user.assignedPropertyIds.filter((item) => item !== propertyId);
+  }
+
+  async createCheckInSubmission(input: CheckInSubmissionInput): Promise<CheckInSubmission> {
+    const state = this.assertState();
+    const now = Date.now();
+    const submission: CheckInSubmission = {
+      id: `ci_${Math.random().toString(36).slice(2, 10)}`,
+      propertyId: input.propertyId,
+      checkInDate: input.checkInDate,
+      checkOutDate: input.checkOutDate,
+      guests: structuredClone(input.guests),
+      consent: structuredClone(input.consent),
+      audit: structuredClone(input.audit),
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.checkIns.unshift(submission);
+    return structuredClone(submission);
+  }
+
+  async listCheckInSubmissions(filters?: CheckInListFilters): Promise<CheckInSubmission[]> {
+    const state = this.assertState();
+    const guestNameNeedle = filters?.guestName?.trim().toLowerCase() ?? '';
+    const nationalityNeedle = filters?.nationality?.trim().toLowerCase() ?? '';
+
+    const rows = state.checkIns.filter((submission) => {
+      if (filters?.propertyId && submission.propertyId !== filters.propertyId) {
+        return false;
+      }
+      if (filters?.fromDate && submission.checkInDate < filters.fromDate) {
+        return false;
+      }
+      if (filters?.toDate && submission.checkInDate > filters.toDate) {
+        return false;
+      }
+      if (guestNameNeedle && !submission.guests.some((guest) => guest.fullName.toLowerCase().includes(guestNameNeedle))) {
+        return false;
+      }
+      if (nationalityNeedle && !submission.guests.some((guest) => guest.nationality.toLowerCase().includes(nationalityNeedle))) {
+        return false;
+      }
+      return true;
+    });
+
+    return structuredClone(rows).sort((left, right) => right.createdAt - left.createdAt);
+  }
+
+  async getCheckInSubmission(id: string): Promise<CheckInSubmission | null> {
+    const row = this.assertState().checkIns.find((item) => item.id === id);
+    return row ? structuredClone(row) : null;
+  }
+
+  async deleteExpiredCheckInSubmissions(olderThanTimestamp: number): Promise<CheckInSubmission[]> {
+    const state = this.assertState();
+    const expired = state.checkIns.filter((submission) => submission.createdAt < olderThanTimestamp);
+    if (expired.length === 0) {
+      return [];
+    }
+
+    state.checkIns = state.checkIns.filter((submission) => submission.createdAt >= olderThanTimestamp);
+    return structuredClone(expired);
   }
 }

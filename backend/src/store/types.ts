@@ -46,6 +46,89 @@ export interface SiteSettings {
   };
 }
 
+export type IdDocumentType = 'passport' | 'driver_license' | 'residence_card' | 'national_id' | 'unknown';
+
+export interface CheckInGuestEstimatedFlags {
+  fullName?: boolean;
+  birthYear?: boolean;
+  nationality?: boolean;
+  address?: boolean;
+  gender?: boolean;
+  occupation?: boolean;
+  documentType?: boolean;
+  documentNumber?: boolean;
+}
+
+export interface CheckInGuestConfidence {
+  fullName?: number;
+  birthYear?: number;
+  nationality?: number;
+  address?: number;
+  gender?: number;
+  occupation?: number;
+  documentType?: number;
+  documentNumber?: number;
+}
+
+export interface CheckInGuest {
+  id: string;
+  fullName: string;
+  birthYear: number | null;
+  nationality: string;
+  address: string;
+  gender: string;
+  occupation: string;
+  documentType: IdDocumentType;
+  documentNumber: string;
+  evidenceUrl: string;
+  evidenceMimeType: string;
+  ocrText?: string;
+  estimated: CheckInGuestEstimatedFlags;
+  confidence: CheckInGuestConfidence;
+}
+
+export interface CheckInConsent {
+  accepted: boolean;
+  acceptedAt: number;
+  retentionDays: number;
+  noticeVersion: string;
+}
+
+export interface CheckInAuditInfo {
+  submittedAt: number;
+  ipAddress: string;
+  userAgent: string;
+}
+
+export interface CheckInSubmission {
+  id: string;
+  propertyId: string;
+  checkInDate: string;
+  checkOutDate: string;
+  guests: CheckInGuest[];
+  consent: CheckInConsent;
+  audit: CheckInAuditInfo;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CheckInSubmissionInput {
+  propertyId: string;
+  checkInDate: string;
+  checkOutDate: string;
+  guests: CheckInGuest[];
+  consent: CheckInConsent;
+  audit: CheckInAuditInfo;
+}
+
+export interface CheckInListFilters {
+  propertyId?: string;
+  fromDate?: string;
+  toDate?: string;
+  guestName?: string;
+  nationality?: string;
+}
+
 export interface PropertyData {
   id?: string;
   metalink?: string;
@@ -158,4 +241,8 @@ export interface DataStore {
   deleteBlogPost(id: string, actor: AuthUser): Promise<void>;
   assignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void>;
   unassignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void>;
+  createCheckInSubmission(input: CheckInSubmissionInput): Promise<CheckInSubmission>;
+  listCheckInSubmissions(filters?: CheckInListFilters): Promise<CheckInSubmission[]>;
+  getCheckInSubmission(id: string): Promise<CheckInSubmission | null>;
+  deleteExpiredCheckInSubmissions(olderThanTimestamp: number): Promise<CheckInSubmission[]>;
 }

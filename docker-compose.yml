@@ -18,13 +18,18 @@ services:
   api:
     build:
       context: ./backend
+    env_file:
+      - ./backend/.env
     environment:
       PORT: 3001
       STORE_MODE: postgres
       DATABASE_URL: postgresql://sachihouse:sachihouse@db:5432/sachihouse
-      JWT_SECRET: dev-secret-change-me
+      GOOGLE_APPLICATION_CREDENTIALS: /run/credentials/gcp-service-account.json
+      GCP_SERVICE_ACCOUNT_FILE: gcp-service-account.json
     ports:
       - "3001:3001"
+    volumes:
+      - ./backend/credentials:/run/credentials:ro
     depends_on:
       db:
         condition: service_healthy
@@ -35,7 +40,7 @@ services:
       args:
         VITE_API_BASE_URL: http://localhost:3001/api
     ports:
-      - "8080:80"
+      - "8080:8080"
     depends_on:
       - api
 

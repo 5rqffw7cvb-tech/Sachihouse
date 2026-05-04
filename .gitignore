@@ -4,10 +4,16 @@
 # Archives
 *.zip
 
+# Local test artifacts
+IMG_0662.jpg
+
 # Environment files
 .env
 .env.*
 !.env.example
+
+# Local cloud credentials
+backend/credentials/
 
 # Database dumps and backups
 *.sql

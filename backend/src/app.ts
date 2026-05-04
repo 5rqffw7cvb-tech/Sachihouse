@@ -5,11 +5,22 @@ import morgan from 'morgan';
 import { addDays, format, isValid, parseISO } from 'date-fns';
 import { canPerformAction } from './domain/authorization.js';
 import { calculateQuote } from './domain/pricing.js';
-import { verifyToken, signToken } from './auth/jwt.js';
-import { AuthUser, BlogPost, DataStore, PropertyData, SiteSettings } from './store/types.js';
+import { signCheckInToken, verifyCheckInToken, verifyToken, signToken } from './auth/jwt.js';
+import {
+  AuthUser,
+  BlogPost,
+  CheckInGuest,
+  CheckInListFilters,
+  CheckInSubmission,
+  DataStore,
+  PropertyData,
+  SiteSettings,
+} from './store/types.js';
 import { getParam } from './types/params.js';
 import { Role } from './types/domain.js';
 import { IcalSyncService } from './services/icalSync.js';
+import { IdProcessingService } from './services/idProcessing.js';
+import { ObjectStorageService } from './services/objectStorage.js';
 
 const ALLOWED_ROLES: Role[] = ['ADMIN', 'HOST', 'GUEST'];
 
@@ -59,6 +70,22 @@ function toBoolean(value: unknown): boolean | null {
   return null;
 }
 
+function toNonNegativeInt(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  const parsed = Math.trunc(value);
+  return parsed >= 0 ? parsed : null;
+}
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim().slice(0, 100);
+  }
+  return (req.ip || req.socket.remoteAddress || 'unknown').slice(0, 100);
+}
+
 export function createApp(store: DataStore) {
   const app = express();
   const icalSync = new IcalSyncService({
@@ -66,6 +93,12 @@ export function createApp(store: DataStore) {
     ttlMs: Number(process.env.ICAL_SYNC_TTL_MS ?? 60000),
     timeoutMs: Number(process.env.ICAL_SYNC_TIMEOUT_MS ?? 5000),
   });
+  const idProcessing = new IdProcessingService();
+  const objectStorage = new ObjectStorageService();
+  const ocrRateMap = new Map<string, { count: number; resetAt: number }>();
+  const retentionDaysRaw = Number(process.env.CHECKIN_RETENTION_DAYS ?? 7);
+  const checkInRetentionDays = Number.isFinite(retentionDaysRaw) && retentionDaysRaw > 0 ? Math.trunc(retentionDaysRaw) : 7;
+  const checkInRetentionNoticeVersion = (process.env.CHECKIN_RETENTION_NOTICE_VERSION ?? 'v1').trim() || 'v1';
 
   async function getEffectiveBlockedDates(
     property: PropertyData & { id: string },
@@ -87,6 +120,155 @@ export function createApp(store: DataStore) {
       dates.push(format(cursor, 'yyyy-MM-dd'));
     }
     return dates;
+  }
+
+  function isIsoDate(value: unknown): value is string {
+    if (typeof value !== 'string') {
+      return false;
+    }
+    const parsed = parseISO(value);
+    return isValid(parsed) && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  }
+
+  function normalizeText(value: unknown): string {
+    return typeof value === 'string' ? value.trim() : '';
+  }
+
+  function parseImageData(input: string): { mimeType: string; base64: string } {
+    const trimmed = input.trim();
+    const dataUrlMatch = trimmed.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+    if (dataUrlMatch) {
+      return {
+        mimeType: dataUrlMatch[1].toLowerCase(),
+        base64: dataUrlMatch[2],
+      };
+    }
+
+    return {
+      mimeType: 'image/jpeg',
+      base64: trimmed,
+    };
+  }
+
+  function enforceOcrRateLimit(ipAddress: string): boolean {
+    const now = Date.now();
+    const current = ocrRateMap.get(ipAddress);
+    if (!current || now > current.resetAt) {
+      ocrRateMap.set(ipAddress, { count: 1, resetAt: now + 60_000 });
+      return true;
+    }
+
+    if (current.count >= 20) {
+      return false;
+    }
+
+    current.count += 1;
+    return true;
+  }
+
+  function toNormalizedGuest(guest: unknown, index: number): CheckInGuest {
+    const row = (guest as Partial<CheckInGuest>) ?? {};
+    const nowYear = new Date().getFullYear();
+    const normalizedBirthYear = typeof row.birthYear === 'number' && Number.isInteger(row.birthYear) && row.birthYear >= 1900 && row.birthYear <= nowYear
+      ? row.birthYear
+      : null;
+
+    const estimated = { ...(row.estimated ?? {}) };
+    const confidence = { ...(row.confidence ?? {}) };
+    const fullName = normalizeText(row.fullName) || `Guest ${index + 1}`;
+    if (!normalizeText(row.fullName)) {
+      estimated.fullName = true;
+      confidence.fullName = confidence.fullName ?? 0.2;
+    }
+
+    const nationality = normalizeText(row.nationality) || 'UNKNOWN';
+    if (!normalizeText(row.nationality)) {
+      estimated.nationality = true;
+      confidence.nationality = confidence.nationality ?? 0.2;
+    }
+
+    const address = normalizeText(row.address) || 'NA';
+    if (!normalizeText(row.address)) {
+      estimated.address = true;
+      confidence.address = confidence.address ?? 0.2;
+    }
+
+    const gender = normalizeText(row.gender) || 'UNSPECIFIED';
+    if (!normalizeText(row.gender)) {
+      estimated.gender = true;
+      confidence.gender = confidence.gender ?? 0.2;
+    }
+
+    const occupation = normalizeText(row.occupation) || 'TRAVELER';
+    if (!normalizeText(row.occupation)) {
+      estimated.occupation = true;
+      confidence.occupation = confidence.occupation ?? 0.2;
+    }
+
+    const documentType = row.documentType ?? 'unknown';
+    if (documentType === 'unknown') {
+      estimated.documentType = true;
+      confidence.documentType = confidence.documentType ?? 0.2;
+    }
+
+    const documentNumber = normalizeText(row.documentNumber) || 'UNKNOWN';
+    if (!normalizeText(row.documentNumber)) {
+      estimated.documentNumber = true;
+      confidence.documentNumber = confidence.documentNumber ?? 0.2;
+    }
+
+    return {
+      id: normalizeText(row.id) || `guest_${index + 1}`,
+      fullName,
+      birthYear: normalizedBirthYear,
+      nationality,
+      address,
+      gender,
+      occupation,
+      documentType,
+      documentNumber,
+      evidenceUrl: normalizeText(row.evidenceUrl),
+      evidenceMimeType: normalizeText(row.evidenceMimeType) || 'image/jpeg',
+      ocrText: normalizeText(row.ocrText),
+      estimated,
+      confidence,
+    };
+  }
+
+  function validateCheckInToken(token: unknown, propertyId: string): boolean {
+    if (typeof token !== 'string' || !token.trim()) {
+      return false;
+    }
+
+    try {
+      const payload = verifyCheckInToken(token);
+      return payload.purpose === 'checkin' && payload.propertyId === propertyId;
+    } catch {
+      return false;
+    }
+  }
+
+  async function resolveSubmissionEvidence(submission: CheckInSubmission): Promise<CheckInSubmission> {
+    const guests = await Promise.all(submission.guests.map(async (guest) => ({
+      ...guest,
+      evidenceUrl: await objectStorage.getEvidenceAccessUrl(guest.evidenceUrl),
+    })));
+
+    return {
+      ...submission,
+      guests,
+      consent: submission.consent ?? {
+        accepted: false,
+        acceptedAt: 0,
+        retentionDays: checkInRetentionDays,
+        noticeVersion: checkInRetentionNoticeVersion,
+      },
+      audit: submission.audit ?? {
+        submittedAt: submission.createdAt,
+        ipAddress: 'unknown',
+        userAgent: 'unknown',
+      },
+    };
   }
 
   app.use(cors());
@@ -121,6 +303,13 @@ export function createApp(store: DataStore) {
   const requireAdmin: RequestHandler = (req, res, next) => {
     if (!req.authUser || req.authUser.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Admin role required.' });
+    }
+    return next();
+  };
+
+  const requireHostOrAdmin: RequestHandler = (req, res, next) => {
+    if (!req.authUser || (req.authUser.role !== 'ADMIN' && req.authUser.role !== 'HOST')) {
+      return res.status(403).json({ error: 'Host or admin role required.' });
     }
     return next();
   };
@@ -527,10 +716,244 @@ export function createApp(store: DataStore) {
     res.json({ quote });
   });
 
+  app.post('/api/properties/:id/checkins/start', async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.id));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+
+    const ttlSeconds = Number(process.env.CHECKIN_TOKEN_TTL_SECONDS ?? 1800);
+    const safeTtl = Number.isFinite(ttlSeconds) && ttlSeconds > 0 ? ttlSeconds : 1800;
+    const token = signCheckInToken(property.id, safeTtl);
+
+    return res.status(201).json({
+      checkinToken: token,
+      expiresInSeconds: safeTtl,
+      consentPolicy: {
+        retentionDays: checkInRetentionDays,
+        noticeVersion: checkInRetentionNoticeVersion,
+      },
+    });
+  });
+
+  app.post('/api/properties/:id/checkins/ocr', async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.id));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+
+    if (!validateCheckInToken(req.body?.checkinToken, property.id)) {
+      return res.status(401).json({ error: 'Valid check-in token is required.' });
+    }
+
+    const ipAddress = getClientIp(req);
+    if (!enforceOcrRateLimit(ipAddress)) {
+      return res.status(429).json({ error: 'Too many OCR requests. Please try again later.' });
+    }
+
+    const imageInput = normalizeText(req.body?.imageBase64);
+    if (!imageInput) {
+      return res.status(400).json({ error: 'imageBase64 is required.' });
+    }
+
+    const parsed = parseImageData(imageInput);
+    if (!/^image\/(jpeg|jpg|png|webp)$/i.test(parsed.mimeType)) {
+      return res.status(400).json({ error: 'Unsupported image format.' });
+    }
+    if (!/^[a-zA-Z0-9+/=\s]+$/.test(parsed.base64)) {
+      return res.status(400).json({ error: 'Invalid base64 image.' });
+    }
+
+    let rawBuffer: Buffer;
+    try {
+      rawBuffer = Buffer.from(parsed.base64, 'base64');
+    } catch {
+      return res.status(400).json({ error: 'Invalid base64 image.' });
+    }
+
+    if (!rawBuffer.length) {
+      return res.status(400).json({ error: 'Image payload is empty.' });
+    }
+
+    if (rawBuffer.length > 12 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Image is too large. Max 12MB.' });
+    }
+
+    const guestId = normalizeText(req.body?.guestId) || `guest_${Math.random().toString(36).slice(2, 8)}`;
+
+    let compressed: { buffer: Buffer; mimeType: string };
+    try {
+      compressed = await objectStorage.compressImage(rawBuffer, parsed.mimeType);
+    } catch {
+      return res.status(400).json({ error: 'Uploaded payload is not a valid readable image.' });
+    }
+
+    const upload = await objectStorage.uploadEvidenceImage({
+      imageBuffer: compressed.buffer,
+      mimeType: compressed.mimeType,
+      propertyId: property.id,
+      guestId,
+    });
+
+    const ai = await idProcessing.processIdDocument(compressed.buffer.toString('base64'), compressed.mimeType);
+    if (!ai.isIdDocument) {
+      return res.status(422).json({
+        error: ai.rejectionReason || 'Uploaded image is not a supported ID document.',
+      });
+    }
+
+    const extractedGuest = toNormalizedGuest({
+      id: guestId,
+      fullName: ai.fullName,
+      birthYear: ai.birthYear,
+      nationality: ai.nationality,
+      address: ai.address,
+      gender: ai.gender,
+      occupation: ai.occupation,
+      documentType: ai.documentType,
+      documentNumber: ai.documentNumber,
+      evidenceUrl: upload.evidenceUrl,
+      evidenceMimeType: upload.mimeType,
+      ocrText: ai.ocrText,
+      estimated: {
+        fullName: !ai.fullName,
+        birthYear: !ai.birthYear,
+        nationality: !ai.nationality,
+        address: !ai.address,
+        gender: !ai.gender,
+        occupation: !ai.occupation,
+        documentType: ai.documentType === 'unknown',
+        documentNumber: !ai.documentNumber,
+      },
+      confidence: {
+        fullName: ai.confidence.fullName,
+        birthYear: ai.confidence.birthYear,
+        nationality: ai.confidence.nationality,
+        address: ai.confidence.address,
+        gender: ai.confidence.gender,
+        occupation: ai.confidence.occupation,
+        documentType: ai.confidence.documentType,
+        documentNumber: ai.confidence.documentNumber,
+      },
+    }, 0);
+
+    return res.status(201).json({ guest: extractedGuest });
+  });
+
+  app.post('/api/properties/:id/checkins/submit', async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.id));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+
+    if (!validateCheckInToken(req.body?.checkinToken, property.id)) {
+      return res.status(401).json({ error: 'Valid check-in token is required.' });
+    }
+
+    const checkInDate = req.body?.checkInDate;
+    const checkOutDate = req.body?.checkOutDate;
+    if (!isIsoDate(checkInDate) || !isIsoDate(checkOutDate)) {
+      return res.status(400).json({ error: 'Valid checkInDate and checkOutDate are required in YYYY-MM-DD format.' });
+    }
+
+    if (checkInDate >= checkOutDate) {
+      return res.status(400).json({ error: 'checkOutDate must be after checkInDate.' });
+    }
+
+    const guestsRaw = req.body?.guests;
+    if (!Array.isArray(guestsRaw) || guestsRaw.length === 0) {
+      return res.status(400).json({ error: 'At least one guest is required.' });
+    }
+
+    const guests = guestsRaw.map((guest: unknown, index: number) => toNormalizedGuest(guest, index));
+    if (guests.some((guest) => !guest.evidenceUrl)) {
+      return res.status(400).json({ error: 'Every guest must include an ID evidence image.' });
+    }
+
+    const consentRaw = req.body?.consent as Record<string, unknown> | undefined;
+    const consentAccepted = toBoolean(consentRaw?.accepted);
+    const consentAcceptedAt = toNonNegativeInt(consentRaw?.acceptedAt);
+    const consentNoticeVersion = normalizeText(consentRaw?.noticeVersion);
+    if (consentAccepted !== true || consentAcceptedAt === null || consentNoticeVersion !== checkInRetentionNoticeVersion) {
+      return res.status(400).json({ error: 'Consent confirmation is required before submitting check-in.' });
+    }
+
+    const submittedAt = Date.now();
+
+    const submission = await store.createCheckInSubmission({
+      propertyId: property.id,
+      checkInDate,
+      checkOutDate,
+      guests,
+      consent: {
+        accepted: true,
+        acceptedAt: consentAcceptedAt,
+        retentionDays: checkInRetentionDays,
+        noticeVersion: checkInRetentionNoticeVersion,
+      },
+      audit: {
+        submittedAt,
+        ipAddress: getClientIp(req),
+        userAgent: normalizeText(req.get('user-agent')).slice(0, 300) || 'unknown',
+      },
+    });
+
+    return res.status(201).json({ submission });
+  });
+
+  app.get('/api/checkins', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const propertyIdRaw = req.query.propertyId;
+    const fromDateRaw = req.query.fromDate;
+    const toDateRaw = req.query.toDate;
+    const guestNameRaw = req.query.guestName;
+    const nationalityRaw = req.query.nationality;
+
+    if ([propertyIdRaw, fromDateRaw, toDateRaw, guestNameRaw, nationalityRaw].some(Array.isArray)) {
+      return res.status(400).json({ error: 'Filter query parameters must be singular values.' });
+    }
+
+    const filters: CheckInListFilters = {
+      propertyId: typeof propertyIdRaw === 'string' ? propertyIdRaw : undefined,
+      fromDate: typeof fromDateRaw === 'string' ? fromDateRaw : undefined,
+      toDate: typeof toDateRaw === 'string' ? toDateRaw : undefined,
+      guestName: typeof guestNameRaw === 'string' ? guestNameRaw : undefined,
+      nationality: typeof nationalityRaw === 'string' ? nationalityRaw : undefined,
+    };
+
+    if (filters.fromDate && !isIsoDate(filters.fromDate)) {
+      return res.status(400).json({ error: 'fromDate must be YYYY-MM-DD.' });
+    }
+    if (filters.toDate && !isIsoDate(filters.toDate)) {
+      return res.status(400).json({ error: 'toDate must be YYYY-MM-DD.' });
+    }
+
+    const rows = await store.listCheckInSubmissions(filters);
+    const visibleRows = rows.filter((row) => canPerformAction(req.authUser!, 'property.read', row.propertyId));
+    const resolvedRows = await Promise.all(visibleRows.map((row) => resolveSubmissionEvidence(row)));
+
+    return res.json({ submissions: resolvedRows });
+  });
+
+  app.get('/api/checkins/:id', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const submission = await store.getCheckInSubmission(getParam(req.params.id));
+    if (!submission) {
+      return res.status(404).json({ error: 'Check-in submission not found.' });
+    }
+
+    if (!canPerformAction(req.authUser!, 'property.read', submission.propertyId)) {
+      return res.status(403).json({ error: 'Check-in read not allowed.' });
+    }
+
+    const resolvedSubmission = await resolveSubmissionEvidence(submission);
+
+    return res.json({ submission: resolvedSubmission });
+  });
+
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (typeof error === 'object' && error && 'code' in error && (error as { code?: string }).code === '23505') {
       return res.status(409).json({ error: 'Custom URL is already taken.' });
     }
+    console.error(error);
     const message = error instanceof Error ? error.message : 'Unexpected server error.';
     res.status(500).json({ error: message });
   });

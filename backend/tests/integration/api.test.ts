@@ -365,4 +365,131 @@ describe('API integration', () => {
     expect(response.body.error).toContain('not available');
     expect(response.body.blockedDates).toContain('2026-06-12');
   });
+
+  it('rejects non-id uploads and accepts id uploads in OCR endpoint', async () => {
+    const started = await request(app)
+      .post('/api/properties/main/checkins/start')
+      .expect(201);
+
+    await request(app)
+      .post('/api/properties/main/checkins/ocr')
+      .send({ imageBase64: 'not-an-image', guestId: 'guest_1', checkinToken: started.body.checkinToken })
+      .expect(400);
+
+    const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5iN2sAAAAASUVORK5CYII=';
+    const response = await request(app)
+      .post('/api/properties/main/checkins/ocr')
+      .send({ imageBase64: tinyPng, guestId: 'guest_2', checkinToken: started.body.checkinToken })
+      .expect(201);
+
+    expect(response.body.guest.id).toBe('guest_2');
+    expect(response.body.guest.documentType).toBeTruthy();
+    expect(response.body.guest.evidenceUrl).toContain('data:image/');
+  });
+
+  it('submits check-in data and lists submissions for host', async () => {
+    const started = await request(app)
+      .post('/api/properties/main/checkins/start')
+      .expect(201);
+
+    const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5iN2sAAAAASUVORK5CYII=';
+    const ocr = await request(app)
+      .post('/api/properties/main/checkins/ocr')
+      .send({ imageBase64: tinyPng, guestId: 'guest_submit', checkinToken: started.body.checkinToken })
+      .expect(201);
+
+    const submit = await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .set('User-Agent', 'Vitest CheckIn Bot/1.0')
+      .set('X-Forwarded-For', '203.0.113.24')
+      .send({
+        checkinToken: started.body.checkinToken,
+        checkInDate: '2026-06-20',
+        checkOutDate: '2026-06-22',
+        consent: {
+          accepted: true,
+          acceptedAt: 1760000000000,
+          noticeVersion: 'v1',
+        },
+        guests: [
+          {
+            ...ocr.body.guest,
+            fullName: 'Alice Example',
+            nationality: 'JP',
+          },
+        ],
+      })
+      .expect(201);
+
+    const hostToken = await login('host@sachihouse.com', 'host123');
+    const list = await request(app)
+      .get('/api/checkins?propertyId=main&guestName=alice')
+      .set('Authorization', `Bearer ${hostToken}`)
+      .expect(200);
+
+    expect(list.body.submissions).toHaveLength(1);
+    expect(list.body.submissions[0].id).toBe(submit.body.submission.id);
+    expect(list.body.submissions[0].consent.noticeVersion).toBe('v1');
+    expect(list.body.submissions[0].audit.ipAddress).toContain('203.0.113.24');
+  });
+
+  it('requires check-in token for OCR and submit endpoints', async () => {
+    const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5iN2sAAAAASUVORK5CYII=';
+
+    await request(app)
+      .post('/api/properties/main/checkins/ocr')
+      .send({ imageBase64: tinyPng, guestId: 'guest_secure' })
+      .expect(401);
+
+    await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkInDate: '2026-06-20',
+        checkOutDate: '2026-06-22',
+        guests: [],
+      })
+      .expect(401);
+  });
+
+  it('requires consent confirmation before submitting check-in', async () => {
+    const started = await request(app)
+      .post('/api/properties/main/checkins/start')
+      .expect(201);
+
+    const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5iN2sAAAAASUVORK5CYII=';
+    const ocr = await request(app)
+      .post('/api/properties/main/checkins/ocr')
+      .send({ imageBase64: tinyPng, guestId: 'guest_consent', checkinToken: started.body.checkinToken })
+      .expect(201);
+
+    await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: started.body.checkinToken,
+        checkInDate: '2026-06-20',
+        checkOutDate: '2026-06-22',
+        guests: [ocr.body.guest],
+      })
+      .expect(400);
+  });
+
+  it('blocks guest role from accessing check-in management APIs', async () => {
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+    await request(app)
+      .post('/api/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Guest Viewer',
+        email: 'guest-viewer@sachihouse.com',
+        password: 'guest1234',
+        role: 'GUEST',
+      })
+      .expect(201);
+
+    const guestToken = await login('guest-viewer@sachihouse.com', 'guest1234');
+    await request(app)
+      .get('/api/checkins')
+      .set('Authorization', `Bearer ${guestToken}`)
+      .expect(403);
+  });
 });
