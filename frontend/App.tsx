@@ -133,6 +133,68 @@ const SiteFaviconSync = () => {
     return null;
 };
 
+const DYNAMIC_IMPORT_RELOAD_KEY = 'dynamic-import-reload-at';
+const DYNAMIC_IMPORT_RELOAD_WINDOW_MS = 15000;
+
+const isChunkLoadError = (value: unknown) => {
+    const message = value instanceof Error
+        ? value.message
+        : typeof value === 'string'
+            ? value
+            : '';
+
+    return /Failed to fetch dynamically imported module|Importing a module script failed|Unable to preload CSS/i.test(message);
+};
+
+const shouldReloadForChunkError = () => {
+    try {
+        const lastAttempt = Number(sessionStorage.getItem(DYNAMIC_IMPORT_RELOAD_KEY) || 0);
+        if (Date.now() - lastAttempt < DYNAMIC_IMPORT_RELOAD_WINDOW_MS) {
+            return false;
+        }
+        sessionStorage.setItem(DYNAMIC_IMPORT_RELOAD_KEY, String(Date.now()));
+        return true;
+    } catch {
+        return true;
+    }
+};
+
+const ChunkReloadSync = () => {
+    useEffect(() => {
+        const reloadPage = () => {
+            if (shouldReloadForChunkError()) {
+                window.location.reload();
+            }
+        };
+
+        const handlePreloadError = (event: Event & { payload?: unknown }) => {
+            if (!isChunkLoadError(event.payload)) {
+                return;
+            }
+            event.preventDefault();
+            reloadPage();
+        };
+
+        const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+            if (!isChunkLoadError(event.reason)) {
+                return;
+            }
+            event.preventDefault();
+            reloadPage();
+        };
+
+        window.addEventListener('vite:preloadError', handlePreloadError as EventListener);
+        window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+        return () => {
+            window.removeEventListener('vite:preloadError', handlePreloadError as EventListener);
+            window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+        };
+    }, []);
+
+    return null;
+};
+
 async function testConnection() {
     return;
 }
@@ -462,6 +524,7 @@ const App: React.FC = () => {
         <Router>
           <ScrollToTop /> {/* Ensure page starts at top on navigation */}
                     <SiteFaviconSync />
+                    <ChunkReloadSync />
 
           <Routes>
             <Route path="/" element={<Suspense fallback={<ListingsSkeleton />}><ListingsRoute /></Suspense>} />
