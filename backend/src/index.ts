@@ -1,10 +1,12 @@
-import 'dotenv/config';
 import { Pool } from 'pg';
 import { createApp } from './app.js';
+import { loadEnvironment } from './env.js';
 import { ObjectStorageService } from './services/objectStorage.js';
 import { CheckInSubmission } from './store/types.js';
 import { MemoryStore } from './store/memoryStore.js';
 import { PostgresStore } from './store/postgresStore.js';
+
+loadEnvironment();
 
 const PORT = Number(process.env.PORT ?? 3001);
 const STORE_MODE = process.env.STORE_MODE ?? 'postgres';
