@@ -84,7 +84,6 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [checkinToken, setCheckinToken] = useState<string>('');
   const [consentPolicy, setConsentPolicy] = useState<CheckInConsentPolicy | null>(null);
-  const [hasAcceptedConsent, setHasAcceptedConsent] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
 
@@ -130,14 +129,38 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     if (!checkInDate || !checkOutDate || checkInDate >= checkOutDate) {
       return false;
     }
-    if (!checkinToken || !consentPolicy || !hasAcceptedConsent) {
+    if (!checkinToken || !consentPolicy) {
       return false;
     }
     if (guestsForSubmission.length === 0 || processingGuestCount > 0 || editorDraft) {
       return false;
     }
     return guestsForSubmission.every((guest) => guest.evidenceUrl && guest.fullName.trim() && reviewedGuestIds.includes(guest.id));
-  }, [checkInDate, checkOutDate, checkinToken, consentPolicy, hasAcceptedConsent, guestsForSubmission, processingGuestCount, editorDraft, reviewedGuestIds]);
+  }, [checkInDate, checkOutDate, checkinToken, consentPolicy, guestsForSubmission, processingGuestCount, editorDraft, reviewedGuestIds]);
+
+  const pendingReviewCount = Math.max(0, guestsForSubmission.length - confirmedGuestCount);
+  const datesReady = Boolean(checkInDate && checkOutDate && checkInDate < checkOutDate);
+  const progressPercent = canSubmit
+    ? 100
+    : guestsForSubmission.length > 0
+      ? Math.max(24, Math.round((confirmedGuestCount / guestsForSubmission.length) * 100))
+      : datesReady
+        ? 12
+        : 0;
+  const currentStepTitle = processingGuestCount > 0
+    ? 'AI is reading the current document'
+    : pendingReviewCount > 0
+      ? 'Review and confirm the pending guest'
+      : confirmedGuestCount > 0
+        ? 'Everything is ready for final send'
+        : 'Upload the first guest ID';
+  const currentStepDescription = processingGuestCount > 0
+    ? 'Keep this page open for a moment. The review popup will appear as soon as the scan finishes.'
+    : pendingReviewCount > 0
+      ? 'Open the review popup, fix anything that looks off, then confirm and continue to the next guest.'
+      : confirmedGuestCount > 0
+        ? 'All confirmed guests are ready. Hold the button once to send the full check-in.'
+        : 'Start with the lead guest. The flow will create the next slot automatically after each confirmation.';
 
   const replaceGuest = (guestId: string, nextGuest: CheckInGuest) => {
     setGuests((prev) => prev.map((guest) => (guest.id === guestId ? nextGuest : guest)));
@@ -314,7 +337,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           noticeVersion: consentPolicy?.noticeVersion ?? 'v1',
         },
       });
-      setSubmitSuccess(`Check-in submitted successfully. Reference: ${submission.id}`);
+      setSubmitSuccess(submission.id);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to submit check-in.';
       setSubmitError(message);
@@ -324,377 +347,358 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d]">
+    <div className="min-h-screen bg-white text-gray-900">
       <TopNavBar />
-      <main className="mx-auto max-w-5xl px-4 pb-24 pt-[110px] md:pb-10">
-        <section className="overflow-hidden rounded-[28px] border border-[#e4e2e3] bg-white shadow-sm">
-          <div className="border-b border-[#ece9ea] bg-[linear-gradient(135deg,#fffaf3_0%,#f7f4ff_100%)] px-5 py-6 md:px-8">
-            <h1 className="font-['Plus_Jakarta_Sans'] text-2xl font-bold md:text-3xl">Property Check-in</h1>
-            <p className="mt-2 max-w-2xl text-sm text-[#4b4f56] md:text-base">
-              {data.name}: upload one guest ID at a time, let AI read it, confirm the popup details, then move on to the next guest.
-            </p>
+      <main className="mx-auto max-w-md px-4 pb-28 pt-[88px]">
+        {/* Header */}
+        <div className="mb-6">
+          <p className="text-xs font-medium uppercase tracking-widest text-gray-400">{data.name}</p>
+          <h1 className="mt-1 text-2xl font-bold">Guest check-in</h1>
+        </div>
+
+        {isInitializing && (
+          <div className="mb-4 flex items-center gap-2 text-sm text-gray-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Starting session…
           </div>
+        )}
+        {sessionError && (
+          <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{sessionError}</p>
+        )}
 
-          <div className="space-y-6 px-5 py-6 md:px-8 md:py-8">
-            {isInitializing && (
-              <div className="inline-flex items-center gap-2 rounded-full bg-[#f4f2f3] px-3 py-2 text-sm text-[#44474c]">
-                <Loader2 className="h-4 w-4 animate-spin" /> Initializing secure check-in session...
-              </div>
-            )}
+        {/* Dates */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Check-in</p>
+            <input
+              type="date"
+              value={checkInDate}
+              onChange={(event) => setCheckInDate(event.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Check-out</p>
+            <input
+              type="date"
+              value={checkOutDate}
+              onChange={(event) => setCheckOutDate(event.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
+            />
+          </div>
+        </div>
 
-            {sessionError && <p className="text-sm text-red-700">{sessionError}</p>}
+        {/* Guest list */}
+        <div className="mt-6 space-y-2">
+          {guests.map((guest, index) => {
+            const isEmpty = isGuestEmpty(guest);
+            const isProcessing = Boolean(processingByGuest[guest.id]);
+            const hasPreview = Boolean(photoPreviewByGuest[guest.id]);
+            const isConfirmed = reviewedGuestIds.includes(guest.id) && Boolean(guest.evidenceUrl) && Boolean(guest.fullName.trim());
+            const needsReview = !isEmpty && !isConfirmed && !isProcessing;
+            const guestError = errorByGuest[guest.id];
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_290px]">
-              <div className="rounded-2xl border border-[#ece9ea] bg-[#fcfbfb] p-4 md:p-5">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <label className="text-sm font-semibold text-[#1b1c1d]">
-                    Check-in Date
-                    <input
-                      type="date"
-                      value={checkInDate}
-                      onChange={(event) => setCheckInDate(event.target.value)}
-                      className="mt-1 w-full rounded-xl border border-[#cfd2d8] px-3 py-2"
+            return (
+              <React.Fragment key={guest.id}>
+                <div
+                  className={`flex items-center gap-3 rounded-2xl border p-3 transition-colors ${
+                    isConfirmed
+                      ? 'border-green-200 bg-green-50'
+                      : needsReview
+                        ? 'border-amber-200 bg-amber-50'
+                        : isProcessing
+                          ? 'border-gray-200 bg-gray-50'
+                          : 'border-dashed border-blue-200 bg-blue-50'
+                  }`}
+                >
+                  {/* Thumbnail */}
+                  {hasPreview ? (
+                    <img
+                      src={photoPreviewByGuest[guest.id]}
+                      alt=""
+                      className="h-12 w-12 shrink-0 rounded-xl object-cover"
                     />
-                  </label>
-                  <label className="text-sm font-semibold text-[#1b1c1d]">
-                    Check-out Date
-                    <input
-                      type="date"
-                      value={checkOutDate}
-                      onChange={(event) => setCheckOutDate(event.target.value)}
-                      className="mt-1 w-full rounded-xl border border-[#cfd2d8] px-3 py-2"
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <aside className="rounded-2xl border border-[#ece9ea] bg-[#041627] p-4 text-white md:p-5">
-                <p className="text-xs uppercase tracking-[0.18em] text-white/65">Guest Progress</p>
-                <p className="mt-3 text-3xl font-bold">{confirmedGuestCount}</p>
-                <p className="text-sm text-white/72">confirmed guest{confirmedGuestCount === 1 ? '' : 's'}</p>
-                <div className="mt-4 space-y-2 text-sm text-white/72">
-                  <p>{processingGuestCount > 0 ? `${processingGuestCount} scan running` : 'No scan running'}</p>
-                  <p>{guestsForSubmission.length - confirmedGuestCount > 0 ? `${guestsForSubmission.length - confirmedGuestCount} guest needs review` : 'Ready to submit once consent is checked'}</p>
-                </div>
-              </aside>
-            </div>
-
-            <div className="space-y-3">
-              {guests.map((guest, index) => {
-                const isEmpty = isGuestEmpty(guest);
-                const isProcessing = Boolean(processingByGuest[guest.id]);
-                const hasPreview = Boolean(photoPreviewByGuest[guest.id]);
-                const isConfirmed = reviewedGuestIds.includes(guest.id) && guest.evidenceUrl && guest.fullName.trim();
-                const needsReview = !isEmpty && !isConfirmed;
-
-                return (
-                  <article
-                    key={guest.id}
-                    className={`rounded-2xl border p-4 transition-colors md:p-5 ${isEmpty ? 'border-dashed border-[#cfd2d8] bg-[#fbfbfb]' : 'border-[#e6e3e4] bg-white'}`}
-                  >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div className="flex min-w-0 flex-1 gap-4">
-                        {hasPreview ? (
-                          <img
-                            src={photoPreviewByGuest[guest.id]}
-                            alt={`Guest ${index + 1} ID preview`}
-                            className="h-20 w-28 shrink-0 rounded-2xl border border-[#e4e2e3] object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-20 w-28 shrink-0 items-center justify-center rounded-2xl border border-dashed border-[#cfd2d8] bg-[#f7f5f6] text-[#66707a]">
-                            <FileBadge2 className="h-6 w-6" />
-                          </div>
-                        )}
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold text-[#1b1c1d]">Guest {index + 1}</p>
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${isConfirmed ? 'bg-[#dff6ea] text-[#0f6b45]' : needsReview ? 'bg-[#fff2cc] text-[#7a5200]' : 'bg-[#eef2f6] text-[#51606d]'}`}
-                            >
-                              {isConfirmed ? 'Confirmed' : needsReview ? 'Needs review' : 'Waiting for ID'}
-                            </span>
-                          </div>
-
-                          {isEmpty ? (
-                            <p className="mt-2 text-sm text-[#59616b]">
-                              Upload an ID. AI will scan it and open a compact confirmation popup before you continue to the next guest.
-                            </p>
-                          ) : (
-                            <>
-                              <p className="mt-2 truncate text-sm font-semibold text-[#1b1c1d]">{guest.fullName || 'Awaiting OCR details'}</p>
-                              <div className="mt-2 flex flex-wrap gap-2 text-xs text-[#59616b]">
-                                <span className="rounded-full bg-[#f4f2f3] px-2.5 py-1">{documentTypeLabels[guest.documentType]}</span>
-                                {guest.documentNumber && <span className="rounded-full bg-[#f4f2f3] px-2.5 py-1">{guest.documentNumber}</span>}
-                                {guest.nationality && <span className="rounded-full bg-[#f4f2f3] px-2.5 py-1">{guest.nationality}</span>}
-                                {guest.birthYear && <span className="rounded-full bg-[#f4f2f3] px-2.5 py-1">Born {guest.birthYear}</span>}
-                              </div>
-                            </>
-                          )}
-
-                          {isProcessing && (
-                            <div className="mt-3 inline-flex items-center gap-2 text-sm text-[#44474c]">
-                              <Loader2 className="h-4 w-4 animate-spin" /> AI is validating and extracting data...
-                            </div>
-                          )}
-
-                          {errorByGuest[guest.id] && <p className="mt-3 text-sm text-red-700">{errorByGuest[guest.id]}</p>}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 md:max-w-[240px] md:justify-end">
-                        <label className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${isProcessing || !checkinToken ? 'cursor-not-allowed border-[#d4d7db] text-[#94a0ad]' : 'border-[#041627] text-[#041627]'}`}>
-                          <Upload className="h-4 w-4" />
-                          <span>{isEmpty ? 'Upload ID' : 'Replace image'}</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={(event) => void handleImageChange(guest.id, event)}
-                            className="hidden"
-                            disabled={isProcessing || !checkinToken}
-                          />
-                        </label>
-
-                        {!isEmpty && (
-                          <button
-                            type="button"
-                            onClick={() => openEditor(guest.id)}
-                            className="inline-flex items-center gap-2 rounded-full border border-[#d4d7db] px-4 py-2 text-sm font-semibold text-[#24303b]"
-                          >
-                            <PencilLine className="h-4 w-4" /> Review
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => removeGuest(guest.id)}
-                          className="inline-flex items-center gap-2 rounded-full border border-[#f0d4d4] px-4 py-2 text-sm font-semibold text-[#a33c3c]"
-                          disabled={guests.length <= 1}
-                        >
-                          <Trash2 className="h-4 w-4" /> Remove
-                        </button>
-                      </div>
+                  ) : (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-300">
+                      <FileBadge2 className="h-6 w-6" />
                     </div>
-                  </article>
-                );
-              })}
-            </div>
+                  )}
 
-            <button
-              type="button"
-              onClick={addGuest}
-              className="inline-flex items-center gap-2 rounded-full border border-[#041627] px-4 py-2 font-semibold text-[#041627] disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={guests.some((guest) => isGuestEmpty(guest))}
-            >
-              <Plus className="h-4 w-4" /> Add another guest slot
-            </button>
+                  {/* Name + status */}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">
+                      {isEmpty ? `Guest ${index + 1}` : guest.fullName || `Guest ${index + 1}`}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-400">
+                      {isProcessing
+                        ? 'Scanning…'
+                        : isConfirmed
+                          ? 'Confirmed ✓'
+                          : needsReview
+                            ? 'Review required'
+                            : 'Upload ID to continue'}
+                    </p>
+                  </div>
 
-            {submitError && <p className="text-sm text-red-700">{submitError}</p>}
-            {submitSuccess && <p className="text-sm text-emerald-700">{submitSuccess}</p>}
+                  {/* Action */}
+                  {isProcessing ? (
+                    <Loader2 className="h-5 w-5 shrink-0 animate-spin text-gray-400" />
+                  ) : needsReview ? (
+                    <button
+                      type="button"
+                      onClick={() => openEditor(guest.id)}
+                      className="shrink-0 rounded-xl bg-amber-400 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-500"
+                    >
+                      Review →
+                    </button>
+                  ) : isConfirmed ? (
+                    <button
+                      type="button"
+                      onClick={() => openEditor(guest.id)}
+                      className="shrink-0 rounded-xl border border-gray-200 p-2 text-gray-400 hover:text-gray-700"
+                      aria-label="Edit"
+                    >
+                      <PencilLine className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <label
+                      className={`shrink-0 cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold ${
+                        !checkinToken ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'bg-gray-900 text-white hover:bg-gray-700'
+                      }`}
+                    >
+                      <Upload className="mr-1 inline-block h-3.5 w-3.5" />
+                      Upload ID
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(event) => void handleImageChange(guest.id, event)}
+                        className="hidden"
+                        disabled={!checkinToken || isProcessing}
+                      />
+                    </label>
+                  )}
 
-            <label className="flex items-start gap-3 rounded-2xl border border-[#e4e2e3] bg-[#f7f5f6] p-4 text-sm text-[#44474c]">
-              <input
-                type="checkbox"
-                checked={hasAcceptedConsent}
-                onChange={(event) => setHasAcceptedConsent(event.target.checked)}
-                className="mt-1 h-4 w-4"
-              />
-              <span>
-                I consent to my identity information being stored for {consentPolicy?.retentionDays ?? 7} days for identity verification and check-in verification purposes. This submission records a timestamp and technical audit data.
-              </span>
-            </label>
+                  {/* Remove */}
+                  {!isProcessing && guests.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeGuest(guest.id)}
+                      className="shrink-0 rounded-xl border border-transparent p-2 text-gray-300 hover:border-gray-200 hover:text-red-400"
+                      aria-label="Remove guest"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
 
-            <div className="rounded-2xl border border-[#e4e2e3] bg-[#fcfbfb] p-4 md:p-5">
-              <p className="mb-3 text-sm text-[#59616b]">
-                Guests must be confirmed in the popup before final submission. A single blank guest slot can stay visible so the page stays compact while you continue scanning.
-              </p>
-              <HoldToSubmitButton
-                disabled={!canSubmit || isSubmitting}
-                holdMs={2000}
-                label={isSubmitting ? 'Submitting...' : 'Hold 2 seconds to send check-in'}
-                onComplete={handleSubmit}
-              />
-            </div>
-          </div>
-        </section>
+                {guestError && (
+                  <p className="px-2 text-xs text-red-600">{guestError}</p>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+        {/* Add guest */}
+        <button
+          type="button"
+          onClick={addGuest}
+          disabled={guests.some((g) => isGuestEmpty(g))}
+          className="mt-3 flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 disabled:opacity-30"
+        >
+          <Plus className="h-4 w-4" /> Add another guest
+        </button>
+
+        {/* Submit */}
+        <div className="mt-8">
+          {submitError && (
+            <p className="mb-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{submitError}</p>
+          )}
+          <HoldToSubmitButton
+            disabled={!canSubmit || isSubmitting}
+            holdMs={1000}
+            label={isSubmitting ? 'Submitting…' : 'Hold to send check-in'}
+            onComplete={handleSubmit}
+          />
+        </div>
       </main>
 
+      {/* Success popup */}
+      {submitSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-2xl">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+              <Check className="h-8 w-8 text-green-600" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">Check-in submitted!</h2>
+            <p className="mt-2 text-sm text-gray-400">Reference: {submitSuccess}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-6 w-full rounded-2xl bg-gray-900 py-3 text-sm font-semibold text-white hover:bg-gray-700"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* OCR review popup */}
       {editorDraft && editorGuestId && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#041627]/45 p-3 backdrop-blur-sm md:items-center md:p-6">
-          <div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/60 bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-[#ece9ea] px-5 py-4 md:px-6">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm md:items-center">
+          <div className="max-h-[92vh] w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b px-5 py-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-[#7f6a33]">Guest {Number(guestIndexById[editorGuestId] ?? 0) + 1}</p>
-                <h2 className="mt-1 font-['Plus_Jakarta_Sans'] text-xl font-bold text-[#1b1c1d]">Confirm OCR details</h2>
-                <p className="mt-1 text-sm text-[#59616b]">Review the extracted fields, fix anything needed, then confirm this guest and continue.</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Guest {Number(guestIndexById[editorGuestId] ?? 0) + 1}
+                </p>
+                <h2 className="mt-0.5 text-lg font-bold text-gray-900">Review ID details</h2>
               </div>
               <button
                 type="button"
                 onClick={closeEditor}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d7dade] text-[#32404d]"
-                aria-label="Close review dialog"
+                className="rounded-full border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
+                aria-label="Close"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="grid gap-5 overflow-y-auto p-5 md:grid-cols-[220px_minmax(0,1fr)] md:p-6">
-              <div className="space-y-4">
-                {photoPreviewByGuest[editorGuestId] ? (
-                  <img
-                    src={photoPreviewByGuest[editorGuestId]}
-                    alt="Uploaded ID preview"
-                    className="h-52 w-full rounded-3xl border border-[#ece9ea] object-cover"
+            <div className="overflow-y-auto p-5">
+              {photoPreviewByGuest[editorGuestId] && (
+                <img
+                  src={photoPreviewByGuest[editorGuestId]}
+                  alt="ID preview"
+                  className="mb-4 h-36 w-full rounded-2xl object-cover"
+                />
+              )}
+
+              {editorError && (
+                <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{editorError}</p>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="col-span-2 text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Full name *
+                  <input
+                    value={editorDraft.fullName}
+                    onChange={(event) => {
+                      setEditorDraft((prev) => (prev ? { ...prev, fullName: event.target.value } : prev));
+                      setEditorError(null);
+                    }}
+                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
                   />
-                ) : (
-                  <div className="flex h-52 items-center justify-center rounded-3xl border border-dashed border-[#cfd2d8] bg-[#f7f5f6] text-[#66707a]">
-                    <FileBadge2 className="h-8 w-8" />
-                  </div>
-                )}
+                </label>
 
-                <div className="rounded-2xl bg-[#f6f2e8] p-4 text-sm text-[#5f4a17]">
-                  <p className="font-semibold">Quick review</p>
-                  <p className="mt-1">Fields marked below were estimated by AI and should be checked manually.</p>
-                </div>
+                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Birth year
+                  <input
+                    type="number"
+                    value={editorDraft.birthYear ?? ''}
+                    onChange={(event) => {
+                      setEditorDraft((prev) => (prev ? { ...prev, birthYear: event.target.value ? Number(event.target.value) : null } : prev));
+                      setEditorError(null);
+                    }}
+                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
+                  />
+                </label>
 
-                {Object.entries(editorDraft.estimated).some(([, value]) => value) && (
-                  <div className="flex flex-wrap gap-2 text-xs text-[#6b7280]">
-                    {Object.entries(editorDraft.estimated)
-                      .filter(([, value]) => value)
-                      .map(([key]) => (
-                        <span key={key} className="rounded-full bg-[#f4f2f3] px-2.5 py-1">
-                          {estimatedFieldLabels[key as keyof CheckInGuestEstimatedFlags] ?? key}
-                        </span>
-                      ))}
-                  </div>
-                )}
-              </div>
+                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Gender
+                  <input
+                    value={editorDraft.gender}
+                    onChange={(event) => {
+                      setEditorDraft((prev) => (prev ? { ...prev, gender: event.target.value } : prev));
+                      setEditorError(null);
+                    }}
+                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
+                  />
+                </label>
 
-              <div className="space-y-4">
-                {editorError && <p className="text-sm text-red-700">{editorError}</p>}
+                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Nationality
+                  <input
+                    value={editorDraft.nationality}
+                    onChange={(event) => {
+                      setEditorDraft((prev) => (prev ? { ...prev, nationality: event.target.value } : prev));
+                      setEditorError(null);
+                    }}
+                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
+                  />
+                </label>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <label className="text-sm font-semibold text-[#1b1c1d]">
-                    Full name
-                    <input
-                      value={editorDraft.fullName}
-                      onChange={(event) => {
-                        setEditorDraft((prev) => (prev ? { ...prev, fullName: event.target.value } : prev));
-                        setEditorError(null);
-                      }}
-                      className="mt-1 w-full rounded-xl border border-[#cfd2d8] px-3 py-2"
-                    />
-                  </label>
+                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Occupation
+                  <input
+                    value={editorDraft.occupation}
+                    onChange={(event) => {
+                      setEditorDraft((prev) => (prev ? { ...prev, occupation: event.target.value } : prev));
+                      setEditorError(null);
+                    }}
+                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
+                  />
+                </label>
 
-                  <label className="text-sm font-semibold text-[#1b1c1d]">
-                    Birth year
-                    <input
-                      value={editorDraft.birthYear ?? ''}
-                      onChange={(event) => {
-                        setEditorDraft((prev) => (prev ? { ...prev, birthYear: event.target.value ? Number(event.target.value) : null } : prev));
-                        setEditorError(null);
-                      }}
-                      className="mt-1 w-full rounded-xl border border-[#cfd2d8] px-3 py-2"
-                    />
-                  </label>
+                <label className="col-span-2 text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Address
+                  <input
+                    value={editorDraft.address}
+                    onChange={(event) => {
+                      setEditorDraft((prev) => (prev ? { ...prev, address: event.target.value } : prev));
+                      setEditorError(null);
+                    }}
+                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
+                  />
+                </label>
 
-                  <label className="text-sm font-semibold text-[#1b1c1d]">
-                    Nationality
-                    <input
-                      value={editorDraft.nationality}
-                      onChange={(event) => {
-                        setEditorDraft((prev) => (prev ? { ...prev, nationality: event.target.value } : prev));
-                        setEditorError(null);
-                      }}
-                      className="mt-1 w-full rounded-xl border border-[#cfd2d8] px-3 py-2"
-                    />
-                  </label>
+                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Document #
+                  <input
+                    value={editorDraft.documentNumber}
+                    onChange={(event) => {
+                      setEditorDraft((prev) => (prev ? { ...prev, documentNumber: event.target.value } : prev));
+                      setEditorError(null);
+                    }}
+                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
+                  />
+                </label>
 
-                  <label className="text-sm font-semibold text-[#1b1c1d]">
-                    Gender
-                    <input
-                      value={editorDraft.gender}
-                      onChange={(event) => {
-                        setEditorDraft((prev) => (prev ? { ...prev, gender: event.target.value } : prev));
-                        setEditorError(null);
-                      }}
-                      className="mt-1 w-full rounded-xl border border-[#cfd2d8] px-3 py-2"
-                    />
-                  </label>
-
-                  <label className="text-sm font-semibold text-[#1b1c1d] md:col-span-2">
-                    Address
-                    <input
-                      value={editorDraft.address}
-                      onChange={(event) => {
-                        setEditorDraft((prev) => (prev ? { ...prev, address: event.target.value } : prev));
-                        setEditorError(null);
-                      }}
-                      className="mt-1 w-full rounded-xl border border-[#cfd2d8] px-3 py-2"
-                    />
-                  </label>
-
-                  <label className="text-sm font-semibold text-[#1b1c1d]">
-                    Occupation
-                    <input
-                      value={editorDraft.occupation}
-                      onChange={(event) => {
-                        setEditorDraft((prev) => (prev ? { ...prev, occupation: event.target.value } : prev));
-                        setEditorError(null);
-                      }}
-                      className="mt-1 w-full rounded-xl border border-[#cfd2d8] px-3 py-2"
-                    />
-                  </label>
-
-                  <label className="text-sm font-semibold text-[#1b1c1d]">
-                    Document number
-                    <input
-                      value={editorDraft.documentNumber}
-                      onChange={(event) => {
-                        setEditorDraft((prev) => (prev ? { ...prev, documentNumber: event.target.value } : prev));
-                        setEditorError(null);
-                      }}
-                      className="mt-1 w-full rounded-xl border border-[#cfd2d8] px-3 py-2"
-                    />
-                  </label>
-
-                  <label className="text-sm font-semibold text-[#1b1c1d] md:col-span-2">
-                    Document type
-                    <select
-                      value={editorDraft.documentType}
-                      onChange={(event) => {
-                        setEditorDraft((prev) => (prev ? { ...prev, documentType: event.target.value as CheckInGuest['documentType'] } : prev));
-                        setEditorError(null);
-                      }}
-                      className="mt-1 w-full rounded-xl border border-[#cfd2d8] px-3 py-2"
-                    >
-                      {Object.entries(documentTypeLabels).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
+                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Document type
+                  <select
+                    value={editorDraft.documentType}
+                    onChange={(event) => {
+                      setEditorDraft((prev) => (prev ? { ...prev, documentType: event.target.value as CheckInGuest['documentType'] } : prev));
+                      setEditorError(null);
+                    }}
+                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-normal text-gray-900"
+                  >
+                    {Object.entries(documentTypeLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-[#ece9ea] px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6">
+            {/* Footer */}
+            <div className="flex items-center justify-between border-t bg-gray-50 px-5 py-4">
               <button
                 type="button"
                 onClick={() => resetGuestCapture(editorGuestId)}
-                className="inline-flex items-center justify-center rounded-full border border-[#f0d4d4] px-4 py-2 font-semibold text-[#a33c3c]"
+                className="text-sm font-medium text-gray-400 hover:text-gray-700"
               >
                 Use another photo
               </button>
-
               <button
                 type="button"
                 onClick={confirmGuestDetails}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#041627] px-5 py-2.5 font-semibold text-white"
+                className="flex items-center gap-2 rounded-2xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-700"
               >
-                <Check className="h-4 w-4" /> Confirm this guest
+                <Check className="h-4 w-4" /> Confirm guest
               </button>
             </div>
           </div>

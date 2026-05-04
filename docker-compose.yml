@@ -19,13 +19,21 @@ services:
     build:
       context: ./backend
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
     environment:
       PORT: 3001
       STORE_MODE: postgres
       DATABASE_URL: postgresql://sachihouse:sachihouse@db:5432/sachihouse
       GOOGLE_APPLICATION_CREDENTIALS: /run/credentials/gcp-service-account.json
       GCP_SERVICE_ACCOUNT_FILE: gcp-service-account.json
+      # Secrets — injected from host env or root .env file (gitignored)
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      JWT_SECRET: ${JWT_SECRET:-}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
+      GCS_BUCKET: ${GCS_BUCKET:-}
+      GCS_PREFIX: ${GCS_PREFIX:-checkins}
     ports:
       - "3001:3001"
     volumes:
