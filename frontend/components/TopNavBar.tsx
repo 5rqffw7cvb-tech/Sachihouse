@@ -75,7 +75,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
   return (
     <>
       <nav className="md:hidden sticky top-0 bg-[#ffffff]/95 backdrop-blur-sm font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_2px_12px_rgba(0,0,0,0.04)] z-50">
-        <div className="px-3 py-3 text-center">
+        <div className="px-3 py-3 text-left">
           <span className="text-[18px] font-bold tracking-tight text-[#1b1c1d]">{mobilePageTitle}</span>
         </div>
       </nav>
