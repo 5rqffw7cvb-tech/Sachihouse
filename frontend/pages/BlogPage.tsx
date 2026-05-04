@@ -9,9 +9,32 @@ import { Helmet } from 'react-helmet-async';
 const BlogPage: React.FC = () => {
   const [allPosts, setAllPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const categoryFilter = searchParams.get('category');
   const searchFilter = searchParams.get('q');
+
+  const categoryOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    allPosts.forEach((post) => {
+      if (!post.category) {
+        return;
+      }
+      counts.set(post.category, (counts.get(post.category) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
+  }, [allPosts]);
+
+  const updateCategoryFilter = (nextCategory: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (nextCategory) {
+      next.set('category', nextCategory);
+    } else {
+      next.delete('category');
+    }
+    setSearchParams(next, { replace: true });
+  };
 
   useEffect(() => {
     blogService.getPosts().then(data => {
@@ -83,6 +106,25 @@ const BlogPage: React.FC = () => {
             Discover hidden gems, navigate the bustling streets, and immerse yourself in the culture<br className="hidden md:block"/>of Japan's vibrant capital. Curated insights for the modern traveler.
           </p>
         )}
+      </div>
+
+      <div className="mb-5 md:hidden">
+        <div className="flex items-center gap-3 rounded-xl border border-[#e4e2e3] bg-white px-3 py-2.5">
+          <label htmlFor="mobile-blog-category" className="shrink-0 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">
+            Category
+          </label>
+          <select
+            id="mobile-blog-category"
+            value={categoryFilter || ''}
+            onChange={(event) => updateCategoryFilter(event.target.value)}
+            className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-[#1b1c1d] outline-none"
+          >
+            <option value="">All categories</option>
+            {categoryOptions.map((category) => (
+              <option key={category.name} value={category.name}>{category.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
@@ -175,7 +217,9 @@ const BlogPage: React.FC = () => {
         </div>
 
         {/* Sidebar */}
-        <BlogSidebar />
+        <div className="hidden lg:block">
+          <BlogSidebar />
+        </div>
       </div>
     </GlobalLayout>
   );
