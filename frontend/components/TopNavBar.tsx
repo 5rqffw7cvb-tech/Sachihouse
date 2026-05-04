@@ -11,7 +11,9 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [navTitle, setNavTitle] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(getCurrentUser()?.email ?? null);
+  const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const mobileLastScrollY = useRef(0);
 
   const isAuthenticated = !!authUser;
   const canManageUsers = authUser?.role === 'ADMIN';
@@ -54,6 +56,21 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > mobileLastScrollY.current && currentScrollY > 50) {
+        setIsMobileHeaderVisible(false);
+      } else {
+        setIsMobileHeaderVisible(true);
+      }
+      mobileLastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const handleLogin = () => {
     navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
   };
@@ -74,7 +91,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
 
   return (
     <>
-      <nav className="md:hidden sticky top-0 bg-[#ffffff]/95 backdrop-blur-sm font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_2px_12px_rgba(0,0,0,0.04)] z-50">
+      <nav className={`md:hidden sticky top-0 bg-[#ffffff]/95 backdrop-blur-sm font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_2px_12px_rgba(0,0,0,0.04)] z-50 transition-transform duration-300 ${isMobileHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         <div className="px-3 py-3 text-left">
           <span className="text-[18px] font-bold tracking-tight text-[#1b1c1d]">{mobilePageTitle}</span>
         </div>
