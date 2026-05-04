@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { GlobalLayout } from '../components/GlobalLayout';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2 } from 'lucide-react';
 import { BlogSidebar } from '../components/BlogSidebar';
 import { BlogPost, blogService } from '../services/blogService';
 import { Helmet } from 'react-helmet-async';
@@ -9,6 +9,8 @@ import { Helmet } from 'react-helmet-async';
 const BlogPage: React.FC = () => {
   const [allPosts, setAllPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [draftCategory, setDraftCategory] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryFilter = searchParams.get('category');
   const searchFilter = searchParams.get('q');
@@ -35,6 +37,21 @@ const BlogPage: React.FC = () => {
     }
     setSearchParams(next, { replace: true });
   };
+
+  const applyDraftCategoryFilter = () => {
+    updateCategoryFilter(draftCategory);
+    setIsMobileFiltersOpen(false);
+  };
+
+  const clearMobileCategoryFilter = () => {
+    setDraftCategory('');
+    updateCategoryFilter('');
+    setIsMobileFiltersOpen(false);
+  };
+
+  useEffect(() => {
+    setDraftCategory(categoryFilter || '');
+  }, [categoryFilter]);
 
   useEffect(() => {
     blogService.getPosts().then(data => {
@@ -109,22 +126,54 @@ const BlogPage: React.FC = () => {
       </div>
 
       <div className="mb-5 md:hidden">
-        <div className="flex items-center gap-3 rounded-xl border border-[#e4e2e3] bg-white px-3 py-2.5">
-          <label htmlFor="mobile-blog-category" className="shrink-0 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">
-            Category
-          </label>
-          <select
-            id="mobile-blog-category"
-            value={categoryFilter || ''}
-            onChange={(event) => updateCategoryFilter(event.target.value)}
-            className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-[#1b1c1d] outline-none"
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsMobileFiltersOpen((prev) => !prev)}
+            className="flex min-w-0 flex-1 items-center justify-between rounded-xl border border-[#c4c6cd] bg-white px-4 py-3 text-left text-[14px] font-semibold text-[#1b1c1d]"
           >
-            <option value="">All categories</option>
-            {categoryOptions.map((category) => (
-              <option key={category.name} value={category.name}>{category.name}</option>
-            ))}
-          </select>
+            <span>
+              Filters
+              {categoryFilter ? ' (1)' : ''}
+            </span>
+            {isMobileFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={clearMobileCategoryFilter}
+            className="shrink-0 rounded-xl border border-[#c4c6cd] bg-white px-3 py-3 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
+          >
+            Clear filter
+          </button>
         </div>
+
+        {isMobileFiltersOpen && (
+          <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-[#e4e2e3] bg-white p-3">
+            <div>
+              <label htmlFor="mobile-blog-category" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">
+                Category
+              </label>
+              <select
+                id="mobile-blog-category"
+                value={draftCategory}
+                onChange={(event) => setDraftCategory(event.target.value)}
+                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+              >
+                <option value="">All categories</option>
+                {categoryOptions.map((category) => (
+                  <option key={category.name} value={category.name}>{category.name}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={applyDraftCategoryFilter}
+              className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
+            >
+              Apply filter
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
