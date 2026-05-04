@@ -39,8 +39,28 @@ export class ObjectStorageService {
   private readonly projectId = process.env.GCP_PROJECT_ID;
   private readonly prefix = process.env.GCS_PREFIX ?? 'checkins';
   private readonly storage = this.bucketName
-    ? new Storage({ projectId: this.projectId || undefined })
+    ? new Storage({ projectId: this.projectId || undefined, ...ObjectStorageService.credentialsOption() })
     : null;
+
+  private static credentialsOption(): { credentials?: object } {
+    const raw = process.env.GCP_SERVICE_ACCOUNT_JSON;
+    if (raw) {
+      try {
+        return { credentials: JSON.parse(raw) };
+      } catch {
+        // fall through to GOOGLE_APPLICATION_CREDENTIALS / ADC
+      }
+    }
+    const b64 = process.env.GCP_SERVICE_ACCOUNT_JSON_B64;
+    if (b64) {
+      try {
+        return { credentials: JSON.parse(Buffer.from(b64, 'base64').toString('utf8')) };
+      } catch {
+        // fall through
+      }
+    }
+    return {};
+  }
 
   async compressImage(buffer: Buffer, mimeType: string): Promise<{ buffer: Buffer; mimeType: string }> {
     if (!MIME_ALLOWLIST.has(mimeType)) {
