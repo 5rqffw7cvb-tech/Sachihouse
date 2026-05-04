@@ -60,6 +60,7 @@ const BlogPostPage: React.FC = () => {
   const pageTitle = `${post.title} | Tokyo Travel Blog`;
   const pageDescription = post.excerpt || `Read about ${post.title} on our Tokyo Travel Blog.`;
   const imageUrl = post.imageUrl || ''; // You could also set a default image
+  const contentFormat = post.contentFormat || 'markdown';
 
   return (
     <GlobalLayout>
@@ -122,7 +123,11 @@ const BlogPostPage: React.FC = () => {
           )}
 
           <div className="article-markdown max-w-none">
-            <Markdown>{post.content}</Markdown>
+            {contentFormat === 'markdown' ? (
+              <Markdown>{post.content}</Markdown>
+            ) : (
+              <div dangerouslySetInnerHTML={{ __html: post.content }} />
+            )}
           </div>
         </div>
 

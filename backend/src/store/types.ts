@@ -17,6 +17,7 @@ export interface BlogPost {
   title: string;
   excerpt: string;
   content: string;
+  contentFormat?: 'markdown' | 'rich_text' | 'html';
   createdAt: number;
   updatedAt: number;
   imageUrl: string;

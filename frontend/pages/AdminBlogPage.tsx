@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BlogPost, blogService } from '../services/blogService';
-import { Plus, Edit2, Trash2, Lock, Loader2, ArrowLeft, Save, ImageIcon, Check, X, PencilLine, Columns2, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, Lock, Loader2, ArrowLeft, Save, ImageIcon, Check, X, PencilLine, Columns2, Eye, Bold, Italic, List, ListOrdered, Heading2, Quote, Link as LinkIcon } from 'lucide-react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { TopNavBar } from '../components/TopNavBar';
@@ -30,6 +30,7 @@ const AdminBlogPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const richTextRef = useRef<HTMLDivElement | null>(null);
 
   const canManageBlog = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
 
@@ -39,6 +40,17 @@ const AdminBlogPage: React.FC = () => {
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-');
+
+  const contentFormat = editingPost?.contentFormat || 'markdown';
+
+  const runRichTextCommand = (command: string, value?: string) => {
+    if (!richTextRef.current) {
+      return;
+    }
+    richTextRef.current.focus();
+    document.execCommand(command, false, value);
+    setEditingPost((prev) => prev ? { ...prev, content: richTextRef.current?.innerHTML || '' } : prev);
+  };
 
   const fetchPosts = async () => {
     setErrorMsg('');
@@ -131,6 +143,7 @@ const AdminBlogPage: React.FC = () => {
         title: editingPost.title || '',
         excerpt: editingPost.excerpt || '',
         content: editingPost.content || '',
+        contentFormat: editingPost.contentFormat || 'markdown',
         imageUrl: editingPost.imageUrl || '',
         category: editingPost.category || '',
         isFeatured: editingPost.isFeatured || false,
@@ -176,6 +189,7 @@ const AdminBlogPage: React.FC = () => {
       title: '',
       excerpt: '',
       content: '',
+      contentFormat: 'markdown',
       imageUrl: '',
       category: 'Local Tips',
       isFeatured: false,
@@ -301,25 +315,88 @@ const AdminBlogPage: React.FC = () => {
 
               <div className="rounded-2xl border border-[#e4e2e3] bg-white p-5 shadow-sm">
                 <div className="mb-2 flex items-center justify-between">
-                  <label className="text-sm font-bold text-[#041627]">Content (Markdown)</label>
+                  <label className="text-sm font-bold text-[#041627]">Content</label>
                   <span className="text-xs text-[#74777d]">Words: {draftWordCount} · {estimatedReadMinutes} min read</span>
                 </div>
 
+                <div className="mb-3 w-full sm:w-56">
+                  <label className="mb-1 block text-xs font-bold text-[#44474c]">Format</label>
+                  <select
+                    value={contentFormat}
+                    onChange={(e) => {
+                      const nextFormat = e.target.value as 'markdown' | 'rich_text' | 'html';
+                      setEditingPost((prev) => {
+                        if (!prev) {
+                          return prev;
+                        }
+                        const normalizedContent = nextFormat === 'rich_text' && !(prev.content || '').trim()
+                          ? '<p></p>'
+                          : (prev.content || '');
+                        return { ...prev, contentFormat: nextFormat, content: normalizedContent };
+                      });
+                    }}
+                    className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="markdown">Markdown</option>
+                    <option value="rich_text">Rich text</option>
+                    <option value="html">HTML</option>
+                  </select>
+                </div>
+
                 {(editorView === 'write' || editorView === 'split') && (
-                  <textarea
-                    value={draftContent}
-                    onChange={(e) => setEditingPost({ ...editingPost, content: e.target.value })}
-                    className={`w-full rounded-xl border border-[#c4c6cd] px-4 py-3 font-mono text-sm focus:border-[#041627] focus:outline-none focus:ring-1 focus:ring-[#041627] ${editorView === 'split' ? 'h-72' : 'h-[520px]'}`}
-                    placeholder="# Heading 1\n\nWrite your story here..."
-                  />
+                  <>
+                    {contentFormat === 'rich_text' ? (
+                      <>
+                        <div className="mb-2 flex flex-wrap gap-2 rounded-lg border border-[#e4e2e3] bg-[#f8f7f7] p-2">
+                          <button type="button" onClick={() => runRichTextCommand('bold')} className="rounded-md border border-[#c4c6cd] bg-white p-1.5 text-[#44474c] hover:bg-[#efedef]"><Bold className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => runRichTextCommand('italic')} className="rounded-md border border-[#c4c6cd] bg-white p-1.5 text-[#44474c] hover:bg-[#efedef]"><Italic className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => runRichTextCommand('formatBlock', '<h2>')} className="rounded-md border border-[#c4c6cd] bg-white p-1.5 text-[#44474c] hover:bg-[#efedef]"><Heading2 className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => runRichTextCommand('insertUnorderedList')} className="rounded-md border border-[#c4c6cd] bg-white p-1.5 text-[#44474c] hover:bg-[#efedef]"><List className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => runRichTextCommand('insertOrderedList')} className="rounded-md border border-[#c4c6cd] bg-white p-1.5 text-[#44474c] hover:bg-[#efedef]"><ListOrdered className="h-4 w-4" /></button>
+                          <button type="button" onClick={() => runRichTextCommand('formatBlock', '<blockquote>')} className="rounded-md border border-[#c4c6cd] bg-white p-1.5 text-[#44474c] hover:bg-[#efedef]"><Quote className="h-4 w-4" /></button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = window.prompt('Enter link URL');
+                              if (url) {
+                                runRichTextCommand('createLink', url);
+                              }
+                            }}
+                            className="rounded-md border border-[#c4c6cd] bg-white p-1.5 text-[#44474c] hover:bg-[#efedef]"
+                          >
+                            <LinkIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <div
+                          ref={richTextRef}
+                          contentEditable
+                          suppressContentEditableWarning
+                          onInput={(e) => setEditingPost({ ...editingPost, content: (e.currentTarget as HTMLDivElement).innerHTML })}
+                          dangerouslySetInnerHTML={{ __html: draftContent || '<p></p>' }}
+                          className={`w-full rounded-xl border border-[#c4c6cd] px-4 py-3 text-sm focus:border-[#041627] focus:outline-none focus:ring-1 focus:ring-[#041627] overflow-y-auto ${editorView === 'split' ? 'h-72' : 'h-[520px]'}`}
+                        />
+                      </>
+                    ) : (
+                      <textarea
+                        value={draftContent}
+                        onChange={(e) => setEditingPost({ ...editingPost, content: e.target.value })}
+                        className={`w-full rounded-xl border border-[#c4c6cd] px-4 py-3 font-mono text-sm focus:border-[#041627] focus:outline-none focus:ring-1 focus:ring-[#041627] ${editorView === 'split' ? 'h-72' : 'h-[520px]'}`}
+                        placeholder={contentFormat === 'html' ? '<h2>Heading</h2>\n<p>Your HTML content here...</p>' : '# Heading 1\n\nWrite your story here...'}
+                      />
+                    )}
+                  </>
                 )}
 
                 {(editorView === 'preview' || editorView === 'split') && (
                   <div className={`rounded-xl border border-[#e4e2e3] bg-[#fafafa] ${editorView === 'split' ? 'mt-4 h-72' : 'h-[520px]'} overflow-y-auto p-4`}>
                     {draftContent.trim() ? (
-                      <div className="prose prose-sm max-w-none">
-                        <Markdown>{draftContent}</Markdown>
-                      </div>
+                      contentFormat === 'markdown' ? (
+                        <div className="prose prose-sm max-w-none">
+                          <Markdown>{draftContent}</Markdown>
+                        </div>
+                      ) : (
+                        <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: draftContent }} />
+                      )
                     ) : (
                       <div className="text-sm text-[#74777d]">Preview will appear here once you start writing.</div>
                     )}
