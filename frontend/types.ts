@@ -60,6 +60,9 @@ export interface AccessInfo {
   train: string;
   airport: string;
   checkIn: string;
+  nearestStationName?: string;
+  nearestStationDistance?: string;
+  nearestAirportDriveTime?: string;
   youtubeGuideUrl?: string;
 }
 

@@ -108,6 +108,20 @@ const AccessPage: React.FC<AccessPageProps> = ({ data }) => {
              <Train className="w-6 h-6 text-blue-600" />
           </div>
           <h3 className="font-bold text-gray-900 text-lg mb-2">By Train</h3>
+          {(data.accessInfo?.nearestStationName || data.accessInfo?.nearestStationDistance) && (
+            <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+              {data.accessInfo?.nearestStationName && (
+                <div>
+                  <span className="font-semibold">Nearest station:</span> {data.accessInfo.nearestStationName}
+                </div>
+              )}
+              {data.accessInfo?.nearestStationDistance && (
+                <div>
+                  <span className="font-semibold">Distance:</span> {data.accessInfo.nearestStationDistance}
+                </div>
+              )}
+            </div>
+          )}
           <p className="text-sm text-gray-600 whitespace-pre-line leading-relaxed">
             {data.accessInfo?.train || "No train information provided."}
           </p>
@@ -118,6 +132,11 @@ const AccessPage: React.FC<AccessPageProps> = ({ data }) => {
              <Navigation className="w-6 h-6 text-green-600" />
           </div>
           <h3 className="font-bold text-gray-900 text-lg mb-2">From Airports</h3>
+          {data.accessInfo?.nearestAirportDriveTime && (
+            <div className="mb-3 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-sm text-green-900">
+              <span className="font-semibold">Nearest airport by car:</span> {data.accessInfo.nearestAirportDriveTime}
+            </div>
+          )}
           <p className="text-sm text-gray-600 whitespace-pre-line leading-relaxed">
             {data.accessInfo?.airport || "No airport information provided."}
           </p>

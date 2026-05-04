@@ -20,6 +20,172 @@ interface AdminPageProps {
   onUpdate: (newData: PropertyData) => void;
 }
 
+type SupportedCountryCode = 'JP' | 'VN';
+
+interface ProvinceOption {
+    code: string;
+    name: string;
+}
+
+const COUNTRY_OPTIONS: Array<{ code: SupportedCountryCode; name: string }> = [
+    { code: 'JP', name: 'Japan' },
+    { code: 'VN', name: 'Vietnam' },
+];
+
+const PROVINCES_BY_COUNTRY: Record<SupportedCountryCode, ProvinceOption[]> = {
+    JP: [
+        { code: 'JP-AICHI', name: 'Aichi' },
+        { code: 'JP-AKITA', name: 'Akita' },
+        { code: 'JP-AOMORI', name: 'Aomori' },
+        { code: 'JP-CHIBA', name: 'Chiba' },
+        { code: 'JP-EHIME', name: 'Ehime' },
+        { code: 'JP-FUKUI', name: 'Fukui' },
+        { code: 'JP-FUKUOKA', name: 'Fukuoka' },
+        { code: 'JP-FUKUSHIMA', name: 'Fukushima' },
+        { code: 'JP-GIFU', name: 'Gifu' },
+        { code: 'JP-GUNMA', name: 'Gunma' },
+        { code: 'JP-HIROSHIMA', name: 'Hiroshima' },
+        { code: 'JP-HOKKAIDO', name: 'Hokkaido' },
+        { code: 'JP-HYOGO', name: 'Hyogo' },
+        { code: 'JP-IBARAKI', name: 'Ibaraki' },
+        { code: 'JP-ISHIKAWA', name: 'Ishikawa' },
+        { code: 'JP-IWATE', name: 'Iwate' },
+        { code: 'JP-KAGAWA', name: 'Kagawa' },
+        { code: 'JP-KAGOSHIMA', name: 'Kagoshima' },
+        { code: 'JP-KANAGAWA', name: 'Kanagawa' },
+        { code: 'JP-KOCHI', name: 'Kochi' },
+        { code: 'JP-KUMAMOTO', name: 'Kumamoto' },
+        { code: 'JP-KYOTO', name: 'Kyoto' },
+        { code: 'JP-MIE', name: 'Mie' },
+        { code: 'JP-MIYAGI', name: 'Miyagi' },
+        { code: 'JP-MIYAZAKI', name: 'Miyazaki' },
+        { code: 'JP-NAGANO', name: 'Nagano' },
+        { code: 'JP-NAGASAKI', name: 'Nagasaki' },
+        { code: 'JP-NARA', name: 'Nara' },
+        { code: 'JP-NIIGATA', name: 'Niigata' },
+        { code: 'JP-OITA', name: 'Oita' },
+        { code: 'JP-OKAYAMA', name: 'Okayama' },
+        { code: 'JP-OKINAWA', name: 'Okinawa' },
+        { code: 'JP-OSAKA', name: 'Osaka' },
+        { code: 'JP-SAGA', name: 'Saga' },
+        { code: 'JP-SAITAMA', name: 'Saitama' },
+        { code: 'JP-SHIGA', name: 'Shiga' },
+        { code: 'JP-SHIMANE', name: 'Shimane' },
+        { code: 'JP-SHIZUOKA', name: 'Shizuoka' },
+        { code: 'JP-TOCHIGI', name: 'Tochigi' },
+        { code: 'JP-TOKUSHIMA', name: 'Tokushima' },
+        { code: 'JP-TOKYO', name: 'Tokyo' },
+        { code: 'JP-TOTTORI', name: 'Tottori' },
+        { code: 'JP-TOYAMA', name: 'Toyama' },
+        { code: 'JP-WAKAYAMA', name: 'Wakayama' },
+        { code: 'JP-YAMAGATA', name: 'Yamagata' },
+        { code: 'JP-YAMAGUCHI', name: 'Yamaguchi' },
+        { code: 'JP-YAMANASHI', name: 'Yamanashi' },
+    ],
+    VN: [
+        { code: 'VN-AN-GIANG', name: 'An Giang' },
+        { code: 'VN-BA-RIA-VUNG-TAU', name: 'Ba Ria - Vung Tau' },
+        { code: 'VN-BAC-GIANG', name: 'Bac Giang' },
+        { code: 'VN-BAC-KAN', name: 'Bac Kan' },
+        { code: 'VN-BAC-LIEU', name: 'Bac Lieu' },
+        { code: 'VN-BAC-NINH', name: 'Bac Ninh' },
+        { code: 'VN-BEN-TRE', name: 'Ben Tre' },
+        { code: 'VN-BINH-DINH', name: 'Binh Dinh' },
+        { code: 'VN-BINH-DUONG', name: 'Binh Duong' },
+        { code: 'VN-BINH-PHUOC', name: 'Binh Phuoc' },
+        { code: 'VN-BINH-THUAN', name: 'Binh Thuan' },
+        { code: 'VN-CA-MAU', name: 'Ca Mau' },
+        { code: 'VN-CAN-THO', name: 'Can Tho' },
+        { code: 'VN-CAO-BANG', name: 'Cao Bang' },
+        { code: 'VN-DA-NANG', name: 'Da Nang' },
+        { code: 'VN-DAK-LAK', name: 'Dak Lak' },
+        { code: 'VN-DAK-NONG', name: 'Dak Nong' },
+        { code: 'VN-DIEN-BIEN', name: 'Dien Bien' },
+        { code: 'VN-DONG-NAI', name: 'Dong Nai' },
+        { code: 'VN-DONG-THAP', name: 'Dong Thap' },
+        { code: 'VN-GIA-LAI', name: 'Gia Lai' },
+        { code: 'VN-HA-GIANG', name: 'Ha Giang' },
+        { code: 'VN-HA-NAM', name: 'Ha Nam' },
+        { code: 'VN-HA-NOI', name: 'Ha Noi' },
+        { code: 'VN-HA-TINH', name: 'Ha Tinh' },
+        { code: 'VN-HAI-DUONG', name: 'Hai Duong' },
+        { code: 'VN-HAI-PHONG', name: 'Hai Phong' },
+        { code: 'VN-HAU-GIANG', name: 'Hau Giang' },
+        { code: 'VN-HOA-BINH', name: 'Hoa Binh' },
+        { code: 'VN-HO-CHI-MINH-CITY', name: 'Ho Chi Minh City' },
+        { code: 'VN-HUNG-YEN', name: 'Hung Yen' },
+        { code: 'VN-KHANH-HOA', name: 'Khanh Hoa' },
+        { code: 'VN-KIEN-GIANG', name: 'Kien Giang' },
+        { code: 'VN-KON-TUM', name: 'Kon Tum' },
+        { code: 'VN-LAI-CHAU', name: 'Lai Chau' },
+        { code: 'VN-LAM-DONG', name: 'Lam Dong' },
+        { code: 'VN-LANG-SON', name: 'Lang Son' },
+        { code: 'VN-LAO-CAI', name: 'Lao Cai' },
+        { code: 'VN-LONG-AN', name: 'Long An' },
+        { code: 'VN-NAM-DINH', name: 'Nam Dinh' },
+        { code: 'VN-NGHE-AN', name: 'Nghe An' },
+        { code: 'VN-NINH-BINH', name: 'Ninh Binh' },
+        { code: 'VN-NINH-THUAN', name: 'Ninh Thuan' },
+        { code: 'VN-PHU-THO', name: 'Phu Tho' },
+        { code: 'VN-PHU-YEN', name: 'Phu Yen' },
+        { code: 'VN-QUANG-BINH', name: 'Quang Binh' },
+        { code: 'VN-QUANG-NAM', name: 'Quang Nam' },
+        { code: 'VN-QUANG-NGAI', name: 'Quang Ngai' },
+        { code: 'VN-QUANG-NINH', name: 'Quang Ninh' },
+        { code: 'VN-QUANG-TRI', name: 'Quang Tri' },
+        { code: 'VN-SOC-TRANG', name: 'Soc Trang' },
+        { code: 'VN-SON-LA', name: 'Son La' },
+        { code: 'VN-TAY-NINH', name: 'Tay Ninh' },
+        { code: 'VN-THAI-BINH', name: 'Thai Binh' },
+        { code: 'VN-THAI-NGUYEN', name: 'Thai Nguyen' },
+        { code: 'VN-THANH-HOA', name: 'Thanh Hoa' },
+        { code: 'VN-THUA-THIEN-HUE', name: 'Thua Thien Hue' },
+        { code: 'VN-TIEN-GIANG', name: 'Tien Giang' },
+        { code: 'VN-TRA-VINH', name: 'Tra Vinh' },
+        { code: 'VN-TUYEN-QUANG', name: 'Tuyen Quang' },
+        { code: 'VN-VINH-LONG', name: 'Vinh Long' },
+        { code: 'VN-VINH-PHUC', name: 'Vinh Phuc' },
+        { code: 'VN-YEN-BAI', name: 'Yen Bai' },
+    ],
+};
+
+function buildAddressFromParts(countryName: string, provinceName: string, detail?: string): string {
+    const detailPart = (detail || '').trim();
+    if (detailPart) {
+        return `${detailPart}, ${provinceName}, ${countryName}`;
+    }
+    return `${provinceName}, ${countryName}`;
+}
+
+function inferLocationFromAddress(address: string): PropertyData['location'] {
+    const normalizedAddress = (address || '').toLowerCase();
+    if (!normalizedAddress) {
+        return undefined;
+    }
+
+    for (const country of COUNTRY_OPTIONS) {
+        const countryNameLower = country.name.toLowerCase();
+        if (!normalizedAddress.includes(countryNameLower)) {
+            continue;
+        }
+
+        const provinces = PROVINCES_BY_COUNTRY[country.code];
+        const provinceMatch = provinces.find((province) => normalizedAddress.includes(province.name.toLowerCase()));
+        if (!provinceMatch) {
+            continue;
+        }
+
+        return {
+            countryCode: country.code,
+            countryName: country.name,
+            provinceCode: provinceMatch.code,
+            provinceName: provinceMatch.name,
+        };
+    }
+
+    return undefined;
+}
+
 const ICON_OPTIONS = [
   { value: 'CigaretteOff', label: 'No Smoking' },
   { value: 'PartyPopper', label: 'No Parties' },
@@ -121,7 +287,11 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   const [newCategoryLabel, setNewCategoryLabel] = useState('');
 
     useEffect(() => {
-        setFormData(data);
+                const inferredLocation = data.location ?? inferLocationFromAddress(data.address || '');
+                setFormData({
+                    ...data,
+                    location: inferredLocation,
+                });
     }, [data]);
 
     const handleLogin = () => {
@@ -135,10 +305,14 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   };
 
   const handleSave = async () => {
-        const normalizedAddress = (formData.address || '').trim();
-        if (!normalizedAddress) {
+        const countryCode = formData.location?.countryCode as SupportedCountryCode | undefined;
+        const countryName = formData.location?.countryName || '';
+        const provinceCode = formData.location?.provinceCode || '';
+        const provinceName = formData.location?.provinceName || '';
+
+        if (!countryCode || !countryName || !provinceCode || !provinceName) {
             setSaveStatus('error');
-            setSaveMessage('Address is required in Access Information.');
+            setSaveMessage('Please choose Country and Province in Access Information.');
             setActiveTab('access');
             return;
         }
@@ -153,7 +327,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
       // sanitize metalink
       dataToSave.metalink = dataToSave.metalink.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
     }
-        dataToSave.address = normalizedAddress;
+        dataToSave.address = buildAddressFromParts(countryName, provinceName, formData.location?.cityName);
 
     setFormData(dataToSave); // Update state
 
@@ -177,6 +351,93 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   const handleChange = (field: keyof PropertyData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+    const selectedCountryCode = formData.location?.countryCode as SupportedCountryCode | undefined;
+    const selectedProvinceCode = formData.location?.provinceCode || '';
+    const provinceOptions = selectedCountryCode
+        ? [...PROVINCES_BY_COUNTRY[selectedCountryCode]].sort((left, right) => left.name.localeCompare(right.name))
+        : [];
+
+    const handleCountrySelect = (countryCodeValue: string) => {
+        const country = COUNTRY_OPTIONS.find((option) => option.code === countryCodeValue);
+        if (!country) {
+            setFormData((prev) => ({
+                ...prev,
+                location: undefined,
+                address: '',
+            }));
+            return;
+        }
+
+        setFormData((prev) => ({
+            ...prev,
+            location: {
+                countryCode: country.code,
+                countryName: country.name,
+                provinceCode: '',
+                provinceName: '',
+                cityName: prev.location?.cityName || '',
+            },
+            address: '',
+        }));
+    };
+
+    const handleProvinceSelect = (provinceCodeValue: string) => {
+        if (!selectedCountryCode) {
+            return;
+        }
+        const country = COUNTRY_OPTIONS.find((option) => option.code === selectedCountryCode);
+        const province = PROVINCES_BY_COUNTRY[selectedCountryCode].find((item) => item.code === provinceCodeValue);
+
+        if (!country || !province) {
+            setFormData((prev) => ({
+                ...prev,
+                location: {
+                    countryCode: selectedCountryCode,
+                    countryName: country?.name || '',
+                    provinceCode: '',
+                    provinceName: '',
+                    cityName: prev.location?.cityName || '',
+                },
+                address: '',
+            }));
+            return;
+        }
+
+        setFormData((prev) => {
+            const detail = prev.location?.cityName || '';
+            return {
+                ...prev,
+                location: {
+                    countryCode: selectedCountryCode,
+                    countryName: country.name,
+                    provinceCode: province.code,
+                    provinceName: province.name,
+                    cityName: detail,
+                },
+                address: buildAddressFromParts(country.name, province.name, detail),
+            };
+        });
+    };
+
+    const handleAddressDetailChange = (detailValue: string) => {
+        setFormData((prev) => {
+            const countryName = prev.location?.countryName || '';
+            const provinceName = prev.location?.provinceName || '';
+            return {
+                ...prev,
+                location: prev.location
+                    ? {
+                        ...prev.location,
+                        cityName: detailValue,
+                    }
+                    : prev.location,
+                address: countryName && provinceName
+                    ? buildAddressFromParts(countryName, provinceName, detailValue)
+                    : prev.address,
+            };
+        });
+    };
   
   // ... (Other handlers unchanged) ...
   const handleAccessChange = (field: keyof AccessInfo, value: string) => {
@@ -1560,16 +1821,49 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                 <div className="space-y-6">
                     <h3 className="font-bold text-gray-900">Access Information</h3>
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Address *</label>
-                        <input 
-                            type="text" 
-                            required
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                            value={formData.address}
-                            onChange={(e) => handleChange('address', e.target.value)}
-                            placeholder="Example: Koto City, Tokyo, Japan"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">This field is required and is used by listings filters.</p>
+                                                <label className="block text-sm font-bold text-gray-700 mb-2">Address *</label>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-500 mb-1">Country *</label>
+                                                        <select
+                                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                                            value={selectedCountryCode || ''}
+                                                            onChange={(e) => handleCountrySelect(e.target.value)}
+                                                        >
+                                                            <option value="">Select country</option>
+                                                            {COUNTRY_OPTIONS.map((country) => (
+                                                                <option key={country.code} value={country.code}>{country.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-500 mb-1">Province *</label>
+                                                        <select
+                                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 disabled:bg-gray-100"
+                                                            value={selectedProvinceCode}
+                                                            onChange={(e) => handleProvinceSelect(e.target.value)}
+                                                            disabled={!selectedCountryCode}
+                                                        >
+                                                            <option value="">Select province</option>
+                                                            {provinceOptions.map((province) => (
+                                                                <option key={province.code} value={province.code}>{province.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-3">
+                                                    <label className="block text-xs font-bold text-gray-500 mb-1">Address detail (optional)</label>
+                                                    <input
+                                                        type="text"
+                                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                                        value={formData.location?.cityName || ''}
+                                                        onChange={(e) => handleAddressDetailChange(e.target.value)}
+                                                        placeholder="Street, ward, district, building..."
+                                                    />
+                                                </div>
+                                                <p className="mt-2 text-xs text-gray-500">
+                                                    Address preview: {formData.address || 'Please select Country and Province'}
+                                                </p>
                     </div>
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">Google Maps Embed URL</label>
@@ -1580,6 +1874,42 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             onChange={(e) => handleChange('mapEmbedUrl', e.target.value)}
                         />
                     </div>
+                                        {selectedCountryCode === 'JP' && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 mb-2">Nearest train station (Japan only)</label>
+                                                    <input
+                                                        type="text"
+                                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                                        value={formData.accessInfo.nearestStationName || ''}
+                                                        onChange={(e) => handleAccessChange('nearestStationName', e.target.value)}
+                                                        placeholder="Example: Ojima Station"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 mb-2">Distance to station (Japan only)</label>
+                                                    <input
+                                                        type="text"
+                                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                                        value={formData.accessInfo.nearestStationDistance || ''}
+                                                        onChange={(e) => handleAccessChange('nearestStationDistance', e.target.value)}
+                                                        placeholder="Example: 8 minutes walk"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                        {selectedCountryCode === 'VN' && (
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 mb-2">Drive time to nearest airport (Vietnam only)</label>
+                                                <input
+                                                    type="text"
+                                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                                    value={formData.accessInfo.nearestAirportDriveTime || ''}
+                                                    onChange={(e) => handleAccessChange('nearestAirportDriveTime', e.target.value)}
+                                                    placeholder="Example: 35 minutes by car"
+                                                />
+                                            </div>
+                                        )}
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">Train Access</label>
                         <textarea 
