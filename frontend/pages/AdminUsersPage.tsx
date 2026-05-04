@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, Archive, Check, Eye, EyeOff, Loader2, Lock, Pencil, Plus, RefreshCw, RotateCcw, Save, ShieldCheck, Trash2, X } from 'lucide-react';
+import { AlertCircle, Archive, ChevronDown, Eye, EyeOff, Loader2, Lock, Plus, RefreshCw, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { ApiUser } from '../services/api';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
 import { TopNavBar } from '../components/TopNavBar';
@@ -23,6 +23,20 @@ import { PropertyData } from '../types';
 
 const ROLE_OPTIONS: UserRole[] = ['ADMIN', 'HOST', 'GUEST'];
 
+type UserTab = 'profile' | 'access' | 'properties' | 'security' | 'danger';
+
+const ROLE_BADGE: Record<UserRole, string> = {
+  ADMIN: 'bg-purple-100 text-purple-700',
+  HOST: 'bg-blue-100 text-blue-700',
+  GUEST: 'bg-slate-100 text-slate-600',
+};
+
+const AVATAR_COLOR: Record<UserRole, string> = {
+  ADMIN: 'bg-purple-100 text-purple-700',
+  HOST: 'bg-blue-100 text-blue-700',
+  GUEST: 'bg-slate-100 text-slate-500',
+};
+
 const AdminUsersPage: React.FC = () => {
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
@@ -36,6 +50,8 @@ const AdminUsersPage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
+  // Create form
+  const [createFormOpen, setCreateFormOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: '',
     email: '',
@@ -44,6 +60,13 @@ const AdminUsersPage: React.FC = () => {
     canEditBlog: false,
   });
   const [isCreating, setIsCreating] = useState(false);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+
+  // Card UI state
+  const [expandedUserIds, setExpandedUserIds] = useState<Set<number>>(new Set());
+  const [activeTabByUser, setActiveTabByUser] = useState<Record<number, UserTab>>({});
+
+  // Pending states
   const [pendingRoleUserId, setPendingRoleUserId] = useState<number | null>(null);
   const [pendingProfileSaveUserId, setPendingProfileSaveUserId] = useState<number | null>(null);
   const [pendingArchiveUserId, setPendingArchiveUserId] = useState<number | null>(null);
@@ -51,14 +74,22 @@ const AdminUsersPage: React.FC = () => {
   const [pendingBlogPermissionUserId, setPendingBlogPermissionUserId] = useState<number | null>(null);
   const [pendingAssignmentSaveUserId, setPendingAssignmentSaveUserId] = useState<number | null>(null);
   const [pendingResetUserId, setPendingResetUserId] = useState<number | null>(null);
+
+  // Drafts
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<number, string[]>>({});
   const [passwordDrafts, setPasswordDrafts] = useState<Record<number, string>>({});
   const [showPasswordDrafts, setShowPasswordDrafts] = useState<Record<number, boolean>>({});
   const [emailDrafts, setEmailDrafts] = useState<Record<number, string>>({});
   const [nameDrafts, setNameDrafts] = useState<Record<number, string>>({});
-  const [editingUserId, setEditingUserId] = useState<number | null>(null);
 
   const isAdmin = authUser?.role === 'ADMIN';
+
+  const stats = useMemo(() => ({
+    total: users.length,
+    admins: users.filter(u => u.role === 'ADMIN').length,
+    hosts: users.filter(u => u.role === 'HOST').length,
+    archived: users.filter(u => u.archivedAt).length,
+  }), [users]);
 
   const propertyNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -125,6 +156,32 @@ const AdminUsersPage: React.FC = () => {
     navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
   };
 
+  const initProfileDrafts = (user: ApiUser) => {
+    setNameDrafts(prev => ({ ...prev, [user.id]: user.name }));
+    setEmailDrafts(prev => ({ ...prev, [user.id]: user.email }));
+  };
+
+  const toggleUserCard = (user: ApiUser) => {
+    setExpandedUserIds(prev => {
+      const next = new Set(prev);
+      if (next.has(user.id)) {
+        next.delete(user.id);
+      } else {
+        next.add(user.id);
+        initProfileDrafts(user);
+      }
+      return next;
+    });
+  };
+
+  const setActiveTab = (userId: number, tab: UserTab) => {
+    setActiveTabByUser(prev => ({ ...prev, [userId]: tab }));
+  };
+
+  const getActiveTab = (user: ApiUser): UserTab => {
+    return activeTabByUser[user.id] ?? 'profile';
+  };
+
   const handleCreateUser = async (event: React.FormEvent) => {
     event.preventDefault();
     setErrorMsg(null);
@@ -134,6 +191,7 @@ const AdminUsersPage: React.FC = () => {
     try {
       await createUser(createForm);
       setCreateForm({ name: '', email: '', password: '', role: 'HOST', canEditBlog: false });
+      setCreateFormOpen(false);
       await loadData(true);
       setInfoMsg('User created successfully.');
     } catch (error) {
@@ -165,22 +223,6 @@ const AdminUsersPage: React.FC = () => {
     }
   };
 
-  const handleStartEditProfile = (user: ApiUser) => {
-    setEditingUserId(user.id);
-    setNameDrafts((prev) => ({
-      ...prev,
-      [user.id]: user.name,
-    }));
-    setEmailDrafts((prev) => ({
-      ...prev,
-      [user.id]: user.email,
-    }));
-  };
-
-  const handleCancelEditProfile = () => {
-    setEditingUserId(null);
-  };
-
   const handleSaveEditProfile = async (user: ApiUser) => {
     const name = (nameDrafts[user.id] ?? '').trim();
     const email = (emailDrafts[user.id] ?? '').trim();
@@ -205,8 +247,7 @@ const AdminUsersPage: React.FC = () => {
         await updateUserEmail(user.id, email);
       }
       await loadData(true);
-      setEditingUserId(null);
-      setInfoMsg(`User profile updated for ${user.email}.`);
+      setInfoMsg(`User profile updated for ${email}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update user profile.';
       setErrorMsg(message);
@@ -226,6 +267,7 @@ const AdminUsersPage: React.FC = () => {
     try {
       await deleteUser(user.id);
       setUsers(prev => prev.filter(u => u.id !== user.id));
+      setExpandedUserIds(prev => { const next = new Set(prev); next.delete(user.id); return next; });
       setInfoMsg(`User deleted: ${user.email}.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete user.';
@@ -372,6 +414,14 @@ const AdminUsersPage: React.FC = () => {
     }
   };
 
+  // Reusable class helpers
+  const inputCls = 'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-[#1b1c1d] focus:outline-none focus:ring-2 focus:ring-[#041627]/20 focus:border-[#041627] transition-colors disabled:opacity-60';
+  const selectCls = inputCls + ' appearance-none';
+  const tabBtnCls = (active: boolean) =>
+    `text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${active ? 'bg-white text-[#041627] shadow-sm' : 'text-slate-500 hover:text-[#041627]'}`;
+  const primaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#041627] text-white font-semibold text-xs hover:bg-slate-800 disabled:opacity-50 transition-colors';
+  const secondaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50 disabled:opacity-50 transition-colors';
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4 pt-20">
@@ -384,12 +434,7 @@ const AdminUsersPage: React.FC = () => {
           <h2 className="text-2xl font-bold text-center text-gray-900 mb-2">User Admin Access</h2>
           <p className="text-sm text-gray-500 text-center mb-6">Sign in with an admin account to manage users and host assignments.</p>
           {errorMsg && <p className="text-red-600 text-sm text-center mb-3">{errorMsg}</p>}
-          <button
-            onClick={handleLogin}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg"
-          >
-            Login
-          </button>
+          <button onClick={handleLogin} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Login</button>
         </div>
       </div>
     );
@@ -406,9 +451,7 @@ const AdminUsersPage: React.FC = () => {
             </div>
             <h1 className="text-2xl font-bold text-[#1b1c1d] mb-2">Admin role required</h1>
             <p className="text-[#44474c] mb-6">Your current account does not have permission to access user management.</p>
-            <Link to="/" className="inline-flex items-center px-5 py-2.5 rounded-full border border-[#041627] text-[#041627] font-semibold hover:bg-[#efedef] transition-colors">
-              Back to listings
-            </Link>
+            <Link to="/" className="inline-flex items-center px-5 py-2.5 rounded-full border border-[#041627] text-[#041627] font-semibold hover:bg-[#efedef] transition-colors">Back to listings</Link>
           </div>
         </div>
       </div>
@@ -416,316 +459,390 @@ const AdminUsersPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d]">
+    <div className="min-h-screen bg-slate-100 text-[#1b1c1d]">
       <TopNavBar />
-      <main className="max-w-[1280px] mx-auto px-3 md:px-6 pt-[110px] pb-10">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+      <main className="max-w-4xl mx-auto px-3 md:px-6 pt-[110px] pb-10">
+
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-7">
           <div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-[28px] font-bold leading-tight">User Administration</h1>
-            <p className="text-[#44474c]">Create accounts, control roles, and manage host property assignments.</p>
+            <div className="text-xs text-slate-400 mb-1">Admin › User Management</div>
+            <h1 className="font-['Plus_Jakarta_Sans'] text-3xl font-bold text-[#041627] leading-tight">User Administration</h1>
+            <p className="text-slate-500 mt-1 text-sm">Manage user accounts, roles, and property assignments.</p>
           </div>
           <button
             onClick={() => loadData(true)}
             disabled={isRefreshing}
-            className="self-start md:self-auto inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] disabled:opacity-60 transition-colors"
+            className="self-start sm:self-center inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 shadow-sm disabled:opacity-60 transition-colors whitespace-nowrap"
           >
             {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Refresh
           </button>
         </div>
 
+        {/* Alerts */}
         {errorMsg && (
-          <div className="mb-6 border border-red-200 bg-red-50 text-red-700 rounded-xl px-4 py-3 text-sm">
-            {errorMsg}
+          <div className="mb-5 border border-red-200 bg-red-50 text-red-700 rounded-xl px-4 py-3 text-sm flex items-center justify-between gap-3">
+            <span>{errorMsg}</span>
+            <button onClick={() => setErrorMsg(null)} className="flex-shrink-0 text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
           </div>
         )}
-
         {infoMsg && (
-          <div className="mb-6 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-xl px-4 py-3 text-sm">
-            {infoMsg}
+          <div className="mb-5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-xl px-4 py-3 text-sm flex items-center justify-between gap-3">
+            <span>{infoMsg}</span>
+            <button onClick={() => setInfoMsg(null)} className="flex-shrink-0 text-emerald-400 hover:text-emerald-600"><X className="w-4 h-4" /></button>
           </div>
         )}
 
-        <section className="bg-white border border-[#e4e2e3] rounded-2xl p-5 md:p-6 shadow-sm mb-6">
-          <h2 className="font-['Plus_Jakarta_Sans'] text-xl font-bold mb-4">Create New User</h2>
-          <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            <input
-              type="text"
-              placeholder="Full name"
-              required
-              value={createForm.name}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, name: event.target.value }))}
-              className="px-4 py-2 border border-[#c4c6cd] rounded-lg text-[14px] focus:outline-none focus:border-[#041627]"
-            />
-            <input
-              type="email"
-              placeholder="email@sachihouse.com"
-              required
-              value={createForm.email}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, email: event.target.value }))}
-              className="md:col-span-2 px-4 py-2 border border-[#c4c6cd] rounded-lg text-[14px] focus:outline-none focus:border-[#041627]"
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              required
-              minLength={6}
-              value={createForm.password}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, password: event.target.value }))}
-              className="px-4 py-2 border border-[#c4c6cd] rounded-lg text-[14px] focus:outline-none focus:border-[#041627]"
-            />
-            <select
-              value={createForm.role}
-              onChange={(event) => setCreateForm((prev) => ({ ...prev, role: event.target.value as UserRole }))}
-              className="px-4 py-2 border border-[#c4c6cd] rounded-lg text-[14px] focus:outline-none focus:border-[#041627]"
-            >
-              {ROLE_OPTIONS.map((role) => (
-                <option key={role} value={role}>{role}</option>
-              ))}
-            </select>
-            <label className="md:col-span-5 inline-flex items-center gap-2 text-sm font-medium text-[#44474c]">
-              <input
-                type="checkbox"
-                checked={createForm.canEditBlog}
-                onChange={(event) => setCreateForm((prev) => ({ ...prev, canEditBlog: event.target.checked }))}
-              />
-              Grant blog editor permission
-            </label>
-            <div className="md:col-span-5">
-              <button
-                type="submit"
-                disabled={isCreating}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#041627] text-white font-semibold hover:bg-[#041627]/90 disabled:opacity-60 transition-colors"
-              >
-                {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Create User
-              </button>
+        {/* Stats */}
+        {!isLoading && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
+              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#041627]">{stats.total}</div>
+              <div className="text-xs font-medium text-slate-500 mt-0.5">Total Users</div>
             </div>
-          </form>
-        </section>
-
-        <section className="bg-white border border-[#e4e2e3] rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 md:px-6 py-4 border-b border-[#e4e2e3] flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-[#041627]" />
-            <h2 className="font-['Plus_Jakarta_Sans'] text-xl font-bold">Users</h2>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
+              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-purple-700">{stats.admins}</div>
+              <div className="text-xs font-medium text-slate-500 mt-0.5">Admins</div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
+              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-blue-700">{stats.hosts}</div>
+              <div className="text-xs font-medium text-slate-500 mt-0.5">Hosts</div>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
+              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-amber-600">{stats.archived}</div>
+              <div className="text-xs font-medium text-slate-500 mt-0.5">Archived</div>
+            </div>
           </div>
+        )}
 
-          {isLoading ? (
-            <div className="p-10 flex items-center justify-center text-[#44474c]">
-              <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading users...
+        {/* Create User card */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm mb-6 overflow-hidden">
+          <button
+            onClick={() => setCreateFormOpen(v => !v)}
+            className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-[#041627] flex items-center justify-center">
+                <Plus className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-['Plus_Jakarta_Sans'] font-bold text-[#041627]">Create New User</span>
             </div>
-          ) : users.length === 0 ? (
-            <div className="p-10 text-center text-[#44474c]">No users found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-[#f5f3f4] text-[#44474c]">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-semibold">Name / Email</th>
-                    <th className="text-left px-4 py-3 font-semibold">Role</th>
-                    <th className="text-left px-4 py-3 font-semibold">Blog Editor</th>
-                    <th className="text-left px-4 py-3 font-semibold">Assigned Properties</th>
-                    <th className="text-left px-4 py-3 font-semibold">Manage Assignments</th>
-                    <th className="text-left px-4 py-3 font-semibold">Reset Password</th>
-                    <th className="text-left px-4 py-3 font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id} className="border-t border-[#efedef] align-top">
-                      <td className="px-4 py-4">
-                        {editingUserId === user.id ? (
-                          <div className="space-y-2">
-                            <input
-                              type="text"
-                              value={nameDrafts[user.id] ?? user.name}
-                              onChange={(event) => setNameDrafts((prev) => ({ ...prev, [user.id]: event.target.value }))}
-                              className="w-full px-3 py-1.5 border border-[#c4c6cd] rounded-lg bg-white text-[#1b1c1d]"
-                              disabled={pendingProfileSaveUserId === user.id}
-                            />
-                            <input
-                              type="email"
-                              value={emailDrafts[user.id] ?? user.email}
-                              onChange={(event) => setEmailDrafts((prev) => ({ ...prev, [user.id]: event.target.value }))}
-                              className="w-full px-3 py-1.5 border border-[#c4c6cd] rounded-lg bg-white text-[#1b1c1d]"
-                              disabled={pendingProfileSaveUserId === user.id}
-                            />
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleSaveEditProfile(user)}
-                                disabled={pendingProfileSaveUserId === user.id}
-                                className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#041627] text-white text-xs font-semibold disabled:opacity-50"
-                              >
-                                {pendingProfileSaveUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                                Save
-                              </button>
-                              <button
-                                onClick={handleCancelEditProfile}
-                                disabled={pendingProfileSaveUserId === user.id}
-                                className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-[#c4c6cd] text-[#44474c] text-xs font-semibold disabled:opacity-50"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="font-semibold text-[#1b1c1d]">{user.name}</div>
-                            <div className="text-[#44474c]">{user.email}</div>
-                            <div className="text-xs text-[#74777d]">ID: {user.id}</div>
-                            {user.archivedAt && <div className="text-xs font-semibold text-amber-700 mt-1">Archived</div>}
-                          </>
-                        )}
-                      </td>
-                      <td className="px-4 py-4">
-                        <select
-                          value={user.role}
-                          disabled={pendingRoleUserId === user.id || user.id === authUser?.id}
-                          onChange={(event) => handleRoleChange(user, event.target.value as UserRole)}
-                          className="px-3 py-1.5 border border-[#c4c6cd] rounded-lg bg-white text-[#1b1c1d] disabled:bg-[#f5f3f4]"
-                        >
-                          {ROLE_OPTIONS.map((role) => (
-                            <option key={role} value={role}>{role}</option>
-                          ))}
-                        </select>
-                        {pendingRoleUserId === user.id && <Loader2 className="w-4 h-4 animate-spin inline-block ml-2" />}
-                        {user.id === authUser?.id && (
-                          <div className="text-xs text-[#74777d] mt-1">Your role cannot be edited here.</div>
-                        )}
-                      </td>
-                      <td className="px-4 py-4">
-                        <label className="inline-flex items-center gap-2 text-[#1b1c1d]">
-                          <input
-                            type="checkbox"
-                            checked={user.canEditBlog}
-                            disabled={pendingBlogPermissionUserId === user.id}
-                            onChange={(event) => handleBlogPermissionChange(user, event.target.checked)}
-                          />
-                          <span>{user.canEditBlog ? 'Enabled' : 'Disabled'}</span>
-                        </label>
-                        {pendingBlogPermissionUserId === user.id && <Loader2 className="w-4 h-4 animate-spin inline-block ml-2" />}
-                      </td>
-                      <td className="px-4 py-4">
-                        {user.assignedPropertyIds.length === 0 ? (
-                          <span className="text-[#74777d]">None</span>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {user.assignedPropertyIds.map((propertyId) => (
-                              <span key={propertyId} className="px-2 py-1 rounded-full bg-[#efedef] text-[#1b1c1d] text-xs font-semibold">
-                                {propertyNameById.get(propertyId) || propertyId}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-4">
-                        {user.role !== 'HOST' ? (
-                          <span className="text-[#74777d]">Only HOST can be assigned.</span>
-                        ) : properties.length === 0 ? (
-                          <span className="text-[#74777d]">No properties available.</span>
-                        ) : (
-                          <div className="space-y-2">
-                            {properties.map((property) => {
-                              const draftAssigned = assignmentDrafts[user.id] ?? user.assignedPropertyIds;
-                              const assigned = draftAssigned.includes(property.id);
-                              return (
-                                <label key={property.id} className="flex items-center gap-2 text-[#1b1c1d]">
-                                  <input
-                                    type="checkbox"
-                                    checked={assigned}
-                                    disabled={pendingAssignmentSaveUserId === user.id}
-                                    onChange={() => handleAssignmentDraftToggle(user, property.id)}
-                                  />
-                                  <span>{property.name}</span>
-                                </label>
-                              );
-                            })}
-                            <div className="pt-1 flex items-center gap-2">
-                              <button
-                                onClick={() => handleSaveAssignments(user)}
-                                disabled={!hasAssignmentChanges(user) || pendingAssignmentSaveUserId === user.id}
-                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#041627] text-white text-xs font-semibold hover:bg-[#041627]/90 disabled:opacity-50"
-                              >
-                                {pendingAssignmentSaveUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                Save Assignments
-                              </button>
-                              {hasAssignmentChanges(user) && pendingAssignmentSaveUserId !== user.id && (
-                                <span className="text-xs text-amber-700">Unsaved changes</span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type={showPasswordDrafts[user.id] ? 'text' : 'password'}
-                            placeholder="New password"
-                            minLength={6}
-                            value={passwordDrafts[user.id] ?? ''}
-                            onChange={(event) => setPasswordDrafts((prev) => ({ ...prev, [user.id]: event.target.value }))}
-                            className="px-3 py-1.5 border border-[#c4c6cd] rounded-lg bg-white text-[#1b1c1d]"
-                            disabled={pendingResetUserId === user.id}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPasswordDrafts((prev) => ({ ...prev, [user.id]: !prev[user.id] }))}
-                            disabled={pendingResetUserId === user.id}
-                            className="inline-flex items-center justify-center p-2 rounded-lg border border-[#c4c6cd] text-[#44474c] hover:bg-[#efedef] disabled:opacity-50"
-                            title={showPasswordDrafts[user.id] ? 'Hide password' : 'Show password'}
-                          >
-                            {showPasswordDrafts[user.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                          <button
-                            onClick={() => handleResetPassword(user)}
-                            disabled={(passwordDrafts[user.id] ?? '').trim().length < 6 || pendingResetUserId === user.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#041627] text-[#041627] text-xs font-semibold hover:bg-[#efedef] disabled:opacity-50"
-                          >
-                            {pendingResetUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                            Reset
-                          </button>
-                        </div>
-                        <div className="text-xs text-[#74777d] mt-1">Minimum 6 characters.</div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleStartEditProfile(user)}
-                            disabled={pendingArchiveUserId === user.id || pendingProfileSaveUserId === user.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#041627] text-[#041627] text-xs font-semibold hover:bg-[#efedef] disabled:opacity-50"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleArchiveUser(user, !user.archivedAt)}
-                            disabled={pendingArchiveUserId === user.id || user.id === authUser?.id}
-                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold disabled:opacity-50 ${user.archivedAt ? 'border border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'}`}
-                          >
-                            {pendingArchiveUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : user.archivedAt ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
-                            {user.archivedAt ? 'Restore' : 'Archive'}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(user)}
-                            disabled={pendingDeleteUserId === user.id || user.id === authUser?.id}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-red-300 text-red-700 text-xs font-semibold hover:bg-red-50 disabled:opacity-50"
-                          >
-                            {pendingDeleteUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                            Delete
-                          </button>
-                        </div>
-                        {user.id === authUser?.id && (
-                          <div className="text-xs text-[#74777d] mt-1">Your own account cannot be modified.</div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${createFormOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {createFormOpen && (
+            <form onSubmit={handleCreateUser} className="border-t border-slate-100 px-6 py-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Full Name</label>
+                  <input type="text" required placeholder="e.g. Nguyen Van A"
+                    value={createForm.name} onChange={e => setCreateForm(prev => ({ ...prev, name: e.target.value }))}
+                    className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Email Address</label>
+                  <input type="email" required placeholder="user@sachihouse.com"
+                    value={createForm.email} onChange={e => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
+                    className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Password</label>
+                  <div className="relative">
+                    <input type={showCreatePassword ? 'text' : 'password'} required minLength={6} placeholder="Min. 6 characters"
+                      value={createForm.password} onChange={e => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
+                      className={inputCls + ' pr-10'} />
+                    <button type="button" onClick={() => setShowCreatePassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      {showCreatePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Role</label>
+                  <select value={createForm.role} onChange={e => setCreateForm(prev => ({ ...prev, role: e.target.value as UserRole }))}
+                    className={selectCls}>
+                    {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="mb-5">
+                <label className="inline-flex items-center gap-3 cursor-pointer">
+                  <button type="button"
+                    onClick={() => setCreateForm(prev => ({ ...prev, canEditBlog: !prev.canEditBlog }))}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${createForm.canEditBlog ? 'bg-[#041627]' : 'bg-slate-300'}`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${createForm.canEditBlog ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  </button>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-700">Grant Blog Editor Access</div>
+                    <div className="text-xs text-slate-400">Allow this user to create and manage blog posts</div>
+                  </div>
+                </label>
+              </div>
+              <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+                <button type="submit" disabled={isCreating} className={primaryBtnCls + ' px-5 py-2.5 text-sm'}>
+                  {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Create User
+                </button>
+                <button type="button" onClick={() => setCreateFormOpen(false)} className={secondaryBtnCls + ' px-4 py-2.5 text-sm'}>Cancel</button>
+              </div>
+            </form>
           )}
-        </section>
+        </div>
+
+        {/* Users List */}
+        {isLoading ? (
+          <div className="py-16 flex items-center justify-center text-slate-500">
+            <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading users...
+          </div>
+        ) : users.length === 0 ? (
+          <div className="py-16 text-center text-slate-500">No users found.</div>
+        ) : (
+          <div className="space-y-3">
+            {users.map(user => {
+              const isExpanded = expandedUserIds.has(user.id);
+              const activeTab = getActiveTab(user);
+              const isSelf = user.id === authUser?.id;
+              const avatarColor = user.archivedAt ? 'bg-slate-100 text-slate-400' : (AVATAR_COLOR[user.role] ?? 'bg-slate-100 text-slate-500');
+              const avatarInitial = (user.name || user.email).charAt(0).toUpperCase();
+
+              return (
+                <div key={user.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-shadow hover:shadow-md ${user.archivedAt ? 'border-amber-100 opacity-80' : 'border-slate-100'}`}>
+
+                  {/* Card Header */}
+                  <div
+                    className={`flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors ${user.archivedAt ? 'hover:bg-amber-50/40' : 'hover:bg-slate-50'}`}
+                    onClick={() => toggleUserCard(user)}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center font-['Plus_Jakarta_Sans'] font-bold text-base ${avatarColor}`}>
+                      {avatarInitial}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={`font-['Plus_Jakarta_Sans'] font-bold text-sm ${user.archivedAt ? 'text-slate-500' : 'text-[#041627]'}`}>{user.name}</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${user.archivedAt ? 'bg-slate-100 text-slate-500' : (ROLE_BADGE[user.role] ?? 'bg-slate-100 text-slate-600')}`}>{user.role}</span>
+                        {user.archivedAt
+                          ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Archived</span>
+                          : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Active</span>
+                        }
+                        {user.canEditBlog && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">Blog Editor</span>}
+                        {isSelf && <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">You</span>}
+                      </div>
+                      <div className="text-xs text-slate-400 mt-0.5 truncate">
+                        {user.email} · ID: {user.id}
+                        {user.role === 'HOST' && user.assignedPropertyIds.length > 0 && ` · ${user.assignedPropertyIds.length} ${user.assignedPropertyIds.length === 1 ? 'property' : 'properties'}`}
+                      </div>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 flex-shrink-0 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                  </div>
+
+                  {/* Card Body */}
+                  {isExpanded && (
+                    <div className="border-t border-slate-100">
+                      {/* Tabs */}
+                      <div className="flex items-center gap-1 px-4 pt-3 pb-2 bg-slate-50 flex-wrap">
+                        <button onClick={() => setActiveTab(user.id, 'profile')} className={tabBtnCls(activeTab === 'profile')}>Profile</button>
+                        <button onClick={() => setActiveTab(user.id, 'access')} className={tabBtnCls(activeTab === 'access')}>Role & Access</button>
+                        {user.role === 'HOST' && (
+                          <button onClick={() => setActiveTab(user.id, 'properties')} className={tabBtnCls(activeTab === 'properties')}>Properties</button>
+                        )}
+                        <button onClick={() => setActiveTab(user.id, 'security')} className={tabBtnCls(activeTab === 'security')}>Security</button>
+                        <button
+                          onClick={() => setActiveTab(user.id, 'danger')}
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${activeTab === 'danger' ? 'bg-white text-red-600 shadow-sm' : 'text-red-400 hover:text-red-600'}`}
+                        >Danger Zone</button>
+                      </div>
+
+                      {/* Profile Tab */}
+                      {activeTab === 'profile' && (
+                        <div className="px-5 py-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Full Name</label>
+                              <input type="text"
+                                value={nameDrafts[user.id] ?? user.name}
+                                onChange={e => setNameDrafts(prev => ({ ...prev, [user.id]: e.target.value }))}
+                                disabled={pendingProfileSaveUserId === user.id}
+                                className={inputCls} />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Email Address</label>
+                              <input type="email"
+                                value={emailDrafts[user.id] ?? user.email}
+                                onChange={e => setEmailDrafts(prev => ({ ...prev, [user.id]: e.target.value }))}
+                                disabled={pendingProfileSaveUserId === user.id}
+                                className={inputCls} />
+                            </div>
+                          </div>
+                          <div className="mt-4 flex gap-2">
+                            <button onClick={() => handleSaveEditProfile(user)} disabled={pendingProfileSaveUserId === user.id} className={primaryBtnCls}>
+                              {pendingProfileSaveUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                              Save Changes
+                            </button>
+                            <button onClick={() => initProfileDrafts(user)} disabled={pendingProfileSaveUserId === user.id} className={secondaryBtnCls}>
+                              <X className="w-3.5 h-3.5" />
+                              Reset
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Role & Access Tab */}
+                      {activeTab === 'access' && (
+                        <div className="px-5 py-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Role</label>
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={user.role}
+                                  disabled={pendingRoleUserId === user.id || isSelf}
+                                  onChange={e => handleRoleChange(user, e.target.value as UserRole)}
+                                  className={selectCls + (isSelf ? ' opacity-60 cursor-not-allowed' : '')}
+                                >
+                                  {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                                </select>
+                                {pendingRoleUserId === user.id && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                              </div>
+                              {isSelf && <p className="text-xs text-slate-400 mt-1.5">Your own role cannot be changed here.</p>}
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Blog Editor Access</label>
+                              <div className="flex items-center gap-3">
+                                <button type="button"
+                                  disabled={pendingBlogPermissionUserId === user.id}
+                                  onClick={() => handleBlogPermissionChange(user, !user.canEditBlog)}
+                                  className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${user.canEditBlog ? 'bg-[#041627]' : 'bg-slate-300'}`}>
+                                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${user.canEditBlog ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                                </button>
+                                <span className="text-sm font-medium text-slate-700">{user.canEditBlog ? 'Enabled' : 'Disabled'}</span>
+                                {pendingBlogPermissionUserId === user.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+                              </div>
+                              <p className="text-xs text-slate-400 mt-1.5">Can create and edit blog posts.</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Properties Tab */}
+                      {activeTab === 'properties' && user.role === 'HOST' && (
+                        <div className="px-5 py-4">
+                          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Assigned Properties</label>
+                          {properties.length === 0 ? (
+                            <p className="text-sm text-slate-400">No properties available.</p>
+                          ) : (
+                            <div className="space-y-2 mb-4">
+                              {properties.map(property => {
+                                const draftAssigned = assignmentDrafts[user.id] ?? user.assignedPropertyIds;
+                                const isAssigned = draftAssigned.includes(property.id);
+                                return (
+                                  <label key={property.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+                                    <input type="checkbox" checked={isAssigned}
+                                      disabled={pendingAssignmentSaveUserId === user.id}
+                                      onChange={() => handleAssignmentDraftToggle(user, property.id)}
+                                      className="w-4 h-4 accent-[#041627]" />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-semibold text-slate-700">{property.name || property.id}</div>
+                                      <div className="text-xs text-slate-400">{property.id}</div>
+                                    </div>
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isAssigned ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                      {isAssigned ? 'Assigned' : 'Unassigned'}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3">
+                            <button onClick={() => handleSaveAssignments(user)}
+                              disabled={!hasAssignmentChanges(user) || pendingAssignmentSaveUserId === user.id}
+                              className={primaryBtnCls}>
+                              {pendingAssignmentSaveUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                              Save Assignments
+                            </button>
+                            {hasAssignmentChanges(user) && pendingAssignmentSaveUserId !== user.id && (
+                              <span className="text-xs text-amber-600 font-medium">Unsaved changes</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Security Tab */}
+                      {activeTab === 'security' && (
+                        <div className="px-5 py-4">
+                          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Reset Password</label>
+                          <div className="flex items-center gap-2 max-w-sm">
+                            <div className="relative flex-1">
+                              <input
+                                type={showPasswordDrafts[user.id] ? 'text' : 'password'}
+                                placeholder="New password (min. 6 chars)" minLength={6}
+                                value={passwordDrafts[user.id] ?? ''}
+                                onChange={e => setPasswordDrafts(prev => ({ ...prev, [user.id]: e.target.value }))}
+                                disabled={pendingResetUserId === user.id}
+                                className={inputCls + ' pr-10'} />
+                              <button type="button"
+                                onClick={() => setShowPasswordDrafts(prev => ({ ...prev, [user.id]: !prev[user.id] }))}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                {showPasswordDrafts[user.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                            <button onClick={() => handleResetPassword(user)}
+                              disabled={(passwordDrafts[user.id] ?? '').trim().length < 6 || pendingResetUserId === user.id}
+                              className={primaryBtnCls + ' py-2.5 whitespace-nowrap'}>
+                              {pendingResetUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                              Reset
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Danger Zone Tab */}
+                      {activeTab === 'danger' && (
+                        <div className="px-5 py-4">
+                          {isSelf ? (
+                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-center text-sm text-slate-400">
+                              You cannot archive or delete your own account.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="p-4 rounded-xl border border-amber-100 bg-amber-50">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  {user.archivedAt ? <RotateCcw className="w-4 h-4 text-amber-600" /> : <Archive className="w-4 h-4 text-amber-600" />}
+                                  <span className="text-sm font-semibold text-amber-800">{user.archivedAt ? 'Restore User' : 'Archive User'}</span>
+                                </div>
+                                <p className="text-xs text-amber-700 mb-3">
+                                  {user.archivedAt ? 'Re-enables login access for this account.' : 'Disables login access while preserving all data. Can be restored anytime.'}
+                                </p>
+                                <button onClick={() => handleArchiveUser(user, !user.archivedAt)}
+                                  disabled={pendingArchiveUserId === user.id}
+                                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border bg-white font-semibold text-xs disabled:opacity-50 transition-colors ${user.archivedAt ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border-amber-300 text-amber-700 hover:bg-amber-50'}`}>
+                                  {pendingArchiveUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : user.archivedAt ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                                  {user.archivedAt ? 'Restore' : 'Archive'}
+                                </button>
+                              </div>
+                              <div className="p-4 rounded-xl border border-red-100 bg-red-50">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <Trash2 className="w-4 h-4 text-red-600" />
+                                  <span className="text-sm font-semibold text-red-800">Delete User</span>
+                                </div>
+                                <p className="text-xs text-red-700 mb-3">Permanently removes this account and all associated data. Cannot be undone.</p>
+                                <button onClick={() => handleDeleteUser(user)} disabled={pendingDeleteUserId === user.id}
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-300 bg-white text-red-700 font-semibold text-xs hover:bg-red-50 disabled:opacity-50 transition-colors">
+                                  {pendingDeleteUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                  Delete Permanently
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </main>
     </div>
   );
