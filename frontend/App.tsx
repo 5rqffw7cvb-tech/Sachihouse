@@ -159,6 +159,7 @@ const createDraftPropertyData = (propertyId: string): PropertyData => {
         bedrooms: 1,
         beds: 1,
         baths: 1,
+        toilets: 1,
         highlights: [],
         accessInfo: {
             train: '',

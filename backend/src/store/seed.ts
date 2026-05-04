@@ -27,6 +27,7 @@ function buildProperty(id: string, metalink: string, name: string, hostName: str
     bedrooms: 3,
     beds: 5,
     baths: 1,
+    toilets: 1,
     highlights: [
       { id: 'h1', title: 'Direct Train Access', description: 'Fast route to Shinjuku and central Tokyo.', icon: 'TrainFront' },
       { id: 'h2', title: 'Family Friendly', description: 'Spacious layout for up to 7 guests.', icon: 'Users' },

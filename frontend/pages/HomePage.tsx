@@ -2,10 +2,10 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { PropertyData, SleepingArrangement } from '../types';
 import { 
-  Wifi, Monitor, Coffee, Wind, MapPin, BedDouble, User, X, ChevronRight, ChevronLeft, Image as ImageIcon,
+    Wifi, Monitor, Coffee, Wind, MapPin, BedDouble, User, X, ChevronRight, ChevronLeft, Image as ImageIcon,
   Tv, Car, Utensils, Waves, Dumbbell, Flame, Sun, Umbrella, Bath, Thermometer, 
   ShieldCheck, Key, Shirt, Speaker, Lock, Music, Grid, Droplets, Briefcase, ExternalLink,
-  Refrigerator, Microwave, ShowerHead, ChevronUp, Medal
+    Refrigerator, Microwave, ShowerHead, ChevronUp, Medal, Train, Navigation
 } from 'lucide-react';
 import BookingWidget from '../components/BookingWidget';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -376,6 +376,25 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                             {data.subtitle}
                         </div>
                     </div>
+                                        {(data.accessInfo?.nearestStationName || data.accessInfo?.nearestStationDistance || data.accessInfo?.nearestAirportDriveTime) && (
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {(data.accessInfo?.nearestStationName || data.accessInfo?.nearestStationDistance) && (
+                                                    <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-900">
+                                                        <Train className="h-3.5 w-3.5" />
+                                                        <span>
+                                                            {data.accessInfo?.nearestStationName || 'Nearest station'}
+                                                            {data.accessInfo?.nearestStationDistance ? ` · ${data.accessInfo.nearestStationDistance}` : ''}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {data.accessInfo?.nearestAirportDriveTime && (
+                                                    <div className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-900">
+                                                        <Navigation className="h-3.5 w-3.5" />
+                                                        <span>Nearest airport by car · {data.accessInfo.nearestAirportDriveTime}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                 </div>
                 {/* Share/Save buttons could go here */}
             </div>
@@ -425,6 +444,25 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                  <MapPin className="w-4 h-4"/>
                  <span className="truncate">{data.address}</span>
              </div>
+                         {(data.accessInfo?.nearestStationName || data.accessInfo?.nearestStationDistance || data.accessInfo?.nearestAirportDriveTime) && (
+                             <div className="mt-3 flex flex-wrap gap-2">
+                                 {(data.accessInfo?.nearestStationName || data.accessInfo?.nearestStationDistance) && (
+                                     <div className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-900">
+                                         <Train className="h-3 w-3" />
+                                         <span>
+                                             {data.accessInfo?.nearestStationName || 'Nearest station'}
+                                             {data.accessInfo?.nearestStationDistance ? ` · ${data.accessInfo.nearestStationDistance}` : ''}
+                                         </span>
+                                     </div>
+                                 )}
+                                 {data.accessInfo?.nearestAirportDriveTime && (
+                                     <div className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-900">
+                                         <Navigation className="h-3 w-3" />
+                                         <span>Airport by car · {data.accessInfo.nearestAirportDriveTime}</span>
+                                     </div>
+                                 )}
+                             </div>
+                         )}
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">

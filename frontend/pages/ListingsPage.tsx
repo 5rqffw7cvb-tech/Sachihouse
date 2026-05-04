@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PropertyData, SiteSettings } from '../types';
-import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check } from 'lucide-react';
+import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -491,12 +491,20 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                         <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.maxGuests} Guests</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-[#44474c]">
+                        <BedSingle className="w-4 h-4" />
+                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.bedrooms} Bedrooms</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[#44474c]">
                         <BedDouble className="w-4 h-4" />
-                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.bedrooms} Beds</span>
+                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.beds} Beds</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-[#44474c]">
                         <Bath className="w-4 h-4" />
-                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.baths} Bath</span>
+                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.baths} Bath/Shower</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[#44474c]">
+                        <Toilet className="w-4 h-4" />
+                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.toilets} Toilets</span>
                       </div>
                     </div>
                   </div>
