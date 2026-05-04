@@ -1,11 +1,12 @@
 import React, { ChangeEvent, useEffect, useMemo, useState } from 'react';
-import { Check, FileBadge2, Loader2, PencilLine, Plus, Trash2, Upload, X } from 'lucide-react';
+import { Check, FileBadge2, Loader2, PencilLine, Plus, Upload, X } from 'lucide-react';
 import { PropertyData, CheckInGuest, CheckInGuestEstimatedFlags } from '../types';
 import { CheckInConsentPolicy, ocrGuestDocument, startCheckInSession, submitCheckIn } from '../services/checkin';
 import { ApiError } from '../services/api';
 import { HoldToSubmitButton } from '../components/HoldToSubmitButton';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface CheckInPageProps {
   data: PropertyData;
@@ -69,6 +70,7 @@ const isGuestEmpty = (guest: CheckInGuest): boolean => {
 };
 
 const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
+  const { t } = useLanguage();
   const [checkInDate, setCheckInDate] = useState<string>(toDateInput(0));
   const [checkOutDate, setCheckOutDate] = useState<string>(toDateInput(1));
   const [guests, setGuests] = useState<CheckInGuest[]>([createEmptyGuest('guest_1')]);
@@ -353,12 +355,12 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         {/* Header */}
         <div className="mb-6">
           <p className="text-xs font-medium uppercase tracking-widest text-gray-400">{data.name}</p>
-          <h1 className="mt-1 text-2xl font-bold">Guest check-in</h1>
+          <h1 className="mt-1 text-2xl font-bold">{t('checkin_title')}</h1>
         </div>
 
         {isInitializing && (
           <div className="mb-4 flex items-center gap-2 text-sm text-gray-400">
-            <Loader2 className="h-4 w-4 animate-spin" /> Starting session…
+            <Loader2 className="h-4 w-4 animate-spin" /> {t('checkin_session_starting')}
           </div>
         )}
         {sessionError && (
@@ -368,7 +370,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         {/* Dates */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Check-in</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{t('checkin_date_in')}</p>
             <input
               type="date"
               value={checkInDate}
@@ -377,7 +379,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
             />
           </div>
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Check-out</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{t('checkin_date_out')}</p>
             <input
               type="date"
               value={checkOutDate}
@@ -430,12 +432,12 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                     </p>
                     <p className="mt-0.5 text-xs text-gray-400">
                       {isProcessing
-                        ? 'Scanning…'
+                        ? t('checkin_scanning')
                         : isConfirmed
-                          ? 'Confirmed ✓'
+                          ? t('checkin_confirmed')
                           : needsReview
-                            ? 'Review required'
-                            : 'Upload ID to continue'}
+                            ? t('checkin_needs_review')
+                            : t('checkin_upload_prompt')}
                     </p>
                   </div>
 
@@ -448,7 +450,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                       onClick={() => openEditor(guest.id)}
                       className="shrink-0 rounded-xl bg-amber-400 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-500"
                     >
-                      Review →
+                      {t('checkin_review_btn')}
                     </button>
                   ) : isConfirmed ? (
                     <button
@@ -466,7 +468,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                       }`}
                     >
                       <Upload className="mr-1 inline-block h-3.5 w-3.5" />
-                      Upload ID
+                      {t('checkin_upload_btn')}
                       <input
                         type="file"
                         accept="image/*"
@@ -505,18 +507,23 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           disabled={guests.some((g) => isGuestEmpty(g))}
           className="mt-3 flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 disabled:opacity-30"
         >
-          <Plus className="h-4 w-4" /> Add another guest
+          <Plus className="h-4 w-4" /> {t('checkin_add_guest')}
         </button>
 
+        {/* Compliance note */}
+        <p className="mt-5 rounded-xl bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-400">
+          {t('checkin_compliance')}
+        </p>
+
         {/* Submit */}
-        <div className="mt-8">
+        <div className="mt-6">
           {submitError && (
             <p className="mb-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{submitError}</p>
           )}
           <HoldToSubmitButton
             disabled={!canSubmit || isSubmitting}
             holdMs={1000}
-            label={isSubmitting ? 'Submitting…' : 'Hold to send check-in'}
+            label={isSubmitting ? t('checkin_submitting') : t('checkin_hold_send')}
             onComplete={handleSubmit}
           />
         </div>
@@ -529,30 +536,30 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
               <Check className="h-8 w-8 text-green-600" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Check-in submitted!</h2>
-            <p className="mt-2 text-sm text-gray-400">Reference: {submitSuccess}</p>
+            <h2 className="text-xl font-bold text-gray-900">{t('checkin_success_title')}</h2>
+            <p className="mt-2 text-sm text-gray-400">{t('checkin_success_ref')}: {submitSuccess}</p>
             <button
               type="button"
               onClick={() => window.location.reload()}
               className="mt-6 w-full rounded-2xl bg-gray-900 py-3 text-sm font-semibold text-white hover:bg-gray-700"
             >
-              Done
+              {t('checkin_success_done')}
             </button>
           </div>
         </div>
       )}
 
-      {/* OCR review popup */}
+      {/* OCR review popup — flex column so footer is always visible on mobile */}
       {editorDraft && editorGuestId && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm md:items-center">
-          <div className="max-h-[92vh] w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b px-5 py-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm md:items-center md:p-6">
+          <div className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-3xl bg-white shadow-2xl md:rounded-3xl">
+            {/* Header — fixed */}
+            <div className="shrink-0 flex items-center justify-between border-b px-5 py-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
                   Guest {Number(guestIndexById[editorGuestId] ?? 0) + 1}
                 </p>
-                <h2 className="mt-0.5 text-lg font-bold text-gray-900">Review ID details</h2>
+                <h2 className="mt-0.5 text-lg font-bold text-gray-900">{t('checkin_popup_title')}</h2>
               </div>
               <button
                 type="button"
@@ -564,12 +571,13 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
               </button>
             </div>
 
-            <div className="overflow-y-auto p-5">
+            {/* Body — scrollable */}
+            <div className="flex-1 overflow-y-auto p-5">
               {photoPreviewByGuest[editorGuestId] && (
                 <img
                   src={photoPreviewByGuest[editorGuestId]}
                   alt="ID preview"
-                  className="mb-4 h-36 w-full rounded-2xl object-cover"
+                  className="mb-4 h-24 w-full rounded-2xl object-cover sm:h-32"
                 />
               )}
 
@@ -579,7 +587,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
 
               <div className="grid grid-cols-2 gap-3">
                 <label className="col-span-2 text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  Full name *
+                  {t('checkin_popup_fullname')}
                   <input
                     value={editorDraft.fullName}
                     onChange={(event) => {
@@ -591,7 +599,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                 </label>
 
                 <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  Birth year
+                  {t('checkin_popup_birthyear')}
                   <input
                     type="number"
                     value={editorDraft.birthYear ?? ''}
@@ -604,7 +612,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                 </label>
 
                 <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  Gender
+                  {t('checkin_popup_gender')}
                   <input
                     value={editorDraft.gender}
                     onChange={(event) => {
@@ -616,7 +624,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                 </label>
 
                 <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  Nationality
+                  {t('checkin_popup_nationality')}
                   <input
                     value={editorDraft.nationality}
                     onChange={(event) => {
@@ -628,7 +636,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                 </label>
 
                 <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  Occupation
+                  {t('checkin_popup_occupation')}
                   <input
                     value={editorDraft.occupation}
                     onChange={(event) => {
@@ -640,7 +648,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                 </label>
 
                 <label className="col-span-2 text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  Address
+                  {t('checkin_popup_address')}
                   <input
                     value={editorDraft.address}
                     onChange={(event) => {
@@ -652,7 +660,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                 </label>
 
                 <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  Document #
+                  {t('checkin_popup_docnum')}
                   <input
                     value={editorDraft.documentNumber}
                     onChange={(event) => {
@@ -664,7 +672,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                 </label>
 
                 <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  Document type
+                  {t('checkin_popup_doctype')}
                   <select
                     value={editorDraft.documentType}
                     onChange={(event) => {
@@ -683,21 +691,21 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between border-t bg-gray-50 px-5 py-4">
+            {/* Footer — fixed */}
+            <div className="shrink-0 flex items-center justify-between border-t bg-gray-50 px-5 py-4">
               <button
                 type="button"
                 onClick={() => resetGuestCapture(editorGuestId)}
                 className="text-sm font-medium text-gray-400 hover:text-gray-700"
               >
-                Use another photo
+                {t('checkin_popup_another')}
               </button>
               <button
                 type="button"
                 onClick={confirmGuestDetails}
                 className="flex items-center gap-2 rounded-2xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-700"
               >
-                <Check className="h-4 w-4" /> Confirm guest
+                <Check className="h-4 w-4" /> {t('checkin_popup_confirm')}
               </button>
             </div>
           </div>

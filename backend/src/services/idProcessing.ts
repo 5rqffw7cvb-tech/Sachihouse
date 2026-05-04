@@ -130,6 +130,8 @@ export class IdProcessingService {
       'Classify whether the image is a valid government ID document (passport, driver license, residence card, national id).',
       'If not an ID document, set isIdDocument=false and include rejectionReason.',
       'If it is an ID, run OCR and extract fullName, birthYear, nationality, address, gender, occupation, documentNumber, documentType.',
+      'IMPORTANT: All extracted text fields (fullName, nationality, address, gender, occupation, documentType, documentNumber) MUST be returned in English regardless of the document language.',
+      'Transliterate names to Latin script if needed. Translate values such as nationality, gender, occupation to English.',
       'If value is missing, return empty string for text fields and null for birthYear.',
       'Return strict JSON only with this schema:',
       '{',

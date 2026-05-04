@@ -10,15 +10,25 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+const SUPPORTED: Language[] = ['en', 'vi', 'ja', 'zh'];
+
+function detectBrowserLanguage(): Language {
+  const saved = localStorage.getItem('app_language') as Language;
+  if (saved && SUPPORTED.includes(saved)) return saved;
+  const nav = navigator.language.toLowerCase();
+  if (nav.startsWith('vi')) return 'vi';
+  if (nav.startsWith('ja')) return 'ja';
+  if (nav.startsWith('zh')) return 'zh';
+  return 'en';
+}
+
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguage] = useState<Language>(() => detectBrowserLanguage());
 
   useEffect(() => {
-    const savedLang = localStorage.getItem('app_language') as Language;
-    // Validate that the saved language is one of the supported languages
-    if (savedLang && ['en', 'vi', 'ja', 'zh'].includes(savedLang)) {
-      setLanguage(savedLang);
-    }
+    // keep in sync if localStorage changed externally
+    const saved = localStorage.getItem('app_language') as Language;
+    if (saved && SUPPORTED.includes(saved)) setLanguage(saved);
   }, []);
 
   const handleSetLanguage = (lang: Language) => {
