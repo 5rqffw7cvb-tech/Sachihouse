@@ -319,8 +319,14 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
       }
   };
 
+    const nearestStationName = data.accessInfo?.nearestStationName?.trim();
+    const nearestStationReference = nearestStationName
+        ? /station$/i.test(nearestStationName)
+            ? nearestStationName
+            : `${nearestStationName} station`
+        : 'nearest station';
     const nearestStationDistanceInline = data.accessInfo?.nearestStationDistance
-        ? `(${data.accessInfo.nearestStationDistance})`
+        ? `(${data.accessInfo.nearestStationDistance} from ${nearestStationReference})`
         : '';
     const bathFacilityBaseLabel = data.bathFacilityType === 'shower_room' ? 'Shower Room' : 'Bathroom';
     const bathFacilityLabel = data.baths === 1 ? bathFacilityBaseLabel : `${bathFacilityBaseLabel}s`;
@@ -376,7 +382,11 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">{data.name}</h1>
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                         <span className="font-medium underline decoration-gray-300 underline-offset-4">{data.address}</span>
-                        {nearestStationDistanceInline && <span>{nearestStationDistanceInline}</span>}
+                        {nearestStationDistanceInline && (
+                            <span className="rounded-full bg-amber-100/80 px-2 py-0.5 font-semibold text-amber-800">
+                                {nearestStationDistanceInline}
+                            </span>
+                        )}
                         <span>•</span>
                         <div className="flex items-center gap-1 text-blue-600 font-medium">
                             <Monitor className="w-3 h-3" />
@@ -446,7 +456,11 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
              <div className="flex items-center gap-2 text-sm text-gray-600">
                  <MapPin className="w-4 h-4"/>
                  <span className="truncate">{data.address}</span>
-                 {nearestStationDistanceInline && <span className="truncate">{nearestStationDistanceInline}</span>}
+                 {nearestStationDistanceInline && (
+                     <span className="rounded-full bg-amber-100/80 px-2 py-0.5 font-semibold text-amber-800">
+                         {nearestStationDistanceInline}
+                     </span>
+                 )}
              </div>
              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600">
                  <span>{data.maxGuests} Guests</span>
