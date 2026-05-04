@@ -66,7 +66,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
   const isHome = pathname === '/' || pathname === '/index.html';
   const isBlog = pathname.startsWith('/blog');
   const isBlogPost = /^\/blog\/[^/]+$/.test(pathname);
-  const mobilePageTitle = isBlog ? 'Blog' : 'Properties';
+  const mobilePageTitle = navTitle ?? 'SachiHouse';
 
   if (isBlogPost) {
     return null;
