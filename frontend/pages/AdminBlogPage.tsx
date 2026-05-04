@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BlogPost, blogService } from '../services/blogService';
-import { Plus, Edit2, Trash2, Lock, Loader2, ArrowLeft, Save, ImageIcon, Check, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Lock, Loader2, ArrowLeft, Save, ImageIcon, Check, X, PencilLine, Columns2, Eye } from 'lucide-react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { TopNavBar } from '../components/TopNavBar';
@@ -8,6 +8,7 @@ import { ApiUser } from '../services/api';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { DEFAULT_SITE_SETTINGS, getSiteSettings } from '../services/storage';
 import { SiteSettings } from '../types';
+import Markdown from 'react-markdown';
 
 import { mockBlogPosts } from '../data/blogData';
 
@@ -25,11 +26,19 @@ const AdminBlogPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   
   const [editingPost, setEditingPost] = useState<Partial<BlogPost> | null>(null);
+  const [editorView, setEditorView] = useState<'write' | 'split' | 'preview'>('split');
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const canManageBlog = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
+
+  const toSlug = (value: string) => value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
 
   const fetchPosts = async () => {
     setErrorMsg('');
@@ -159,6 +168,7 @@ const AdminBlogPage: React.FC = () => {
 
   const startEdit = (post: BlogPost) => {
     setEditingPost({ ...post });
+    setEditorView('split');
   };
 
   const startNew = () => {
@@ -170,6 +180,7 @@ const AdminBlogPage: React.FC = () => {
       category: 'Local Tips',
       isFeatured: false,
     });
+    setEditorView('split');
   };
 
   if (!isAuthenticated) {
@@ -222,19 +233,42 @@ const AdminBlogPage: React.FC = () => {
     );
   }
 
+  const draftTitle = editingPost?.title || '';
+  const draftContent = editingPost?.content || '';
+  const draftExcerpt = editingPost?.excerpt || '';
+  const draftWordCount = draftContent.trim() ? draftContent.trim().split(/\s+/).length : 0;
+  const estimatedReadMinutes = Math.max(1, Math.ceil(draftWordCount / 220));
+  const draftSlug = toSlug(draftTitle || 'untitled-post');
+
   if (editingPost) {
     return (
       <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d] flex flex-col">
         <TopNavBar />
-        <main className="flex-1 w-full max-w-5xl mx-auto px-3 md:px-6 pt-[110px] pb-28 md:pb-10">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <main className="flex-1 w-full max-w-[1280px] mx-auto px-3 md:px-6 pt-[110px] pb-28 md:pb-10">
+          <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <button onClick={() => setEditingPost(null)} className="inline-flex items-center text-[#44474c] hover:text-[#1b1c1d] font-semibold">
               <ArrowLeft className="w-5 h-5 mr-2" /> Back to post list
             </button>
-            <button onClick={handleSave} disabled={saving} className="w-full sm:w-auto bg-[#041627] hover:bg-[#041627]/90 text-white px-6 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Save Post
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setEditorView('write')}
+                className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${editorView === 'write' ? 'border-[#041627] bg-[#041627] text-white' : 'border-[#c4c6cd] bg-white text-[#44474c] hover:bg-[#efedef]'}`}
+              >
+                <PencilLine className="h-3.5 w-3.5" /> Write
+              </button>
+              <button
+                onClick={() => setEditorView('split')}
+                className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${editorView === 'split' ? 'border-[#041627] bg-[#041627] text-white' : 'border-[#c4c6cd] bg-white text-[#44474c] hover:bg-[#efedef]'}`}
+              >
+                <Columns2 className="h-3.5 w-3.5" /> Split
+              </button>
+              <button
+                onClick={() => setEditorView('preview')}
+                className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${editorView === 'preview' ? 'border-[#041627] bg-[#041627] text-white' : 'border-[#c4c6cd] bg-white text-[#44474c] hover:bg-[#efedef]'}`}
+              >
+                <Eye className="h-3.5 w-3.5" /> Preview
+              </button>
+            </div>
           </div>
 
           {errorMsg && (
@@ -249,51 +283,119 @@ const AdminBlogPage: React.FC = () => {
             </div>
           )}
 
-          <div className="bg-white rounded-2xl shadow-sm border border-[#e4e2e3] p-5 md:p-6 space-y-6">
-            <div className="flex items-center gap-3 rounded-xl border border-[#e4e2e3] bg-[#f8f7f7] p-3">
-              {editingPost.imageUrl ? (
-                <img src={editingPost.imageUrl} alt={editingPost.title || 'Thumbnail preview'} className="w-16 h-16 rounded-lg object-cover border border-[#e4e2e3]" />
-              ) : (
-                <div className="w-16 h-16 rounded-lg bg-[#efedef] border border-[#e4e2e3] flex items-center justify-center text-[#74777d]">
-                  <ImageIcon className="w-6 h-6" />
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <section className="space-y-5">
+              <div className="rounded-2xl border border-[#e4e2e3] bg-white p-5 shadow-sm">
+                <label className="mb-2 block text-sm font-bold text-[#44474c]">Post Title</label>
+                <input
+                  type="text"
+                  value={draftTitle}
+                  onChange={(e) => setEditingPost({ ...editingPost, title: e.target.value })}
+                  className="w-full rounded-xl border border-[#c4c6cd] px-4 py-3 text-[20px] font-semibold text-[#1b1c1d] focus:border-[#041627] focus:outline-none focus:ring-1 focus:ring-[#041627]"
+                  placeholder="Add title"
+                />
+                <p className="mt-2 text-xs text-[#74777d]">
+                  Permalink: <span className="font-semibold text-[#1b1c1d]">/blog/{draftSlug}</span>
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-[#e4e2e3] bg-white p-5 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-sm font-bold text-[#041627]">Content (Markdown)</label>
+                  <span className="text-xs text-[#74777d]">Words: {draftWordCount} · {estimatedReadMinutes} min read</span>
                 </div>
-              )}
-              <div>
-                <div className="font-semibold text-[#1b1c1d] line-clamp-1">{editingPost.title || 'Untitled Post'}</div>
-                <div className="text-xs text-[#74777d]">Thumbnail preview in admin list and blog cards</div>
+
+                {(editorView === 'write' || editorView === 'split') && (
+                  <textarea
+                    value={draftContent}
+                    onChange={(e) => setEditingPost({ ...editingPost, content: e.target.value })}
+                    className={`w-full rounded-xl border border-[#c4c6cd] px-4 py-3 font-mono text-sm focus:border-[#041627] focus:outline-none focus:ring-1 focus:ring-[#041627] ${editorView === 'split' ? 'h-72' : 'h-[520px]'}`}
+                    placeholder="# Heading 1\n\nWrite your story here..."
+                  />
+                )}
+
+                {(editorView === 'preview' || editorView === 'split') && (
+                  <div className={`rounded-xl border border-[#e4e2e3] bg-[#fafafa] ${editorView === 'split' ? 'mt-4 h-72' : 'h-[520px]'} overflow-y-auto p-4`}>
+                    {draftContent.trim() ? (
+                      <div className="prose prose-sm max-w-none">
+                        <Markdown>{draftContent}</Markdown>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-[#74777d]">Preview will appear here once you start writing.</div>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
+            </section>
 
-            <div>
-              <label className="block text-sm font-bold text-[#44474c] mb-2">Title</label>
-              <input type="text" value={editingPost.title || ''} onChange={(e) => setEditingPost({ ...editingPost, title: e.target.value })} className="w-full px-4 py-2 border border-[#c4c6cd] rounded-lg" placeholder="Post title" />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-bold text-[#44474c] mb-2">Category</label>
-                <input type="text" value={editingPost.category || ''} onChange={(e) => setEditingPost({ ...editingPost, category: e.target.value })} className="w-full px-4 py-2 border border-[#c4c6cd] rounded-lg" placeholder="e.g. Travel Stories" />
+            <aside className="space-y-5">
+              <div className="rounded-2xl border border-[#e4e2e3] bg-white p-4 shadow-sm">
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.08em] text-[#74777d]">Publish</h3>
+                <label className="mb-4 inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={editingPost.isFeatured || false}
+                    onChange={(e) => setEditingPost({ ...editingPost, isFeatured: e.target.checked })}
+                    className="h-4 w-4 rounded"
+                  />
+                  <span className="text-sm font-semibold text-[#44474c]">Set as Featured Post</span>
+                </label>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="w-full rounded-lg bg-[#041627] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#041627]/90 disabled:opacity-50"
+                >
+                  {saving ? (
+                    <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Saving...</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-2"><Save className="h-4 w-4" /> Save Post</span>
+                  )}
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-bold text-[#44474c] mb-2">Thumbnail URL</label>
-                <input type="text" value={editingPost.imageUrl || ''} onChange={(e) => setEditingPost({ ...editingPost, imageUrl: e.target.value })} className="w-full px-4 py-2 border border-[#c4c6cd] rounded-lg" placeholder="https://..." />
+
+              <div className="rounded-2xl border border-[#e4e2e3] bg-white p-4 shadow-sm space-y-4">
+                <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-[#74777d]">Post Settings</h3>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-[#44474c]">Category</label>
+                  <input
+                    type="text"
+                    value={editingPost.category || ''}
+                    onChange={(e) => setEditingPost({ ...editingPost, category: e.target.value })}
+                    className="w-full rounded-lg border border-[#c4c6cd] px-3 py-2 text-sm"
+                    placeholder="e.g. Travel Stories"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-[#44474c]">Thumbnail URL</label>
+                  <input
+                    type="text"
+                    value={editingPost.imageUrl || ''}
+                    onChange={(e) => setEditingPost({ ...editingPost, imageUrl: e.target.value })}
+                    className="w-full rounded-lg border border-[#c4c6cd] px-3 py-2 text-sm"
+                    placeholder="https://..."
+                  />
+                  <div className="mt-2 flex items-center gap-2 rounded-lg border border-[#e4e2e3] bg-[#f8f7f7] p-2">
+                    {editingPost.imageUrl ? (
+                      <img src={editingPost.imageUrl} alt={editingPost.title || 'Thumbnail preview'} className="h-12 w-12 rounded-md object-cover" />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-md bg-[#efedef] text-[#74777d]"><ImageIcon className="h-5 w-5" /></div>
+                    )}
+                    <span className="text-xs text-[#74777d]">Card thumbnail preview</span>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-bold text-[#44474c] mb-2">Excerpt</label>
-              <textarea value={editingPost.excerpt || ''} onChange={(e) => setEditingPost({ ...editingPost, excerpt: e.target.value })} className="w-full px-4 py-2 border border-[#c4c6cd] rounded-lg h-24" placeholder="Short description for the card" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-[#041627] mb-2">Content (Markdown supported)</label>
-              <textarea value={editingPost.content || ''} onChange={(e) => setEditingPost({ ...editingPost, content: e.target.value })} className="w-full px-4 py-2 border border-[#c4c6cd] rounded-lg h-96 font-mono text-sm" placeholder="# Heading 1\n\nYour markdown content here..." />
-            </div>
-
-            <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={editingPost.isFeatured || false} onChange={(e) => setEditingPost({ ...editingPost, isFeatured: e.target.checked })} className="w-4 h-4 rounded" />
-              <span className="font-semibold text-[#44474c]">Set as Featured Post</span>
-            </label>
+              <div className="rounded-2xl border border-[#e4e2e3] bg-white p-4 shadow-sm">
+                <h3 className="mb-2 text-sm font-bold uppercase tracking-[0.08em] text-[#74777d]">SEO & Excerpt</h3>
+                <textarea
+                  value={draftExcerpt}
+                  onChange={(e) => setEditingPost({ ...editingPost, excerpt: e.target.value })}
+                  className="h-28 w-full rounded-lg border border-[#c4c6cd] px-3 py-2 text-sm"
+                  placeholder="Short description for cards and search previews"
+                />
+                <p className="mt-1 text-xs text-[#74777d]">{draftExcerpt.length} characters</p>
+              </div>
+            </aside>
           </div>
         </main>
 
