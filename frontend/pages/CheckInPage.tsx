@@ -470,7 +470,6 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                       <input
                         type="file"
                         accept="image/*"
-                        capture="environment"
                         onChange={(event) => void handleImageChange(guest.id, event)}
                         className="hidden"
                         disabled={!checkinToken || isProcessing}
