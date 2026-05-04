@@ -466,17 +466,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
           )}
         </div>
 
-        <div className="mb-3 hidden items-center justify-between md:flex">
-          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Filters</div>
-          <button
-            type="button"
-            onClick={clearAllFilters}
-            className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
-          >
-            Clear filter
-          </button>
-        </div>
-
         <div className="mb-10 hidden w-full flex-wrap items-center justify-start gap-3 md:flex">
             <div className="w-full sm:w-[200px]">
               <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Country</label>
@@ -542,6 +531,13 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               className="mt-5 rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
             >
               Apply filter
+            </button>
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="mt-5 rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
+            >
+              Clear filter
             </button>
             {isHost && (
               <div className="hidden md:flex items-center gap-2 rounded-lg border border-[#c4c6cd] bg-white p-1">
