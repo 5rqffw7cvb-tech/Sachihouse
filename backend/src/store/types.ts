@@ -32,6 +32,14 @@ export interface SiteSettings {
   faviconUrl: string;
   footerTitle: string;
   footerCopyright: string;
+  listingFilters?: {
+    allowedLocations: Array<{
+      countryCode: string;
+      countryName: string;
+      provinceCode: string;
+      provinceName: string;
+    }>;
+  };
 }
 
 export interface PropertyData {
@@ -41,6 +49,13 @@ export interface PropertyData {
   subtitle: string;
   description: string;
   address: string;
+  location?: {
+    countryCode: string;
+    countryName: string;
+    provinceCode: string;
+    provinceName: string;
+    cityName?: string;
+  };
   mapEmbedUrl: string;
   hostName: string;
   hostImageUrl: string;

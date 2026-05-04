@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PropertyData, SiteSettings } from '../types';
-import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Search, Home, Calendar, Mail, User, X, Check } from 'lucide-react';
+import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -15,6 +15,13 @@ export interface ListingsPageProps {
   onUpdateSettings: (settings: SiteSettings) => void;
 }
 
+type AllowedLocation = {
+  countryCode: string;
+  countryName: string;
+  provinceCode: string;
+  provinceName: string;
+};
+
 const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperties, settings, onUpdateSettings }) => {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
@@ -23,7 +30,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const [properties, setProperties] = useState(initialProperties);
   const [hosts, setHosts] = useState<ApiUser[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [pendingAssignmentKey, setPendingAssignmentKey] = useState<string | null>(null);
   const [visibleCardCount, setVisibleCardCount] = useState(3);
   
@@ -35,6 +41,10 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const isAdmin = authUser?.role === 'ADMIN';
   const isHost = authUser?.role === 'HOST';
   const activeScope = searchParams.get('scope') === 'mine' ? 'mine' : 'all';
+  const selectedCountryCode = (searchParams.get('countryCode') || '').toUpperCase();
+  const selectedProvinceCode = (searchParams.get('provinceCode') || '').toUpperCase();
+  const minBedrooms = Number(searchParams.get('minBedrooms') || 0);
+  const minGuests = Number(searchParams.get('minGuests') || 0);
 
   useEffect(() => {
     setProperties(initialProperties);
@@ -64,6 +74,50 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         .catch((error) => console.error('Failed to load users', error));
     });
   }, [isAdmin]);
+
+  const allowedLocationRows = editingSettings.listingFilters?.allowedLocations ?? [];
+
+  const upsertAllowedLocations = (rows: AllowedLocation[]) => {
+    setEditingSettings((prev) => ({
+      ...prev,
+      listingFilters: {
+        allowedLocations: rows,
+      },
+    }));
+  };
+
+  const handleLocationFieldChange = (
+    index: number,
+    field: 'countryCode' | 'countryName' | 'provinceCode' | 'provinceName',
+    value: string,
+  ) => {
+    const next = allowedLocationRows.map((row, rowIndex) => {
+      if (rowIndex !== index) {
+        return row;
+      }
+      return {
+        ...row,
+        [field]: field.includes('Code') ? value.toUpperCase() : value,
+      };
+    });
+    upsertAllowedLocations(next);
+  };
+
+  const handleAddLocationRow = () => {
+    upsertAllowedLocations([
+      ...allowedLocationRows,
+      {
+        countryCode: '',
+        countryName: '',
+        provinceCode: '',
+        provinceName: '',
+      },
+    ]);
+  };
+
+  const handleRemoveLocationRow = (index: number) => {
+    upsertAllowedLocations(allowedLocationRows.filter((_, rowIndex) => rowIndex !== index));
+  };
 
   const handleCreateNew = () => {
     const newId = `list_${Math.random().toString(36).substring(2, 5)}`;
@@ -111,8 +165,24 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
     try {
-      await saveSiteSettings(editingSettings);
-      onUpdateSettings(editingSettings);
+      const normalizedLocations = (editingSettings.listingFilters?.allowedLocations ?? [])
+        .map((row) => ({
+          countryCode: row.countryCode.trim().toUpperCase(),
+          countryName: row.countryName.trim(),
+          provinceCode: row.provinceCode.trim().toUpperCase(),
+          provinceName: row.provinceName.trim(),
+        }))
+        .filter((row) => row.countryCode && row.countryName && row.provinceCode && row.provinceName);
+
+      const normalizedSettings: SiteSettings = {
+        ...editingSettings,
+        listingFilters: {
+          allowedLocations: normalizedLocations,
+        },
+      };
+
+      await saveSiteSettings(normalizedSettings);
+      onUpdateSettings(normalizedSettings);
       setIsSettingsModalOpen(false);
     } catch (error) {
       console.error("Save settings error:", error);
@@ -144,24 +214,60 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     }
   };
 
-  const handleScopeChange = (scope: 'all' | 'mine') => {
+  const updateQueryParams = (updates: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
-    if (scope === 'mine') {
-      next.set('scope', 'mine');
-    } else {
-      next.delete('scope');
-    }
+    Object.entries(updates).forEach(([key, value]) => {
+      if (!value) {
+        next.delete(key);
+        return;
+      }
+      next.set(key, value);
+    });
     setSearchParams(next, { replace: true });
   };
+
+  const handleScopeChange = (scope: 'all' | 'mine') => {
+    if (scope === 'mine') {
+      updateQueryParams({ scope: 'mine' });
+      return;
+    }
+    updateQueryParams({ scope: null });
+  };
+
+  const allowedLocations = settings.listingFilters?.allowedLocations ?? [];
+  const countryOptions = Array.from(
+    new Map(allowedLocations.map((location) => [location.countryCode, location])).values(),
+  );
+  const provinceOptions = allowedLocations.filter((location) => location.countryCode === selectedCountryCode);
 
   const scopedProperties = isHost && activeScope === 'mine'
     ? properties.filter((property) => authUser?.assignedPropertyIds?.includes(property.id))
     : properties;
 
-  const filteredProperties = scopedProperties.filter(p => 
-    (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (p.subtitle || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const maxBedrooms = scopedProperties.reduce((max, property) => Math.max(max, property.bedrooms || 0), 0);
+  const maxGuestsAvailable = scopedProperties.reduce((max, property) => Math.max(max, property.maxGuests || 0), 0);
+  const bedroomOptions = Array.from({ length: Math.max(maxBedrooms, 1) }, (_, index) => index + 1);
+  const guestOptions = Array.from({ length: Math.max(maxGuestsAvailable, 1) }, (_, index) => index + 1);
+
+  const filteredProperties = scopedProperties.filter((property) => {
+    const propertyCountryCode = property.location?.countryCode?.toUpperCase();
+    const propertyProvinceCode = property.location?.provinceCode?.toUpperCase();
+
+    if (selectedCountryCode && propertyCountryCode !== selectedCountryCode) {
+      return false;
+    }
+    if (selectedProvinceCode && propertyProvinceCode !== selectedProvinceCode) {
+      return false;
+    }
+    if (Number.isFinite(minBedrooms) && minBedrooms > 0 && property.bedrooms < minBedrooms) {
+      return false;
+    }
+    if (Number.isFinite(minGuests) && minGuests > 0 && property.maxGuests < minGuests) {
+      return false;
+    }
+
+    return true;
+  });
 
   useEffect(() => {
     const initialCount = Math.min(3, filteredProperties.length);
@@ -214,17 +320,74 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             <h1 className="font-['Plus_Jakarta_Sans'] text-[28px] md:text-[36px] font-bold text-[#1b1c1d] leading-[1.2] mb-2">{settings.headerTitle}</h1>
             <p className="text-[16px] text-[#44474c] leading-[1.6] whitespace-pre-wrap">{settings.headerSubtitle}</p>
           </div>
-          <div className="flex items-center gap-4 w-full md:w-auto">
-            <div className="relative flex-grow md:flex-grow-0">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-[#74777d]" />
-              <input 
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search properties..." 
-                className="w-full md:w-64 pl-10 pr-4 py-2 bg-[#ffffff] border border-[#c4c6cd] rounded-lg text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] transition-colors placeholder:text-[#74777d]" 
-              />
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto md:justify-end">
+            <div className="w-full sm:w-[200px]">
+              <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Country</label>
+              <select
+                value={selectedCountryCode}
+                onChange={(event) => {
+                  updateQueryParams({
+                    countryCode: event.target.value || null,
+                    provinceCode: null,
+                  });
+                }}
+                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+              >
+                <option value="">All countries</option>
+                {countryOptions.map((country) => (
+                  <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>
+                ))}
+              </select>
             </div>
+            <div className="w-full sm:w-[200px]">
+              <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Province</label>
+              <select
+                value={selectedProvinceCode}
+                disabled={!selectedCountryCode}
+                onChange={(event) => {
+                  updateQueryParams({ provinceCode: event.target.value || null });
+                }}
+                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] disabled:bg-[#f5f3f4] disabled:text-[#8a8d92]"
+              >
+                <option value="">All provinces</option>
+                {provinceOptions.map((province) => (
+                  <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-[140px]">
+              <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Bedrooms</label>
+              <select
+                value={minBedrooms > 0 ? String(minBedrooms) : ''}
+                onChange={(event) => updateQueryParams({ minBedrooms: event.target.value || null })}
+                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+              >
+                <option value="">Any</option>
+                {bedroomOptions.map((value) => (
+                  <option key={value} value={value}>{value}+</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-[140px]">
+              <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guests</label>
+              <select
+                value={minGuests > 0 ? String(minGuests) : ''}
+                onChange={(event) => updateQueryParams({ minGuests: event.target.value || null })}
+                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+              >
+                <option value="">Any</option>
+                {guestOptions.map((value) => (
+                  <option key={value} value={value}>{value}+</option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => updateQueryParams({ countryCode: null, provinceCode: null, minBedrooms: null, minGuests: null })}
+              className="mt-5 rounded-lg border border-[#c4c6cd] px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
+            >
+              Clear filters
+            </button>
             {isHost && (
               <div className="hidden md:flex items-center gap-2 rounded-lg border border-[#c4c6cd] bg-white p-1">
                 <button
@@ -255,7 +418,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
           <div className="bg-white border border-[#e4e2e3] rounded-xl px-6 py-10 text-center text-[#44474c]">
             {isHost && activeScope === 'mine'
               ? 'No assigned properties found for your account.'
-              : 'No properties match your search.'}
+              : 'No properties match the selected filters.'}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -301,6 +464,14 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                       </div>
                     </div>
                     <p className="text-[14px]/[1.5] text-[#44474c] mb-4 line-clamp-1">{property.subtitle || 'Property in Tokyo'}</p>
+                    <div className="mb-4 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#74777d]">
+                      <MapPin className="h-3.5 w-3.5" />
+                      <span>
+                        {property.location
+                          ? `${property.location.provinceName}, ${property.location.countryName}`
+                          : property.address || 'Location not set'}
+                      </span>
+                    </div>
                     
                     <div className="flex flex-wrap gap-4 mb-6 mt-auto">
                       <div className="flex items-center gap-1.5 text-[#44474c]">
@@ -489,8 +660,66 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               </div>
 
               <div className="space-y-4">
+                <h3 className="text-[16px] font-bold text-[#1b1c1d] border-b border-[#e4e2e3] pb-2">Listings Filter Locations</h3>
+                <p className="text-[13px] text-[#74777d]">Only these country/province options will appear in the listings filters.</p>
+                <div className="space-y-3">
+                  {allowedLocationRows.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-[#c4c6cd] p-3 text-[13px] text-[#74777d]">No allowed locations yet. Add at least one row.</div>
+                  ) : allowedLocationRows.map((row, index) => (
+                    <div key={`${row.countryCode}-${row.provinceCode}-${index}`} className="rounded-lg border border-[#e4e2e3] p-3">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <input
+                          type="text"
+                          value={row.countryCode}
+                          onChange={(event) => handleLocationFieldChange(index, 'countryCode', event.target.value)}
+                          placeholder="Country Code (e.g. JP)"
+                          className="w-full rounded-lg border border-[#c4c6cd] px-3 py-2 text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                        />
+                        <input
+                          type="text"
+                          value={row.countryName}
+                          onChange={(event) => handleLocationFieldChange(index, 'countryName', event.target.value)}
+                          placeholder="Country Name"
+                          className="w-full rounded-lg border border-[#c4c6cd] px-3 py-2 text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                        />
+                        <input
+                          type="text"
+                          value={row.provinceCode}
+                          onChange={(event) => handleLocationFieldChange(index, 'provinceCode', event.target.value)}
+                          placeholder="Province Code (e.g. JP-13)"
+                          className="w-full rounded-lg border border-[#c4c6cd] px-3 py-2 text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                        />
+                        <input
+                          type="text"
+                          value={row.provinceName}
+                          onChange={(event) => handleLocationFieldChange(index, 'provinceName', event.target.value)}
+                          placeholder="Province Name"
+                          className="w-full rounded-lg border border-[#c4c6cd] px-3 py-2 text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                        />
+                      </div>
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLocationRow(index)}
+                          className="text-[13px] font-semibold text-[#ba1a1a]"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddLocationRow}
+                  className="rounded-lg border border-[#041627] px-4 py-2 text-[13px] font-semibold text-[#041627] hover:bg-[#efedef]"
+                >
+                  Add location row
+                </button>
+              </div>
+
+              <div className="space-y-4">
                 <h3 className="text-[16px] font-bold text-[#1b1c1d] border-b border-[#e4e2e3] pb-2">Footer Configuration</h3>
-                
                 <div className="space-y-4">
                   <div>
                     <label className="block text-[14px] font-semibold text-[#1b1c1d] mb-1.5">Footer Title</label>

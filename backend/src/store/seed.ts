@@ -9,6 +9,13 @@ function buildProperty(id: string, metalink: string, name: string, hostName: str
     subtitle: 'Family-friendly Tokyo stay with direct train access and self check-in',
     description: `${name} is designed for short-term guests who need practical access, strong Wi-Fi, and clear house guidance. The property includes a full kitchen, family sleeping layout, and detailed local transport instructions.`,
     address: 'Koto City, Tokyo, Japan',
+    location: {
+      countryCode: 'JP',
+      countryName: 'Japan',
+      provinceCode: 'JP-13',
+      provinceName: 'Tokyo',
+      cityName: 'Koto City',
+    },
     mapEmbedUrl: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3240.356784777568!2d139.8200639!3d35.6928236!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x601888eeb05342d3%3A0x6b77209930357732!2sOjima%20Station!5e0!3m2!1sen!2sjp!4v1709825164835!5m2!1sen!2sjp',
     hostName,
     hostImageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400',
@@ -127,7 +134,17 @@ export const siteSettingsSeed: SiteSettings = {
   headerSubtitle: 'Browse managed properties, compare highlights, and open the full guest guide before booking.',
   faviconUrl: 'https://cdn-icons-png.flaticon.com/512/2111/2111320.png',
   footerTitle: 'SachiHouse78',
-  footerCopyright: 'Copyright 2026 SachiHouse78. All rights reserved.'
+  footerCopyright: 'Copyright 2026 SachiHouse78. All rights reserved.',
+  listingFilters: {
+    allowedLocations: [
+      {
+        countryCode: 'JP',
+        countryName: 'Japan',
+        provinceCode: 'JP-13',
+        provinceName: 'Tokyo',
+      },
+    ],
+  },
 };
 
 export const propertiesSeed = [

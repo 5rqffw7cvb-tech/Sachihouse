@@ -20,6 +20,13 @@ export const DEFAULT_DATA: PropertyData = {
   subtitle: 'Family-friendly Tokyo stay with direct train access and self check-in',
   description: 'Fallback property data used when the backend is temporarily unavailable.',
   address: 'Koto City, Tokyo, Japan',
+  location: {
+    countryCode: 'JP',
+    countryName: 'Japan',
+    provinceCode: 'JP-13',
+    provinceName: 'Tokyo',
+    cityName: 'Koto City',
+  },
   mapEmbedUrl: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3240.356784777568!2d139.8200639!3d35.6928236!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x601888eeb05342d3%3A0x6b77209930357732!2sOjima%20Station!5e0!3m2!1sen!2sjp!4v1709825164835!5m2!1sen!2sjp',
   hostName: 'Kenji',
   hostImageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400',
@@ -122,12 +129,44 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   headerSubtitle: 'Browse managed properties, compare highlights, and open the full guest guide before booking.',
   faviconUrl: 'https://cdn-icons-png.flaticon.com/512/2111/2111320.png',
   footerTitle: 'SachiHouse78',
-  footerCopyright: 'Copyright 2026 SachiHouse78. All rights reserved.'
+  footerCopyright: 'Copyright 2026 SachiHouse78. All rights reserved.',
+  listingFilters: {
+    allowedLocations: [
+      {
+        countryCode: 'JP',
+        countryName: 'Japan',
+        provinceCode: 'JP-13',
+        provinceName: 'Tokyo',
+      },
+    ],
+  },
 };
 
-export const getAllProperties = async (): Promise<(PropertyData & { id: string })[]> => {
+export interface PropertyListFilters {
+  countryCode?: string;
+  provinceCode?: string;
+  minBedrooms?: number;
+  minGuests?: number;
+}
+
+export const getAllProperties = async (filters?: PropertyListFilters): Promise<(PropertyData & { id: string })[]> => {
+  const query = new URLSearchParams();
+  if (filters?.countryCode) {
+    query.set('countryCode', filters.countryCode);
+  }
+  if (filters?.provinceCode) {
+    query.set('provinceCode', filters.provinceCode);
+  }
+  if (filters?.minBedrooms && filters.minBedrooms > 0) {
+    query.set('minBedrooms', String(filters.minBedrooms));
+  }
+  if (filters?.minGuests && filters.minGuests > 0) {
+    query.set('minGuests', String(filters.minGuests));
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+
   try {
-    const response = await apiRequest<{ properties: (PropertyData & { id: string })[] }>('/properties');
+    const response = await apiRequest<{ properties: (PropertyData & { id: string })[] }>(`/properties${suffix}`);
     if (!Array.isArray(response.properties)) {
       throw new Error('Invalid properties payload');
     }

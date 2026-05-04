@@ -40,6 +40,20 @@ describe('API integration', () => {
     expect(response.body.properties[0]).toHaveProperty('name');
   });
 
+  it('filters properties by location and minimum capacity query params', async () => {
+    const response = await request(app)
+      .get('/api/properties?countryCode=JP&provinceCode=JP-13&minBedrooms=3&minGuests=7')
+      .expect(200);
+
+    expect(response.body.properties).toHaveLength(2);
+    expect(response.body.properties.every((property: { bedrooms: number; maxGuests: number; location?: { countryCode?: string; provinceCode?: string } }) => (
+      property.bedrooms >= 3
+      && property.maxGuests >= 7
+      && property.location?.countryCode === 'JP'
+      && property.location?.provinceCode === 'JP-13'
+    ))).toBe(true);
+  });
+
   it('allows host to update an assigned property', async () => {
     const token = await login('host@sachihouse.com', 'host123');
 

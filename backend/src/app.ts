@@ -24,6 +24,25 @@ function getBearerToken(header?: string): string | null {
   return header.slice('Bearer '.length);
 }
 
+function toPositiveInt(value: unknown): number | null {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+}
+
+function toNormalizedCode(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const normalized = value.trim().toUpperCase();
+  return normalized ? normalized : null;
+}
+
 export function createApp(store: DataStore) {
   const app = express();
   const icalSync = new IcalSyncService({
@@ -211,9 +230,51 @@ export function createApp(store: DataStore) {
     return res.status(204).send();
   });
 
-  app.get('/api/properties', async (_req, res) => {
+  app.get('/api/properties', async (req, res) => {
+    const minBedroomsRaw = req.query.minBedrooms;
+    const minGuestsRaw = req.query.minGuests;
+    const countryCodeRaw = req.query.countryCode;
+    const provinceCodeRaw = req.query.provinceCode;
+
+    if (Array.isArray(minBedroomsRaw) || Array.isArray(minGuestsRaw) || Array.isArray(countryCodeRaw) || Array.isArray(provinceCodeRaw)) {
+      return res.status(400).json({ error: 'Filter query parameters must be singular values.' });
+    }
+
+    const minBedrooms = toPositiveInt(minBedroomsRaw);
+    const minGuests = toPositiveInt(minGuestsRaw);
+    const countryCode = toNormalizedCode(countryCodeRaw);
+    const provinceCode = toNormalizedCode(provinceCodeRaw);
+
+    if (typeof minBedroomsRaw === 'string' && minBedrooms === null) {
+      return res.status(400).json({ error: 'minBedrooms must be a positive integer.' });
+    }
+    if (typeof minGuestsRaw === 'string' && minGuests === null) {
+      return res.status(400).json({ error: 'minGuests must be a positive integer.' });
+    }
+
     const properties = await store.listProperties();
-    res.json({ properties });
+    const filtered = properties.filter((property) => {
+      if (minBedrooms !== null && property.bedrooms < minBedrooms) {
+        return false;
+      }
+      if (minGuests !== null && property.maxGuests < minGuests) {
+        return false;
+      }
+
+      const propertyCountry = property.location?.countryCode?.trim().toUpperCase() ?? null;
+      const propertyProvince = property.location?.provinceCode?.trim().toUpperCase() ?? null;
+
+      if (countryCode && propertyCountry !== countryCode) {
+        return false;
+      }
+      if (provinceCode && propertyProvince !== provinceCode) {
+        return false;
+      }
+
+      return true;
+    });
+
+    res.json({ properties: filtered });
   });
 
   app.get('/api/properties/:id', async (req, res) => {
