@@ -27,11 +27,11 @@ export const GlobalLayout: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <div className="bg-[#fbf9fa] text-[#1b1c1d] font-['Inter'] min-h-screen">
+    <div className="bg-[#fbf9fa] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
       <TopNavBar />
 
       {/* Main Content */}
-      <main className="max-w-[1280px] mx-auto px-3 md:px-6 py-12 md:py-16 pt-6 md:pt-[120px] pb-24 md:pb-12">
+      <main className="flex-1 max-w-[1280px] mx-auto px-3 md:px-6 py-12 md:py-16 pt-6 md:pt-[120px] pb-24 md:pb-12 w-full">
         {children}
       </main>
 
