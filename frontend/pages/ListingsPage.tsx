@@ -33,6 +33,10 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const [pendingAssignmentKey, setPendingAssignmentKey] = useState<string | null>(null);
   const [visibleCardCount, setVisibleCardCount] = useState(3);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [draftCountryCode, setDraftCountryCode] = useState('');
+  const [draftProvinceCode, setDraftProvinceCode] = useState('');
+  const [draftMinBedrooms, setDraftMinBedrooms] = useState('');
+  const [draftMinGuests, setDraftMinGuests] = useState('');
   
   // Settings Modal State
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -54,6 +58,13 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   useEffect(() => {
     setEditingSettings(settings);
   }, [settings]);
+
+  useEffect(() => {
+    setDraftCountryCode(selectedCountryCode);
+    setDraftProvinceCode(selectedProvinceCode);
+    setDraftMinBedrooms(minBedrooms > 0 ? String(minBedrooms) : '');
+    setDraftMinGuests(minGuests > 0 ? String(minGuests) : '');
+  }, [selectedCountryCode, selectedProvinceCode, minBedrooms, minGuests]);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -240,6 +251,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     new Map(allowedLocations.map((location) => [location.countryCode, location])).values(),
   );
   const provinceOptions = allowedLocations.filter((location) => location.countryCode === selectedCountryCode);
+  const draftProvinceOptions = allowedLocations.filter((location) => location.countryCode === draftCountryCode);
   const selectedCountry = countryOptions.find((country) => country.countryCode === selectedCountryCode);
   const selectedProvince = provinceOptions.find((province) => province.provinceCode === selectedProvinceCode);
 
@@ -288,6 +300,25 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     minBedrooms > 0 ? String(minBedrooms) : '',
     minGuests > 0 ? String(minGuests) : '',
   ].filter(Boolean).length;
+
+  const applyDraftFilters = () => {
+    updateQueryParams({
+      countryCode: draftCountryCode || null,
+      provinceCode: draftProvinceCode || null,
+      minBedrooms: draftMinBedrooms || null,
+      minGuests: draftMinGuests || null,
+    });
+    setIsMobileFiltersOpen(false);
+  };
+
+  const clearAllFilters = () => {
+    setDraftCountryCode('');
+    setDraftProvinceCode('');
+    setDraftMinBedrooms('');
+    setDraftMinGuests('');
+    updateQueryParams({ countryCode: null, provinceCode: null, minBedrooms: null, minGuests: null });
+    setIsMobileFiltersOpen(false);
+  };
 
   useEffect(() => {
     const initialCount = Math.min(3, filteredProperties.length);
@@ -343,29 +374,36 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         </div>
 
         <div className="mb-4 md:hidden">
-          <button
-            type="button"
-            onClick={() => setIsMobileFiltersOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between rounded-xl border border-[#c4c6cd] bg-white px-4 py-3 text-left text-[14px] font-semibold text-[#1b1c1d]"
-          >
-            <span>
-              Filters
-              {activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-            </span>
-            {isMobileFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsMobileFiltersOpen((prev) => !prev)}
+              className="flex min-w-0 flex-1 items-center justify-between rounded-xl border border-[#c4c6cd] bg-white px-4 py-3 text-left text-[14px] font-semibold text-[#1b1c1d]"
+            >
+              <span>
+                Filters
+                {activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+              </span>
+              {isMobileFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="shrink-0 rounded-xl border border-[#c4c6cd] bg-white px-3 py-3 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
+            >
+              Clear filter
+            </button>
+          </div>
 
           {isMobileFiltersOpen && (
             <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-[#e4e2e3] bg-white p-3">
               <div>
                 <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Country</label>
                 <select
-                  value={selectedCountryCode}
+                  value={draftCountryCode}
                   onChange={(event) => {
-                    updateQueryParams({
-                      countryCode: event.target.value || null,
-                      provinceCode: null,
-                    });
+                    setDraftCountryCode(event.target.value.toUpperCase());
+                    setDraftProvinceCode('');
                   }}
                   className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
                 >
@@ -378,15 +416,15 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               <div>
                 <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Province</label>
                 <select
-                  value={selectedProvinceCode}
-                  disabled={!selectedCountryCode}
+                  value={draftProvinceCode}
+                  disabled={!draftCountryCode}
                   onChange={(event) => {
-                    updateQueryParams({ provinceCode: event.target.value || null });
+                    setDraftProvinceCode(event.target.value.toUpperCase());
                   }}
                   className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] disabled:bg-[#f5f3f4] disabled:text-[#8a8d92]"
                 >
                   <option value="">All provinces</option>
-                  {provinceOptions.map((province) => (
+                  {draftProvinceOptions.map((province) => (
                     <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
                   ))}
                 </select>
@@ -394,8 +432,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               <div>
                 <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Bedrooms</label>
                 <select
-                  value={minBedrooms > 0 ? String(minBedrooms) : ''}
-                  onChange={(event) => updateQueryParams({ minBedrooms: event.target.value || null })}
+                  value={draftMinBedrooms}
+                  onChange={(event) => setDraftMinBedrooms(event.target.value)}
                   className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
                 >
                   <option value="">Any</option>
@@ -407,8 +445,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               <div>
                 <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guests</label>
                 <select
-                  value={minGuests > 0 ? String(minGuests) : ''}
-                  onChange={(event) => updateQueryParams({ minGuests: event.target.value || null })}
+                  value={draftMinGuests}
+                  onChange={(event) => setDraftMinGuests(event.target.value)}
                   className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
                 >
                   <option value="">Any</option>
@@ -419,25 +457,34 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               </div>
               <button
                 type="button"
-                onClick={() => updateQueryParams({ countryCode: null, provinceCode: null, minBedrooms: null, minGuests: null })}
-                className="rounded-lg border border-[#c4c6cd] px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
+                onClick={applyDraftFilters}
+                className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
               >
-                Clear filters
+                Apply filter
               </button>
             </div>
           )}
+        </div>
+
+        <div className="mb-3 hidden items-center justify-between md:flex">
+          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Filters</div>
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
+          >
+            Clear filter
+          </button>
         </div>
 
         <div className="mb-10 hidden w-full flex-wrap items-center justify-start gap-3 md:flex">
             <div className="w-full sm:w-[200px]">
               <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Country</label>
               <select
-                value={selectedCountryCode}
+                value={draftCountryCode}
                 onChange={(event) => {
-                  updateQueryParams({
-                    countryCode: event.target.value || null,
-                    provinceCode: null,
-                  });
+                  setDraftCountryCode(event.target.value.toUpperCase());
+                  setDraftProvinceCode('');
                 }}
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
               >
@@ -450,15 +497,15 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             <div className="w-full sm:w-[200px]">
               <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Province</label>
               <select
-                value={selectedProvinceCode}
-                disabled={!selectedCountryCode}
+                value={draftProvinceCode}
+                disabled={!draftCountryCode}
                 onChange={(event) => {
-                  updateQueryParams({ provinceCode: event.target.value || null });
+                  setDraftProvinceCode(event.target.value.toUpperCase());
                 }}
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] disabled:bg-[#f5f3f4] disabled:text-[#8a8d92]"
               >
                 <option value="">All provinces</option>
-                {provinceOptions.map((province) => (
+                {draftProvinceOptions.map((province) => (
                   <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
                 ))}
               </select>
@@ -466,8 +513,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             <div className="w-[140px]">
               <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Bedrooms</label>
               <select
-                value={minBedrooms > 0 ? String(minBedrooms) : ''}
-                onChange={(event) => updateQueryParams({ minBedrooms: event.target.value || null })}
+                value={draftMinBedrooms}
+                onChange={(event) => setDraftMinBedrooms(event.target.value)}
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
               >
                 <option value="">Any</option>
@@ -479,8 +526,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             <div className="w-[140px]">
               <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guests</label>
               <select
-                value={minGuests > 0 ? String(minGuests) : ''}
-                onChange={(event) => updateQueryParams({ minGuests: event.target.value || null })}
+                value={draftMinGuests}
+                onChange={(event) => setDraftMinGuests(event.target.value)}
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
               >
                 <option value="">Any</option>
@@ -491,10 +538,10 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             </div>
             <button
               type="button"
-              onClick={() => updateQueryParams({ countryCode: null, provinceCode: null, minBedrooms: null, minGuests: null })}
-              className="mt-5 rounded-lg border border-[#c4c6cd] px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
+              onClick={applyDraftFilters}
+              className="mt-5 rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
             >
-              Clear filters
+              Apply filter
             </button>
             {isHost && (
               <div className="hidden md:flex items-center gap-2 rounded-lg border border-[#c4c6cd] bg-white p-1">
