@@ -1,5 +1,5 @@
 
-export type Language = 'en' | 'vi' | 'ja' | 'zh';
+export type Language = 'en' | 'vi' | 'ja' | 'zh' | 'ko';
 
 export const translations = {
   en: {
@@ -405,5 +405,106 @@ export const translations = {
     checkin_success_title: "登记成功！",
     checkin_success_ref: "参考编号",
     checkin_success_done: "完成",
+  },
+  ko: {
+    // Navigation
+    nav_home: "홈",
+    nav_access: "오시는 길",
+    nav_pricing: "요금",
+    nav_rules: "이용 규칙",
+    nav_manual: "안내",
+    nav_host: "호스트 관리",
+
+    // Booking Widget
+    sim_title: "요금 계산기",
+    sim_subtitle: "숙박 비용 계산 및 예약 문의",
+    sim_add_dates: "날짜 선택",
+    sim_checkin: "체크인",
+    sim_checkout: "체크아웃",
+    sim_guests: "인원",
+    sim_adults: "성인",
+    sim_children: "아동",
+    sim_infants: "유아",
+    sim_done: "완료",
+    sim_per_night: "/ 인 / 박",
+    sim_total_est: "총 예상 금액",
+    sim_send_inquiry: "예약 문의 보내기",
+    sim_calc_detail: "요금 계산 방식 보기",
+    sim_cleaning: "청소비",
+    sim_discount: "할인",
+    sim_long_stay: "장기 숙박 할인",
+    sim_child_disc: "아동 할인",
+    sim_infant_free: "유아 (무료)",
+    sim_note: "이것은 시뮬레이션입니다. 버튼을 클릭하면 이메일 클라이언트가 열립니다.",
+
+    // Home Page
+    home_show_photos: "모든 사진 보기",
+    home_hosted_by: "전체 주택 - 호스트",
+    home_superhost: "슈퍼호스트",
+    home_show_more: "더 보기",
+    home_show_less: "접기",
+    home_sleep: "침실 안내",
+    home_amenities: "편의시설",
+    home_also_on: "다른 예약 플랫폼",
+    home_book_on: "예약하기",
+
+    // Common
+    loading: "로딩 중...",
+    error: "오류",
+    save: "저장",
+    saved: "저장됨!",
+
+    // Access Page
+    access_title: "오시는 길",
+    access_train: "전철 이용",
+    access_airport: "공항에서 오실 때",
+    access_checkin: "체크인 안내",
+    access_video: "도보 안내 동영상",
+    access_watch: "지금 보기",
+
+    // Pricing Page
+    price_avail: "예약 가능 여부",
+    price_rates: "기본 요금",
+    price_cleaning: "청소비",
+    price_guest: "명",
+    price_guests: "명",
+    price_prev: "이전 달",
+    price_next: "다음 달",
+    price_blocked: "예약 불가",
+    price_available: "예약 가능",
+
+    // Footer
+    footer_rights: "All rights reserved.",
+
+    // Check-in Page
+    checkin_title: "게스트 체크인",
+    checkin_session_starting: "세션 초기화 중…",
+    checkin_date_in: "체크인 날짜",
+    checkin_date_out: "체크아웃 날짜",
+    checkin_scanning: "스캔 중…",
+    checkin_confirmed: "확인 완료 ✓",
+    checkin_needs_review: "검토 필요",
+    checkin_upload_prompt: "신분증을 업로드하세요",
+    checkin_upload_btn: "신분증 업로드",
+    checkin_replace_btn: "교체",
+    checkin_review_btn: "검토 →",
+    checkin_add_guest: "게스트 추가",
+    checkin_hold_send: "꾹 눌러서 체크인 전송",
+    checkin_submitting: "제출 중…",
+    checkin_compliance: "현지 당국 규정에 따라 모든 숙박객은 정보를 등록해야 합니다. 규정 준수에 협조해 주셔서 감사합니다.",
+    checkin_popup_title: "신분증 정보 확인",
+    checkin_popup_fullname: "성명 *",
+    checkin_popup_birthyear: "출생연도",
+    checkin_popup_gender: "성별",
+    checkin_popup_nationality: "국적",
+    checkin_popup_occupation: "직업",
+    checkin_popup_address: "주소",
+    checkin_popup_docnum: "증명서 번호",
+    checkin_popup_doctype: "증명서 종류",
+    checkin_popup_another: "다른 사진 사용",
+    checkin_popup_confirm: "게스트 확인",
+    checkin_success_title: "체크인 완료!",
+    checkin_success_ref: "참조 번호",
+    checkin_success_done: "완료",
   }
 };

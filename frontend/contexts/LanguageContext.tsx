@@ -10,7 +10,7 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-const SUPPORTED: Language[] = ['en', 'vi', 'ja', 'zh'];
+const SUPPORTED: Language[] = ['en', 'vi', 'ja', 'zh', 'ko'];
 
 function detectBrowserLanguage(): Language {
   const saved = localStorage.getItem('app_language') as Language;
@@ -19,6 +19,7 @@ function detectBrowserLanguage(): Language {
   if (nav.startsWith('vi')) return 'vi';
   if (nav.startsWith('ja')) return 'ja';
   if (nav.startsWith('zh')) return 'zh';
+  if (nav.startsWith('ko')) return 'ko';
   return 'en';
 }
 
