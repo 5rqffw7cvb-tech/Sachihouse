@@ -1,5 +1,5 @@
 import React, { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronUp, FileBadge2, Globe, Loader2, Menu, PencilLine, Plus, Upload, X } from 'lucide-react';
+import { Check, ChevronUp, EyeOff, FileBadge2, Globe, Lock, Loader2, Menu, PencilLine, Plus, ShieldCheck, Upload, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PropertyData, CheckInGuest } from '../types';
 import { CheckInConsentPolicy, ocrGuestDocument, startCheckInSession, submitCheckIn } from '../services/checkin';
@@ -720,12 +720,19 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           <Plus className="h-4 w-4" /> {t('checkin_add_guest')}
         </button>
 
-        {/* Compliance note */}
-        <div className="mt-5 flex gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-          <span className="mt-0.5 shrink-0 text-blue-400">ℹ️</span>
-          <p className="text-xs leading-5 text-blue-700">
-            {t('checkin_compliance')}
-          </p>
+        {/* Security trust strip */}
+        <div className="mt-5 flex items-center justify-center gap-5 rounded-xl border border-[#e4e2e3] bg-[#f5f3f4] px-4 py-3">
+          <span className="flex items-center gap-1.5 text-[#44474c]">
+            <Lock className="h-4 w-4 text-[#0f7a44]" strokeWidth={2.5} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide">SSL</span>
+          </span>
+          <span className="h-4 w-px bg-[#e4e2e3]" />
+          <ShieldCheck className="h-5 w-5 text-[#0f7a44]" strokeWidth={2} />
+          <span className="h-4 w-px bg-[#e4e2e3]" />
+          <span className="flex items-center gap-1.5 text-[#44474c]">
+            <EyeOff className="h-4 w-4 text-[#44474c]" strokeWidth={2} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide">Private</span>
+          </span>
         </div>
 
         {/* Submit — desktop in-flow */}

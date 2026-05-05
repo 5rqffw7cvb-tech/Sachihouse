@@ -4,6 +4,7 @@ import { AlertCircle, Archive, ChevronDown, Eye, EyeOff, Loader2, Lock, Plus, Re
 import { ApiUser } from '../services/api';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
 import { TopNavBar } from '../components/TopNavBar';
+import { MobileBottomNav } from '../components/MobileBottomNav';
 import {
   assignHostToProperty,
   createUser,
@@ -18,23 +19,24 @@ import {
   updateUserRole,
   UserRole,
 } from '../services/admin';
-import { getAllProperties } from '../services/storage';
-import { PropertyData } from '../types';
+import { DEFAULT_SITE_SETTINGS, getAllProperties, getSiteSettings } from '../services/storage';
+import { PropertyData, SiteSettings } from '../types';
+
 
 const ROLE_OPTIONS: UserRole[] = ['ADMIN', 'HOST', 'GUEST'];
 
 type UserTab = 'profile' | 'access' | 'properties' | 'security' | 'danger';
 
 const ROLE_BADGE: Record<UserRole, string> = {
-  ADMIN: 'bg-purple-100 text-purple-700',
-  HOST: 'bg-blue-100 text-blue-700',
-  GUEST: 'bg-slate-100 text-slate-600',
+  ADMIN: 'bg-[#041627] text-white',
+  HOST: 'bg-[#e6f5ec] text-[#0f7a44]',
+  GUEST: 'bg-[#efedef] text-[#44474c]',
 };
 
 const AVATAR_COLOR: Record<UserRole, string> = {
-  ADMIN: 'bg-purple-100 text-purple-700',
-  HOST: 'bg-blue-100 text-blue-700',
-  GUEST: 'bg-slate-100 text-slate-500',
+  ADMIN: 'bg-[#041627] text-white',
+  HOST: 'bg-[#e6f5ec] text-[#0f7a44]',
+  GUEST: 'bg-[#efedef] text-[#44474c]',
 };
 
 const AdminUsersPage: React.FC = () => {
@@ -44,6 +46,7 @@ const AdminUsersPage: React.FC = () => {
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [properties, setProperties] = useState<(PropertyData & { id: string })[]>([]);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -150,6 +153,7 @@ const AdminUsersPage: React.FC = () => {
 
   useEffect(() => {
     void loadData();
+    getSiteSettings().then(setSiteSettings).catch(() => {});
   }, [isAdmin]);
 
   const handleLogin = () => {
@@ -415,26 +419,27 @@ const AdminUsersPage: React.FC = () => {
   };
 
   // Reusable class helpers
-  const inputCls = 'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-[#1b1c1d] focus:outline-none focus:ring-2 focus:ring-[#041627]/20 focus:border-[#041627] transition-colors disabled:opacity-60';
+  const inputCls = 'w-full px-3.5 py-2.5 bg-[#f5f3f4] border border-[#e4e2e3] rounded-xl text-sm text-[#1b1c1d] focus:outline-none focus:ring-2 focus:ring-[#041627]/20 focus:border-[#041627] transition-colors disabled:opacity-60';
   const selectCls = inputCls + ' appearance-none';
   const tabBtnCls = (active: boolean) =>
-    `text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${active ? 'bg-white text-[#041627] shadow-sm' : 'text-slate-500 hover:text-[#041627]'}`;
-  const primaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#041627] text-white font-semibold text-xs hover:bg-slate-800 disabled:opacity-50 transition-colors';
-  const secondaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50 disabled:opacity-50 transition-colors';
+    `text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${active ? 'bg-white text-[#041627] shadow-sm' : 'text-[#74777d] hover:text-[#041627]'}`;
+  const primaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#041627] text-white font-semibold text-xs hover:bg-[#041627]/90 disabled:opacity-50 transition-colors';
+  const secondaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold text-xs hover:bg-[#efedef] disabled:opacity-50 transition-colors';
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center px-4 pt-20">
-        <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 w-full max-w-md">
-          <div className="flex justify-center mb-6">
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-700">
+      <div className="min-h-screen bg-[#e8e5e6] flex flex-col">
+        <TopNavBar />
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#e4e2e3] w-full max-w-md text-center">
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-[#efedef] text-[#44474c] flex items-center justify-center">
               <Lock className="w-6 h-6" />
             </div>
+            <h2 className="text-[22px] font-bold text-[#1b1c1d] mb-2">User Admin Access</h2>
+            <p className="text-sm text-[#44474c] mb-6">Sign in with an admin account to manage users and host assignments.</p>
+            {errorMsg && <p className="text-red-600 text-sm text-center mb-3">{errorMsg}</p>}
+            <button onClick={handleLogin} className="w-full bg-[#041627] hover:bg-[#041627]/90 text-white font-bold py-3 px-4 rounded-full">Login</button>
           </div>
-          <h2 className="text-2xl font-bold text-center text-gray-900 mb-2">User Admin Access</h2>
-          <p className="text-sm text-gray-500 text-center mb-6">Sign in with an admin account to manage users and host assignments.</p>
-          {errorMsg && <p className="text-red-600 text-sm text-center mb-3">{errorMsg}</p>}
-          <button onClick={handleLogin} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Login</button>
         </div>
       </div>
     );
@@ -442,7 +447,7 @@ const AdminUsersPage: React.FC = () => {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-[#e8e5e6]">
+      <div className="min-h-screen bg-[#e8e5e6] flex flex-col">
         <TopNavBar />
         <div className="max-w-3xl mx-auto px-4 pt-[110px] pb-12">
           <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 shadow-sm text-center">
@@ -459,36 +464,43 @@ const AdminUsersPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-[#1b1c1d]">
+    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
       <TopNavBar />
-      <main className="max-w-4xl mx-auto px-3 md:px-6 pt-[110px] pb-10">
+      <main className="flex-1 w-full max-w-[1280px] mx-auto px-3 md:px-6 pt-[110px] pb-28 md:pb-10">
 
         {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-7">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
-            <div className="text-xs text-slate-400 mb-1">Admin › User Management</div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-3xl font-bold text-[#041627] leading-tight">User Administration</h1>
-            <p className="text-slate-500 mt-1 text-sm">Manage user accounts, roles, and property assignments.</p>
+            <h1 className="font-['Plus_Jakarta_Sans'] text-[28px] font-bold leading-tight">User Administration</h1>
+            <p className="text-[#44474c] mt-1">Manage user accounts, roles, and property assignments.</p>
           </div>
-          <button
-            onClick={() => loadData(true)}
-            disabled={isRefreshing}
-            className="self-start sm:self-center inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold text-sm hover:bg-slate-50 shadow-sm disabled:opacity-60 transition-colors whitespace-nowrap"
-          >
-            {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Refresh
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => loadData(true)}
+              disabled={isRefreshing}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] disabled:opacity-60 transition-colors"
+            >
+              {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Refresh
+            </button>
+            <button
+              onClick={() => setCreateFormOpen(v => !v)}
+              className="inline-flex items-center gap-2 bg-[#041627] hover:bg-[#041627]/90 text-white px-4 py-2 rounded-full font-semibold transition-colors"
+            >
+              <Plus className="w-4 h-4" /> New User
+            </button>
+          </div>
         </div>
 
         {/* Alerts */}
         {errorMsg && (
-          <div className="mb-5 border border-red-200 bg-red-50 text-red-700 rounded-xl px-4 py-3 text-sm flex items-center justify-between gap-3">
+          <div className="mb-5 border border-red-200 bg-red-50 text-red-700 rounded-2xl px-4 py-3 text-sm flex items-center justify-between gap-3">
             <span>{errorMsg}</span>
             <button onClick={() => setErrorMsg(null)} className="flex-shrink-0 text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
           </div>
         )}
         {infoMsg && (
-          <div className="mb-5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-xl px-4 py-3 text-sm flex items-center justify-between gap-3">
+          <div className="mb-5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-2xl px-4 py-3 text-sm flex items-center justify-between gap-3">
             <span>{infoMsg}</span>
             <button onClick={() => setInfoMsg(null)} className="flex-shrink-0 text-emerald-400 hover:text-emerald-600"><X className="w-4 h-4" /></button>
           </div>
@@ -497,69 +509,60 @@ const AdminUsersPage: React.FC = () => {
         {/* Stats */}
         {!isLoading && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
+            <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
               <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#041627]">{stats.total}</div>
-              <div className="text-xs font-medium text-slate-500 mt-0.5">Total Users</div>
+              <div className="text-xs font-medium text-[#74777d] mt-0.5">Total Users</div>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
-              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-purple-700">{stats.admins}</div>
-              <div className="text-xs font-medium text-slate-500 mt-0.5">Admins</div>
+            <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
+              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#041627]">{stats.admins}</div>
+              <div className="text-xs font-medium text-[#74777d] mt-0.5">Admins</div>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
-              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-blue-700">{stats.hosts}</div>
-              <div className="text-xs font-medium text-slate-500 mt-0.5">Hosts</div>
+            <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
+              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#0f7a44]">{stats.hosts}</div>
+              <div className="text-xs font-medium text-[#74777d] mt-0.5">Hosts</div>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-5 py-4">
-              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-amber-600">{stats.archived}</div>
-              <div className="text-xs font-medium text-slate-500 mt-0.5">Archived</div>
+            <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
+              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#74777d]">{stats.archived}</div>
+              <div className="text-xs font-medium text-[#74777d] mt-0.5">Archived</div>
             </div>
           </div>
         )}
 
         {/* Create User card */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm mb-6 overflow-hidden">
-          <button
-            onClick={() => setCreateFormOpen(v => !v)}
-            className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-[#041627] flex items-center justify-center">
-                <Plus className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-['Plus_Jakarta_Sans'] font-bold text-[#041627]">Create New User</span>
-            </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${createFormOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {createFormOpen && (
-            <form onSubmit={handleCreateUser} className="border-t border-slate-100 px-6 py-5">
+        {createFormOpen && (
+        <div className="bg-white rounded-2xl border border-[#e4e2e3] mb-6 overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#e4e2e3] bg-[#f5f3f4] flex items-center justify-between">
+            <span className="text-sm font-semibold text-[#1b1c1d]">Create New User</span>
+            <button type="button" onClick={() => setCreateFormOpen(false)} className="text-[#74777d] hover:text-[#1b1c1d]"><X className="w-4 h-4" /></button>
+          </div>
+          <form onSubmit={handleCreateUser} className="px-6 py-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Full Name</label>
+                  <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Full Name</label>
                   <input type="text" required placeholder="e.g. Nguyen Van A"
                     value={createForm.name} onChange={e => setCreateForm(prev => ({ ...prev, name: e.target.value }))}
                     className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Email Address</label>
+                  <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Email Address</label>
                   <input type="email" required placeholder="user@sachihouse.com"
                     value={createForm.email} onChange={e => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
                     className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Password</label>
+                  <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Password</label>
                   <div className="relative">
                     <input type={showCreatePassword ? 'text' : 'password'} required minLength={6} placeholder="Min. 6 characters"
                       value={createForm.password} onChange={e => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
                       className={inputCls + ' pr-10'} />
                     <button type="button" onClick={() => setShowCreatePassword(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#74777d] hover:text-[#1b1c1d]">
                       {showCreatePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Role</label>
+                  <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Role</label>
                   <select value={createForm.role} onChange={e => setCreateForm(prev => ({ ...prev, role: e.target.value as UserRole }))}
                     className={selectCls}>
                     {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
@@ -570,16 +573,16 @@ const AdminUsersPage: React.FC = () => {
                 <label className="inline-flex items-center gap-3 cursor-pointer">
                   <button type="button"
                     onClick={() => setCreateForm(prev => ({ ...prev, canEditBlog: !prev.canEditBlog }))}
-                    className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${createForm.canEditBlog ? 'bg-[#041627]' : 'bg-slate-300'}`}>
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${createForm.canEditBlog ? 'bg-[#041627]' : 'bg-[#c4c6cd]'}`}>
                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${createForm.canEditBlog ? 'translate-x-4' : 'translate-x-0.5'}`} />
                   </button>
                   <div>
-                    <div className="text-sm font-semibold text-slate-700">Grant Blog Editor Access</div>
-                    <div className="text-xs text-slate-400">Allow this user to create and manage blog posts</div>
+                    <div className="text-sm font-semibold text-[#1b1c1d]">Grant Blog Editor Access</div>
+                    <div className="text-xs text-[#74777d]">Allow this user to create and manage blog posts</div>
                   </div>
                 </label>
               </div>
-              <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center gap-3 pt-4 border-t border-[#e4e2e3]">
                 <button type="submit" disabled={isCreating} className={primaryBtnCls + ' px-5 py-2.5 text-sm'}>
                   {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                   Create User
@@ -587,31 +590,35 @@ const AdminUsersPage: React.FC = () => {
                 <button type="button" onClick={() => setCreateFormOpen(false)} className={secondaryBtnCls + ' px-4 py-2.5 text-sm'}>Cancel</button>
               </div>
             </form>
-          )}
         </div>
+        )}
 
         {/* Users List */}
         {isLoading ? (
-          <div className="py-16 flex items-center justify-center text-slate-500">
+          <div className="py-16 flex items-center justify-center text-[#44474c]">
             <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading users...
           </div>
         ) : users.length === 0 ? (
-          <div className="py-16 text-center text-slate-500">No users found.</div>
+          <div className="py-16 text-center text-[#44474c]">No users found.</div>
         ) : (
-          <div className="space-y-3">
+          <div className="rounded-2xl border border-[#e4e2e3] bg-white overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#e4e2e3] bg-[#f5f3f4] flex items-center justify-between">
+              <span className="text-sm font-semibold">{users.length} {users.length === 1 ? 'user' : 'users'}</span>
+            </div>
+            <div className="divide-y divide-[#efedef]">
             {users.map(user => {
               const isExpanded = expandedUserIds.has(user.id);
               const activeTab = getActiveTab(user);
               const isSelf = user.id === authUser?.id;
-              const avatarColor = user.archivedAt ? 'bg-slate-100 text-slate-400' : (AVATAR_COLOR[user.role] ?? 'bg-slate-100 text-slate-500');
+              const avatarColor = user.archivedAt ? 'bg-[#efedef] text-[#74777d]' : (AVATAR_COLOR[user.role] ?? 'bg-[#efedef] text-[#44474c]');
               const avatarInitial = (user.name || user.email).charAt(0).toUpperCase();
 
               return (
-                <div key={user.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-shadow hover:shadow-md ${user.archivedAt ? 'border-amber-100 opacity-80' : 'border-slate-100'}`}>
+                <div key={user.id} className={`overflow-hidden transition-colors ${user.archivedAt ? 'opacity-80' : ''}`}>
 
                   {/* Card Header */}
                   <div
-                    className={`flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors ${user.archivedAt ? 'hover:bg-amber-50/40' : 'hover:bg-slate-50'}`}
+                    className={`flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors hover:bg-[#faf9f9]`}
                     onClick={() => toggleUserCard(user)}
                   >
                     <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center font-['Plus_Jakarta_Sans'] font-bold text-base ${avatarColor}`}>
@@ -619,13 +626,13 @@ const AdminUsersPage: React.FC = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className={`font-['Plus_Jakarta_Sans'] font-bold text-sm ${user.archivedAt ? 'text-slate-500' : 'text-[#041627]'}`}>{user.name}</span>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${user.archivedAt ? 'bg-slate-100 text-slate-500' : (ROLE_BADGE[user.role] ?? 'bg-slate-100 text-slate-600')}`}>{user.role}</span>
+                        <span className={`font-['Plus_Jakarta_Sans'] font-bold text-sm ${user.archivedAt ? 'text-[#74777d]' : 'text-[#041627]'}`}>{user.name}</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${user.archivedAt ? 'bg-[#efedef] text-[#74777d]' : (ROLE_BADGE[user.role] ?? 'bg-[#efedef] text-[#44474c]')}`}>{user.role}</span>
                         {user.archivedAt
                           ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Archived</span>
-                          : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Active</span>
+                          : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#e6f5ec] text-[#0f7a44]">Active</span>
                         }
-                        {user.canEditBlog && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">Blog Editor</span>}
+                        {user.canEditBlog && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#44474c]">Blog Editor</span>}
                         {isSelf && <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">You</span>}
                       </div>
                       <div className="text-xs text-slate-400 mt-0.5 truncate">
@@ -638,9 +645,9 @@ const AdminUsersPage: React.FC = () => {
 
                   {/* Card Body */}
                   {isExpanded && (
-                    <div className="border-t border-slate-100">
+                    <div className="border-t border-[#e4e2e3]">
                       {/* Tabs */}
-                      <div className="flex items-center gap-1 px-4 pt-3 pb-2 bg-slate-50 flex-wrap">
+                      <div className="flex items-center gap-1 px-4 pt-3 pb-2 bg-[#f5f3f4] flex-wrap">
                         <button onClick={() => setActiveTab(user.id, 'profile')} className={tabBtnCls(activeTab === 'profile')}>Profile</button>
                         <button onClick={() => setActiveTab(user.id, 'access')} className={tabBtnCls(activeTab === 'access')}>Role & Access</button>
                         {user.role === 'HOST' && (
@@ -658,7 +665,7 @@ const AdminUsersPage: React.FC = () => {
                         <div className="px-5 py-4">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Full Name</label>
+                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Full Name</label>
                               <input type="text"
                                 value={nameDrafts[user.id] ?? user.name}
                                 onChange={e => setNameDrafts(prev => ({ ...prev, [user.id]: e.target.value }))}
@@ -666,7 +673,7 @@ const AdminUsersPage: React.FC = () => {
                                 className={inputCls} />
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Email Address</label>
+                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Email Address</label>
                               <input type="email"
                                 value={emailDrafts[user.id] ?? user.email}
                                 onChange={e => setEmailDrafts(prev => ({ ...prev, [user.id]: e.target.value }))}
@@ -692,7 +699,7 @@ const AdminUsersPage: React.FC = () => {
                         <div className="px-5 py-4">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             <div>
-                              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Role</label>
+                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-2">Role</label>
                               <div className="flex items-center gap-2">
                                 <select
                                   value={user.role}
@@ -702,23 +709,23 @@ const AdminUsersPage: React.FC = () => {
                                 >
                                   {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                                 </select>
-                                {pendingRoleUserId === user.id && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                                {pendingRoleUserId === user.id && <Loader2 className="w-4 h-4 animate-spin text-[#74777d]" />}
                               </div>
-                              {isSelf && <p className="text-xs text-slate-400 mt-1.5">Your own role cannot be changed here.</p>}
+                              {isSelf && <p className="text-xs text-[#74777d] mt-1.5">Your own role cannot be changed here.</p>}
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Blog Editor Access</label>
+                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-2">Blog Editor Access</label>
                               <div className="flex items-center gap-3">
                                 <button type="button"
                                   disabled={pendingBlogPermissionUserId === user.id}
                                   onClick={() => handleBlogPermissionChange(user, !user.canEditBlog)}
-                                  className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${user.canEditBlog ? 'bg-[#041627]' : 'bg-slate-300'}`}>
+                                  className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${user.canEditBlog ? 'bg-[#041627]' : 'bg-[#c4c6cd]'}`}>
                                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${user.canEditBlog ? 'translate-x-4' : 'translate-x-0.5'}`} />
                                 </button>
-                                <span className="text-sm font-medium text-slate-700">{user.canEditBlog ? 'Enabled' : 'Disabled'}</span>
-                                {pendingBlogPermissionUserId === user.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+                                <span className="text-sm font-medium text-[#1b1c1d]">{user.canEditBlog ? 'Enabled' : 'Disabled'}</span>
+                                {pendingBlogPermissionUserId === user.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#74777d]" />}
                               </div>
-                              <p className="text-xs text-slate-400 mt-1.5">Can create and edit blog posts.</p>
+                              <p className="text-xs text-[#74777d] mt-1.5">Can create and edit blog posts.</p>
                             </div>
                           </div>
                         </div>
@@ -727,25 +734,25 @@ const AdminUsersPage: React.FC = () => {
                       {/* Properties Tab */}
                       {activeTab === 'properties' && user.role === 'HOST' && (
                         <div className="px-5 py-4">
-                          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Assigned Properties</label>
+                          <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-3">Assigned Properties</label>
                           {properties.length === 0 ? (
-                            <p className="text-sm text-slate-400">No properties available.</p>
+                            <p className="text-sm text-[#74777d]">No properties available.</p>
                           ) : (
                             <div className="space-y-2 mb-4">
                               {properties.map(property => {
                                 const draftAssigned = assignmentDrafts[user.id] ?? user.assignedPropertyIds;
                                 const isAssigned = draftAssigned.includes(property.id);
                                 return (
-                                  <label key={property.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+                                  <label key={property.id} className="flex items-center gap-3 p-3 rounded-xl border border-[#e4e2e3] cursor-pointer hover:bg-[#f5f3f4] transition-colors">
                                     <input type="checkbox" checked={isAssigned}
                                       disabled={pendingAssignmentSaveUserId === user.id}
                                       onChange={() => handleAssignmentDraftToggle(user, property.id)}
                                       className="w-4 h-4 accent-[#041627]" />
                                     <div className="flex-1 min-w-0">
-                                      <div className="text-sm font-semibold text-slate-700">{property.name || property.id}</div>
-                                      <div className="text-xs text-slate-400">{property.id}</div>
+                                      <div className="text-sm font-semibold text-[#1b1c1d]">{property.name || property.id}</div>
+                                      <div className="text-xs text-[#74777d]">{property.id}</div>
                                     </div>
-                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isAssigned ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isAssigned ? 'bg-[#e6f5ec] text-[#0f7a44]' : 'bg-[#efedef] text-[#74777d]'}`}>
                                       {isAssigned ? 'Assigned' : 'Unassigned'}
                                     </span>
                                   </label>
@@ -770,7 +777,7 @@ const AdminUsersPage: React.FC = () => {
                       {/* Security Tab */}
                       {activeTab === 'security' && (
                         <div className="px-5 py-4">
-                          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Reset Password</label>
+                          <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-2">Reset Password</label>
                           <div className="flex items-center gap-2 max-w-sm">
                             <div className="relative flex-1">
                               <input
@@ -782,7 +789,7 @@ const AdminUsersPage: React.FC = () => {
                                 className={inputCls + ' pr-10'} />
                               <button type="button"
                                 onClick={() => setShowPasswordDrafts(prev => ({ ...prev, [user.id]: !prev[user.id] }))}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#74777d] hover:text-[#1b1c1d]">
                                 {showPasswordDrafts[user.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                               </button>
                             </div>
@@ -800,7 +807,7 @@ const AdminUsersPage: React.FC = () => {
                       {activeTab === 'danger' && (
                         <div className="px-5 py-4">
                           {isSelf ? (
-                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-center text-sm text-slate-400">
+                            <div className="bg-[#f5f3f4] rounded-xl p-4 border border-[#e4e2e3] text-center text-sm text-[#74777d]">
                               You cannot archive or delete your own account.
                             </div>
                           ) : (
@@ -841,9 +848,21 @@ const AdminUsersPage: React.FC = () => {
                 </div>
               );
             })}
+            </div>
           </div>
         )}
       </main>
+
+      <footer className="bg-[#f5f3f4] text-[#1b1c1d] text-[12px] md:text-[14px] font-['Plus_Jakarta_Sans'] border-t border-[#e4e2e3] w-full py-6 md:py-8 px-4 md:px-6 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6 pb-20 md:pb-8 mt-8">
+        <div className="text-[16px] md:text-[18px] font-bold text-[#1b1c1d]">{siteSettings.footerTitle}</div>
+        <div className="flex flex-wrap justify-center gap-3 md:gap-6">
+          <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Privacy Policy</a>
+          <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Terms of Service</a>
+        </div>
+        <div className="text-[#44474c]">{siteSettings.footerCopyright}</div>
+      </footer>
+
+      <MobileBottomNav />
     </div>
   );
 };

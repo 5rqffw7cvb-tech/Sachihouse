@@ -115,7 +115,7 @@ export const MobileBottomNav: React.FC = () => {
                    onClick={() => { setIsDropdownOpen(false); navigate('/admin/checkin-management'); }}
                    className="w-full text-left px-4 py-3 text-sm text-[#44474c] hover:bg-[#f5f3f4] active:bg-gray-100 transition-colors"
                  >
-                   Check-in Management
+                   Check-in Admin
                  </button>
                )}
                <button 
