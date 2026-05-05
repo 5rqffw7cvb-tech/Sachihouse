@@ -3,7 +3,8 @@ import { Check, ChevronUp, FileBadge2, Globe, Loader2, Menu, PencilLine, Plus, U
 import { Link } from 'react-router-dom';
 import { PropertyData, CheckInGuest } from '../types';
 import { CheckInConsentPolicy, ocrGuestDocument, startCheckInSession, submitCheckIn } from '../services/checkin';
-import { ApiError } from '../services/api';
+import { ApiError, ApiUser } from '../services/api';
+import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { HoldToSubmitButton } from '../components/HoldToSubmitButton';
 import { TopNavBar } from '../components/TopNavBar';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -81,6 +82,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
+  const [authUser, setAuthUser] = useState<ApiUser | null>(() => getCurrentUser());
 
   useEffect(() => {
     let cancelled = false;
@@ -112,6 +114,12 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       cancelled = true;
     };
   }, [propertyId]);
+
+  useEffect(() => {
+    let unsub = () => {};
+    subscribeToAuth((user) => setAuthUser(user)).then((fn) => { unsub = fn; });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -423,7 +431,18 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           <div className="border-t border-gray-100 bg-white px-2 py-1">
             <Link to="/" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Home</Link>
             <Link to="/blog" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Blog</Link>
-            <Link to="/login" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Login</Link>
+            {authUser ? (
+              <>
+                {(authUser.role === 'ADMIN' || authUser.role === 'HOST') && (
+                  <Link to="/admin/checkin-management" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Check-in Management</Link>
+                )}
+                {(authUser.role === 'ADMIN' || authUser.role === 'HOST') && (
+                  <Link to="/admin/properties" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Property Admin</Link>
+                )}
+              </>
+            ) : (
+              <Link to="/login" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Login</Link>
+            )}
           </div>
         )}
       </header>
