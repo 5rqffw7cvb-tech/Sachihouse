@@ -336,7 +336,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
       onUpdate(dataToSave);
       setSaveStatus('saved');
             setSaveMessage('Saved successfully.');
-            if (dataToSave.id && dataToSave.id !== propertyId && !(dataToSave.metalink || '').trim()) {
+            if (dataToSave.id && dataToSave.id !== propertyId) {
                 navigate(`/${dataToSave.id}/admin`, { replace: true });
             }
     } catch (error) {
