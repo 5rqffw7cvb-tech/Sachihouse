@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { HelmetProvider } from 'react-helmet-async';
 import ListingsPage from './pages/ListingsPage';
-import { DEFAULT_DATA, DEFAULT_SITE_SETTINGS, getAllProperties, getSiteSettings } from './services/storage';
+import { getAllProperties, getSiteSettings } from './services/storage';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const AccessPage = lazy(() => import('./pages/AccessPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
@@ -438,7 +438,7 @@ const ListingsSkeleton = () => (
 );
 
 const ListingsRoute = () => {
-    const getInitialProperties = (): (PropertyData & { id: string })[] => {
+    const getCachedProperties = (): (PropertyData & { id: string })[] | null => {
         if (typeof window !== 'undefined') {
             const cached = localStorage.getItem('cache_properties');
             if (cached) {
@@ -448,37 +448,42 @@ const ListingsRoute = () => {
                         return parsed;
                     }
                 } catch {
-                    // Ignore malformed cache and fall back to defaults.
+                    // Ignore malformed cache.
                 }
             }
         }
-        return [{ ...DEFAULT_DATA, id: DEFAULT_DATA.id || 'main' }];
+        return null;
     };
 
-    const getInitialSettings = (): SiteSettings => {
+    const getCachedSettings = (): SiteSettings | null => {
         if (typeof window !== 'undefined') {
             const cached = localStorage.getItem('cache_settings');
             if (cached) {
                 try {
                     const parsed = JSON.parse(cached);
                     if (parsed && typeof parsed === 'object') {
-                        return { ...DEFAULT_SITE_SETTINGS, ...parsed };
+                        return parsed as SiteSettings;
                     }
                 } catch {
-                    // Ignore malformed cache and fall back to defaults.
+                    // Ignore malformed cache.
                 }
             }
         }
-        return { ...DEFAULT_SITE_SETTINGS };
+        return null;
     };
 
-    const [properties, setProperties] = useState<(PropertyData & { id: string })[]>(getInitialProperties);
-    const [settings, setSettings] = useState<SiteSettings>(getInitialSettings);
+    const cachedProperties = getCachedProperties();
+    const cachedSettings = getCachedSettings();
+
+    const [properties, setProperties] = useState<(PropertyData & { id: string })[] | null>(cachedProperties);
+    const [settings, setSettings] = useState<SiteSettings | null>(cachedSettings);
+    const [isLoading, setIsLoading] = useState(!cachedProperties || !cachedSettings);
     const [loadError, setLoadError] = useState<string | null>(null);
     
     useEffect(() => {
         let cancelled = false;
         setLoadError(null);
+        setIsLoading(!properties || !settings);
 
         Promise.all([getAllProperties(), getSiteSettings()]).then(([data, settingsData]) => {
             if (cancelled) return;
@@ -486,21 +491,37 @@ const ListingsRoute = () => {
             setSettings(settingsData);
             localStorage.setItem('cache_properties', JSON.stringify(data));
             localStorage.setItem('cache_settings', JSON.stringify(settingsData));
+            setIsLoading(false);
         }).catch(err => {
             if (cancelled) return;
             console.error(err);
-            setLoadError('Showing cached data. Failed to refresh latest listings.');
+            setLoadError(properties && settings
+                ? 'Showing cached data. Failed to refresh latest listings.'
+                : 'Failed to load listings data. Please refresh and try again.');
+            setIsLoading(false);
         });
 
         return () => {
             cancelled = true;
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleUpdateSettings = (newSettings: SiteSettings) => {
         setSettings(newSettings);
         localStorage.setItem('cache_settings', JSON.stringify(newSettings));
     };
+
+    if (!properties || !settings) {
+        if (isLoading) {
+            return <ListingsSkeleton />;
+        }
+        return (
+            <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center px-6 text-center text-[#ba1a1a]">
+                Failed to load homepage data. Please refresh and try again.
+            </div>
+        );
+    }
 
     return (
         <>
@@ -509,9 +530,7 @@ const ListingsRoute = () => {
                     {loadError}
                 </div>
             )}
-            <Suspense fallback={<ListingsSkeleton />}>
-                <ListingsPage properties={properties} settings={settings} onUpdateSettings={handleUpdateSettings} />
-            </Suspense>
+            <ListingsPage properties={properties} settings={settings} onUpdateSettings={handleUpdateSettings} />
         </>
     );
 }
