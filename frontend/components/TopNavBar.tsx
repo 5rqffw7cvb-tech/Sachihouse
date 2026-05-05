@@ -46,6 +46,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
   const pullStartYRef = useRef<number | null>(null);
   const pullDistanceRef = useRef(0);
   const refreshTimeoutRef = useRef<number | null>(null);
+  const isPullRefreshingRef = useRef(false);
 
   const isAuthenticated = !!authUser;
   const canManageUsers = authUser?.role === 'ADMIN';
@@ -130,13 +131,14 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
     };
 
     const resetPullState = () => {
+      isPullRefreshingRef.current = false;
       pullStartYRef.current = null;
       updatePullDistance(0);
       setIsPullRefreshing(false);
     };
 
     const handleTouchStart = (event: TouchEvent) => {
-      if (window.innerWidth >= 768 || isPullRefreshing) {
+      if (window.innerWidth >= 768 || isPullRefreshingRef.current) {
         return;
       }
       if (window.scrollY > 0) {
@@ -147,7 +149,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
     };
 
     const handleTouchMove = (event: TouchEvent) => {
-      if (window.innerWidth >= 768 || isPullRefreshing || pullStartYRef.current === null) {
+      if (window.innerWidth >= 768 || isPullRefreshingRef.current || pullStartYRef.current === null) {
         return;
       }
 
@@ -169,20 +171,18 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
     };
 
     const handleTouchEnd = () => {
-      if (window.innerWidth >= 768 || pullStartYRef.current === null || isPullRefreshing) {
+      if (window.innerWidth >= 768 || pullStartYRef.current === null || isPullRefreshingRef.current) {
         return;
       }
 
       pullStartYRef.current = null;
       if (pullDistanceRef.current >= PULL_REFRESH_THRESHOLD) {
+        isPullRefreshingRef.current = true;
         setIsPullRefreshing(true);
         updatePullDistance(PULL_REFRESH_THRESHOLD);
-        if (refreshTimeoutRef.current !== null) {
-          window.clearTimeout(refreshTimeoutRef.current);
-        }
         refreshTimeoutRef.current = window.setTimeout(() => {
           window.location.reload();
-        }, 120);
+        }, 500);
         return;
       }
 
@@ -199,11 +199,8 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', resetPullState);
-      if (refreshTimeoutRef.current !== null) {
-        window.clearTimeout(refreshTimeoutRef.current);
-      }
     };
-  }, [isBlogPost, isPullRefreshing]);
+  }, [isBlogPost]);
 
   const handleLogin = () => {
     navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
@@ -225,19 +222,23 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
             <div className="px-3 py-3 text-left">
               <span className="text-[18px] font-bold tracking-tight text-[#1b1c1d]">{mobilePageTitle}</span>
             </div>
-            <div
-              className={`overflow-hidden transition-[max-height,opacity] duration-150 ${pullDistance > 0 || isPullRefreshing ? 'opacity-100' : 'opacity-0'}`}
-              style={{ maxHeight: `${pullDistance}px` }}
-            >
-              <div className="flex items-center justify-center pb-2">
-                <Loader2
-                  className={`w-4 h-4 text-[#6b7280] ${isPullRefreshing ? 'animate-spin' : ''}`}
-                  style={isPullRefreshing ? undefined : { transform: `rotate(${Math.min(360, pullDistance * 5)}deg)` }}
-                />
-              </div>
-            </div>
           </nav>
           <div className="md:hidden" style={{ height: `calc(env(safe-area-inset-top) + ${MOBILE_HEADER_HEIGHT}px)` }} />
+          {/* Pull-to-refresh indicator: fixed BELOW the header, not inside it */}
+          <div
+            className="md:hidden fixed left-0 w-full z-40 pointer-events-none flex items-center justify-center overflow-hidden"
+            style={{
+              top: `calc(env(safe-area-inset-top) + ${MOBILE_HEADER_HEIGHT}px)`,
+              height: isPullRefreshing ? '44px' : `${Math.max(0, pullDistance - 16)}px`,
+              opacity: pullDistance > 16 || isPullRefreshing ? 1 : 0,
+              transition: 'height 80ms, opacity 80ms',
+            }}
+          >
+            <Loader2
+              className={`w-5 h-5 text-[#6b7280] ${isPullRefreshing ? 'animate-spin' : ''}`}
+              style={isPullRefreshing ? undefined : { transform: `rotate(${Math.min(360, pullDistance * 4)}deg)` }}
+            />
+          </div>
         </>
       )}
 
