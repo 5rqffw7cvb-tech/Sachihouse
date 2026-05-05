@@ -447,7 +447,7 @@ const CheckInManagementPage: React.FC = () => {
 
               <div className="md:hidden divide-y divide-[#efedef]">
                 {flattenedRows.map(({ submission, guest }) => (
-                  <article key={`${submission.id}-${guest.id}`} onClick={() => setSelectedRow({ submission, guest })} className="bg-white px-4 py-3 cursor-pointer active:bg-[#faf9f9]">
+                  <article key={`${submission.id}-${guest.id}`} className="bg-white px-4 py-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="font-semibold text-[14px] truncate">{guest.fullName || '-'}</div>
