@@ -229,6 +229,7 @@ export interface DataStore {
   listProperties(includeArchived?: boolean): Promise<Array<PropertyData & { id: string }>>;
   getProperty(idOrMetalink: string): Promise<(PropertyData & { id: string }) | null>;
   createProperty(property: PropertyData, actor: AuthUser): Promise<PropertyData & { id: string }>;
+  renameProperty(propertyId: string, newPropertyId: string, property: PropertyData, actor: AuthUser): Promise<PropertyData & { id: string }>;
   saveProperty(propertyId: string, property: PropertyData, actor: AuthUser): Promise<PropertyData & { id: string }>;
   setPropertyArchived(propertyId: string, archived: boolean, actor: AuthUser): Promise<PropertyData & { id: string }>;
   deleteProperty(propertyId: string, actor: AuthUser): Promise<void>;

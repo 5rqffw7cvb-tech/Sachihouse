@@ -579,6 +579,19 @@ export function createApp(store: DataStore) {
     }
     payload.address = payload.address.trim();
 
+    const requestedId = typeof payload.id === 'string' ? payload.id.trim() : '';
+    const shouldRename = requestedId && requestedId !== current.id;
+    if (shouldRename) {
+      if (req.authUser!.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Only admin can change property id.' });
+      }
+      if (!/^[a-z0-9][a-z0-9-_]*$/.test(requestedId)) {
+        return res.status(400).json({ error: 'Property id must use lowercase letters, numbers, dash, or underscore.' });
+      }
+      const property = await store.renameProperty(current.id, requestedId, payload, req.authUser!);
+      return res.json({ property });
+    }
+
     const property = await store.saveProperty(current.id, payload, req.authUser!);
     res.json({ property });
   });

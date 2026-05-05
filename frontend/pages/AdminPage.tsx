@@ -336,6 +336,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
       onUpdate(dataToSave);
       setSaveStatus('saved');
             setSaveMessage('Saved successfully.');
+            if (dataToSave.id && dataToSave.id !== propertyId && !(dataToSave.metalink || '').trim()) {
+                navigate(`/${dataToSave.id}/admin`, { replace: true });
+            }
     } catch (error) {
       setSaveStatus('error');
             setSaveMessage(error instanceof Error ? error.message : 'Failed to save property.');
@@ -944,6 +947,18 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                     />
                                 </div>
                             </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Property ID</label>
+                            <input
+                                type="text"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                value={formData.id || ''}
+                                onChange={(e) => handleChange('id', e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
+                                placeholder={propertyId}
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Technical primary key. Admin can change this value.</p>
                         </div>
 
                         <div className="md:col-span-2">

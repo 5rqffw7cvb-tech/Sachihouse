@@ -198,7 +198,8 @@ export const getPropertyData = async (propertyId: string = 'main'): Promise<Prop
 };
 
 export const savePropertyData = async (data: PropertyData, propertyId: string = 'main'): Promise<void> => {
-  const payload = { ...data, id: propertyId, metalink: data.metalink || propertyId };
+  const targetId = (data.id || propertyId).trim() || propertyId;
+  const payload = { ...data, id: targetId, metalink: data.metalink || targetId };
   try {
     await apiRequest(`/properties/${propertyId}`, {
       method: 'PUT',

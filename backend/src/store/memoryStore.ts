@@ -226,6 +226,56 @@ export class MemoryStore implements DataStore {
     return structuredClone(next);
   }
 
+  async renameProperty(propertyId: string, newPropertyId: string, property: PropertyData): Promise<PropertyData & { id: string }> {
+    const state = this.assertState();
+    const index = state.properties.findIndex((item) => item.id === propertyId || item.metalink === propertyId);
+    if (index === -1) {
+      throw new Error('Property not found.');
+    }
+    const targetId = newPropertyId.trim();
+    if (!targetId) {
+      throw new Error('New property id is required.');
+    }
+    if (state.properties.some((item) => item.id === targetId && item.id !== state.properties[index].id)) {
+      throw new Error('Property id is already in use.');
+    }
+    if (property.metalink && state.properties.some((item) => item.id !== state.properties[index].id && item.metalink === property.metalink)) {
+      throw new Error('Custom URL is already taken.');
+    }
+
+    const current = state.properties[index];
+    const oldId = current.id;
+    const next = { ...current, ...structuredClone(property), id: targetId };
+    state.properties[index] = next;
+
+    state.users = state.users.map((user) => {
+      if (user.role !== 'HOST') {
+        return user;
+      }
+      if (!user.assignedPropertyIds.includes(oldId)) {
+        return user;
+      }
+      return {
+        ...user,
+        assignedPropertyIds: user.assignedPropertyIds.map((assignedId) => assignedId === oldId ? targetId : assignedId),
+      };
+    });
+
+    if (state.blockedDates[oldId]) {
+      state.blockedDates[targetId] = state.blockedDates[oldId];
+      delete state.blockedDates[oldId];
+    }
+
+    state.checkIns = state.checkIns.map((submission) => {
+      if (submission.propertyId !== oldId) {
+        return submission;
+      }
+      return { ...submission, propertyId: targetId };
+    });
+
+    return structuredClone(next);
+  }
+
   async saveProperty(propertyId: string, property: PropertyData): Promise<PropertyData & { id: string }> {
     const state = this.assertState();
     const index = state.properties.findIndex((item) => item.id === propertyId || item.metalink === propertyId);

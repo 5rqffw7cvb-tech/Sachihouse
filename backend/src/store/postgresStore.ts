@@ -369,6 +369,61 @@ export class PostgresStore implements DataStore {
     return record;
   }
 
+  async renameProperty(propertyId: string, newPropertyId: string, property: PropertyData, actor: AuthUser): Promise<PropertyData & { id: string }> {
+    const current = await this.getProperty(propertyId);
+    if (!current) {
+      throw new Error('Property not found.');
+    }
+
+    const targetId = newPropertyId.trim();
+    if (!targetId) {
+      throw new Error('New property id is required.');
+    }
+    if (targetId === current.id) {
+      return this.saveProperty(current.id, property, actor);
+    }
+
+    const existingTarget = await this.getProperty(targetId);
+    if (existingTarget) {
+      throw new Error('Property id is already in use.');
+    }
+
+    const next = { ...current, ...property, id: targetId };
+    const desiredMetalink = next.metalink ?? targetId;
+    const needsTempMetalink = current.metalink === desiredMetalink;
+    const tempMetalink = `${desiredMetalink}__move_${Date.now()}`;
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        'INSERT INTO properties (id, metalink, data, updated_at) VALUES ($1, $2, $3::jsonb, NOW())',
+        [targetId, needsTempMetalink ? tempMetalink : desiredMetalink, JSON.stringify(next)],
+      );
+
+      await client.query('UPDATE property_assignments SET property_id = $2 WHERE property_id = $1', [current.id, targetId]);
+      await client.query('UPDATE blocked_dates SET property_id = $2 WHERE property_id = $1', [current.id, targetId]);
+      await client.query('UPDATE checkin_submissions SET property_id = $2 WHERE property_id = $1', [current.id, targetId]);
+
+      await client.query('DELETE FROM properties WHERE id = $1', [current.id]);
+
+      if (needsTempMetalink) {
+        await client.query('UPDATE properties SET metalink = $2, updated_at = NOW() WHERE id = $1', [targetId, desiredMetalink]);
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    await this.writeAudit(actor.id, 'REKEY', 'property', `${current.id}->${targetId}`);
+    return next;
+  }
+
   async saveProperty(propertyId: string, property: PropertyData, actor: AuthUser): Promise<PropertyData & { id: string }> {
     const current = await this.getProperty(propertyId);
     if (!current) {
