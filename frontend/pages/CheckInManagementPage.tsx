@@ -30,6 +30,7 @@ function downloadCsv(filename: string, content: string): void {
 
 type SortField = 'createdAt' | 'checkInDate' | 'checkOutDate' | 'guestName' | 'nationality';
 type SortDirection = 'asc' | 'desc';
+type PageSize = 20 | 50 | 100;
 type EditRecordForm = {
   checkInDate: string;
   checkOutDate: string;
@@ -147,6 +148,8 @@ const CheckInManagementPage: React.FC = () => {
   const [draftNationality, setDraftNationality] = useState('');
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [pageSize, setPageSize] = useState<PageSize>(20);
+  const [currentPage, setCurrentPage] = useState(1);
   const [checkedRowIds, setCheckedRowIds] = useState<string[]>([]);
   const [duplicateSubmissionIds, setDuplicateSubmissionIds] = useState<string[]>([]);
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
@@ -266,11 +269,17 @@ const CheckInManagementPage: React.FC = () => {
 
   const checkedRowIdSet = useMemo(() => new Set(checkedRowIds), [checkedRowIds]);
   const duplicateSubmissionIdSet = useMemo(() => new Set(duplicateSubmissionIds), [duplicateSubmissionIds]);
-  const visibleRowIds = useMemo(() => sortedRows.map((row) => row.rowId), [sortedRows]);
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(sortedRows.length / pageSize)), [pageSize, sortedRows.length]);
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return sortedRows.slice(start, start + pageSize);
+  }, [currentPage, pageSize, sortedRows]);
+  const visibleRowIds = useMemo(() => paginatedRows.map((row) => row.rowId), [paginatedRows]);
   const duplicateVisibleRowsCount = useMemo(
-    () => sortedRows.filter((row) => duplicateSubmissionIdSet.has(row.submission.id)).length,
-    [duplicateSubmissionIdSet, sortedRows],
+    () => paginatedRows.filter((row) => duplicateSubmissionIdSet.has(row.submission.id)).length,
+    [duplicateSubmissionIdSet, paginatedRows],
   );
+  const availableRowIdSet = useMemo(() => new Set(sortedRows.map((row) => row.rowId)), [sortedRows]);
 
   const activeFilterCount = [
     propertyId,
@@ -313,14 +322,23 @@ const CheckInManagementPage: React.FC = () => {
   };
 
   useEffect(() => {
-    const visible = new Set(visibleRowIds);
-    setCheckedRowIds((prev) => prev.filter((rowId) => visible.has(rowId)));
-  }, [visibleRowIds]);
+    setCheckedRowIds((prev) => prev.filter((rowId) => availableRowIdSet.has(rowId)));
+  }, [availableRowIdSet]);
 
   useEffect(() => {
     const visibleSubmissions = new Set(submissions.map((submission) => submission.id));
     setDuplicateSubmissionIds((prev) => prev.filter((id) => visibleSubmissions.has(id)));
   }, [submissions]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [propertyId, fromDate, toDate, guestName, nationality, sortField, sortDirection, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const toggleRowChecked = (rowId: string) => {
     setCheckedRowIds((prev) => (prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]));
@@ -348,7 +366,7 @@ const CheckInManagementPage: React.FC = () => {
       const duplicates = getDuplicateSubmissionIds(submissions);
       setDuplicateSubmissionIds(duplicates);
       const duplicateSet = new Set(duplicates);
-      const duplicateRowIds = sortedRows
+      const duplicateRowIds = paginatedRows
         .filter((row) => duplicateSet.has(row.submission.id))
         .map((row) => row.rowId);
       setCheckedRowIds(duplicateRowIds);
@@ -728,6 +746,14 @@ const CheckInManagementPage: React.FC = () => {
               <option value="asc">Ascending</option>
             </select>
           </div>
+          <div className="w-[120px]">
+            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Per Page</label>
+            <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
           <button type="button" onClick={applyFilters} className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90">Apply filter</button>
           <button type="button" onClick={handleReset} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]">Clear filter</button>
           <button type="button" onClick={handleCheckDuplicates} disabled={isCheckingDuplicates || loading || submissions.length === 0} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef] disabled:opacity-50">
@@ -752,11 +778,16 @@ const CheckInManagementPage: React.FC = () => {
         <section className="bg-white border border-[#e4e2e3] rounded-2xl overflow-hidden">
           <div className="px-4 py-2.5 border-b border-[#e4e2e3] bg-[#f5f3f4] flex items-center justify-between gap-2">
             <span className="text-sm font-semibold">
-              {sortedRows.length} guest record{sortedRows.length === 1 ? '' : 's'}
+              Showing {paginatedRows.length} / {sortedRows.length} guest record{sortedRows.length === 1 ? '' : 's'}
               {checkedRowIds.length > 0 ? ` · Checked ${checkedRowIds.length}` : ''}
               {duplicateVisibleRowsCount > 0 ? ` · Duplicate ${duplicateVisibleRowsCount}` : ''}
             </span>
             <div className="flex gap-2 flex-wrap justify-end">
+              <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="md:hidden rounded-lg border border-[#c4c6cd] bg-white px-2 py-1.5 text-[12px] font-semibold text-[#1b1c1d]">
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
               <button onClick={handleCheckDuplicates} disabled={isCheckingDuplicates || loading || submissions.length === 0} className="md:hidden inline-flex items-center gap-1 rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef] disabled:opacity-50">
                 {isCheckingDuplicates ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
                 Check dup
@@ -804,7 +835,7 @@ const CheckInManagementPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedRows.map(({ submission, guest, rowId }) => {
+                    {paginatedRows.map(({ submission, guest, rowId }) => {
                       const isChecked = checkedRowIdSet.has(rowId);
                       const isDuplicate = duplicateSubmissionIdSet.has(submission.id);
                       return (
@@ -845,7 +876,7 @@ const CheckInManagementPage: React.FC = () => {
               </div>
 
               <div className="md:hidden divide-y divide-[#efedef]">
-                {sortedRows.map(({ submission, guest, rowId }) => {
+                {paginatedRows.map(({ submission, guest, rowId }) => {
                   const isChecked = checkedRowIdSet.has(rowId);
                   const isDuplicate = duplicateSubmissionIdSet.has(submission.id);
                   return (
@@ -890,6 +921,28 @@ const CheckInManagementPage: React.FC = () => {
                     </div>
                   </article>
                 )})}
+              </div>
+
+              <div className="px-4 py-3 border-t border-[#e4e2e3] bg-[#faf9f9] flex items-center justify-between gap-3">
+                <div className="text-[12px] text-[#74777d]">Page {currentPage} / {totalPages}</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage <= 1}
+                    className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef] disabled:opacity-50"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef] disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </>
           )}
