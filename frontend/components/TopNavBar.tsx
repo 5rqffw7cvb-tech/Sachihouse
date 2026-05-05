@@ -5,12 +5,35 @@ import { getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { getSiteSettings } from '../services/storage';
 import { CheckInLinkPicker } from './CheckInLinkPicker';
 
+const NAV_TITLE_FALLBACK = 'SachiHouse78';
+
+const getInitialNavTitle = (): string => {
+  if (typeof window === 'undefined') {
+    return NAV_TITLE_FALLBACK;
+  }
+
+  try {
+    const cachedSettingsRaw = window.localStorage.getItem('cache_settings');
+    if (!cachedSettingsRaw) {
+      return NAV_TITLE_FALLBACK;
+    }
+    const parsed = JSON.parse(cachedSettingsRaw) as { navTitle?: unknown };
+    if (typeof parsed.navTitle === 'string' && parsed.navTitle.trim()) {
+      return parsed.navTitle.trim();
+    }
+  } catch {
+    // Ignore malformed cache and fall back to default title.
+  }
+
+  return NAV_TITLE_FALLBACK;
+};
+
 export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ actionButton }) => {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const [authUser, setAuthUser] = useState(getCurrentUser());
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [navTitle, setNavTitle] = useState<string | null>(null);
+  const [navTitle, setNavTitle] = useState<string>(getInitialNavTitle);
   const [userEmail, setUserEmail] = useState<string | null>(getCurrentUser()?.email ?? null);
   const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -26,11 +49,11 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
     const fetchSettings = async () => {
       try {
         const settings = await getSiteSettings();
-        if (settings?.navTitle) {
-          setNavTitle(settings.navTitle);
-        }
+        const nextTitle = settings?.navTitle?.trim() || NAV_TITLE_FALLBACK;
+        setNavTitle((prev) => (prev === nextTitle ? prev : nextTitle));
       } catch (error) {
         console.error('Failed to load site settings', error);
+        setNavTitle((prev) => prev || NAV_TITLE_FALLBACK);
       }
     };
     fetchSettings();
@@ -86,7 +109,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
   const isHome = pathname === '/' || pathname === '/index.html';
   const isBlog = pathname.startsWith('/blog');
   const isBlogPost = /^\/blog\/[^/]+$/.test(pathname);
-  const mobilePageTitle = navTitle ?? 'SachiHouse';
+  const mobilePageTitle = navTitle || NAV_TITLE_FALLBACK;
 
   return (
     <>
@@ -101,7 +124,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
       <nav className="hidden md:block bg-[#ffffff] font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_4px_20px_rgba(0,0,0,0.05)] fixed top-0 left-0 w-full z-50">
         <div className="max-w-[1280px] mx-auto flex justify-between items-center px-3 md:px-6 py-3">
           <div className="flex items-center gap-8">
-            <Link to="/" className="text-[20px] font-bold tracking-tight text-[#1b1c1d]">{navTitle ?? ''}</Link>
+            <Link to="/" className="text-[20px] font-bold tracking-tight text-[#1b1c1d]">{navTitle}</Link>
             <div className="hidden md:flex gap-6 items-center">
               <Link 
                 to="/" 
