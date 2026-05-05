@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+/* ─── Design System ────────────────────────────────────────────
+   Surfaces:   page #e8e5e6  │  subtle #f5f3f4  │  card #ffffff
+   Borders:    default #ccc9ca  │  light #e4e2e3  │  row #edeaeb
+   Text:       primary #1b1c1d  │  secondary #44474c  │  muted #74777d
+   Accent:     dark #041627  │  link #003580
+
+   Type scale (px):
+     xs 12  │  sm 13  │  base 15  │  md 16
+     lg 18  │  xl 22  │  2xl 28   │  3xl 36
+
+   Fonts:
+     Heading  → Plus Jakarta Sans  weight 700   line-height 1.2
+     Body     → Inter              weight 400   line-height 1.6
+─────────────────────────────────────────────────────────────── */
+
 :root {
   --color-primary-50: #eff6ff;
   --color-primary-100: #dbeafe;
@@ -11,6 +26,20 @@
 
 body {
   font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #1b1c1d;
+  background-color: #e8e5e6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* All headings: Plus Jakarta Sans, bold, tight leading */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #1b1c1d;
 }
 
 /* Hide scrollbar for clean horizontal scrolling */

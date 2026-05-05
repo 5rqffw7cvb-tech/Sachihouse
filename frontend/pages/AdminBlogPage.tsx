@@ -199,7 +199,7 @@ const AdminBlogPage: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d]">
+      <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d]">
         <TopNavBar />
         <div className="min-h-[60vh] flex items-center justify-center px-4 pt-[110px] pb-12">
           <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 w-full max-w-md">
@@ -228,7 +228,7 @@ const AdminBlogPage: React.FC = () => {
 
   if (!canManageBlog) {
     return (
-      <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d]">
+      <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d]">
         <TopNavBar />
         <div className="max-w-3xl mx-auto px-4 pt-[110px] pb-12">
           <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 shadow-sm text-center">
@@ -256,7 +256,7 @@ const AdminBlogPage: React.FC = () => {
 
   if (editingPost) {
     return (
-      <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d] flex flex-col">
+      <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
         <TopNavBar />
         <main className="flex-1 w-full max-w-[1280px] mx-auto px-3 md:px-6 pt-[110px] pb-28 md:pb-10">
           <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -491,7 +491,7 @@ const AdminBlogPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d] flex flex-col">
+    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
       <TopNavBar />
       <main className="flex-1 w-full max-w-[1280px] mx-auto px-3 md:px-6 pt-[110px] pb-28 md:pb-10">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">

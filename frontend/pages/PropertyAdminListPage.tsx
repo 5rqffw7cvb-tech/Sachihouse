@@ -130,7 +130,7 @@ const PropertyAdminListPage: React.FC = () => {
 
   if (!canAccess) {
     return (
-      <div className="min-h-screen bg-[#fbf9fa]">
+      <div className="min-h-screen bg-[#e8e5e6]">
         <TopNavBar />
         <div className="max-w-3xl mx-auto px-4 pt-[110px] pb-12">
           <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 shadow-sm text-center">
@@ -149,7 +149,7 @@ const PropertyAdminListPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d]">
+    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d]">
       <TopNavBar />
       <main className="max-w-[1280px] mx-auto px-3 md:px-6 pt-[110px] pb-24 md:pb-10">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">

@@ -227,7 +227,7 @@ const CheckInManagementPage: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#fbf9fa]">
+      <div className="min-h-screen bg-[#e8e5e6]">
         <TopNavBar />
         <div className="max-w-3xl mx-auto px-4 pt-[120px]">
           <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">Please login as host/admin to access check-in management.</div>
@@ -238,7 +238,7 @@ const CheckInManagementPage: React.FC = () => {
 
   if (!canAccess) {
     return (
-      <div className="min-h-screen bg-[#fbf9fa]">
+      <div className="min-h-screen bg-[#e8e5e6]">
         <TopNavBar />
         <div className="max-w-3xl mx-auto px-4 pt-[120px]">
           <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">Host or admin role required.</div>
@@ -248,7 +248,7 @@ const CheckInManagementPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d] flex flex-col">
+    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
       <TopNavBar />
       <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 pt-4 md:pt-[110px] pb-24 md:pb-8">
         <div className="flex items-center justify-between mb-4">
@@ -345,7 +345,7 @@ const CheckInManagementPage: React.FC = () => {
         {errorMsg && <div className="mb-4 text-sm text-red-700">{errorMsg}</div>}
 
         <section className="bg-white border border-[#e4e2e3] rounded-2xl overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-[#e4e2e3] bg-[#fcfcfc] flex items-center justify-between gap-2">
+          <div className="px-4 py-2.5 border-b border-[#e4e2e3] bg-[#f5f3f4] flex items-center justify-between gap-2">
             <span className="text-sm font-semibold">{flattenedRows.length} guest record{flattenedRows.length === 1 ? '' : 's'}</span>
             <button onClick={exportCsv} disabled={flattenedRows.length === 0} className="md:hidden rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-40 disabled:cursor-not-allowed">Export CSV</button>
           </div>

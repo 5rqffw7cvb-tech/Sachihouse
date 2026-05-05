@@ -341,7 +341,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const visibleProperties = filteredProperties.slice(0, visibleCardCount);
 
   return (
-    <div className="bg-[#fbf9fa] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
+    <div className="bg-[#e8e5e6] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
       <TopNavBar 
         actionButton={
           isAdmin && (

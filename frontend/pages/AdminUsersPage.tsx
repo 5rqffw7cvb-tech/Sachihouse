@@ -442,7 +442,7 @@ const AdminUsersPage: React.FC = () => {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-[#fbf9fa]">
+      <div className="min-h-screen bg-[#e8e5e6]">
         <TopNavBar />
         <div className="max-w-3xl mx-auto px-4 pt-[110px] pb-12">
           <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 shadow-sm text-center">
