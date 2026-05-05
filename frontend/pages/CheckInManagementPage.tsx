@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Loader2, Upload, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
-import { listCheckIns, importCheckInsCsv, CSV_IMPORT_TEMPLATE, CsvImportResult } from '../services/checkin';
+import { listCheckIns, importCheckInsCsv, CSV_IMPORT_TEMPLATE, CsvImportResult, deleteCheckIn } from '../services/checkin';
 import { DEFAULT_SITE_SETTINGS, getAllProperties, getSiteSettings } from '../services/storage';
 import { CheckInSubmission, PropertyData, SiteSettings } from '../types';
 import { ApiUser } from '../services/api';
@@ -26,6 +26,60 @@ function downloadCsv(filename: string, content: string): void {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+type SortField = 'createdAt' | 'checkInDate' | 'checkOutDate' | 'guestName' | 'nationality';
+type SortDirection = 'asc' | 'desc';
+
+function normalizeDuplicateToken(value: string | number | null | undefined): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function buildGuestDuplicateToken(guest: CheckInSubmission['guests'][number]): string {
+  return [
+    normalizeDuplicateToken(guest.fullName),
+    normalizeDuplicateToken(guest.birthYear),
+    normalizeDuplicateToken(guest.nationality),
+    normalizeDuplicateToken(guest.documentType),
+    normalizeDuplicateToken(guest.documentNumber),
+  ].join('|');
+}
+
+function buildSubmissionDuplicateToken(submission: CheckInSubmission): string {
+  const guestTokens = submission.guests.map((guest) => buildGuestDuplicateToken(guest)).sort();
+  return [
+    normalizeDuplicateToken(submission.propertyId),
+    normalizeDuplicateToken(submission.checkInDate),
+    normalizeDuplicateToken(submission.checkOutDate),
+    guestTokens.join('||'),
+  ].join('###');
+}
+
+function getDuplicateSubmissionIds(submissions: CheckInSubmission[]): string[] {
+  const groups = new Map<string, CheckInSubmission[]>();
+  submissions.forEach((submission) => {
+    const token = buildSubmissionDuplicateToken(submission);
+    const rows = groups.get(token) ?? [];
+    rows.push(submission);
+    groups.set(token, rows);
+  });
+
+  const duplicates: string[] = [];
+  groups.forEach((rows) => {
+    if (rows.length < 2) {
+      return;
+    }
+    const sortedByCreatedAt = [...rows].sort((left, right) => left.createdAt - right.createdAt);
+    sortedByCreatedAt.slice(1).forEach((submission) => {
+      duplicates.push(submission.id);
+    });
+  });
+
+  return duplicates;
+}
+
+function compareText(left: string, right: string): number {
+  return left.localeCompare(right, undefined, { sensitivity: 'base' });
 }
 
 const CheckInManagementPage: React.FC = () => {
@@ -60,6 +114,12 @@ const CheckInManagementPage: React.FC = () => {
   const [draftToDate, setDraftToDate] = useState('');
   const [draftGuestName, setDraftGuestName] = useState('');
   const [draftNationality, setDraftNationality] = useState('');
+  const [sortField, setSortField] = useState<SortField>('createdAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [checkedRowIds, setCheckedRowIds] = useState<string[]>([]);
+  const [duplicateSubmissionIds, setDuplicateSubmissionIds] = useState<string[]>([]);
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
+  const [isDeletingDuplicates, setIsDeletingDuplicates] = useState(false);
 
   const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
   const hasCheckInPermission = authUser?.role === 'ADMIN' || (authUser?.role === 'HOST' && (authUser.hostLevel ?? 0) >= 3);
@@ -147,9 +207,39 @@ const CheckInManagementPage: React.FC = () => {
       submission.guests.map((guest) => ({
         submission,
         guest,
+        rowId: `${submission.id}::${guest.id}`,
       }))
     );
   }, [submissions]);
+
+  const sortedRows = useMemo(() => {
+    const rows = [...flattenedRows];
+    const direction = sortDirection === 'asc' ? 1 : -1;
+    rows.sort((left, right) => {
+      if (sortField === 'createdAt') {
+        return (left.submission.createdAt - right.submission.createdAt) * direction;
+      }
+      if (sortField === 'checkInDate') {
+        return compareText(left.submission.checkInDate, right.submission.checkInDate) * direction;
+      }
+      if (sortField === 'checkOutDate') {
+        return compareText(left.submission.checkOutDate, right.submission.checkOutDate) * direction;
+      }
+      if (sortField === 'guestName') {
+        return compareText(left.guest.fullName || '', right.guest.fullName || '') * direction;
+      }
+      return compareText(left.guest.nationality || '', right.guest.nationality || '') * direction;
+    });
+    return rows;
+  }, [flattenedRows, sortDirection, sortField]);
+
+  const checkedRowIdSet = useMemo(() => new Set(checkedRowIds), [checkedRowIds]);
+  const duplicateSubmissionIdSet = useMemo(() => new Set(duplicateSubmissionIds), [duplicateSubmissionIds]);
+  const visibleRowIds = useMemo(() => sortedRows.map((row) => row.rowId), [sortedRows]);
+  const duplicateVisibleRowsCount = useMemo(
+    () => sortedRows.filter((row) => duplicateSubmissionIdSet.has(row.submission.id)).length,
+    [duplicateSubmissionIdSet, sortedRows],
+  );
 
   const activeFilterCount = [
     propertyId,
@@ -158,6 +248,7 @@ const CheckInManagementPage: React.FC = () => {
     guestName,
     nationality,
   ].filter(Boolean).length;
+  const allVisibleRowsChecked = visibleRowIds.length > 0 && visibleRowIds.every((rowId) => checkedRowIdSet.has(rowId));
 
   const applyFilters = () => {
     setPropertyId(draftPropertyId);
@@ -188,6 +279,84 @@ const CheckInManagementPage: React.FC = () => {
     setNationality('');
     setIsMobileFiltersOpen(false);
     void loadData({ propertyId: '', fromDate: '', toDate: '', guestName: '', nationality: '' });
+  };
+
+  useEffect(() => {
+    const visible = new Set(visibleRowIds);
+    setCheckedRowIds((prev) => prev.filter((rowId) => visible.has(rowId)));
+  }, [visibleRowIds]);
+
+  useEffect(() => {
+    const visibleSubmissions = new Set(submissions.map((submission) => submission.id));
+    setDuplicateSubmissionIds((prev) => prev.filter((id) => visibleSubmissions.has(id)));
+  }, [submissions]);
+
+  const toggleRowChecked = (rowId: string) => {
+    setCheckedRowIds((prev) => (prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]));
+  };
+
+  const toggleAllVisibleRows = () => {
+    if (visibleRowIds.length === 0) {
+      return;
+    }
+    const allVisibleChecked = visibleRowIds.every((rowId) => checkedRowIdSet.has(rowId));
+    if (allVisibleChecked) {
+      setCheckedRowIds((prev) => prev.filter((rowId) => !visibleRowIds.includes(rowId)));
+      return;
+    }
+    setCheckedRowIds((prev) => {
+      const next = new Set(prev);
+      visibleRowIds.forEach((rowId) => next.add(rowId));
+      return Array.from(next);
+    });
+  };
+
+  const handleCheckDuplicates = () => {
+    setIsCheckingDuplicates(true);
+    try {
+      const duplicates = getDuplicateSubmissionIds(submissions);
+      setDuplicateSubmissionIds(duplicates);
+      const duplicateSet = new Set(duplicates);
+      const duplicateRowIds = sortedRows
+        .filter((row) => duplicateSet.has(row.submission.id))
+        .map((row) => row.rowId);
+      setCheckedRowIds(duplicateRowIds);
+    } finally {
+      setIsCheckingDuplicates(false);
+    }
+  };
+
+  const handleDeleteDuplicates = async () => {
+    if (duplicateSubmissionIds.length === 0 || isDeletingDuplicates) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete ${duplicateSubmissionIds.length} duplicate check-in submission(s)?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingDuplicates(true);
+    setErrorMsg(null);
+    try {
+      const failedIds: string[] = [];
+      for (const submissionId of duplicateSubmissionIds) {
+        try {
+          await deleteCheckIn(submissionId);
+        } catch {
+          failedIds.push(submissionId);
+        }
+      }
+
+      if (failedIds.length > 0) {
+        setErrorMsg(`Deleted ${duplicateSubmissionIds.length - failedIds.length}/${duplicateSubmissionIds.length} duplicates. Failed IDs: ${failedIds.join(', ')}`);
+      }
+
+      setDuplicateSubmissionIds(failedIds);
+      void loadData({});
+    } finally {
+      setIsDeletingDuplicates(false);
+    }
   };
 
   const exportCsv = () => {
@@ -352,6 +521,25 @@ const CheckInManagementPage: React.FC = () => {
                 <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Nationality</label>
                 <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Sort By</label>
+                  <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                    <option value="createdAt">Created Time</option>
+                    <option value="checkInDate">Check-in Date</option>
+                    <option value="checkOutDate">Check-out Date</option>
+                    <option value="guestName">Guest Name</option>
+                    <option value="nationality">Nationality</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Order</label>
+                  <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as SortDirection)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                    <option value="desc">Descending</option>
+                    <option value="asc">Ascending</option>
+                  </select>
+                </div>
+              </div>
               <button type="button" onClick={applyFilters} className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90">
                 Apply filter
               </button>
@@ -386,8 +574,33 @@ const CheckInManagementPage: React.FC = () => {
             <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Nationality</label>
             <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
           </div>
+          <div className="w-[170px]">
+            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Sort By</label>
+            <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+              <option value="createdAt">Created Time</option>
+              <option value="checkInDate">Check-in Date</option>
+              <option value="checkOutDate">Check-out Date</option>
+              <option value="guestName">Guest Name</option>
+              <option value="nationality">Nationality</option>
+            </select>
+          </div>
+          <div className="w-[140px]">
+            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Order</label>
+            <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as SortDirection)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+              <option value="desc">Descending</option>
+              <option value="asc">Ascending</option>
+            </select>
+          </div>
           <button type="button" onClick={applyFilters} className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90">Apply filter</button>
           <button type="button" onClick={handleReset} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]">Clear filter</button>
+          <button type="button" onClick={handleCheckDuplicates} disabled={isCheckingDuplicates || loading || submissions.length === 0} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef] disabled:opacity-50">
+            {isCheckingDuplicates ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+            Check duplicate
+          </button>
+          <button type="button" onClick={handleDeleteDuplicates} disabled={isDeletingDuplicates || duplicateSubmissionIds.length === 0} className="inline-flex items-center gap-1.5 rounded-lg border border-[#f0b4b4] bg-[#fff8f8] px-3 py-2 text-[13px] font-semibold text-[#a23535] transition-colors hover:bg-[#ffecec] disabled:opacity-50">
+            {isDeletingDuplicates ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            Delete duplicate ({duplicateSubmissionIds.length})
+          </button>
           <button type="button" onClick={exportCsv} disabled={flattenedRows.length === 0} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-50 disabled:cursor-not-allowed">Export CSV</button>
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef] disabled:opacity-50">
             {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
@@ -401,8 +614,20 @@ const CheckInManagementPage: React.FC = () => {
 
         <section className="bg-white border border-[#e4e2e3] rounded-2xl overflow-hidden">
           <div className="px-4 py-2.5 border-b border-[#e4e2e3] bg-[#f5f3f4] flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold">{flattenedRows.length} guest record{flattenedRows.length === 1 ? '' : 's'}</span>
-            <div className="flex gap-2">
+            <span className="text-sm font-semibold">
+              {sortedRows.length} guest record{sortedRows.length === 1 ? '' : 's'}
+              {checkedRowIds.length > 0 ? ` · Checked ${checkedRowIds.length}` : ''}
+              {duplicateVisibleRowsCount > 0 ? ` · Duplicate ${duplicateVisibleRowsCount}` : ''}
+            </span>
+            <div className="flex gap-2 flex-wrap justify-end">
+              <button onClick={handleCheckDuplicates} disabled={isCheckingDuplicates || loading || submissions.length === 0} className="md:hidden inline-flex items-center gap-1 rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef] disabled:opacity-50">
+                {isCheckingDuplicates ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                Check dup
+              </button>
+              <button onClick={handleDeleteDuplicates} disabled={isDeletingDuplicates || duplicateSubmissionIds.length === 0} className="md:hidden inline-flex items-center gap-1 rounded-lg border border-[#f0b4b4] bg-[#fff8f8] px-3 py-1.5 text-[12px] font-semibold text-[#a23535] transition-colors hover:bg-[#ffecec] disabled:opacity-50">
+                {isDeletingDuplicates ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                Delete dup
+              </button>
               <button onClick={exportCsv} disabled={flattenedRows.length === 0} className="md:hidden rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-40 disabled:cursor-not-allowed">Export CSV</button>
               <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="md:hidden inline-flex items-center gap-1 rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef]">
                 {isImporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
@@ -413,7 +638,7 @@ const CheckInManagementPage: React.FC = () => {
 
           {loading ? (
             <div className="px-6 py-8 text-[#44474c] inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</div>
-          ) : flattenedRows.length === 0 ? (
+          ) : sortedRows.length === 0 ? (
             <div className="px-6 py-8 text-[14px] text-[#44474c]">No check-ins found.</div>
           ) : (
             <>
@@ -421,6 +646,14 @@ const CheckInManagementPage: React.FC = () => {
                 <table className="min-w-[1120px] text-sm">
                   <thead className="bg-[#f5f3f4] text-[#44474c]">
                     <tr>
+                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleRowsChecked}
+                          onChange={toggleAllVisibleRows}
+                          aria-label="Check all visible rows"
+                        />
+                      </th>
                       <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Check-in ID</th>
                       <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Property</th>
                       <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Stay</th>
@@ -434,8 +667,19 @@ const CheckInManagementPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {flattenedRows.map(({ submission, guest }) => (
-                      <tr key={`${submission.id}-${guest.id}`} onClick={() => setSelectedRow({ submission, guest })} className="border-t border-[#efedef] align-top hover:bg-[#faf9f9] text-[13px] cursor-pointer">
+                    {sortedRows.map(({ submission, guest, rowId }) => {
+                      const isChecked = checkedRowIdSet.has(rowId);
+                      const isDuplicate = duplicateSubmissionIdSet.has(submission.id);
+                      return (
+                      <tr key={rowId} onClick={() => setSelectedRow({ submission, guest })} className={`border-t border-[#efedef] align-top hover:bg-[#faf9f9] text-[13px] cursor-pointer ${isDuplicate ? 'bg-[#fff8f8]' : ''}`}>
+                        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleRowChecked(rowId)}
+                            aria-label="Check row"
+                          />
+                        </td>
                         <td className="px-3 py-2 font-mono text-[11px] text-[#74777d]">{submission.id}</td>
                         <td className="px-3 py-2">
                           <div className="font-medium leading-snug">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
@@ -458,18 +702,24 @@ const CheckInManagementPage: React.FC = () => {
                           )}
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
 
               <div className="md:hidden divide-y divide-[#efedef]">
-                {flattenedRows.map(({ submission, guest }) => (
-                  <article key={`${submission.id}-${guest.id}`} className="bg-white px-4 py-3">
+                {sortedRows.map(({ submission, guest, rowId }) => {
+                  const isChecked = checkedRowIdSet.has(rowId);
+                  const isDuplicate = duplicateSubmissionIdSet.has(submission.id);
+                  return (
+                  <article key={rowId} className={`px-4 py-3 ${isDuplicate ? 'bg-[#fff8f8]' : 'bg-white'}`}>
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex items-start gap-2">
+                        <input type="checkbox" checked={isChecked} onChange={() => toggleRowChecked(rowId)} className="mt-0.5" aria-label="Check row" />
+                        <div>
                         <div className="font-semibold text-[14px] truncate">{guest.fullName || '-'}</div>
                         <div className="text-[12px] text-[#74777d] truncate">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
+                        </div>
                       </div>
                       <div className="shrink-0 text-[10px] text-[#74777d] font-mono pt-0.5">{submission.id}</div>
                     </div>
@@ -502,7 +752,7 @@ const CheckInManagementPage: React.FC = () => {
                       </div>
                     </div>
                   </article>
-                ))}
+                )})}
               </div>
             </>
           )}

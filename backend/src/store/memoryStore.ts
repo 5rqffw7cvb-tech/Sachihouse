@@ -451,6 +451,17 @@ export class MemoryStore implements DataStore {
     return row ? structuredClone(row) : null;
   }
 
+  async deleteCheckInSubmission(id: string): Promise<boolean> {
+    const state = this.assertState();
+    const rowIndex = state.checkIns.findIndex((item) => item.id === id);
+    if (rowIndex < 0) {
+      return false;
+    }
+
+    state.checkIns.splice(rowIndex, 1);
+    return true;
+  }
+
   async deleteExpiredCheckInSubmissions(olderThanTimestamp: number): Promise<CheckInSubmission[]> {
     const state = this.assertState();
     const expired = state.checkIns.filter((submission) => submission.createdAt < olderThanTimestamp);

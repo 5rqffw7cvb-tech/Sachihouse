@@ -983,6 +983,25 @@ export function createApp(store: DataStore) {
     return res.json({ submission: resolvedSubmission });
   });
 
+  app.delete('/api/checkins/:id', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    if (actor.role === 'HOST' && (actor.hostLevel ?? 0) < 3) {
+      return res.status(403).json({ error: 'Check-in access requires host level 3. Contact admin.' });
+    }
+
+    const submission = await store.getCheckInSubmission(getParam(req.params.id));
+    if (!submission) {
+      return res.status(404).json({ error: 'Check-in submission not found.' });
+    }
+
+    if (!canPerformAction(actor, 'property.delete', submission.propertyId)) {
+      return res.status(403).json({ error: 'Check-in delete not allowed.' });
+    }
+
+    await store.deleteCheckInSubmission(submission.id);
+    return res.status(204).send();
+  });
+
   // ─── CSV Import ──────────────────────────────────────────────────────────────
   app.post('/api/checkins/import', requireAuth, requireAdmin, async (req, res) => {
     const { csvContent } = req.body as { csvContent?: unknown };

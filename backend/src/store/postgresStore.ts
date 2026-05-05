@@ -627,6 +627,11 @@ export class PostgresStore implements DataStore {
     return result.rows[0]?.data ?? null;
   }
 
+  async deleteCheckInSubmission(id: string): Promise<boolean> {
+    const result = await this.pool.query('DELETE FROM checkin_submissions WHERE id = $1', [id]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async deleteExpiredCheckInSubmissions(olderThanTimestamp: number): Promise<CheckInSubmission[]> {
     const result = await this.pool.query<{ data: CheckInSubmission }>(
       'DELETE FROM checkin_submissions WHERE created_at < $1 RETURNING data',

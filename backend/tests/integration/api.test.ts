@@ -433,6 +433,50 @@ describe('API integration', () => {
     expect(list.body.submissions[0].audit.ipAddress).toContain('203.0.113.24');
   });
 
+  it('allows host to delete a check-in submission for assigned property', async () => {
+    const started = await request(app)
+      .post('/api/properties/main/checkins/start')
+      .expect(201);
+
+    const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5iN2sAAAAASUVORK5CYII=';
+    const ocr = await request(app)
+      .post('/api/properties/main/checkins/ocr')
+      .send({ imageBase64: tinyPng, guestId: 'guest_delete', checkinToken: started.body.checkinToken })
+      .expect(201);
+
+    const submit = await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: started.body.checkinToken,
+        checkInDate: '2026-06-24',
+        checkOutDate: '2026-06-26',
+        consent: {
+          accepted: true,
+          acceptedAt: 1760000000000,
+          noticeVersion: 'v1',
+        },
+        guests: [
+          {
+            ...ocr.body.guest,
+            fullName: 'Delete Me',
+            nationality: 'JP',
+          },
+        ],
+      })
+      .expect(201);
+
+    const hostToken = await login('host@sachihouse.com', 'host123');
+    await request(app)
+      .delete(`/api/checkins/${submit.body.submission.id}`)
+      .set('Authorization', `Bearer ${hostToken}`)
+      .expect(204);
+
+    await request(app)
+      .get(`/api/checkins/${submit.body.submission.id}`)
+      .set('Authorization', `Bearer ${hostToken}`)
+      .expect(404);
+  });
+
   it('requires check-in token for OCR and submit endpoints', async () => {
     const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5iN2sAAAAASUVORK5CYII=';
 

@@ -70,6 +70,12 @@ export async function getCheckInDetail(checkInId: string): Promise<CheckInSubmis
   return response.submission;
 }
 
+export async function deleteCheckIn(checkInId: string): Promise<void> {
+  await apiRequest<void>(`/checkins/${checkInId}`, {
+    method: 'DELETE',
+  });
+}
+
 export interface CsvImportResult {
   imported: number;
   errors: Array<{ row: number; message: string }>;
