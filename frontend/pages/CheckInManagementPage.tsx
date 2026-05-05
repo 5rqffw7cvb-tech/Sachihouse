@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -37,11 +37,21 @@ const CheckInManagementPage: React.FC = () => {
   const [properties, setProperties] = useState<(PropertyData & { id: string })[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
 
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+
+  // Active (applied) filters
   const [propertyId, setPropertyId] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [guestName, setGuestName] = useState('');
   const [nationality, setNationality] = useState('');
+
+  // Draft (form) filters
+  const [draftPropertyId, setDraftPropertyId] = useState('');
+  const [draftFromDate, setDraftFromDate] = useState('');
+  const [draftToDate, setDraftToDate] = useState('');
+  const [draftGuestName, setDraftGuestName] = useState('');
+  const [draftNationality, setDraftNationality] = useState('');
 
   const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
 
@@ -132,12 +142,42 @@ const CheckInManagementPage: React.FC = () => {
     );
   }, [submissions]);
 
+  const activeFilterCount = [
+    propertyId,
+    fromDate,
+    toDate,
+    guestName,
+    nationality,
+  ].filter(Boolean).length;
+
+  const applyFilters = () => {
+    setPropertyId(draftPropertyId);
+    setFromDate(draftFromDate);
+    setToDate(draftToDate);
+    setGuestName(draftGuestName);
+    setNationality(draftNationality);
+    setIsMobileFiltersOpen(false);
+    void loadData({
+      propertyId: draftPropertyId,
+      fromDate: draftFromDate,
+      toDate: draftToDate,
+      guestName: draftGuestName,
+      nationality: draftNationality,
+    });
+  };
+
   const handleReset = () => {
+    setDraftPropertyId('');
+    setDraftFromDate('');
+    setDraftToDate('');
+    setDraftGuestName('');
+    setDraftNationality('');
     setPropertyId('');
     setFromDate('');
     setToDate('');
     setGuestName('');
     setNationality('');
+    setIsMobileFiltersOpen(false);
     void loadData({ propertyId: '', fromDate: '', toDate: '', guestName: '', nationality: '' });
   };
 
@@ -210,82 +250,150 @@ const CheckInManagementPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d] flex flex-col">
       <TopNavBar />
-      <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 pt-[110px] pb-24 md:pb-10">
-        <h1 className="font-['Plus_Jakarta_Sans'] text-2xl md:text-[28px] font-bold tracking-tight mb-4">Check-in Management</h1>
+      <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 pt-[110px] pb-24 md:pb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="font-['Plus_Jakarta_Sans'] text-[22px] md:text-[26px] font-bold tracking-tight">Check-in Management</h1>
+        </div>
 
-        <section className="mb-4 bg-white border border-[#e4e2e3] rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#e4e2e3] bg-[#fcfcfc] text-sm font-semibold">Filters</div>
-          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-            <select value={propertyId} onChange={(event) => setPropertyId(event.target.value)} className="border border-[#c4c6cd] rounded-lg px-3 py-2 text-sm">
+        {/* Mobile filter toggle */}
+        <div className="mb-4 md:hidden">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsMobileFiltersOpen((prev) => !prev)}
+              className="flex min-w-0 flex-1 items-center justify-between rounded-xl border border-[#c4c6cd] bg-white px-4 py-3 text-left text-[14px] font-semibold text-[#1b1c1d]"
+            >
+              <span>Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
+              {isMobileFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="shrink-0 rounded-xl border border-[#c4c6cd] bg-white px-3 py-3 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
+            >
+              Clear
+            </button>
+          </div>
+          {isMobileFiltersOpen && (
+            <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-[#e4e2e3] bg-white p-3">
+              <div>
+                <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Property</label>
+                <select value={draftPropertyId} onChange={(e) => setDraftPropertyId(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                  <option value="">All properties</option>
+                  {scopedProperties.map((property) => (
+                    <option key={property.id} value={property.id}>{property.name || property.id}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">From</label>
+                  <input type="date" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">To</label>
+                  <input type="date" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guest Name</label>
+                <input value={draftGuestName} onChange={(e) => setDraftGuestName(e.target.value)} placeholder="e.g. NGUYEN VAN A" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Nationality</label>
+                <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+              </div>
+              <button type="button" onClick={applyFilters} className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90">
+                Apply filter
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop filter row */}
+        <div className="mb-5 hidden md:flex items-end flex-wrap gap-3">
+          <div className="w-[180px]">
+            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Property</label>
+            <select value={draftPropertyId} onChange={(e) => setDraftPropertyId(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
               <option value="">All properties</option>
               {scopedProperties.map((property) => (
                 <option key={property.id} value={property.id}>{property.name || property.id}</option>
               ))}
             </select>
-            <input value={fromDate} onChange={(event) => setFromDate(event.target.value)} type="date" className="border border-[#c4c6cd] rounded-lg px-3 py-2 text-sm" />
-            <input value={toDate} onChange={(event) => setToDate(event.target.value)} type="date" className="border border-[#c4c6cd] rounded-lg px-3 py-2 text-sm" />
-            <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Guest name" className="border border-[#c4c6cd] rounded-lg px-3 py-2 text-sm" />
-            <input value={nationality} onChange={(event) => setNationality(event.target.value)} placeholder="Nationality" className="border border-[#c4c6cd] rounded-lg px-3 py-2 text-sm" />
           </div>
-          <div className="px-4 pb-4 flex flex-wrap gap-2">
-            <button onClick={() => void loadData()} className="px-4 py-2 rounded-full bg-[#041627] text-white font-semibold text-sm">Apply</button>
-            <button onClick={handleReset} className="px-4 py-2 rounded-full bg-[#efedef] text-[#2e3338] font-semibold text-sm">Reset</button>
-            <button onClick={exportCsv} disabled={flattenedRows.length === 0} className="px-4 py-2 rounded-full bg-[#e6f5ec] text-[#0f7a44] font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed">Export CSV</button>
+          <div className="w-[148px]">
+            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">From</label>
+            <input type="date" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
           </div>
-        </section>
+          <div className="w-[148px]">
+            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">To</label>
+            <input type="date" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+          </div>
+          <div className="w-[180px]">
+            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guest Name</label>
+            <input value={draftGuestName} onChange={(e) => setDraftGuestName(e.target.value)} placeholder="e.g. NGUYEN" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+          </div>
+          <div className="w-[140px]">
+            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Nationality</label>
+            <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+          </div>
+          <button type="button" onClick={applyFilters} className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90">Apply filter</button>
+          <button type="button" onClick={handleReset} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]">Clear filter</button>
+          <button type="button" onClick={exportCsv} disabled={flattenedRows.length === 0} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-50 disabled:cursor-not-allowed">Export CSV</button>
+        </div>
 
         {errorMsg && <div className="mb-4 text-sm text-red-700">{errorMsg}</div>}
 
         <section className="bg-white border border-[#e4e2e3] rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#e4e2e3] bg-[#fcfcfc] text-sm font-semibold">
-            Results ({flattenedRows.length} guest record{flattenedRows.length === 1 ? '' : 's'})
+          <div className="px-4 py-2.5 border-b border-[#e4e2e3] bg-[#fcfcfc] flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold">{flattenedRows.length} guest record{flattenedRows.length === 1 ? '' : 's'}</span>
+            <button onClick={exportCsv} disabled={flattenedRows.length === 0} className="md:hidden rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-40 disabled:cursor-not-allowed">Export CSV</button>
           </div>
 
           {loading ? (
-            <div className="p-10 text-[#44474c] inline-flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Loading...</div>
+            <div className="px-6 py-8 text-[#44474c] inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</div>
           ) : flattenedRows.length === 0 ? (
-            <div className="p-10 text-[#44474c]">No check-ins found.</div>
+            <div className="px-6 py-8 text-[14px] text-[#44474c]">No check-ins found.</div>
           ) : (
             <>
               <div className="hidden md:block overflow-x-auto">
                 <table className="min-w-[1120px] text-sm">
                   <thead className="bg-[#f5f3f4] text-[#44474c]">
                     <tr>
-                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Check-in ID</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Property</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Stay</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Guest</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Birth Year</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Address</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Occupation</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Document</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Nationality</th>
-                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Evidence</th>
+                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Check-in ID</th>
+                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Property</th>
+                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Stay</th>
+                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Guest</th>
+                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Born</th>
+                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Address</th>
+                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Occupation</th>
+                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Document</th>
+                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Nationality</th>
+                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Evidence</th>
                     </tr>
                   </thead>
                   <tbody>
                     {flattenedRows.map(({ submission, guest }) => (
-                      <tr key={`${submission.id}-${guest.id}`} className="border-t border-[#efedef] align-top hover:bg-[#faf9f9]">
-                        <td className="px-4 py-3 font-mono text-xs">{submission.id}</td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
-                          <div className="text-xs text-[#74777d] font-mono">{submission.propertyId}</div>
+                      <tr key={`${submission.id}-${guest.id}`} className="border-t border-[#efedef] align-top hover:bg-[#faf9f9] text-[13px]">
+                        <td className="px-3 py-2 font-mono text-[11px] text-[#74777d]">{submission.id}</td>
+                        <td className="px-3 py-2">
+                          <div className="font-medium leading-snug">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
                         </td>
-                        <td className="px-4 py-3">{submission.checkInDate} {'->'} {submission.checkOutDate}</td>
-                        <td className="px-4 py-3">{guest.fullName || '-'}</td>
-                        <td className="px-4 py-3">{guest.birthYear ?? '-'}</td>
-                        <td className="px-4 py-3">{guest.address || '-'}</td>
-                        <td className="px-4 py-3">{guest.occupation || '-'}</td>
-                        <td className="px-4 py-3">
-                          <div>{guest.documentType || '-'}</div>
-                          <div className="text-xs text-[#74777d] font-mono">{guest.documentNumber || '-'}</div>
+                        <td className="px-3 py-2 whitespace-nowrap">{submission.checkInDate}<br/><span className="text-[#74777d]">{submission.checkOutDate}</span></td>
+                        <td className="px-3 py-2 font-medium">{guest.fullName || '-'}</td>
+                        <td className="px-3 py-2 text-center">{guest.birthYear ?? '-'}</td>
+                        <td className="px-3 py-2 max-w-[180px] truncate">{guest.address || '-'}</td>
+                        <td className="px-3 py-2">{guest.occupation || '-'}</td>
+                        <td className="px-3 py-2">
+                          <div className="capitalize">{guest.documentType || '-'}</div>
+                          <div className="text-[11px] text-[#74777d] font-mono">{guest.documentNumber || '-'}</div>
                         </td>
-                        <td className="px-4 py-3">{guest.nationality || '-'}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2 font-medium">{guest.nationality || '-'}</td>
+                        <td className="px-3 py-2">
                           {guest.evidenceUrl ? (
                             <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#003580] underline">View</a>
                           ) : (
-                            <span className="text-[#74777d]">No file</span>
+                            <span className="text-[#74777d]">—</span>
                           )}
                         </td>
                       </tr>
@@ -294,46 +402,43 @@ const CheckInManagementPage: React.FC = () => {
                 </table>
               </div>
 
-              <div className="md:hidden p-3 space-y-3 bg-[#fbf9fa]">
+              <div className="md:hidden divide-y divide-[#efedef]">
                 {flattenedRows.map(({ submission, guest }) => (
-                  <article key={`${submission.id}-${guest.id}`} className="rounded-xl border border-[#e4e2e3] bg-white p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-semibold text-sm">{guest.fullName || '-'}</div>
-                        <div className="text-xs text-[#74777d]">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
+                  <article key={`${submission.id}-${guest.id}`} className="bg-white px-4 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-[14px] truncate">{guest.fullName || '-'}</div>
+                        <div className="text-[12px] text-[#74777d] truncate">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
                       </div>
-                      <div className="text-[11px] text-[#74777d] font-mono">{submission.id}</div>
+                      <div className="shrink-0 text-[10px] text-[#74777d] font-mono pt-0.5">{submission.id}</div>
                     </div>
-                    <div className="mt-2 text-xs text-[#44474c]">{submission.checkInDate} {'->'} {submission.checkOutDate}</div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="mt-1 text-[12px] text-[#44474c]">{submission.checkInDate} → {submission.checkOutDate}</div>
+                    <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 text-[12px]">
                       <div>
-                        <div className="text-[#74777d]">Birth Year</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Born</div>
                         <div className="font-medium">{guest.birthYear ?? '-'}</div>
                       </div>
                       <div>
-                        <div className="text-[#74777d]">Nationality</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Nationality</div>
                         <div className="font-medium">{guest.nationality || '-'}</div>
                       </div>
                       <div>
-                        <div className="text-[#74777d]">Occupation</div>
-                        <div className="font-medium">{guest.occupation || '-'}</div>
-                      </div>
-                      <div>
-                        <div className="text-[#74777d]">Document</div>
-                        <div className="font-medium">{guest.documentType || '-'}</div>
-                        <div className="text-[11px] text-[#74777d] font-mono">{guest.documentNumber || '-'}</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Occupation</div>
+                        <div className="font-medium truncate">{guest.occupation || '-'}</div>
                       </div>
                       <div className="col-span-2">
-                        <div className="text-[#74777d]">Address</div>
-                        <div className="font-medium">{guest.address || '-'}</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Document</div>
+                        <div className="font-medium capitalize">{guest.documentType || '-'} <span className="text-[#74777d] font-mono text-[10px]">{guest.documentNumber || ''}</span></div>
                       </div>
-                    </div>
-                    <div className="mt-3">
-                      {guest.evidenceUrl ? (
-                        <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#003580] underline text-sm">View evidence</a>
-                      ) : (
-                        <span className="text-[#74777d] text-sm">No file</span>
-                      )}
+                      <div>
+                        {guest.evidenceUrl ? (
+                          <><div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Evidence</div><a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#003580] underline font-medium">View</a></>
+                        ) : null}
+                      </div>
+                      <div className="col-span-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Address</div>
+                        <div className="font-medium text-[12px]">{guest.address || '-'}</div>
+                      </div>
                     </div>
                   </article>
                 ))}
