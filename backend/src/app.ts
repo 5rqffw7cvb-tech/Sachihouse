@@ -949,6 +949,159 @@ export function createApp(store: DataStore) {
     return res.json({ submission: resolvedSubmission });
   });
 
+  // ─── CSV Import ──────────────────────────────────────────────────────────────
+  app.post('/api/checkins/import', requireAuth, requireAdmin, async (req, res) => {
+    const { csvContent } = req.body as { csvContent?: unknown };
+    if (typeof csvContent !== 'string' || !csvContent.trim()) {
+      return res.status(400).json({ error: 'csvContent is required.' });
+    }
+
+    // Simple CSV parser: handles quoted fields with commas/newlines inside
+    function parseCsv(text: string): string[][] {
+      const results: string[][] = [];
+      let row: string[] = [];
+      let field = '';
+      let inQuotes = false;
+      const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      for (let i = 0; i < normalized.length; i++) {
+        const ch = normalized[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (normalized[i + 1] === '"') { field += '"'; i++; }
+            else { inQuotes = false; }
+          } else {
+            field += ch;
+          }
+        } else {
+          if (ch === '"') { inQuotes = true; }
+          else if (ch === ',') { row.push(field.trim()); field = ''; }
+          else if (ch === '\n') { row.push(field.trim()); field = ''; results.push(row); row = []; }
+          else { field += ch; }
+        }
+      }
+      row.push(field.trim());
+      if (row.some(c => c !== '')) results.push(row);
+      return results;
+    }
+
+    const rows = parseCsv(csvContent.trim());
+    if (rows.length < 2) {
+      return res.status(400).json({ error: 'CSV must have a header row and at least one data row.' });
+    }
+
+    const REQUIRED_COLS = ['property_id', 'check_in_date', 'check_out_date', 'full_name'] as const;
+    const OPTIONAL_COLS = ['birth_year', 'nationality', 'gender', 'address', 'occupation', 'document_type', 'document_number', 'session_ref'] as const;
+    const ALL_COLS = [...REQUIRED_COLS, ...OPTIONAL_COLS];
+
+    const header = rows[0].map(h => h.toLowerCase().trim());
+    const missing = REQUIRED_COLS.filter(col => !header.includes(col));
+    if (missing.length > 0) {
+      return res.status(400).json({ error: `Missing required columns: ${missing.join(', ')}` });
+    }
+
+    const idx = (col: string) => header.indexOf(col);
+
+    type GuestRow = {
+      propertyId: string;
+      checkInDate: string;
+      checkOutDate: string;
+      sessionRef: string;
+      guest: CheckInGuest;
+    };
+
+    const importErrors: Array<{ row: number; message: string }> = [];
+    const guestRows: GuestRow[] = [];
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const get = (col: string) => (idx(col) >= 0 ? (row[idx(col)] ?? '').trim() : '');
+
+      const propertyId = get('property_id');
+      const checkInDate = get('check_in_date');
+      const checkOutDate = get('check_out_date');
+      const fullName = get('full_name');
+
+      if (!propertyId) { importErrors.push({ row: i + 1, message: 'property_id is empty' }); continue; }
+      if (!isIsoDate(checkInDate)) { importErrors.push({ row: i + 1, message: `check_in_date "${checkInDate}" is not YYYY-MM-DD` }); continue; }
+      if (!isIsoDate(checkOutDate)) { importErrors.push({ row: i + 1, message: `check_out_date "${checkOutDate}" is not YYYY-MM-DD` }); continue; }
+      if (!fullName) { importErrors.push({ row: i + 1, message: 'full_name is empty' }); continue; }
+
+      const birthYearRaw = get('birth_year');
+      const birthYear = birthYearRaw ? parseInt(birthYearRaw, 10) : null;
+
+      const docTypeRaw = get('document_type').toLowerCase();
+      const VALID_DOC_TYPES = ['passport', 'driver_license', 'residence_card', 'national_id', 'unknown'];
+      const documentType = VALID_DOC_TYPES.includes(docTypeRaw) ? docTypeRaw : 'unknown';
+
+      const sessionRef = get('session_ref') || `${propertyId}__${checkInDate}__${checkOutDate}`;
+
+      guestRows.push({
+        propertyId,
+        checkInDate,
+        checkOutDate,
+        sessionRef,
+        guest: {
+          id: `g_${Math.random().toString(36).slice(2, 10)}`,
+          fullName: fullName.toUpperCase(),
+          birthYear: Number.isFinite(birthYear) ? birthYear : null,
+          nationality: get('nationality').toUpperCase(),
+          gender: get('gender').toUpperCase(),
+          address: get('address').toUpperCase(),
+          occupation: get('occupation').toUpperCase(),
+          documentType: documentType as CheckInGuest['documentType'],
+          documentNumber: get('document_number').toUpperCase(),
+          evidenceUrl: '',
+          evidenceMimeType: '',
+          ocrText: '',
+          estimated: {},
+          confidence: {},
+        },
+      });
+    }
+
+    // Group guests into submissions by sessionRef
+    const groups = new Map<string, GuestRow[]>();
+    for (const gr of guestRows) {
+      const existing = groups.get(gr.sessionRef) ?? [];
+      existing.push(gr);
+      groups.set(gr.sessionRef, existing);
+    }
+
+    const now = Date.now();
+    let imported = 0;
+
+    for (const [, groupRows] of groups) {
+      const first = groupRows[0];
+      try {
+        await store.createCheckInSubmission({
+          propertyId: first.propertyId,
+          checkInDate: first.checkInDate,
+          checkOutDate: first.checkOutDate,
+          guests: groupRows.map(gr => gr.guest),
+          consent: {
+            accepted: true,
+            acceptedAt: now,
+            retentionDays: checkInRetentionDays,
+            noticeVersion: 'csv-import',
+          },
+          audit: {
+            submittedAt: now,
+            ipAddress: 'csv-import',
+            userAgent: `CSV Import by user ${req.authUser!.id}`,
+          },
+        });
+        imported++;
+      } catch (err) {
+        importErrors.push({
+          row: 0,
+          message: `Failed to save submission for session "${first.sessionRef}": ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+    }
+
+    return res.status(201).json({ imported, errors: importErrors });
+  });
+
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (typeof error === 'object' && error && 'code' in error && (error as { code?: string }).code === '23505') {
       return res.status(409).json({ error: 'Custom URL is already taken.' });

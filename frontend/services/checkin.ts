@@ -69,3 +69,36 @@ export async function getCheckInDetail(checkInId: string): Promise<CheckInSubmis
   const response = await apiRequest<{ submission: CheckInSubmission }>(`/checkins/${checkInId}`);
   return response.submission;
 }
+
+export interface CsvImportResult {
+  imported: number;
+  errors: Array<{ row: number; message: string }>;
+}
+
+export async function importCheckInsCsv(csvContent: string): Promise<CsvImportResult> {
+  return apiRequest<CsvImportResult>('/checkins/import', {
+    method: 'POST',
+    body: JSON.stringify({ csvContent }),
+  });
+}
+
+export const CSV_IMPORT_HEADERS = [
+  'property_id',
+  'check_in_date',
+  'check_out_date',
+  'full_name',
+  'birth_year',
+  'nationality',
+  'gender',
+  'address',
+  'occupation',
+  'document_type',
+  'document_number',
+  'session_ref',
+] as const;
+
+export const CSV_IMPORT_TEMPLATE = [
+  CSV_IMPORT_HEADERS.join(','),
+  'villa-1,2025-12-20,2025-12-25,NGUYEN VAN A,1985,VNM,MALE,HA NOI,EMPLOYEE,passport,A12345678,',
+  'villa-1,2025-12-20,2025-12-25,TRAN THI B,1990,VNM,FEMALE,HA NOI,TEACHER,national_id,030123456789,',
+].join('\n');

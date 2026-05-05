@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, ChevronUp, Loader2, Upload, X } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
-import { listCheckIns } from '../services/checkin';
+import { listCheckIns, importCheckInsCsv, CSV_IMPORT_TEMPLATE, CsvImportResult } from '../services/checkin';
 import { DEFAULT_SITE_SETTINGS, getAllProperties, getSiteSettings } from '../services/storage';
 import { CheckInSubmission, PropertyData, SiteSettings } from '../types';
 import { ApiUser } from '../services/api';
@@ -38,6 +38,11 @@ const CheckInManagementPage: React.FC = () => {
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
 
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+
+  // Import state
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<CsvImportResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Active (applied) filters
   const [propertyId, setPropertyId] = useState('');
@@ -225,6 +230,29 @@ const CheckInManagementPage: React.FC = () => {
     downloadCsv('checkins_filtered.csv', lines.join('\n'));
   };
 
+  const downloadTemplate = () => {
+    downloadCsv('checkin_import_template.csv', CSV_IMPORT_TEMPLATE);
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const text = await file.text();
+    setIsImporting(true);
+    try {
+      const result = await importCheckInsCsv(text);
+      setImportResult(result);
+      if (result.imported > 0) {
+        void loadData({});
+      }
+    } catch (err) {
+      setImportResult({ imported: 0, errors: [{ row: 0, message: err instanceof Error ? err.message : 'Import failed' }] });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#e8e5e6]">
@@ -340,6 +368,12 @@ const CheckInManagementPage: React.FC = () => {
           <button type="button" onClick={applyFilters} className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90">Apply filter</button>
           <button type="button" onClick={handleReset} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]">Clear filter</button>
           <button type="button" onClick={exportCsv} disabled={flattenedRows.length === 0} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-50 disabled:cursor-not-allowed">Export CSV</button>
+          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef] disabled:opacity-50">
+            {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+            Import CSV
+          </button>
+          <button type="button" onClick={downloadTemplate} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]">Template</button>
+          <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleImportFile} />
         </div>
 
         {errorMsg && <div className="mb-4 text-sm text-red-700">{errorMsg}</div>}
@@ -347,7 +381,13 @@ const CheckInManagementPage: React.FC = () => {
         <section className="bg-white border border-[#e4e2e3] rounded-2xl overflow-hidden">
           <div className="px-4 py-2.5 border-b border-[#e4e2e3] bg-[#f5f3f4] flex items-center justify-between gap-2">
             <span className="text-sm font-semibold">{flattenedRows.length} guest record{flattenedRows.length === 1 ? '' : 's'}</span>
-            <button onClick={exportCsv} disabled={flattenedRows.length === 0} className="md:hidden rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-40 disabled:cursor-not-allowed">Export CSV</button>
+            <div className="flex gap-2">
+              <button onClick={exportCsv} disabled={flattenedRows.length === 0} className="md:hidden rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-40 disabled:cursor-not-allowed">Export CSV</button>
+              <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="md:hidden inline-flex items-center gap-1 rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef]">
+                {isImporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                Import
+              </button>
+            </div>
           </div>
 
           {loading ? (
@@ -459,6 +499,43 @@ const CheckInManagementPage: React.FC = () => {
         </div>
         <div className="text-[#44474c]">{siteSettings.footerCopyright}</div>
       </footer>
+
+      {/* Import result modal */}
+      {importResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-[#e4e2e3]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#e4e2e3]">
+              <h2 className="font-['Plus_Jakarta_Sans'] font-bold text-[16px] text-[#1b1c1d]">Import Result</h2>
+              <button onClick={() => setImportResult(null)} className="text-[#74777d] hover:text-[#1b1c1d]"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="flex items-center gap-3 rounded-xl bg-[#e6f5ec] border border-[#0f7a44]/20 px-4 py-3">
+                <span className="text-[28px] font-['Plus_Jakarta_Sans'] font-bold text-[#0f7a44]">{importResult.imported}</span>
+                <span className="text-sm font-semibold text-[#0f7a44]">submission{importResult.imported === 1 ? '' : 's'} imported</span>
+              </div>
+              {importResult.errors.length > 0 && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-red-700 mb-2">{importResult.errors.length} error{importResult.errors.length === 1 ? '' : 's'}</p>
+                  <ul className="space-y-1 max-h-40 overflow-y-auto">
+                    {importResult.errors.map((e, i) => (
+                      <li key={i} className="text-xs text-red-700">
+                        {e.row > 0 ? <span className="font-semibold">Row {e.row}: </span> : null}{e.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {importResult.errors.length === 0 && importResult.imported === 0 && (
+                <p className="text-sm text-[#44474c]">Nothing was imported — check your CSV format.</p>
+              )}
+            </div>
+            <div className="px-5 pb-4 flex gap-2">
+              <button onClick={() => setImportResult(null)} className="flex-1 rounded-full bg-[#041627] text-white font-semibold py-2 text-sm hover:bg-[#041627]/90">Done</button>
+              <button onClick={downloadTemplate} className="rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold py-2 px-4 text-sm hover:bg-[#efedef]">Download Template</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
