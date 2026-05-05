@@ -486,7 +486,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                 {/* Host Info - Redesigned */}
                 <div className="py-6 border-b border-gray-200">
                     <div className="flex items-start md:items-center gap-6">
-                        {/* Left: Avatar with Superhost Badge */}
+                        {/* Left: Avatar */}
                         <div className="relative flex-shrink-0">
                             <img
                                 src={data.hostImageUrl || "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100"}
@@ -494,12 +494,6 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                                 loading="lazy"
                                 className="w-20 h-20 rounded-full object-cover border-[3px] border-white shadow-lg"
                             />
-                            {/* Superhost Badge Icon */}
-                            {data.isSuperhost && (
-                                <div className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-full shadow-md border border-gray-100" title="Airbnb Superhost">
-                                    <Medal className="w-5 h-5 text-rose-500 fill-rose-500" />
-                                </div>
-                            )}
                         </div>
 
                         {/* Right: Info */}
