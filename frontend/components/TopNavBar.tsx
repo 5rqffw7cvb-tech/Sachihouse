@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Settings, User, LogOut } from 'lucide-react';
 import { getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { getSiteSettings } from '../services/storage';
+import { CheckInLinkPicker } from './CheckInLinkPicker';
 
 export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ actionButton }) => {
   const { pathname, search } = useLocation();
@@ -122,6 +123,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
           </div>
           <div className="flex items-center gap-4">
             {actionButton}
+            {isAuthenticated && <CheckInLinkPicker authUser={authUser} direction="down" />}
             {!isAuthenticated ? (
               <button 
                 onClick={handleLogin}

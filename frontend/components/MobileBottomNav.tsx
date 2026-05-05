@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Mail, User, Settings, LogOut } from 'lucide-react';
 import { getCurrentUser, logout, subscribeToAuth } from '../services/auth';
+import { CheckInLinkPicker } from './CheckInLinkPicker';
 
 export const MobileBottomNav: React.FC = () => {
   const { pathname, search } = useLocation();
@@ -84,6 +85,10 @@ export const MobileBottomNav: React.FC = () => {
         <span>Blog</span>
       </Link>
       
+      {canManageProperties && (
+        <CheckInLinkPicker authUser={authUser} direction="up" />
+      )}
+
       {isAuthenticated ? (
         <div className="relative flex flex-col items-center justify-center" ref={dropdownRef}>
           <button 
