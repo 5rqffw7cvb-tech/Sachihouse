@@ -250,7 +250,7 @@ const CheckInManagementPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d] flex flex-col">
       <TopNavBar />
-      <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 pt-[110px] pb-24 md:pb-8">
+      <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 pt-4 md:pt-[110px] pb-24 md:pb-8">
         <div className="flex items-center justify-between mb-4">
           <h1 className="font-['Plus_Jakarta_Sans'] text-[22px] md:text-[26px] font-bold tracking-tight">Check-in Management</h1>
         </div>
