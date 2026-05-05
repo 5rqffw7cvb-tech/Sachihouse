@@ -7,6 +7,7 @@ export interface IdProcessingResult {
   fullName: string;
   birthYear: number | null;
   nationality: string;
+  inferredNationality?: boolean;
   address: string;
   gender: string;
   occupation: string;
@@ -85,6 +86,74 @@ function normalizeBirthYear(value: unknown): number | null {
   return null;
 }
 
+function normalizeNationality(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === 'unknown' || normalized === 'n/a' || normalized === 'na') {
+    return '';
+  }
+
+  const map: Array<{ keywords: string[]; output: string }> = [
+    { keywords: ['united states', 'u.s.a', 'usa', 'u.s.', 'american'], output: 'USA' },
+    { keywords: ['canada', 'canadian'], output: 'CANADA' },
+    { keywords: ['japan', 'japanese'], output: 'JAPAN' },
+    { keywords: ['vietnam', 'vietnamese', 'viet nam'], output: 'VIETNAM' },
+    { keywords: ['korea', 'south korea', 'korean'], output: 'SOUTH KOREA' },
+    { keywords: ['china', 'chinese', 'people\'s republic of china', 'prc'], output: 'CHINA' },
+    { keywords: ['taiwan'], output: 'TAIWAN' },
+    { keywords: ['united kingdom', 'uk', 'british'], output: 'UNITED KINGDOM' },
+    { keywords: ['australia', 'australian'], output: 'AUSTRALIA' },
+    { keywords: ['singapore'], output: 'SINGAPORE' },
+  ];
+
+  for (const entry of map) {
+    if (entry.keywords.some((keyword) => normalized.includes(keyword))) {
+      return entry.output;
+    }
+  }
+
+  return value.trim().toUpperCase();
+}
+
+function inferNationalityFromContext(params: {
+  documentType: IdDocumentType;
+  nationality: string;
+  address: string;
+  ocrText: string;
+}): { nationality: string; inferred: boolean } {
+  const direct = normalizeNationality(params.nationality);
+  if (direct) {
+    return { nationality: direct, inferred: false };
+  }
+
+  const haystack = `${params.address} ${params.ocrText}`.toLowerCase();
+  const signals: Array<{ keywords: string[]; output: string }> = [
+    { keywords: ['united states', 'usa', 'u.s.a', 'new york', 'california', 'texas', 'florida', 'driver license'], output: 'USA' },
+    { keywords: ['japan', 'tokyo', 'osaka', 'japanese'], output: 'JAPAN' },
+    { keywords: ['vietnam', 'ho chi minh', 'hanoi', 'da nang'], output: 'VIETNAM' },
+    { keywords: ['korea', 'seoul', 'busan'], output: 'SOUTH KOREA' },
+    { keywords: ['china', 'beijing', 'shanghai', 'guangzhou'], output: 'CHINA' },
+    { keywords: ['taiwan', 'taipei', 'kaohsiung'], output: 'TAIWAN' },
+    { keywords: ['canada', 'toronto', 'vancouver', 'ontario'], output: 'CANADA' },
+    { keywords: ['australia', 'sydney', 'melbourne'], output: 'AUSTRALIA' },
+    { keywords: ['united kingdom', 'uk', 'london', 'manchester'], output: 'UNITED KINGDOM' },
+  ];
+
+  for (const signal of signals) {
+    if (signal.keywords.some((keyword) => haystack.includes(keyword))) {
+      return { nationality: signal.output, inferred: true };
+    }
+  }
+
+  // For non-passport IDs we allow a best-effort guess when country hints exist in OCR text/address.
+  if (params.documentType === 'driver_license' || params.documentType === 'national_id' || params.documentType === 'residence_card') {
+    if (haystack.includes('united states') || haystack.includes('usa')) {
+      return { nationality: 'USA', inferred: true };
+    }
+  }
+
+  return { nationality: '', inferred: false };
+}
+
 function createMockResult(): IdProcessingResult {
   return {
     isIdDocument: true,
@@ -130,9 +199,11 @@ export class IdProcessingService {
       'Classify whether the image is a valid government ID document (passport, driver license, residence card, national id).',
       'If not an ID document, set isIdDocument=false and include rejectionReason.',
       'If it is an ID, run OCR and extract fullName, birthYear, nationality, address, gender, occupation, documentNumber, documentType.',
+      'If nationality is not explicitly present, infer probable nationality from document context (issuing country signals, address, region, government labels).',
+      'Example: a US driver license/address in the United States can infer nationality as USA.',
       'IMPORTANT: All extracted text fields (fullName, nationality, address, gender, occupation, documentType, documentNumber) MUST be returned in English regardless of the document language.',
       'Transliterate names to Latin script if needed. Translate values such as nationality, gender, occupation to English.',
-      'If value is missing, return empty string for text fields and null for birthYear.',
+      'If value is missing and cannot be inferred, return empty string for text fields and null for birthYear.',
       'Return strict JSON only with this schema:',
       '{',
       '  "isIdDocument": boolean,',
@@ -207,15 +278,31 @@ export class IdProcessingService {
 
     const parsed = JSON.parse(jsonPayload) as Record<string, unknown>;
     const isIdDocument = Boolean(parsed.isIdDocument);
+    const documentType = toNormalizedDocumentType(parsed.documentType);
+    const address = normalizeString(parsed.address);
+    const ocrText = normalizeString(parsed.ocrText);
+
+    const inferredNationalityResult = inferNationalityFromContext({
+      documentType,
+      nationality: normalizeString(parsed.nationality),
+      address,
+      ocrText,
+    });
+
+    const originalNationalityConfidence = toConfidence((parsed.confidence as Record<string, unknown> | undefined)?.nationality);
+    const normalizedNationalityConfidence = inferredNationalityResult.inferred
+      ? Math.max(originalNationalityConfidence ?? 0, 0.45)
+      : originalNationalityConfidence;
 
     return {
       isIdDocument,
       rejectionReason: normalizeString(parsed.rejectionReason) || undefined,
-      documentType: toNormalizedDocumentType(parsed.documentType),
+      documentType,
       fullName: normalizeString(parsed.fullName),
       birthYear: normalizeBirthYear(parsed.birthYear),
-      nationality: normalizeString(parsed.nationality),
-      address: normalizeString(parsed.address),
+      nationality: inferredNationalityResult.nationality,
+      inferredNationality: inferredNationalityResult.inferred,
+      address,
       gender: normalizeString(parsed.gender),
       occupation: normalizeString(parsed.occupation),
       documentNumber: normalizeString(parsed.documentNumber),
@@ -223,13 +310,13 @@ export class IdProcessingService {
         documentType: toConfidence((parsed.confidence as Record<string, unknown> | undefined)?.documentType),
         fullName: toConfidence((parsed.confidence as Record<string, unknown> | undefined)?.fullName),
         birthYear: toConfidence((parsed.confidence as Record<string, unknown> | undefined)?.birthYear),
-        nationality: toConfidence((parsed.confidence as Record<string, unknown> | undefined)?.nationality),
+        nationality: normalizedNationalityConfidence,
         address: toConfidence((parsed.confidence as Record<string, unknown> | undefined)?.address),
         gender: toConfidence((parsed.confidence as Record<string, unknown> | undefined)?.gender),
         occupation: toConfidence((parsed.confidence as Record<string, unknown> | undefined)?.occupation),
         documentNumber: toConfidence((parsed.confidence as Record<string, unknown> | undefined)?.documentNumber),
       },
-      ocrText: normalizeString(parsed.ocrText),
+      ocrText,
     };
   }
 }

@@ -818,7 +818,7 @@ export function createApp(store: DataStore) {
       estimated: {
         fullName: !ai.fullName,
         birthYear: !ai.birthYear,
-        nationality: !ai.nationality,
+        nationality: !ai.nationality || Boolean(ai.inferredNationality),
         address: !ai.address,
         gender: !ai.gender,
         occupation: !ai.occupation,
