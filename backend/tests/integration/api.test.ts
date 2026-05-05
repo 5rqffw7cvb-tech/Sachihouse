@@ -54,6 +54,53 @@ describe('API integration', () => {
     ))).toBe(true);
   });
 
+  it('hides pending-review properties from public but shows them to admin and assigned host', async () => {
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+
+    await request(app)
+      .patch('/api/properties/main/review-status')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ reviewStatus: 'pending_review' })
+      .expect(200);
+
+    const publicList = await request(app)
+      .get('/api/properties')
+      .expect(200);
+    expect(publicList.body.properties.some((property: { id: string }) => property.id === 'main')).toBe(false);
+
+    await request(app)
+      .get('/api/properties/main')
+      .expect(404);
+
+    const hostToken = await login('host@sachihouse.com', 'host123');
+    const hostList = await request(app)
+      .get('/api/properties')
+      .set('Authorization', `Bearer ${hostToken}`)
+      .expect(200);
+    expect(hostList.body.properties.some((property: { id: string }) => property.id === 'main')).toBe(true);
+
+    await request(app)
+      .get('/api/properties/main')
+      .set('Authorization', `Bearer ${hostToken}`)
+      .expect(200);
+  });
+
+  it('allows assigned host to update review status and blocks non-assigned host', async () => {
+    const hostToken = await login('host@sachihouse.com', 'host123');
+
+    await request(app)
+      .patch('/api/properties/main/review-status')
+      .set('Authorization', `Bearer ${hostToken}`)
+      .send({ reviewStatus: 'pending_review' })
+      .expect(200);
+
+    await request(app)
+      .patch('/api/properties/list_shin/review-status')
+      .set('Authorization', `Bearer ${hostToken}`)
+      .send({ reviewStatus: 'pending_review' })
+      .expect(403);
+  });
+
   it('allows host to update an assigned property', async () => {
     const token = await login('host@sachihouse.com', 'host123');
 

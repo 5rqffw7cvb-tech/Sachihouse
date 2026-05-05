@@ -314,6 +314,19 @@ export function createApp(store: DataStore) {
     return next();
   };
 
+  const canViewPendingProperty = (actor: AuthUser | null | undefined, propertyId: string): boolean => {
+    if (!actor) {
+      return false;
+    }
+    if (actor.role === 'ADMIN') {
+      return true;
+    }
+    if (actor.role === 'HOST') {
+      return canPerformAction(actor, 'property.read', propertyId);
+    }
+    return false;
+  };
+
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
@@ -511,6 +524,9 @@ export function createApp(store: DataStore) {
       if (property.archivedAt && !includeArchived) {
         return false;
       }
+      if (property.reviewStatus === 'pending_review' && !canViewPendingProperty(req.authUser, property.id)) {
+        return false;
+      }
       if (minBedrooms !== null && property.bedrooms < minBedrooms) {
         return false;
       }
@@ -537,7 +553,8 @@ export function createApp(store: DataStore) {
   app.get('/api/properties/:id', async (req, res) => {
     const property = await store.getProperty(req.params.id);
     const canReadArchived = property && property.archivedAt && req.authUser && canPerformAction(req.authUser, 'property.read', property.id);
-    if (!property || (property.archivedAt && !canReadArchived)) {
+    const canReadPending = property && property.reviewStatus === 'pending_review' && canViewPendingProperty(req.authUser, property.id);
+    if (!property || (property.archivedAt && !canReadArchived) || (property.reviewStatus === 'pending_review' && !canReadPending)) {
       return res.status(404).json({ error: 'Property not found.' });
     }
     res.json({ property });
@@ -625,6 +642,29 @@ export function createApp(store: DataStore) {
     }
 
     const property = await store.setPropertyArchived(current.id, archived, req.authUser!);
+    res.json({ property });
+  });
+
+  app.patch('/api/properties/:id/review-status', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const propertyId = getParam(req.params.id);
+    const current = await store.getProperty(propertyId);
+    if (!current) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+
+    if (!canPerformAction(req.authUser!, 'property.read', current.id)) {
+      return res.status(403).json({ error: 'Property review status update not allowed.' });
+    }
+
+    const reviewStatusRaw = req.body?.reviewStatus;
+    if (reviewStatusRaw !== 'approved' && reviewStatusRaw !== 'pending_review') {
+      return res.status(400).json({ error: 'reviewStatus must be "approved" or "pending_review".' });
+    }
+
+    const property = await store.saveProperty(current.id, {
+      ...current,
+      reviewStatus: reviewStatusRaw,
+    }, req.authUser!);
     res.json({ property });
   });
 

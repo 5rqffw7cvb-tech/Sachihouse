@@ -134,6 +134,7 @@ export interface PropertyData {
   id?: string;
   metalink?: string;
   archivedAt?: number | null;
+  reviewStatus?: 'approved' | 'pending_review';
   name: string;
   subtitle: string;
   description: string;

@@ -137,6 +137,7 @@ export interface PropertyData {
   name: string;
   metalink?: string;
   archivedAt?: number | null;
+  reviewStatus?: 'approved' | 'pending_review';
   // Browser Tab Settings
   metaTitle?: string;
   metaFavicon?: string;

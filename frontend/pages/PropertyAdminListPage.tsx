@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, Archive, Loader2, Pencil, RotateCcw, X } from 'lucide-react';
+import { AlertCircle, Archive, Loader2, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { getCurrentUser, checkAuth, subscribeToAuth } from '../services/auth';
-import { getAllProperties, setPropertyArchived } from '../services/storage';
+import { deletePropertyData, getAllProperties, setPropertyArchived, setPropertyReviewStatus } from '../services/storage';
 import { ApiUser } from '../services/api';
 import { PropertyData } from '../types';
 
@@ -21,6 +21,9 @@ const PropertyAdminListPage: React.FC = () => {
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null);
   const [pendingArchiveId, setPendingArchiveId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [pendingReviewStatusId, setPendingReviewStatusId] = useState<string | null>(null);
 
   const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
 
@@ -70,13 +73,12 @@ const PropertyAdminListPage: React.FC = () => {
       return [] as (PropertyData & { id: string })[];
     }
 
-    const assignedIds = new Set(authUser.assignedPropertyIds ?? []);
-    const assignedProperties = allProperties.filter((property) => assignedIds.has(property.id));
-
-    if (authUser.role === 'ADMIN' && assignedProperties.length === 0) {
+    if (authUser.role === 'ADMIN') {
       return allProperties;
     }
 
+    const assignedIds = new Set(authUser.assignedPropertyIds ?? []);
+    const assignedProperties = allProperties.filter((property) => assignedIds.has(property.id));
     return assignedProperties;
   }, [allProperties, authUser]);
 
@@ -103,6 +105,46 @@ const PropertyAdminListPage: React.FC = () => {
       setErrorMsg(message);
     } finally {
       setPendingArchiveId(null);
+    }
+  };
+
+  const handleReviewStatusToggle = async (
+    property: PropertyData & { id: string },
+    reviewStatus: 'approved' | 'pending_review',
+  ) => {
+    setErrorMsg(null);
+    setInfoMsg(null);
+    setPendingReviewStatusId(property.id);
+
+    try {
+      await setPropertyReviewStatus(property.id, reviewStatus);
+      setAllProperties((prev) => prev.map((item) => item.id === property.id ? { ...item, reviewStatus } : item));
+      setInfoMsg(reviewStatus === 'pending_review'
+        ? `Property marked as pending for review: ${property.name || property.id}`
+        : `Property approved: ${property.name || property.id}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update property review status.';
+      setErrorMsg(message);
+    } finally {
+      setPendingReviewStatusId(null);
+    }
+  };
+
+  const handleDeleteProperty = async (property: PropertyData & { id: string }) => {
+    setErrorMsg(null);
+    setInfoMsg(null);
+    setPendingDeleteId(property.id);
+
+    try {
+      await deletePropertyData(property.id);
+      setAllProperties((prev) => prev.filter((item) => item.id !== property.id));
+      setConfirmDeleteId(null);
+      setInfoMsg(`Property deleted: ${property.name || property.id}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete property.';
+      setErrorMsg(message);
+    } finally {
+      setPendingDeleteId(null);
     }
   };
 
@@ -197,13 +239,19 @@ const PropertyAdminListPage: React.FC = () => {
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold">Property</th>
                     <th className="text-left px-4 py-3 font-semibold">ID</th>
+                    <th className="text-left px-4 py-3 font-semibold">Status</th>
                     <th className="text-left px-4 py-3 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {managedProperties.map((property) => {
                     const isArchiving = pendingArchiveId === property.id;
+                    const isDeleting = pendingDeleteId === property.id;
+                    const isUpdatingReview = pendingReviewStatusId === property.id;
                     const isConfirming = confirmArchiveId === property.id;
+                    const isConfirmingDelete = confirmDeleteId === property.id;
+                    const reviewStatus = property.reviewStatus ?? 'approved';
+                    const isPendingReview = reviewStatus === 'pending_review';
 
                     return (
                       <tr key={property.id} className="border-t border-[#efedef] align-top">
@@ -214,22 +262,43 @@ const PropertyAdminListPage: React.FC = () => {
                         </td>
                         <td className="px-4 py-4 text-[#44474c]">{property.id}</td>
                         <td className="px-4 py-4">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${isPendingReview ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                            {isPendingReview ? 'Pending for review' : 'Approved'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
                           <div className="flex flex-wrap items-center gap-2">
                             <button
                               onClick={() => handleEdit(property)}
-                              disabled={isArchiving}
+                              disabled={isArchiving || isDeleting || isUpdatingReview}
                               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-[#041627] text-[#041627] text-xs font-semibold hover:bg-[#efedef] disabled:opacity-50"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                               Edit
                             </button>
                             <button
+                              onClick={() => handleReviewStatusToggle(property, isPendingReview ? 'approved' : 'pending_review')}
+                              disabled={isArchiving || isDeleting || isUpdatingReview}
+                              className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold disabled:opacity-50 ${isPendingReview ? 'border border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'}`}
+                            >
+                              {isUpdatingReview ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                              {isPendingReview ? 'Approve' : 'Mark pending'}
+                            </button>
+                            <button
                               onClick={() => setConfirmArchiveId(property.id)}
-                              disabled={isArchiving}
+                              disabled={isArchiving || isDeleting || isUpdatingReview}
                               className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold disabled:opacity-50 ${property.archivedAt ? 'border border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border border-amber-300 text-amber-700 hover:bg-amber-50'}`}
                             >
                               {property.archivedAt ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
                               {property.archivedAt ? 'Restore' : 'Archive'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(property.id)}
+                              disabled={isArchiving || isDeleting || isUpdatingReview}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-red-300 text-red-700 text-xs font-semibold hover:bg-red-50 disabled:opacity-50"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Delete
                             </button>
                           </div>
 
@@ -247,6 +316,28 @@ const PropertyAdminListPage: React.FC = () => {
                               <button
                                 onClick={() => setConfirmArchiveId(null)}
                                 disabled={isArchiving}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[#c4c6cd] text-[#44474c] font-semibold hover:bg-white disabled:opacity-60"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+
+                          {isConfirmingDelete && (
+                            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900 flex flex-wrap items-center gap-2">
+                              <span>Delete this property permanently?</span>
+                              <button
+                                onClick={() => handleDeleteProperty(property)}
+                                disabled={isDeleting}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-60"
+                              >
+                                {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                Confirm
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                disabled={isDeleting}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[#c4c6cd] text-[#44474c] font-semibold hover:bg-white disabled:opacity-60"
                               >
                                 <X className="w-3.5 h-3.5" />

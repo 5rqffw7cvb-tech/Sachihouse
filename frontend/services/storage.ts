@@ -14,6 +14,7 @@ let blockedDatesCache: Set<string> = new Set();
 export const DEFAULT_DATA: PropertyData = {
   id: 'main',
   metalink: 'sachi-ojima',
+  reviewStatus: 'approved',
   name: 'Sachi House Ojima',
   metaTitle: 'Sachi House Ojima',
   metaFavicon: 'https://cdn-icons-png.flaticon.com/512/2111/2111320.png',
@@ -227,6 +228,16 @@ export const setPropertyArchived = async (propertyId: string, archived: boolean)
   await apiRequest(`/properties/${propertyId}/archive`, {
     method: 'PATCH',
     body: JSON.stringify({ archived }),
+  });
+};
+
+export const setPropertyReviewStatus = async (
+  propertyId: string,
+  reviewStatus: 'approved' | 'pending_review',
+): Promise<void> => {
+  await apiRequest(`/properties/${propertyId}/review-status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ reviewStatus }),
   });
 };
 
