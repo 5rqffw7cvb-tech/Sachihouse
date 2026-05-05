@@ -73,6 +73,13 @@ function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeAsciiUpper(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+}
+
 function normalizeBirthYear(value: unknown): number | null {
   if (typeof value === 'number' && Number.isInteger(value) && value > 1900 && value <= new Date().getFullYear()) {
     return value;
@@ -298,13 +305,13 @@ export class IdProcessingService {
       isIdDocument,
       rejectionReason: normalizeString(parsed.rejectionReason) || undefined,
       documentType,
-      fullName: normalizeString(parsed.fullName),
+      fullName: normalizeAsciiUpper(normalizeString(parsed.fullName)),
       birthYear: normalizeBirthYear(parsed.birthYear),
       nationality: inferredNationalityResult.nationality,
       inferredNationality: inferredNationalityResult.inferred,
-      address,
-      gender: normalizeString(parsed.gender),
-      occupation: normalizeString(parsed.occupation),
+      address: normalizeAsciiUpper(address),
+      gender: normalizeAsciiUpper(normalizeString(parsed.gender)),
+      occupation: normalizeAsciiUpper(normalizeString(parsed.occupation)),
       documentNumber: normalizeString(parsed.documentNumber),
       confidence: {
         documentType: toConfidence((parsed.confidence as Record<string, unknown> | undefined)?.documentType),

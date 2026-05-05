@@ -4,8 +4,8 @@ import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
 import { listCheckIns } from '../services/checkin';
-import { getAllProperties } from '../services/storage';
-import { CheckInSubmission, PropertyData } from '../types';
+import { DEFAULT_SITE_SETTINGS, getAllProperties, getSiteSettings } from '../services/storage';
+import { CheckInSubmission, PropertyData, SiteSettings } from '../types';
 import { ApiUser } from '../services/api';
 
 function csvEscape(value: string | number | boolean): string {
@@ -35,6 +35,7 @@ const CheckInManagementPage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<CheckInSubmission[]>([]);
   const [properties, setProperties] = useState<(PropertyData & { id: string })[]>([]);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
 
   const [propertyId, setPropertyId] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -53,6 +54,10 @@ const CheckInManagementPage: React.FC = () => {
       unsubscribe = unsub;
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    getSiteSettings().then(setSiteSettings).catch(() => {});
   }, []);
 
   const loadData = async (overrides?: {
@@ -203,9 +208,9 @@ const CheckInManagementPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d]">
+    <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d] flex flex-col">
       <TopNavBar />
-      <main className="max-w-[1280px] mx-auto px-4 pt-[110px] pb-24 md:pb-10">
+      <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 pt-[110px] pb-24 md:pb-10">
         <h1 className="font-['Plus_Jakarta_Sans'] text-2xl md:text-[28px] font-bold tracking-tight mb-4">Check-in Management</h1>
 
         <section className="mb-4 bg-white border border-[#e4e2e3] rounded-2xl overflow-hidden">
@@ -337,11 +342,18 @@ const CheckInManagementPage: React.FC = () => {
           )}
         </section>
 
-        <footer className="mt-6 border-t border-[#e4e2e3] bg-white text-[#61656b] text-xs text-center rounded-xl py-3">
-          © Sachi House • Check-in Management
-        </footer>
       </main>
       <MobileBottomNav />
+      <footer className="bg-[#f5f3f4] text-[#1b1c1d] text-[12px] md:text-[14px] font-['Plus_Jakarta_Sans'] border-t border-[#e4e2e3] w-full py-6 md:py-8 px-4 md:px-6 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6 pb-20 md:pb-8 mt-auto">
+        <div className="text-[16px] md:text-[18px] font-bold text-[#1b1c1d]">{siteSettings.footerTitle}</div>
+        <div className="flex flex-wrap justify-center gap-3 md:gap-6">
+          <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Privacy Policy</a>
+          <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Terms of Service</a>
+          <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Host Guidelines</a>
+          <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Contact Support</a>
+        </div>
+        <div className="text-[#44474c]">{siteSettings.footerCopyright}</div>
+      </footer>
     </div>
   );
 };
