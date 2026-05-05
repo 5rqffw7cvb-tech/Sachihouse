@@ -436,8 +436,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       <main className="mx-auto max-w-md px-4 pb-36 pt-4 md:pb-28 md:pt-[88px]">
         {/* Header */}
         <div className="mb-5">
-          <p className="text-xs font-medium uppercase tracking-widest text-gray-400">{data.name}</p>
-          <h1 className="mt-1 text-2xl font-bold">{t('checkin_title')}</h1>
+          <h1 className="text-2xl font-bold">{t('checkin_title')}</h1>
           <p className="mt-1 text-sm text-gray-400">{currentStepDescription}</p>
         </div>
 
@@ -703,9 +702,12 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         </button>
 
         {/* Compliance note */}
-        <p className="mt-5 rounded-xl bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-400">
-          {t('checkin_compliance')}
-        </p>
+        <div className="mt-5 flex gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+          <span className="mt-0.5 shrink-0 text-blue-400">ℹ️</span>
+          <p className="text-xs leading-5 text-blue-700">
+            {t('checkin_compliance')}
+          </p>
+        </div>
 
         {/* Submit — desktop in-flow */}
         <div className="mt-6 hidden md:block">
