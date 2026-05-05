@@ -1011,7 +1011,7 @@ export function createApp(store: DataStore) {
     }
 
     const REQUIRED_COLS = ['property_id', 'check_in_date', 'check_out_date', 'full_name'] as const;
-    const OPTIONAL_COLS = ['birth_year', 'nationality', 'gender', 'address', 'occupation', 'document_type', 'document_number', 'session_ref'] as const;
+    const OPTIONAL_COLS = ['birth_year', 'nationality', 'gender', 'address', 'occupation', 'document_type', 'document_number', 'session_ref', 'evidence_url'] as const;
     const ALL_COLS = [...REQUIRED_COLS, ...OPTIONAL_COLS];
 
     const header = rows[0].map(h => h.toLowerCase().trim());
@@ -1026,7 +1026,7 @@ export function createApp(store: DataStore) {
       propertyId: string;
       checkInDate: string;
       checkOutDate: string;
-      sessionRef: string;
+      groupingKey: string;
       guest: CheckInGuest;
     };
 
@@ -1047,6 +1047,12 @@ export function createApp(store: DataStore) {
       if (!isIsoDate(checkOutDate)) { importErrors.push({ row: i + 1, message: `check_out_date "${checkOutDate}" is not YYYY-MM-DD` }); continue; }
       if (!fullName) { importErrors.push({ row: i + 1, message: 'full_name is empty' }); continue; }
 
+      const property = await store.getProperty(propertyId);
+      if (!property) {
+        importErrors.push({ row: i + 1, message: `property_id "${propertyId}" not found` });
+        continue;
+      }
+
       const birthYearRaw = get('birth_year');
       const birthYear = birthYearRaw ? parseInt(birthYearRaw, 10) : null;
 
@@ -1054,13 +1060,15 @@ export function createApp(store: DataStore) {
       const VALID_DOC_TYPES = ['passport', 'driver_license', 'residence_card', 'national_id', 'unknown'];
       const documentType = VALID_DOC_TYPES.includes(docTypeRaw) ? docTypeRaw : 'unknown';
 
-      const sessionRef = get('session_ref') || `${propertyId}__${checkInDate}__${checkOutDate}`;
+      const evidenceUrl = get('evidence_url') || get('session_ref');
+      const canonicalPropertyId = property.id;
+      const groupingKey = `${canonicalPropertyId}__${checkInDate}__${checkOutDate}`;
 
       guestRows.push({
-        propertyId,
+        propertyId: canonicalPropertyId,
         checkInDate,
         checkOutDate,
-        sessionRef,
+        groupingKey,
         guest: {
           id: `g_${Math.random().toString(36).slice(2, 10)}`,
           fullName: fullName.toUpperCase(),
@@ -1071,7 +1079,7 @@ export function createApp(store: DataStore) {
           occupation: get('occupation').toUpperCase(),
           documentType: documentType as CheckInGuest['documentType'],
           documentNumber: get('document_number').toUpperCase(),
-          evidenceUrl: '',
+          evidenceUrl,
           evidenceMimeType: '',
           ocrText: '',
           estimated: {},
@@ -1080,18 +1088,18 @@ export function createApp(store: DataStore) {
       });
     }
 
-    // Group guests into submissions by sessionRef
+    // Group guests into submissions by property and stay dates.
     const groups = new Map<string, GuestRow[]>();
     for (const gr of guestRows) {
-      const existing = groups.get(gr.sessionRef) ?? [];
+      const existing = groups.get(gr.groupingKey) ?? [];
       existing.push(gr);
-      groups.set(gr.sessionRef, existing);
+      groups.set(gr.groupingKey, existing);
     }
 
     const now = Date.now();
     let imported = 0;
 
-    for (const [, groupRows] of groups) {
+    for (const [groupingKey, groupRows] of groups) {
       const first = groupRows[0];
       try {
         await store.createCheckInSubmission({
@@ -1115,7 +1123,7 @@ export function createApp(store: DataStore) {
       } catch (err) {
         importErrors.push({
           row: 0,
-          message: `Failed to save submission for session "${first.sessionRef}": ${err instanceof Error ? err.message : String(err)}`,
+          message: `Failed to save submission for group "${groupingKey}": ${err instanceof Error ? err.message : String(err)}`,
         });
       }
     }
