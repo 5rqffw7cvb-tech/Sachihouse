@@ -44,6 +44,9 @@ const CheckInManagementPage: React.FC = () => {
   const [importResult, setImportResult] = useState<CsvImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Detail modal
+  const [selectedRow, setSelectedRow] = useState<{ submission: CheckInSubmission; guest: CheckInSubmission['guests'][number] } | null>(null);
+
   // Active (applied) filters
   const [propertyId, setPropertyId] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -414,7 +417,7 @@ const CheckInManagementPage: React.FC = () => {
                   </thead>
                   <tbody>
                     {flattenedRows.map(({ submission, guest }) => (
-                      <tr key={`${submission.id}-${guest.id}`} className="border-t border-[#efedef] align-top hover:bg-[#faf9f9] text-[13px]">
+                      <tr key={`${submission.id}-${guest.id}`} onClick={() => setSelectedRow({ submission, guest })} className="border-t border-[#efedef] align-top hover:bg-[#faf9f9] text-[13px] cursor-pointer">
                         <td className="px-3 py-2 font-mono text-[11px] text-[#74777d]">{submission.id}</td>
                         <td className="px-3 py-2">
                           <div className="font-medium leading-snug">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
@@ -422,8 +425,8 @@ const CheckInManagementPage: React.FC = () => {
                         <td className="px-3 py-2 whitespace-nowrap">{submission.checkInDate}<br/><span className="text-[#74777d]">{submission.checkOutDate}</span></td>
                         <td className="px-3 py-2 font-medium">{guest.fullName || '-'}</td>
                         <td className="px-3 py-2 text-center">{guest.birthYear ?? '-'}</td>
-                        <td className="px-3 py-2 max-w-[180px] truncate">{guest.address || '-'}</td>
-                        <td className="px-3 py-2">{guest.occupation || '-'}</td>
+                        <td className="px-3 py-2 max-w-[200px] truncate text-[#44474c]">{guest.address || '-'}</td>
+                        <td className="px-3 py-2 max-w-[140px] truncate text-[#44474c]">{guest.occupation || '-'}</td>
                         <td className="px-3 py-2">
                           <div className="capitalize">{guest.documentType || '-'}</div>
                           <div className="text-[11px] text-[#74777d] font-mono">{guest.documentNumber || '-'}</div>
@@ -431,7 +434,7 @@ const CheckInManagementPage: React.FC = () => {
                         <td className="px-3 py-2 font-medium">{guest.nationality || '-'}</td>
                         <td className="px-3 py-2">
                           {guest.evidenceUrl ? (
-                            <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#003580] underline">View</a>
+                            <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-[#003580] underline">View</a>
                           ) : (
                             <span className="text-[#74777d]">—</span>
                           )}
@@ -444,7 +447,7 @@ const CheckInManagementPage: React.FC = () => {
 
               <div className="md:hidden divide-y divide-[#efedef]">
                 {flattenedRows.map(({ submission, guest }) => (
-                  <article key={`${submission.id}-${guest.id}`} className="bg-white px-4 py-3">
+                  <article key={`${submission.id}-${guest.id}`} onClick={() => setSelectedRow({ submission, guest })} className="bg-white px-4 py-3 cursor-pointer active:bg-[#faf9f9]">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="font-semibold text-[14px] truncate">{guest.fullName || '-'}</div>
@@ -499,6 +502,58 @@ const CheckInManagementPage: React.FC = () => {
         </div>
         <div className="text-[#44474c]">{siteSettings.footerCopyright}</div>
       </footer>
+
+      {/* Guest detail modal */}
+      {selectedRow && (() => {
+        const { submission, guest } = selectedRow;
+        const propName = propertyNameMap.get(submission.propertyId) || submission.propertyId;
+        const fields: { label: string; value: string | number | null | undefined }[] = [
+          { label: 'Submission ID', value: submission.id },
+          { label: 'Property', value: propName },
+          { label: 'Check-in Date', value: submission.checkInDate },
+          { label: 'Check-out Date', value: submission.checkOutDate },
+          { label: 'Full Name', value: guest.fullName },
+          { label: 'Birth Year', value: guest.birthYear },
+          { label: 'Gender', value: guest.gender },
+          { label: 'Nationality', value: guest.nationality },
+          { label: 'Address', value: guest.address },
+          { label: 'Occupation', value: guest.occupation },
+          { label: 'Document Type', value: guest.documentType },
+          { label: 'Document Number', value: guest.documentNumber },
+        ];
+        return (
+          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-0 md:p-4 backdrop-blur-sm" onClick={() => setSelectedRow(null)}>
+            <div className="w-full max-w-lg rounded-t-2xl md:rounded-2xl bg-white shadow-xl border border-[#e4e2e3] max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[#e4e2e3]">
+                <div>
+                  <h2 className="font-['Plus_Jakarta_Sans'] font-bold text-[16px] text-[#1b1c1d]">{guest.fullName || 'Guest Detail'}</h2>
+                  <p className="text-[12px] text-[#74777d] mt-0.5">{propName} · {submission.checkInDate} → {submission.checkOutDate}</p>
+                </div>
+                <button onClick={() => setSelectedRow(null)} className="text-[#74777d] hover:text-[#1b1c1d]"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="overflow-y-auto flex-1 px-5 py-4">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  {fields.map(f => f.value != null && String(f.value).trim() !== '' && (
+                    <div key={f.label} className={f.label === 'Address' || f.label === 'Submission ID' ? 'col-span-2' : ''}>
+                      <dt className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">{f.label}</dt>
+                      <dd className={`mt-0.5 text-[13px] font-medium text-[#1b1c1d] break-words${f.label === 'Submission ID' || f.label === 'Document Number' ? ' font-mono text-[11px] text-[#44474c]' : ''}`}>{String(f.value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {guest.evidenceUrl && (
+                  <div className="mt-4">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Evidence</dt>
+                    <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-sm text-[#003580] underline">View document</a>
+                  </div>
+                )}
+              </div>
+              <div className="px-5 pb-5 pt-2 border-t border-[#e4e2e3]">
+                <button onClick={() => setSelectedRow(null)} className="w-full rounded-full bg-[#041627] text-white font-semibold py-2.5 text-sm hover:bg-[#041627]/90">Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Import result modal */}
       {importResult && (
