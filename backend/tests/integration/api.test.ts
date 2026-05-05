@@ -22,6 +22,18 @@ beforeEach(async () => {
 });
 
 describe('API integration', () => {
+  it('returns anti-bot challenge for login page', async () => {
+    const response = await request(app)
+      .get('/api/auth/login-challenge')
+      .expect(200);
+
+    expect(typeof response.body.challengeId).toBe('string');
+    expect(typeof response.body.prompt).toBe('string');
+    expect(response.body.prompt).toContain('= ?');
+    expect(typeof response.body.expiresInSeconds).toBe('number');
+    expect(response.body.expiresInSeconds).toBeGreaterThan(0);
+  });
+
   it('authenticates admin and returns role profile', async () => {
     const token = await login('admin@sachihouse.com', 'admin123');
 

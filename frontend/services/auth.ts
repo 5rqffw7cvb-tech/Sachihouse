@@ -1,5 +1,16 @@
 import { apiRequest, ApiUser, clearSession, getStoredUser, storeSession } from './api';
 
+export interface LoginChallenge {
+  challengeId: string;
+  prompt: string;
+  expiresInSeconds: number;
+}
+
+export interface LoginResult {
+  success: boolean;
+  error?: string;
+}
+
 let currentUser: ApiUser | null = getStoredUser();
 const subscribers = new Set<(user: ApiUser | null) => void>();
 
@@ -35,23 +46,37 @@ export const checkAuth = (): boolean => !!currentUser;
 
 export const getCurrentUser = (): ApiUser | null => currentUser;
 
-export const login = async (email: string, password: string): Promise<boolean> => {
+export const getLoginChallenge = async (): Promise<LoginChallenge> => {
+  return apiRequest<LoginChallenge>('/auth/login-challenge');
+};
+
+export const login = async (
+  email: string,
+  password: string,
+  challenge?: { challengeId: string; challengeAnswer: string },
+): Promise<LoginResult> => {
   if (!email || !password) {
-    return false;
+    return { success: false, error: 'Email and password are required.' };
   }
 
   try {
     const response = await apiRequest<{ token: string; user: ApiUser }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        email,
+        password,
+        challengeId: challenge?.challengeId,
+        challengeAnswer: challenge?.challengeAnswer,
+      }),
     });
     storeSession(response.token, response.user);
     currentUser = response.user;
     emit();
-    return true;
+    return { success: true };
   } catch (error) {
     console.error('Auth Error:', error);
-    return false;
+    const message = error instanceof Error ? error.message : 'Login failed.';
+    return { success: false, error: message };
   }
 };
 

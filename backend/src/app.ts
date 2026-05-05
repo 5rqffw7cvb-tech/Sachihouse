@@ -99,6 +99,11 @@ export function createApp(store: DataStore) {
   const retentionDaysRaw = Number(process.env.CHECKIN_RETENTION_DAYS ?? 7);
   const checkInRetentionDays = Number.isFinite(retentionDaysRaw) && retentionDaysRaw > 0 ? Math.trunc(retentionDaysRaw) : 7;
   const checkInRetentionNoticeVersion = (process.env.CHECKIN_RETENTION_NOTICE_VERSION ?? 'v1').trim() || 'v1';
+  const loginChallengeMap = new Map<string, { answer: string; expiresAt: number }>();
+  const loginAttemptMap = new Map<string, { fails: number; lockUntil: number }>();
+  const loginChallengeTtlMs = Math.max(30_000, Number(process.env.LOGIN_CHALLENGE_TTL_SECONDS ?? 180) * 1000);
+  const loginMaxFails = Math.max(3, Number(process.env.LOGIN_MAX_FAILS ?? 5));
+  const loginLockMs = Math.max(30_000, Number(process.env.LOGIN_LOCK_SECONDS ?? 120) * 1000);
 
   async function getEffectiveBlockedDates(
     property: PropertyData & { id: string },
@@ -271,6 +276,86 @@ export function createApp(store: DataStore) {
     };
   }
 
+  function pruneLoginSecurityState(now: number): void {
+    loginChallengeMap.forEach((value, key) => {
+      if (value.expiresAt <= now) {
+        loginChallengeMap.delete(key);
+      }
+    });
+    loginAttemptMap.forEach((value, key) => {
+      if (value.lockUntil <= now && value.fails === 0) {
+        loginAttemptMap.delete(key);
+      }
+    });
+  }
+
+  function buildLoginChallenge(): { challengeId: string; prompt: string; expiresInSeconds: number } {
+    const now = Date.now();
+    pruneLoginSecurityState(now);
+
+    const left = Math.floor(Math.random() * 8) + 2;
+    const right = Math.floor(Math.random() * 8) + 2;
+    const challengeId = `lc_${Math.random().toString(36).slice(2, 10)}_${now.toString(36)}`;
+    loginChallengeMap.set(challengeId, {
+      answer: String(left + right),
+      expiresAt: now + loginChallengeTtlMs,
+    });
+
+    return {
+      challengeId,
+      prompt: `${left} + ${right} = ?`,
+      expiresInSeconds: Math.floor(loginChallengeTtlMs / 1000),
+    };
+  }
+
+  function verifyLoginChallenge(challengeId: unknown, challengeAnswer: unknown): boolean {
+    if (typeof challengeId !== 'string' || typeof challengeAnswer !== 'string') {
+      return false;
+    }
+    const row = loginChallengeMap.get(challengeId);
+    if (!row) {
+      return false;
+    }
+    loginChallengeMap.delete(challengeId);
+    if (row.expiresAt <= Date.now()) {
+      return false;
+    }
+    return row.answer === challengeAnswer.trim();
+  }
+
+  function getLoginAttemptKey(req: Request, email: string): string {
+    return `${getClientIp(req)}::${email.trim().toLowerCase()}`;
+  }
+
+  function getLoginLockRemainingMs(key: string): number {
+    const row = loginAttemptMap.get(key);
+    if (!row) {
+      return 0;
+    }
+    const now = Date.now();
+    if (row.lockUntil <= now) {
+      row.fails = 0;
+      row.lockUntil = 0;
+      return 0;
+    }
+    return row.lockUntil - now;
+  }
+
+  function recordLoginFailure(key: string): void {
+    const now = Date.now();
+    const current = loginAttemptMap.get(key) ?? { fails: 0, lockUntil: 0 };
+    current.fails += 1;
+    if (current.fails >= loginMaxFails) {
+      current.lockUntil = now + loginLockMs;
+      current.fails = 0;
+    }
+    loginAttemptMap.set(key, current);
+  }
+
+  function clearLoginFailure(key: string): void {
+    loginAttemptMap.set(key, { fails: 0, lockUntil: 0 });
+  }
+
   app.use(cors());
   app.use(helmet());
   app.use(express.json({ limit: '2mb' }));
@@ -331,15 +416,40 @@ export function createApp(store: DataStore) {
     res.json({ status: 'ok' });
   });
 
+  app.get('/api/auth/login-challenge', (_req, res) => {
+    return res.json(buildLoginChallenge());
+  });
+
   app.post('/api/auth/login', async (req, res) => {
-    const { email, password } = req.body ?? {};
-    if (!email || !password) {
+    const { email, password, challengeId, challengeAnswer } = req.body ?? {};
+    if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
+
+    const attemptKey = getLoginAttemptKey(req, email);
+    if (process.env.NODE_ENV !== 'test') {
+      const lockRemainingMs = getLoginLockRemainingMs(attemptKey);
+      if (lockRemainingMs > 0) {
+        return res.status(429).json({
+          error: `Too many login attempts. Try again in ${Math.ceil(lockRemainingMs / 1000)} seconds.`,
+        });
+      }
+
+      const challengeOk = verifyLoginChallenge(challengeId, challengeAnswer);
+      if (!challengeOk) {
+        return res.status(400).json({ error: 'Invalid or expired anti-bot challenge. Please refresh and try again.' });
+      }
+    }
+
     const user = await store.authenticate(email, password);
     if (!user) {
+      if (process.env.NODE_ENV !== 'test') {
+        recordLoginFailure(attemptKey);
+      }
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
+
+    clearLoginFailure(attemptKey);
     return res.json({ token: signToken(user), user });
   });
 
