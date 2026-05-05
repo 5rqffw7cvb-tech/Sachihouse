@@ -8,26 +8,24 @@ import { getAllProperties } from '../services/storage';
 import { CheckInSubmission, PropertyData } from '../types';
 import { ApiUser } from '../services/api';
 
-function formatAuditDate(value?: number): string {
-  if (!value) {
-    return 'Unknown';
+function csvEscape(value: string | number | boolean): string {
+  const normalized = String(value ?? '');
+  if (normalized.includes(',') || normalized.includes('\n') || normalized.includes('"')) {
+    return `"${normalized.replace(/"/g, '""')}"`;
   }
-  return new Date(value).toLocaleString();
+  return normalized;
 }
 
-function maskIpAddress(value?: string): string {
-  if (!value) {
-    return 'Unknown';
-  }
-  if (value.includes(':')) {
-    const parts = value.split(':').filter(Boolean);
-    return `${parts.slice(0, 2).join(':')}:****`;
-  }
-  const parts = value.split('.');
-  if (parts.length === 4) {
-    return `${parts[0]}.${parts[1]}.*.*`;
-  }
-  return value;
+function downloadCsv(filename: string, content: string): void {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 const CheckInManagementPage: React.FC = () => {
@@ -37,6 +35,7 @@ const CheckInManagementPage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<CheckInSubmission[]>([]);
   const [properties, setProperties] = useState<(PropertyData & { id: string })[]>([]);
+
   const [propertyId, setPropertyId] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -56,22 +55,37 @@ const CheckInManagementPage: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (overrides?: {
+    propertyId?: string;
+    fromDate?: string;
+    toDate?: string;
+    guestName?: string;
+    nationality?: string;
+  }) => {
     if (!canAccess) {
       setLoading(false);
       return;
     }
+
+    const activeFilters = {
+      propertyId,
+      fromDate,
+      toDate,
+      guestName,
+      nationality,
+      ...overrides,
+    };
 
     setLoading(true);
     setErrorMsg(null);
     try {
       const [rows, allProperties] = await Promise.all([
         listCheckIns({
-          propertyId: propertyId || undefined,
-          fromDate: fromDate || undefined,
-          toDate: toDate || undefined,
-          guestName: guestName || undefined,
-          nationality: nationality || undefined,
+          propertyId: activeFilters.propertyId || undefined,
+          fromDate: activeFilters.fromDate || undefined,
+          toDate: activeFilters.toDate || undefined,
+          guestName: activeFilters.guestName || undefined,
+          nationality: activeFilters.nationality || undefined,
         }),
         getAllProperties({ includeArchived: true }),
       ]);
@@ -100,6 +114,72 @@ const CheckInManagementPage: React.FC = () => {
     return properties.filter((property) => assigned.has(property.id));
   }, [authUser, properties]);
 
+  const propertyNameMap = useMemo(() => {
+    return new Map(properties.map((property) => [property.id, property.name || property.id]));
+  }, [properties]);
+
+  const flattenedRows = useMemo(() => {
+    return submissions.flatMap((submission) =>
+      submission.guests.map((guest) => ({
+        submission,
+        guest,
+      }))
+    );
+  }, [submissions]);
+
+  const handleReset = () => {
+    setPropertyId('');
+    setFromDate('');
+    setToDate('');
+    setGuestName('');
+    setNationality('');
+    void loadData({ propertyId: '', fromDate: '', toDate: '', guestName: '', nationality: '' });
+  };
+
+  const exportCsv = () => {
+    if (flattenedRows.length === 0) {
+      return;
+    }
+
+    const headers = [
+      'checkin_id',
+      'property_id',
+      'property_name',
+      'checkin_date',
+      'checkout_date',
+      'guest_name',
+      'guest_birth_year',
+      'guest_address',
+      'guest_occupation',
+      'guest_nationality',
+      'document_type',
+      'document_number',
+      'evidence_url',
+    ];
+
+    const lines = [headers.join(',')];
+    flattenedRows.forEach(({ submission, guest }) => {
+      const row = [
+        submission.id,
+        submission.propertyId,
+        propertyNameMap.get(submission.propertyId) || submission.propertyId,
+        submission.checkInDate,
+        submission.checkOutDate,
+        guest.fullName || '',
+        guest.birthYear ?? '',
+        guest.address || '',
+        guest.occupation || '',
+        guest.nationality || '',
+        guest.documentType || '',
+        guest.documentNumber || '',
+        guest.evidenceUrl || '',
+      ];
+      lines.push(row.map((value) => csvEscape(value as string | number | boolean)).join(','));
+    });
+
+    downloadCsv('checkins_filtered.csv', lines.join('\n'));
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#fbf9fa]">
@@ -126,82 +206,140 @@ const CheckInManagementPage: React.FC = () => {
     <div className="min-h-screen bg-[#fbf9fa] text-[#1b1c1d]">
       <TopNavBar />
       <main className="max-w-[1280px] mx-auto px-4 pt-[110px] pb-24 md:pb-10">
-        <section className="mb-4 bg-white border border-[#e4e2e3] rounded-2xl p-4 md:p-5">
-          <h1 className="font-['Plus_Jakarta_Sans'] text-2xl font-bold mb-4">Check-in Management</h1>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            <select value={propertyId} onChange={(event) => setPropertyId(event.target.value)} className="border border-[#c4c6cd] rounded-lg px-3 py-2">
+        <h1 className="font-['Plus_Jakarta_Sans'] text-2xl md:text-[28px] font-bold tracking-tight mb-4">Check-in Management</h1>
+
+        <section className="mb-4 bg-white border border-[#e4e2e3] rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#e4e2e3] bg-[#fcfcfc] text-sm font-semibold">Filters</div>
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <select value={propertyId} onChange={(event) => setPropertyId(event.target.value)} className="border border-[#c4c6cd] rounded-lg px-3 py-2 text-sm">
               <option value="">All properties</option>
               {scopedProperties.map((property) => (
                 <option key={property.id} value={property.id}>{property.name || property.id}</option>
               ))}
             </select>
-            <input value={fromDate} onChange={(event) => setFromDate(event.target.value)} type="date" className="border border-[#c4c6cd] rounded-lg px-3 py-2" />
-            <input value={toDate} onChange={(event) => setToDate(event.target.value)} type="date" className="border border-[#c4c6cd] rounded-lg px-3 py-2" />
-            <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Guest name" className="border border-[#c4c6cd] rounded-lg px-3 py-2" />
-            <input value={nationality} onChange={(event) => setNationality(event.target.value)} placeholder="Nationality" className="border border-[#c4c6cd] rounded-lg px-3 py-2" />
+            <input value={fromDate} onChange={(event) => setFromDate(event.target.value)} type="date" className="border border-[#c4c6cd] rounded-lg px-3 py-2 text-sm" />
+            <input value={toDate} onChange={(event) => setToDate(event.target.value)} type="date" className="border border-[#c4c6cd] rounded-lg px-3 py-2 text-sm" />
+            <input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Guest name" className="border border-[#c4c6cd] rounded-lg px-3 py-2 text-sm" />
+            <input value={nationality} onChange={(event) => setNationality(event.target.value)} placeholder="Nationality" className="border border-[#c4c6cd] rounded-lg px-3 py-2 text-sm" />
           </div>
-          <button onClick={() => void loadData()} className="mt-3 px-4 py-2 rounded-full bg-[#041627] text-white font-semibold">Apply filters</button>
+          <div className="px-4 pb-4 flex flex-wrap gap-2">
+            <button onClick={() => void loadData()} className="px-4 py-2 rounded-full bg-[#041627] text-white font-semibold text-sm">Apply</button>
+            <button onClick={handleReset} className="px-4 py-2 rounded-full bg-[#efedef] text-[#2e3338] font-semibold text-sm">Reset</button>
+            <button onClick={exportCsv} disabled={flattenedRows.length === 0} className="px-4 py-2 rounded-full bg-[#e6f5ec] text-[#0f7a44] font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed">Export CSV</button>
+          </div>
         </section>
 
         {errorMsg && <div className="mb-4 text-sm text-red-700">{errorMsg}</div>}
 
         <section className="bg-white border border-[#e4e2e3] rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#e4e2e3] bg-[#fcfcfc] text-sm font-semibold">
+            Results ({flattenedRows.length} guest record{flattenedRows.length === 1 ? '' : 's'})
+          </div>
+
           {loading ? (
             <div className="p-10 text-[#44474c] inline-flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Loading...</div>
-          ) : submissions.length === 0 ? (
+          ) : flattenedRows.length === 0 ? (
             <div className="p-10 text-[#44474c]">No check-ins found.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-[#f5f3f4] text-[#44474c]">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-semibold">Check-in</th>
-                    <th className="text-left px-4 py-3 font-semibold">Property</th>
-                    <th className="text-left px-4 py-3 font-semibold">Guests</th>
-                    <th className="text-left px-4 py-3 font-semibold">Consent</th>
-                    <th className="text-left px-4 py-3 font-semibold">Evidence</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {submissions.map((submission) => (
-                    <tr key={submission.id} className="border-t border-[#efedef] align-top">
-                      <td className="px-4 py-4">
-                        <div className="font-semibold">{submission.id}</div>
-                        <div className="text-xs text-[#74777d]">{submission.checkInDate} {'->'} {submission.checkOutDate}</div>
-                      </td>
-                      <td className="px-4 py-4">{submission.propertyId}</td>
-                      <td className="px-4 py-4">
-                        {submission.guests.map((guest) => (
-                          <div key={guest.id} className="mb-2">
-                            <div className="font-medium">{guest.fullName}</div>
-                            <div className="text-xs text-[#74777d]">{guest.nationality || 'UNKNOWN'} / {guest.documentType}</div>
-                          </div>
-                        ))}
-                      </td>
-                      <td className="px-4 py-4 text-xs text-[#44474c]">
-                        <div>{submission.consent?.accepted ? 'Accepted' : 'Missing'}</div>
-                        <div className="mt-1 text-[#74777d]">{formatAuditDate(submission.consent?.acceptedAt)}</div>
-                        <div className="mt-1 text-[#74777d]">Retention: {submission.consent?.retentionDays ?? 'Unknown'} days</div>
-                        <div className="mt-1 text-[#74777d]">IP: {maskIpAddress(submission.audit?.ipAddress)}</div>
-                      </td>
-                      <td className="px-4 py-4">
-                        {submission.guests.map((guest) => (
-                          <div key={guest.id} className="mb-2">
-                            {guest.evidenceUrl ? (
-                              <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#003580] underline">View evidence</a>
-                            ) : (
-                              <span className="text-[#74777d]">No image</span>
-                            )}
-                          </div>
-                        ))}
-                      </td>
+            <>
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-[1120px] text-sm">
+                  <thead className="bg-[#f5f3f4] text-[#44474c]">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Check-in ID</th>
+                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Property</th>
+                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Stay</th>
+                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Guest</th>
+                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Birth Year</th>
+                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Address</th>
+                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Occupation</th>
+                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Document</th>
+                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Nationality</th>
+                      <th className="text-left px-4 py-3 font-semibold uppercase text-xs tracking-wide">Evidence</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {flattenedRows.map(({ submission, guest }) => (
+                      <tr key={`${submission.id}-${guest.id}`} className="border-t border-[#efedef] align-top hover:bg-[#faf9f9]">
+                        <td className="px-4 py-3 font-mono text-xs">{submission.id}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
+                          <div className="text-xs text-[#74777d] font-mono">{submission.propertyId}</div>
+                        </td>
+                        <td className="px-4 py-3">{submission.checkInDate} {'->'} {submission.checkOutDate}</td>
+                        <td className="px-4 py-3">{guest.fullName || '-'}</td>
+                        <td className="px-4 py-3">{guest.birthYear ?? '-'}</td>
+                        <td className="px-4 py-3">{guest.address || '-'}</td>
+                        <td className="px-4 py-3">{guest.occupation || '-'}</td>
+                        <td className="px-4 py-3">
+                          <div>{guest.documentType || '-'}</div>
+                          <div className="text-xs text-[#74777d] font-mono">{guest.documentNumber || '-'}</div>
+                        </td>
+                        <td className="px-4 py-3">{guest.nationality || '-'}</td>
+                        <td className="px-4 py-3">
+                          {guest.evidenceUrl ? (
+                            <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#003580] underline">View</a>
+                          ) : (
+                            <span className="text-[#74777d]">No file</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="md:hidden p-3 space-y-3 bg-[#fbf9fa]">
+                {flattenedRows.map(({ submission, guest }) => (
+                  <article key={`${submission.id}-${guest.id}`} className="rounded-xl border border-[#e4e2e3] bg-white p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-sm">{guest.fullName || '-'}</div>
+                        <div className="text-xs text-[#74777d]">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
+                      </div>
+                      <div className="text-[11px] text-[#74777d] font-mono">{submission.id}</div>
+                    </div>
+                    <div className="mt-2 text-xs text-[#44474c]">{submission.checkInDate} {'->'} {submission.checkOutDate}</div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="text-[#74777d]">Birth Year</div>
+                        <div className="font-medium">{guest.birthYear ?? '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#74777d]">Nationality</div>
+                        <div className="font-medium">{guest.nationality || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#74777d]">Occupation</div>
+                        <div className="font-medium">{guest.occupation || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#74777d]">Document</div>
+                        <div className="font-medium">{guest.documentType || '-'}</div>
+                        <div className="text-[11px] text-[#74777d] font-mono">{guest.documentNumber || '-'}</div>
+                      </div>
+                      <div className="col-span-2">
+                        <div className="text-[#74777d]">Address</div>
+                        <div className="font-medium">{guest.address || '-'}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      {guest.evidenceUrl ? (
+                        <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#003580] underline text-sm">View evidence</a>
+                      ) : (
+                        <span className="text-[#74777d] text-sm">No file</span>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
           )}
         </section>
+
+        <footer className="mt-6 border-t border-[#e4e2e3] bg-white text-[#61656b] text-xs text-center rounded-xl py-3">
+          © Sachi House • Check-in Management
+        </footer>
       </main>
       <MobileBottomNav />
     </div>
