@@ -35,9 +35,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [navTitle, setNavTitle] = useState<string>(getInitialNavTitle);
   const [userEmail, setUserEmail] = useState<string | null>(getCurrentUser()?.email ?? null);
-  const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const mobileLastScrollY = useRef(0);
 
   const isAuthenticated = !!authUser;
   const canManageUsers = authUser?.role === 'ADMIN';
@@ -82,21 +80,6 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (currentScrollY > mobileLastScrollY.current && currentScrollY > 50) {
-        setIsMobileHeaderVisible(false);
-      } else {
-        setIsMobileHeaderVisible(true);
-      }
-      mobileLastScrollY.current = currentScrollY;
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
   const handleLogin = () => {
     navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
   };
@@ -114,14 +97,20 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
   return (
     <>
       {!isBlogPost && (
-        <nav className={`md:hidden sticky top-0 bg-[#ffffff]/95 backdrop-blur-sm font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_2px_12px_rgba(0,0,0,0.04)] z-50 transition-transform duration-300 ${isMobileHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-          <div className="px-3 py-3 text-left">
+        <>
+          <nav
+            className="md:hidden fixed top-0 left-0 w-full bg-[#e8e5e6] font-['Plus_Jakarta_Sans'] antialiased border-b border-[#d9d6d7] shadow-[0_2px_12px_rgba(0,0,0,0.04)] z-50"
+            style={{ paddingTop: 'env(safe-area-inset-top)' }}
+          >
+            <div className="px-3 py-3 text-left">
             <span className="text-[18px] font-bold tracking-tight text-[#1b1c1d]">{mobilePageTitle}</span>
-          </div>
-        </nav>
+            </div>
+          </nav>
+          <div className="md:hidden" style={{ height: 'calc(env(safe-area-inset-top) + 58px)' }} />
+        </>
       )}
 
-      <nav className="hidden md:block bg-[#ffffff] font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_4px_20px_rgba(0,0,0,0.05)] fixed top-0 left-0 w-full z-50">
+      <nav className="hidden md:block bg-[#e8e5e6] font-['Plus_Jakarta_Sans'] antialiased border-b border-[#d9d6d7] shadow-[0_4px_20px_rgba(0,0,0,0.05)] fixed top-0 left-0 w-full z-50">
         <div className="max-w-[1280px] mx-auto flex justify-between items-center px-3 md:px-6 py-3">
           <div className="flex items-center gap-8">
             <Link to="/" className="text-[20px] font-bold tracking-tight text-[#1b1c1d]">{navTitle}</Link>
