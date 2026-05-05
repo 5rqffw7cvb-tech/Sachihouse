@@ -52,6 +52,10 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
   const canUseMyProperties = authUser?.role === 'HOST';
   const canManageBlog = authUser?.role === 'ADMIN' || authUser?.canEditBlog;
   const canManageProperties = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
+  const isHome = pathname === '/' || pathname === '/index.html';
+  const isBlog = pathname.startsWith('/blog');
+  const isBlogPost = /^\/blog\/[^/]+$/.test(pathname);
+  const mobilePageTitle = navTitle || NAV_TITLE_FALLBACK;
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -209,11 +213,6 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
     await logout();
     setIsDropdownOpen(false);
   };
-
-  const isHome = pathname === '/' || pathname === '/index.html';
-  const isBlog = pathname.startsWith('/blog');
-  const isBlogPost = /^\/blog\/[^/]+$/.test(pathname);
-  const mobilePageTitle = navTitle || NAV_TITLE_FALLBACK;
 
   return (
     <>
