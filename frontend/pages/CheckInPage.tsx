@@ -1,11 +1,11 @@
-import React, { ChangeEvent, useEffect, useMemo, useState } from 'react';
-import { Check, FileBadge2, Loader2, PencilLine, Plus, Upload, X } from 'lucide-react';
-import { PropertyData, CheckInGuest, CheckInGuestEstimatedFlags } from '../types';
+import React, { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronUp, FileBadge2, Loader2, Menu, PencilLine, Plus, Upload, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { PropertyData, CheckInGuest } from '../types';
 import { CheckInConsentPolicy, ocrGuestDocument, startCheckInSession, submitCheckIn } from '../services/checkin';
 import { ApiError } from '../services/api';
 import { HoldToSubmitButton } from '../components/HoldToSubmitButton';
 import { TopNavBar } from '../components/TopNavBar';
-import { MobileBottomNav } from '../components/MobileBottomNav';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface CheckInPageProps {
@@ -19,17 +19,6 @@ const documentTypeLabels: Record<CheckInGuest['documentType'], string> = {
   residence_card: 'Residence card',
   national_id: 'National ID',
   unknown: 'Unknown document',
-};
-
-const estimatedFieldLabels: Partial<Record<keyof CheckInGuestEstimatedFlags, string>> = {
-  fullName: 'Name',
-  birthYear: 'Birth year',
-  nationality: 'Nationality',
-  address: 'Address',
-  gender: 'Gender',
-  occupation: 'Occupation',
-  documentType: 'Document type',
-  documentNumber: 'Document number',
 };
 
 const createGuestId = (): string => `guest_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -88,6 +77,8 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const [consentPolicy, setConsentPolicy] = useState<CheckInConsentPolicy | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,6 +110,17 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       cancelled = true;
     };
   }, [propertyId]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
 
   const guestIndexById = useMemo(() => Object.fromEntries(guests.map((guest, index) => [guest.id, index])), [guests]);
   const guestsForSubmission = useMemo(() => guests.filter((guest) => !isGuestEmpty(guest)), [guests]);
@@ -244,6 +246,10 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   });
 
   const openEditor = (guestId: string) => {
+    if (editorGuestId === guestId) {
+      closeEditor();
+      return;
+    }
     const guest = guests.find((candidate) => candidate.id === guestId);
     if (!guest || isGuestEmpty(guest)) {
       return;
@@ -350,12 +356,40 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      <TopNavBar />
-      <main className="mx-auto max-w-md px-4 pb-28 pt-[88px]">
+      {/* Mobile header with hamburger */}
+      <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/95 backdrop-blur-sm md:hidden" ref={menuRef}>
+        <div className="flex items-center justify-between px-4 py-3">
+          <span className="text-base font-bold text-gray-900">{data.name}</span>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 active:bg-gray-200"
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
+        {menuOpen && (
+          <div className="border-t border-gray-100 bg-white px-2 py-1">
+            <Link to="/" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Home</Link>
+            <Link to="/blog" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Blog</Link>
+            <Link to="/login" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Login</Link>
+          </div>
+        )}
+      </header>
+
+      {/* Desktop navbar */}
+      <div className="hidden md:block">
+        <TopNavBar />
+      </div>
+
+      <main className="mx-auto max-w-md px-4 pb-36 pt-4 md:pb-28 md:pt-[88px]">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-5">
           <p className="text-xs font-medium uppercase tracking-widest text-gray-400">{data.name}</p>
           <h1 className="mt-1 text-2xl font-bold">{t('checkin_title')}</h1>
+          <p className="mt-1 text-sm text-gray-400">{currentStepDescription}</p>
         </div>
 
         {isInitializing && (
@@ -390,8 +424,9 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         </div>
 
         {/* Guest list */}
-        <div className="mt-6 space-y-2">
+        <div className="mt-5 space-y-2">
           {guests.map((guest, index) => {
+            const isExpanded = editorGuestId === guest.id;
             const isEmpty = isGuestEmpty(guest);
             const isProcessing = Boolean(processingByGuest[guest.id]);
             const hasPreview = Boolean(photoPreviewByGuest[guest.id]);
@@ -400,16 +435,19 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
             const guestError = errorByGuest[guest.id];
 
             return (
-              <React.Fragment key={guest.id}>
+              <div key={guest.id}>
+                {/* Guest row */}
                 <div
-                  className={`flex items-center gap-3 rounded-2xl border p-3 transition-colors ${
-                    isConfirmed
-                      ? 'border-green-200 bg-green-50'
-                      : needsReview
-                        ? 'border-amber-200 bg-amber-50'
-                        : isProcessing
-                          ? 'border-gray-200 bg-gray-50'
-                          : 'border-dashed border-blue-200 bg-blue-50'
+                  className={`flex items-center gap-3 border p-3 transition-colors ${
+                    isExpanded
+                      ? 'rounded-t-2xl rounded-b-none border-b-transparent border-gray-200 bg-white'
+                      : isConfirmed
+                        ? 'rounded-2xl border-green-200 bg-green-50'
+                        : needsReview
+                          ? 'rounded-2xl border-amber-200 bg-amber-50'
+                          : isProcessing
+                            ? 'rounded-2xl border-gray-200 bg-gray-50'
+                            : 'rounded-2xl border-dashed border-blue-200 bg-blue-50'
                   }`}
                 >
                   {/* Thumbnail */}
@@ -459,7 +497,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                       className="shrink-0 rounded-xl border border-gray-200 p-2 text-gray-400 hover:text-gray-700"
                       aria-label="Edit"
                     >
-                      <PencilLine className="h-4 w-4" />
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <PencilLine className="h-4 w-4" />}
                     </button>
                   ) : (
                     <label
@@ -492,10 +530,115 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                   )}
                 </div>
 
-                {guestError && (
-                  <p className="px-2 text-xs text-red-600">{guestError}</p>
+                {/* Inline accordion */}
+                {isExpanded && editorDraft && (
+                  <div className="rounded-b-2xl border border-t-0 border-gray-200 bg-white px-4 pb-4 pt-2">
+                    {photoPreviewByGuest[guest.id] && (
+                      <img
+                        src={photoPreviewByGuest[guest.id]}
+                        alt="ID"
+                        className="mb-3 h-16 w-full rounded-xl object-cover"
+                      />
+                    )}
+                    {editorError && (
+                      <p className="mb-2 text-xs text-red-600">{editorError}</p>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                      <div className="col-span-2">
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_fullname')}</p>
+                        <input
+                          value={editorDraft.fullName}
+                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, fullName: event.target.value } : prev)); setEditorError(null); }}
+                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_birthyear')}</p>
+                        <input
+                          type="number"
+                          value={editorDraft.birthYear ?? ''}
+                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, birthYear: event.target.value ? Number(event.target.value) : null } : prev)); setEditorError(null); }}
+                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_gender')}</p>
+                        <input
+                          value={editorDraft.gender}
+                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, gender: event.target.value } : prev)); setEditorError(null); }}
+                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_nationality')}</p>
+                        <input
+                          value={editorDraft.nationality}
+                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, nationality: event.target.value } : prev)); setEditorError(null); }}
+                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_occupation')}</p>
+                        <input
+                          value={editorDraft.occupation}
+                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, occupation: event.target.value } : prev)); setEditorError(null); }}
+                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_address')}</p>
+                        <input
+                          value={editorDraft.address}
+                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, address: event.target.value } : prev)); setEditorError(null); }}
+                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_docnum')}</p>
+                        <input
+                          value={editorDraft.documentNumber}
+                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, documentNumber: event.target.value } : prev)); setEditorError(null); }}
+                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_doctype')}</p>
+                        <select
+                          value={editorDraft.documentType}
+                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, documentType: event.target.value as CheckInGuest['documentType'] } : prev)); setEditorError(null); }}
+                          className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-900"
+                        >
+                          {Object.entries(documentTypeLabels).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => resetGuestCapture(guest.id)}
+                        className="text-xs text-gray-400 hover:text-gray-700"
+                      >
+                        {t('checkin_popup_another')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmGuestDetails}
+                        className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-700"
+                      >
+                        <Check className="h-3.5 w-3.5" /> {t('checkin_popup_confirm')}
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </React.Fragment>
+
+                {guestError && (
+                  <p className="px-2 pt-1 text-xs text-red-600">{guestError}</p>
+                )}
+              </div>
             );
           })}
         </div>
@@ -515,8 +658,8 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           {t('checkin_compliance')}
         </p>
 
-        {/* Submit */}
-        <div className="mt-6">
+        {/* Submit — desktop in-flow */}
+        <div className="mt-6 hidden md:block">
           {submitError && (
             <p className="mb-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{submitError}</p>
           )}
@@ -528,6 +671,19 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           />
         </div>
       </main>
+
+      {/* Fixed bottom bar — mobile */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-gray-100 bg-white px-4 pb-4 pt-3 md:hidden">
+        {submitError && (
+          <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{submitError}</p>
+        )}
+        <HoldToSubmitButton
+          disabled={!canSubmit || isSubmitting}
+          holdMs={1000}
+          label={isSubmitting ? t('checkin_submitting') : t('checkin_hold_send')}
+          onComplete={handleSubmit}
+        />
+      </div>
 
       {/* Success popup */}
       {submitSuccess && (
@@ -548,171 +704,6 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           </div>
         </div>
       )}
-
-      {/* OCR review popup — flex column so footer is always visible on mobile */}
-      {editorDraft && editorGuestId && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm md:items-center md:p-6">
-          <div className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-3xl bg-white shadow-2xl md:rounded-3xl">
-            {/* Header — fixed */}
-            <div className="shrink-0 flex items-center justify-between border-b px-5 py-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  Guest {Number(guestIndexById[editorGuestId] ?? 0) + 1}
-                </p>
-                <h2 className="mt-0.5 text-lg font-bold text-gray-900">{t('checkin_popup_title')}</h2>
-              </div>
-              <button
-                type="button"
-                onClick={closeEditor}
-                className="rounded-full border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Body — scrollable */}
-            <div className="flex-1 overflow-y-auto p-5">
-              {photoPreviewByGuest[editorGuestId] && (
-                <img
-                  src={photoPreviewByGuest[editorGuestId]}
-                  alt="ID preview"
-                  className="mb-4 h-24 w-full rounded-2xl object-cover sm:h-32"
-                />
-              )}
-
-              {editorError && (
-                <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{editorError}</p>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <label className="col-span-2 text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  {t('checkin_popup_fullname')}
-                  <input
-                    value={editorDraft.fullName}
-                    onChange={(event) => {
-                      setEditorDraft((prev) => (prev ? { ...prev, fullName: event.target.value } : prev));
-                      setEditorError(null);
-                    }}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
-                  />
-                </label>
-
-                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  {t('checkin_popup_birthyear')}
-                  <input
-                    type="number"
-                    value={editorDraft.birthYear ?? ''}
-                    onChange={(event) => {
-                      setEditorDraft((prev) => (prev ? { ...prev, birthYear: event.target.value ? Number(event.target.value) : null } : prev));
-                      setEditorError(null);
-                    }}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
-                  />
-                </label>
-
-                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  {t('checkin_popup_gender')}
-                  <input
-                    value={editorDraft.gender}
-                    onChange={(event) => {
-                      setEditorDraft((prev) => (prev ? { ...prev, gender: event.target.value } : prev));
-                      setEditorError(null);
-                    }}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
-                  />
-                </label>
-
-                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  {t('checkin_popup_nationality')}
-                  <input
-                    value={editorDraft.nationality}
-                    onChange={(event) => {
-                      setEditorDraft((prev) => (prev ? { ...prev, nationality: event.target.value } : prev));
-                      setEditorError(null);
-                    }}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
-                  />
-                </label>
-
-                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  {t('checkin_popup_occupation')}
-                  <input
-                    value={editorDraft.occupation}
-                    onChange={(event) => {
-                      setEditorDraft((prev) => (prev ? { ...prev, occupation: event.target.value } : prev));
-                      setEditorError(null);
-                    }}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
-                  />
-                </label>
-
-                <label className="col-span-2 text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  {t('checkin_popup_address')}
-                  <input
-                    value={editorDraft.address}
-                    onChange={(event) => {
-                      setEditorDraft((prev) => (prev ? { ...prev, address: event.target.value } : prev));
-                      setEditorError(null);
-                    }}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
-                  />
-                </label>
-
-                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  {t('checkin_popup_docnum')}
-                  <input
-                    value={editorDraft.documentNumber}
-                    onChange={(event) => {
-                      setEditorDraft((prev) => (prev ? { ...prev, documentNumber: event.target.value } : prev));
-                      setEditorError(null);
-                    }}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-normal text-gray-900"
-                  />
-                </label>
-
-                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                  {t('checkin_popup_doctype')}
-                  <select
-                    value={editorDraft.documentType}
-                    onChange={(event) => {
-                      setEditorDraft((prev) => (prev ? { ...prev, documentType: event.target.value as CheckInGuest['documentType'] } : prev));
-                      setEditorError(null);
-                    }}
-                    className="mt-1 block w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-normal text-gray-900"
-                  >
-                    {Object.entries(documentTypeLabels).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
-
-            {/* Footer — fixed */}
-            <div className="shrink-0 flex items-center justify-between border-t bg-gray-50 px-5 py-4">
-              <button
-                type="button"
-                onClick={() => resetGuestCapture(editorGuestId)}
-                className="text-sm font-medium text-gray-400 hover:text-gray-700"
-              >
-                {t('checkin_popup_another')}
-              </button>
-              <button
-                type="button"
-                onClick={confirmGuestDetails}
-                className="flex items-center gap-2 rounded-2xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-700"
-              >
-                <Check className="h-4 w-4" /> {t('checkin_popup_confirm')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <MobileBottomNav />
     </div>
   );
 };
