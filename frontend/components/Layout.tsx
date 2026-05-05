@@ -93,7 +93,7 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
       </div>
 
       {/* Desktop Navbar (Hidden on mobile) */}
-      <header className="hidden md:block fixed top-0 w-full bg-[#e8e5e6]/95 backdrop-blur-md z-50 border-b border-[#d9d6d7] shadow-sm transition-all duration-300">
+      <header className="hidden md:block fixed top-0 w-full bg-white/90 backdrop-blur-md z-50 border-b border-gray-100 shadow-sm transition-all duration-300">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo / Back to properties */}

@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Settings, User, LogOut } from 'lucide-react';
+import { Settings, User, LogOut, Loader2 } from 'lucide-react';
 import { getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { getSiteSettings } from '../services/storage';
 import { CheckInLinkPicker } from './CheckInLinkPicker';
 
 const NAV_TITLE_FALLBACK = 'SachiHouse78';
+const MOBILE_HEADER_HEIGHT = 58;
+const PULL_REFRESH_THRESHOLD = 64;
+const MAX_PULL_DISTANCE = 90;
 
 const getInitialNavTitle = (): string => {
   if (typeof window === 'undefined') {
@@ -35,7 +38,14 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [navTitle, setNavTitle] = useState<string>(getInitialNavTitle);
   const [userEmail, setUserEmail] = useState<string | null>(getCurrentUser()?.email ?? null);
+  const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const mobileLastScrollY = useRef(0);
+  const pullStartYRef = useRef<number | null>(null);
+  const pullDistanceRef = useRef(0);
+  const refreshTimeoutRef = useRef<number | null>(null);
 
   const isAuthenticated = !!authUser;
   const canManageUsers = authUser?.role === 'ADMIN';
@@ -80,6 +90,117 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerWidth >= 768) {
+        return;
+      }
+
+      const currentScrollY = window.scrollY;
+      if (currentScrollY <= 0) {
+        setIsMobileHeaderVisible(true);
+        mobileLastScrollY.current = 0;
+        return;
+      }
+
+      if (currentScrollY > mobileLastScrollY.current && currentScrollY > 50) {
+        setIsMobileHeaderVisible(false);
+      } else {
+        setIsMobileHeaderVisible(true);
+      }
+      mobileLastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (isBlogPost) {
+      return;
+    }
+
+    const updatePullDistance = (value: number) => {
+      pullDistanceRef.current = value;
+      setPullDistance(value);
+    };
+
+    const resetPullState = () => {
+      pullStartYRef.current = null;
+      updatePullDistance(0);
+      setIsPullRefreshing(false);
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      if (window.innerWidth >= 768 || isPullRefreshing) {
+        return;
+      }
+      if (window.scrollY > 0) {
+        pullStartYRef.current = null;
+        return;
+      }
+      pullStartYRef.current = event.touches[0]?.clientY ?? null;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (window.innerWidth >= 768 || isPullRefreshing || pullStartYRef.current === null) {
+        return;
+      }
+
+      const touchY = event.touches[0]?.clientY;
+      if (typeof touchY !== 'number') {
+        return;
+      }
+
+      const rawPull = touchY - pullStartYRef.current;
+      if (rawPull <= 0 || window.scrollY > 0) {
+        updatePullDistance(0);
+        return;
+      }
+
+      const nextDistance = Math.min(MAX_PULL_DISTANCE, rawPull * 0.5);
+      setIsMobileHeaderVisible(true);
+      updatePullDistance(nextDistance);
+      event.preventDefault();
+    };
+
+    const handleTouchEnd = () => {
+      if (window.innerWidth >= 768 || pullStartYRef.current === null || isPullRefreshing) {
+        return;
+      }
+
+      pullStartYRef.current = null;
+      if (pullDistanceRef.current >= PULL_REFRESH_THRESHOLD) {
+        setIsPullRefreshing(true);
+        updatePullDistance(PULL_REFRESH_THRESHOLD);
+        if (refreshTimeoutRef.current !== null) {
+          window.clearTimeout(refreshTimeoutRef.current);
+        }
+        refreshTimeoutRef.current = window.setTimeout(() => {
+          window.location.reload();
+        }, 120);
+        return;
+      }
+
+      updatePullDistance(0);
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', resetPullState, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', resetPullState);
+      if (refreshTimeoutRef.current !== null) {
+        window.clearTimeout(refreshTimeoutRef.current);
+      }
+    };
+  }, [isBlogPost, isPullRefreshing]);
+
   const handleLogin = () => {
     navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
   };
@@ -99,18 +220,29 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
       {!isBlogPost && (
         <>
           <nav
-            className="md:hidden fixed top-0 left-0 w-full bg-[#e8e5e6] font-['Plus_Jakarta_Sans'] antialiased border-b border-[#d9d6d7] shadow-[0_2px_12px_rgba(0,0,0,0.04)] z-50"
+            className={`md:hidden fixed top-0 left-0 w-full bg-[#ffffff]/95 backdrop-blur-sm font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_2px_12px_rgba(0,0,0,0.04)] z-50 transition-transform duration-300 ${isMobileHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}
             style={{ paddingTop: 'env(safe-area-inset-top)' }}
           >
             <div className="px-3 py-3 text-left">
-            <span className="text-[18px] font-bold tracking-tight text-[#1b1c1d]">{mobilePageTitle}</span>
+              <span className="text-[18px] font-bold tracking-tight text-[#1b1c1d]">{mobilePageTitle}</span>
+            </div>
+            <div
+              className={`overflow-hidden transition-[max-height,opacity] duration-150 ${pullDistance > 0 || isPullRefreshing ? 'opacity-100' : 'opacity-0'}`}
+              style={{ maxHeight: `${pullDistance}px` }}
+            >
+              <div className="flex items-center justify-center pb-2">
+                <Loader2
+                  className={`w-4 h-4 text-[#6b7280] ${isPullRefreshing ? 'animate-spin' : ''}`}
+                  style={isPullRefreshing ? undefined : { transform: `rotate(${Math.min(360, pullDistance * 5)}deg)` }}
+                />
+              </div>
             </div>
           </nav>
-          <div className="md:hidden" style={{ height: 'calc(env(safe-area-inset-top) + 58px)' }} />
+          <div className="md:hidden" style={{ height: `calc(env(safe-area-inset-top) + ${MOBILE_HEADER_HEIGHT}px)` }} />
         </>
       )}
 
-      <nav className="hidden md:block bg-[#e8e5e6] font-['Plus_Jakarta_Sans'] antialiased border-b border-[#d9d6d7] shadow-[0_4px_20px_rgba(0,0,0,0.05)] fixed top-0 left-0 w-full z-50">
+      <nav className="hidden md:block bg-[#ffffff] font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_4px_20px_rgba(0,0,0,0.05)] fixed top-0 left-0 w-full z-50">
         <div className="max-w-[1280px] mx-auto flex justify-between items-center px-3 md:px-6 py-3">
           <div className="flex items-center gap-8">
             <Link to="/" className="text-[20px] font-bold tracking-tight text-[#1b1c1d]">{navTitle}</Link>
