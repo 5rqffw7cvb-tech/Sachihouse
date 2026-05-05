@@ -771,12 +771,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         <div className="text-[16px] md:text-[18px] font-bold text-[#1b1c1d]">
           {settings.footerTitle}
         </div>
-        <div className="flex flex-wrap justify-center gap-3 md:gap-6">
-          <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Privacy Policy</a>
-          <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Terms of Service</a>
-          <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Host Guidelines</a>
-          <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Contact Support</a>
-        </div>
         <div className="text-[#44474c]">
           {settings.footerCopyright}
         </div>

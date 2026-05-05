@@ -145,7 +145,7 @@ const isChunkLoadError = (value: unknown) => {
             ? value
             : '';
 
-    return /Failed to fetch dynamically imported module|Importing a module script failed|Unable to preload CSS/i.test(message);
+    return /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError|Loading chunk [\w-]+ failed/i.test(message);
 };
 
 const shouldReloadForChunkError = () => {
@@ -366,20 +366,20 @@ const PropertyRoutes = () => {
     };
 
     if (isSyncing) {
-        return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#041627]" /></div>;
+        return <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#041627]" /></div>;
     }
 
     if (loadError) {
-        return <div className="min-h-screen flex flex-col items-center justify-center text-red-500">{loadError}</div>;
+        return <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center text-red-500">{loadError}</div>;
     }
 
-    if (!data) return <div className="min-h-screen flex flex-col items-center justify-center text-red-500">Failed to load property data for {propertyId}</div>;
+    if (!data) return <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center text-red-500">Failed to load property data for {propertyId}</div>;
 
     return (
         <>
             <ThemeInjector theme={data.themeColor} />
             <SEOHead data={data} />
-            <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}>
+            <Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}>
                 <Routes>
                     <Route element={<Layout data={data} />}>
                         <Route index element={<HomePage data={data} />} />
@@ -399,7 +399,7 @@ const PropertyRoutes = () => {
 
 // Top-level global route for listings
 const ListingsSkeleton = () => (
-    <div className="bg-[#fbf9fa] min-h-screen">
+    <div className="bg-[#e8e5e6] min-h-screen">
         <div className="bg-[#ffffff] font-['Plus_Jakarta_Sans'] border-b border-[#e4e2e3] shadow-[0_4px_20px_rgba(0,0,0,0.05)] fixed top-0 left-0 w-full z-50 h-[72px] flex items-center justify-between px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded bg-gray-200 animate-pulse"></div>
@@ -530,15 +530,15 @@ const App: React.FC = () => {
                     <ChunkReloadSync />
 
           <Routes>
-            <Route path="/" element={<Suspense fallback={<ListingsSkeleton />}><ListingsRoute /></Suspense>} />
-                        <Route path="/login" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><LoginPage /></Suspense>} />
-            <Route path="/blog" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BlogPage /></Suspense>} />
-            <Route path="/blog/admin" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><AdminBlogPage /></Suspense>} />
-            <Route path="/admin/users" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><AdminUsersPage /></Suspense>} />
-            <Route path="/admin/properties" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><PropertyAdminListPage /></Suspense>} />
-            <Route path="/admin/checkin-management" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><CheckInManagementPage /></Suspense>} />
-            <Route path="/blog/:id" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BlogPostPage /></Suspense>} />
-            <Route path="/:id/*" element={<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><PropertyRoutes /></Suspense>} />
+                        <Route path="/" element={<ListingsRoute />} />
+                                                <Route path="/login" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><LoginPage /></Suspense>} />
+                        <Route path="/blog" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BlogPage /></Suspense>} />
+                        <Route path="/blog/admin" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><AdminBlogPage /></Suspense>} />
+                        <Route path="/admin/users" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><AdminUsersPage /></Suspense>} />
+                        <Route path="/admin/properties" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><PropertyAdminListPage /></Suspense>} />
+                        <Route path="/admin/checkin-management" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><CheckInManagementPage /></Suspense>} />
+                        <Route path="/blog/:id" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BlogPostPage /></Suspense>} />
+                        <Route path="/:id/*" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><PropertyRoutes /></Suspense>} />
           </Routes>
         </Router>
       </LanguageProvider>
