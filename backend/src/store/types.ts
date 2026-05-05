@@ -1,10 +1,5 @@
 import { Role } from '../types/domain.js';
 
-export interface CheckInPermission {
-  validFrom: string; // YYYY-MM-DD
-  validUntil: string; // YYYY-MM-DD
-}
-
 export interface AuthUser {
   id: number;
   name: string;
@@ -13,12 +8,11 @@ export interface AuthUser {
   canEditBlog: boolean;
   archivedAt?: number | null;
   assignedPropertyIds: string[];
-  checkInPermission: CheckInPermission | null;
+  hostLevel: 1 | 2 | 3 | null;
 }
 
 export interface StoredUser extends AuthUser {
   passwordHash: string;
-  checkInPermission: CheckInPermission | null;
 }
 
 export interface BlogPost {
@@ -228,7 +222,7 @@ export interface DataStore {
   updateUserEmail(userId: number, email: string, actor: AuthUser): Promise<AuthUser>;
   updateUserRole(userId: number, role: Role, actor: AuthUser): Promise<AuthUser>;
   updateUserCanEditBlog(userId: number, canEditBlog: boolean, actor: AuthUser): Promise<AuthUser>;
-  updateUserCheckInPermission(userId: number, permission: CheckInPermission | null, actor: AuthUser): Promise<AuthUser>;
+  updateUserHostLevel(userId: number, level: 1 | 2 | 3 | null, actor: AuthUser): Promise<AuthUser>;
   setUserArchived(userId: number, archived: boolean, actor: AuthUser): Promise<AuthUser>;
   updateUserPassword(userId: number, password: string, actor: AuthUser): Promise<void>;
   deleteUser(userId: number, actor: AuthUser): Promise<void>;

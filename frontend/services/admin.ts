@@ -1,4 +1,4 @@
-import { ApiUser, CheckInPermission, apiRequest } from './api';
+import { ApiUser, apiRequest } from './api';
 
 export type UserRole = ApiUser['role'];
 
@@ -76,10 +76,10 @@ export async function deleteUser(userId: number): Promise<void> {
   });
 }
 
-export async function setCheckInPermission(userId: number, permission: CheckInPermission | null): Promise<ApiUser> {
-  const response = await apiRequest<{ user: ApiUser }>(`/users/${userId}/checkin-permission`, {
+export async function setHostLevel(userId: number, level: 1 | 2 | 3 | null): Promise<ApiUser> {
+  const response = await apiRequest<{ user: ApiUser }>(`/users/${userId}/host-level`, {
     method: 'PUT',
-    body: JSON.stringify(permission ?? {}),
+    body: JSON.stringify({ level }),
   });
   return response.user;
 }

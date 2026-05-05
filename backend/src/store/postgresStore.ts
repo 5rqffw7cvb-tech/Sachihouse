@@ -4,7 +4,6 @@ import {
   AuthUser,
   BlogPost,
   CheckInListFilters,
-  CheckInPermission,
   CheckInSubmission,
   CheckInSubmissionInput,
   DataStore,
@@ -91,7 +90,7 @@ export class PostgresStore implements DataStore {
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS can_edit_blog BOOLEAN NOT NULL DEFAULT FALSE');
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS archived_at BIGINT');
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS checkin_permission_from DATE');
-    await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS checkin_permission_until DATE');
+    await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS host_level INT');
     await this.pool.query("UPDATE users SET name = split_part(email, '@', 1) WHERE name IS NULL OR trim(name) = ''");
 
     const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
@@ -161,11 +160,7 @@ export class PostgresStore implements DataStore {
     return result.rows.map((row: { property_id: string }) => row.property_id);
   }
 
-  private async mapUser(row: { id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; checkin_permission_from?: string | null; checkin_permission_until?: string | null }): Promise<AuthUser> {
-    const checkInPermission: CheckInPermission | null =
-      row.checkin_permission_from && row.checkin_permission_until
-        ? { validFrom: row.checkin_permission_from.substring(0, 10), validUntil: row.checkin_permission_until.substring(0, 10) }
-        : null;
+  private async mapUser(row: { id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }): Promise<AuthUser> {
     return {
       id: row.id,
       name: row.name,
@@ -174,13 +169,13 @@ export class PostgresStore implements DataStore {
       canEditBlog: row.can_edit_blog,
       archivedAt: row.archived_at,
       assignedPropertyIds: row.role === 'HOST' ? await this.getAssignedPropertyIds(row.id) : [],
-      checkInPermission,
+      hostLevel: (row.host_level as 1 | 2 | 3 | null) ?? null,
     };
   }
 
   async authenticate(email: string, password: string): Promise<AuthUser | null> {
-    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; password_hash: string; can_edit_blog: boolean; archived_at: number | null; checkin_permission_from?: string | null; checkin_permission_until?: string | null }>(
-      'SELECT id, name, email, role, password_hash, can_edit_blog, archived_at, checkin_permission_from, checkin_permission_until FROM users WHERE lower(email) = lower($1) AND archived_at IS NULL',
+    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; password_hash: string; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>(
+      'SELECT id, name, email, role, password_hash, can_edit_blog, archived_at, host_level FROM users WHERE lower(email) = lower($1) AND archived_at IS NULL',
       [email],
     );
     const row = result.rows[0];
@@ -193,8 +188,8 @@ export class PostgresStore implements DataStore {
   }
 
   async getUserById(id: number): Promise<AuthUser | null> {
-    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; checkin_permission_from?: string | null; checkin_permission_until?: string | null }>(
-      'SELECT id, name, email, role, can_edit_blog, archived_at, checkin_permission_from, checkin_permission_until FROM users WHERE id = $1 AND archived_at IS NULL',
+    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>(
+      'SELECT id, name, email, role, can_edit_blog, archived_at, host_level FROM users WHERE id = $1 AND archived_at IS NULL',
       [id],
     );
     const row = result.rows[0];
@@ -202,7 +197,7 @@ export class PostgresStore implements DataStore {
   }
 
   async listUsers(): Promise<AuthUser[]> {
-    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; checkin_permission_from?: string | null; checkin_permission_until?: string | null }>('SELECT id, name, email, role, can_edit_blog, archived_at, checkin_permission_from, checkin_permission_until FROM users ORDER BY id');
+    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>('SELECT id, name, email, role, can_edit_blog, archived_at, host_level FROM users ORDER BY id');
     return Promise.all(result.rows.map((row) => this.mapUser(row)));
   }
 
@@ -222,8 +217,8 @@ export class PostgresStore implements DataStore {
 
     const bcrypt = await import('bcryptjs');
     const passwordHash = await bcrypt.default.hash(password, 10);
-    const insertResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; checkin_permission_from?: string | null; checkin_permission_until?: string | null }>(
-      'INSERT INTO users (id, name, email, role, password_hash, can_edit_blog, archived_at) VALUES ($1, $2, $3, $4, $5, $6, NULL) RETURNING id, name, email, role, can_edit_blog, archived_at, checkin_permission_from, checkin_permission_until',
+    const insertResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>(
+      'INSERT INTO users (id, name, email, role, password_hash, can_edit_blog, archived_at) VALUES ($1, $2, $3, $4, $5, $6, NULL) RETURNING id, name, email, role, can_edit_blog, archived_at, host_level',
       [nextId, normalizedName, normalizedEmail, role, passwordHash, canEditBlog],
     );
     const created = await this.mapUser(insertResult.rows[0]);
@@ -237,8 +232,8 @@ export class PostgresStore implements DataStore {
       throw new Error('Name is required.');
     }
 
-    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; checkin_permission_from?: string | null; checkin_permission_until?: string | null }>(
-      'UPDATE users SET name = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, checkin_permission_from, checkin_permission_until',
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>(
+      'UPDATE users SET name = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, host_level',
       [userId, normalizedName],
     );
     const row = updateResult.rows[0];
@@ -257,8 +252,8 @@ export class PostgresStore implements DataStore {
       throw new Error('Email is already in use.');
     }
 
-    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; checkin_permission_from?: string | null; checkin_permission_until?: string | null }>(
-      'UPDATE users SET email = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, checkin_permission_from, checkin_permission_until',
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>(
+      'UPDATE users SET email = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, host_level',
       [userId, normalizedEmail],
     );
     const row = updateResult.rows[0];
@@ -271,8 +266,8 @@ export class PostgresStore implements DataStore {
   }
 
   async updateUserRole(userId: number, role: Role, actor: AuthUser): Promise<AuthUser> {
-    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; checkin_permission_from?: string | null; checkin_permission_until?: string | null }>(
-      'UPDATE users SET role = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, checkin_permission_from, checkin_permission_until',
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>(
+      'UPDATE users SET role = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, host_level',
       [userId, role],
     );
     const row = updateResult.rows[0];
@@ -289,8 +284,8 @@ export class PostgresStore implements DataStore {
   }
 
   async updateUserCanEditBlog(userId: number, canEditBlog: boolean, actor: AuthUser): Promise<AuthUser> {
-    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; checkin_permission_from?: string | null; checkin_permission_until?: string | null }>(
-      'UPDATE users SET can_edit_blog = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, checkin_permission_from, checkin_permission_until',
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>(
+      'UPDATE users SET can_edit_blog = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, host_level',
       [userId, canEditBlog],
     );
     const row = updateResult.rows[0];
@@ -302,22 +297,22 @@ export class PostgresStore implements DataStore {
     return this.mapUser(row);
   }
 
-  async updateUserCheckInPermission(userId: number, permission: CheckInPermission | null, actor: AuthUser): Promise<AuthUser> {
-    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; checkin_permission_from?: string | null; checkin_permission_until?: string | null }>(
-      'UPDATE users SET checkin_permission_from = $2, checkin_permission_until = $3 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, checkin_permission_from, checkin_permission_until',
-      [userId, permission?.validFrom ?? null, permission?.validUntil ?? null],
+  async updateUserHostLevel(userId: number, level: 1 | 2 | 3 | null, actor: AuthUser): Promise<AuthUser> {
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>(
+      'UPDATE users SET host_level = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, host_level',
+      [userId, level],
     );
     const row = updateResult.rows[0];
     if (!row) {
       throw new Error('User not found.');
     }
-    await this.writeAudit(actor.id, permission ? 'SET_CHECKIN_PERMISSION' : 'REVOKE_CHECKIN_PERMISSION', 'user', String(userId));
+    await this.writeAudit(actor.id, level !== null ? 'SET_HOST_LEVEL' : 'REVOKE_HOST_LEVEL', 'user', String(userId));
     return this.mapUser(row);
   }
 
   async setUserArchived(userId: number, archived: boolean, actor: AuthUser): Promise<AuthUser> {
-    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; checkin_permission_from?: string | null; checkin_permission_until?: string | null }>(
-      'UPDATE users SET archived_at = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, checkin_permission_from, checkin_permission_until',
+    const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>(
+      'UPDATE users SET archived_at = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, host_level',
       [userId, archived ? Date.now() : null],
     );
     const row = updateResult.rows[0];

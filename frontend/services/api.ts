@@ -1,8 +1,3 @@
-export interface CheckInPermission {
-  validFrom: string;
-  validUntil: string;
-}
-
 export interface ApiUser {
   id: number;
   name: string;
@@ -11,7 +6,7 @@ export interface ApiUser {
   canEditBlog: boolean;
   archivedAt?: number | null;
   assignedPropertyIds: string[];
-  checkInPermission: CheckInPermission | null;
+  hostLevel: 1 | 2 | 3 | null;
 }
 
 export class ApiError extends Error {
@@ -47,7 +42,7 @@ export function getStoredUser(): ApiUser | null {
       canEditBlog: Boolean(parsed.canEditBlog),
       archivedAt: typeof parsed.archivedAt === 'number' ? parsed.archivedAt : null,
       assignedPropertyIds: Array.isArray(parsed.assignedPropertyIds) ? parsed.assignedPropertyIds : [],
-      checkInPermission: parsed.checkInPermission && typeof parsed.checkInPermission === 'object' && 'validFrom' in parsed.checkInPermission ? parsed.checkInPermission : null,
+      hostLevel: ([1, 2, 3] as (number | null)[]).includes(parsed.hostLevel as number) ? (parsed.hostLevel as 1 | 2 | 3) : null,
     };
   } catch {
     return null;

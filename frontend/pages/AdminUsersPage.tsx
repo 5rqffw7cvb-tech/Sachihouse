@@ -11,7 +11,7 @@ import {
   deleteUser,
   listUsers,
   resetUserPassword,
-  setCheckInPermission,
+  setHostLevel,
   setUserArchived,
   updateUserEmail,
   updateUserCanEditBlog,
@@ -78,10 +78,7 @@ const AdminUsersPage: React.FC = () => {
   const [pendingBlogPermissionUserId, setPendingBlogPermissionUserId] = useState<number | null>(null);
   const [pendingAssignmentSaveUserId, setPendingAssignmentSaveUserId] = useState<number | null>(null);
   const [pendingResetUserId, setPendingResetUserId] = useState<number | null>(null);
-  const [pendingCheckInPermUserId, setPendingCheckInPermUserId] = useState<number | null>(null);
-
-  // Check-in permission drafts: { userId -> { validFrom, validUntil } | null }
-  const [checkInPermDrafts, setCheckInPermDrafts] = useState<Record<number, { validFrom: string; validUntil: string } | null>>({});
+  const [pendingHostLevelUserId, setPendingHostLevelUserId] = useState<number | null>(null);
 
   // Drafts
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<number, string[]>>({});
@@ -330,23 +327,19 @@ const AdminUsersPage: React.FC = () => {
     }
   };
 
-  const handleSaveCheckInPermission = async (user: ApiUser) => {
-    const draft = checkInPermDrafts[user.id];
-    // draft === undefined means not touched yet, treat as null (revoke)
-    const permission = draft !== undefined ? draft : user.checkInPermission;
+  const handleSetHostLevel = async (user: ApiUser, level: 1 | 2 | 3 | null) => {
     setErrorMsg(null);
     setInfoMsg(null);
-    setPendingCheckInPermUserId(user.id);
+    setPendingHostLevelUserId(user.id);
     try {
-      await setCheckInPermission(user.id, permission);
+      await setHostLevel(user.id, level);
       await loadData(true);
-      setCheckInPermDrafts(prev => { const next = { ...prev }; delete next[user.id]; return next; });
-      setInfoMsg(`Check-in permission updated for ${user.email}.`);
+      setInfoMsg(`Host level updated for ${user.email}.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update check-in permission.';
+      const message = error instanceof Error ? error.message : 'Failed to update host level.';
       setErrorMsg(message);
     } finally {
-      setPendingCheckInPermUserId(null);
+      setPendingHostLevelUserId(null);
     }
   };
 
@@ -659,13 +652,10 @@ const AdminUsersPage: React.FC = () => {
                         }
                         {user.canEditBlog && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#44474c]">Blog Editor</span>}
                         {user.role === 'HOST' && (() => {
-                          const perm = user.checkInPermission;
-                          if (!perm) return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#74777d]">No Check-in Access</span>;
-                          const today = new Date().toISOString().substring(0, 10);
-                          const active = today >= perm.validFrom && today <= perm.validUntil;
-                          return active
-                            ? <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#e6f5ec] text-[#0f7a44]">Check-in Active</span>
-                            : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Check-in Expired</span>;
+                          const lvl = user.hostLevel;
+                          if (!lvl) return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#74777d]">No Level</span>;
+                          const levelColors: Record<number, string> = { 1: 'bg-slate-100 text-slate-600', 2: 'bg-orange-100 text-orange-700', 3: 'bg-[#e6f5ec] text-[#0f7a44]' };
+                          return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${levelColors[lvl]}`}>Level {lvl}</span>;
                         })()}
                         {isSelf && <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">You</span>}
                       </div>
@@ -764,54 +754,33 @@ const AdminUsersPage: React.FC = () => {
                           </div>
                           {user.role === 'HOST' && (
                             <div className="mt-5 pt-5 border-t border-[#e4e2e3]">
-                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-3">Check-in Access Period</label>
-                              <p className="text-xs text-[#74777d] mb-3">Set the date range during which this host can view and use the check-in system. Leave empty to revoke access.</p>
-                              {(() => {
-                                const draftVal = checkInPermDrafts[user.id];
-                                const current = user.checkInPermission;
-                                const val = draftVal !== undefined ? draftVal : current;
-                                const validFrom = val?.validFrom ?? '';
-                                const validUntil = val?.validUntil ?? '';
-                                const isDirty = draftVal !== undefined;
-                                return (
-                                  <div className="flex flex-col sm:flex-row gap-3 items-start">
-                                    <div className="flex flex-col gap-1">
-                                      <label className="text-[11px] font-semibold text-[#74777d] uppercase tracking-wide">From</label>
-                                      <input type="date" value={validFrom}
-                                        onChange={e => setCheckInPermDrafts(prev => ({ ...prev, [user.id]: { validFrom: e.target.value, validUntil: (prev[user.id] ?? current)?.validUntil ?? '' } }))}
-                                        className={inputCls + ' w-40'} />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                      <label className="text-[11px] font-semibold text-[#74777d] uppercase tracking-wide">Until</label>
-                                      <input type="date" value={validUntil}
-                                        onChange={e => setCheckInPermDrafts(prev => ({ ...prev, [user.id]: { validFrom: (prev[user.id] ?? current)?.validFrom ?? '', validUntil: e.target.value } }))}
-                                        className={inputCls + ' w-40'} />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                      <label className="text-[11px] font-semibold text-[#74777d] uppercase tracking-wide invisible">Save</label>
-                                      <div className="flex gap-2">
-                                        <button
-                                          onClick={() => handleSaveCheckInPermission(user)}
-                                          disabled={pendingCheckInPermUserId === user.id || (!isDirty && !!current)}
-                                          className={primaryBtnCls + ' py-2.5'}>
-                                          {pendingCheckInPermUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                          Save
-                                        </button>
-                                        {(current || isDirty) && (
-                                          <button
-                                            onClick={() => {
-                                              setCheckInPermDrafts(prev => ({ ...prev, [user.id]: null }));
-                                            }}
-                                            disabled={pendingCheckInPermUserId === user.id}
-                                            className={secondaryBtnCls + ' py-2.5 text-red-600 border-red-200 hover:bg-red-50'}>
-                                            Revoke
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
+                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1">Host Level</label>
+                              <p className="text-xs text-[#74777d] mb-3">Level 1: view properties · Level 2: view + edit properties · Level 3: view + edit + check-in management</p>
+                              <div className="flex flex-col gap-2">
+                                {([null, 1, 2, 3] as (1 | 2 | 3 | null)[]).map((lvl) => {
+                                  const labels: Record<string, string> = {
+                                    'null': 'No level (view only, no edit)',
+                                    '1': 'Level 1 — View properties only',
+                                    '2': 'Level 2 — View + edit assigned properties',
+                                    '3': 'Level 3 — View + edit + check-in management',
+                                  };
+                                  const key = String(lvl);
+                                  const isActive = user.hostLevel === lvl;
+                                  const isPending = pendingHostLevelUserId === user.id;
+                                  return (
+                                    <button
+                                      key={key}
+                                      disabled={isPending || isActive}
+                                      onClick={() => handleSetHostLevel(user, lvl)}
+                                      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all text-left ${isActive ? 'bg-[#041627] text-white border-[#041627]' : 'bg-white text-[#1b1c1d] border-[#e4e2e3] hover:border-[#041627] hover:bg-[#f5f3f4]'} disabled:opacity-60`}
+                                    >
+                                      {isPending && isActive ? <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" /> : <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 ${isActive ? 'border-white bg-white' : 'border-[#c4c6cd]'}`} />}
+                                      {labels[key]}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {pendingHostLevelUserId === user.id && <p className="text-xs text-[#74777d] mt-2 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving…</p>}
                             </div>
                           )}
                         </div>

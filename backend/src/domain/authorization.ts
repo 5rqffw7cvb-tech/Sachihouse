@@ -4,6 +4,7 @@ export interface PermissionContext {
   role: Role;
   canEditBlog?: boolean;
   assignedPropertyIds?: string[];
+  hostLevel?: 1 | 2 | 3 | null;
 }
 
 export type PermissionAction =
@@ -41,8 +42,11 @@ export function canPerformAction(
     if (action === 'blog.write') {
       return Boolean(context.canEditBlog);
     }
-    if ((action === 'property.write' || action === 'property.read' || action === 'property.delete') && propertyId) {
+    if ((action === 'property.read' || action === 'property.delete') && propertyId) {
       return canAccessProperty(context, propertyId);
+    }
+    if (action === 'property.write' && propertyId) {
+      return canAccessProperty(context, propertyId) && (context.hostLevel ?? 1) >= 2;
     }
     return false;
   }

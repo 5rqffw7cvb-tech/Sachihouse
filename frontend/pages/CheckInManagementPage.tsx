@@ -61,12 +61,8 @@ const CheckInManagementPage: React.FC = () => {
   const [draftGuestName, setDraftGuestName] = useState('');
   const [draftNationality, setDraftNationality] = useState('');
 
-  const today = new Date().toISOString().substring(0, 10);
   const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
-  const hasCheckInPermission = authUser?.role === 'ADMIN' || (() => {
-    const perm = authUser?.checkInPermission;
-    return !!perm && today >= perm.validFrom && today <= perm.validUntil;
-  })();
+  const hasCheckInPermission = authUser?.role === 'ADMIN' || (authUser?.role === 'HOST' && (authUser.hostLevel ?? 0) >= 3);
 
   useEffect(() => {
     let unsubscribe = () => {};
