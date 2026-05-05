@@ -34,6 +34,7 @@ export interface SiteSettings {
   navTitle: string;
   headerTitle: string;
   headerSubtitle: string;
+  browserTitle: string;
   faviconUrl: string;
   footerTitle: string;
   footerCopyright: string;

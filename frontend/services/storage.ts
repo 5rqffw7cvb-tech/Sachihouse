@@ -130,6 +130,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   navTitle: 'SachiHouse78',
   headerTitle: 'Tokyo Stays for Families and Small Groups',
   headerSubtitle: 'Browse managed properties, compare highlights, and open the full guest guide before booking.',
+  browserTitle: 'SachiHouse78 | Property Listings',
   faviconUrl: 'https://cdn-icons-png.flaticon.com/512/2111/2111320.png',
   footerTitle: 'SachiHouse78',
   footerCopyright: 'Copyright 2026 SachiHouse78. All rights reserved.',

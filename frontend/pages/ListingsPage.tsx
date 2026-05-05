@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PropertyData, SiteSettings } from '../types';
-import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train } from 'lucide-react';
+import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train, Globe } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -86,6 +86,11 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         .catch((error) => console.error('Failed to load users', error));
     });
   }, [isAdmin]);
+
+  useEffect(() => {
+    const nextTitle = settings.browserTitle?.trim() || settings.navTitle?.trim() || 'SachiHouse78';
+    document.title = nextTitle;
+  }, [settings.browserTitle, settings.navTitle]);
 
   const allowedLocationRows = editingSettings.listingFilters?.allowedLocations ?? [];
 
@@ -188,6 +193,13 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
       const normalizedSettings: SiteSettings = {
         ...editingSettings,
+        navTitle: editingSettings.navTitle.trim(),
+        headerTitle: editingSettings.headerTitle.trim(),
+        headerSubtitle: editingSettings.headerSubtitle.trim(),
+        browserTitle: editingSettings.browserTitle.trim() || editingSettings.navTitle.trim() || 'SachiHouse78',
+        faviconUrl: editingSettings.faviconUrl.trim(),
+        footerTitle: editingSettings.footerTitle.trim(),
+        footerCopyright: editingSettings.footerCopyright.trim(),
         listingFilters: {
           allowedLocations: normalizedLocations,
         },
@@ -772,113 +784,153 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
       {/* Settings Modal */}
       {isSettingsModalOpen && (
-        <div className="fixed inset-0 bg-[#1b1c1d]/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
-            <div className="flex justify-between items-center p-6 border-b border-[#e4e2e3] sticky top-0 bg-white z-10">
-              <h2 className="font-['Plus_Jakarta_Sans'] text-[24px] font-bold text-[#041627]">Edit Page Content</h2>
-              <button 
-                onClick={() => setIsSettingsModalOpen(false)}
-                className="p-2 text-[#44474c] hover:bg-[#e4e2e3] rounded-full transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0f172a]/60 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-4xl max-h-[92vh] overflow-hidden rounded-[28px] border border-[#dce2ea] bg-[#f4f3ef] shadow-[0_36px_90px_-42px_rgba(15,23,42,0.9)]">
+            <div className="sticky top-0 z-10 border-b border-[#dce2ea] bg-gradient-to-r from-[#041627] via-[#0f3459] to-[#12506f] px-5 py-5 md:px-7 md:py-6 text-white">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[#cee7fb]">Brand Console</p>
+                  <h2 className="mt-1 font-['Plus_Jakarta_Sans'] text-[24px] md:text-[28px] font-bold leading-tight">Edit Page Content</h2>
+                  <p className="mt-2 text-[13px] text-[#d7ebfb]">Update branding, tab title, and listing filters from one place.</p>
+                </div>
+                <button
+                  onClick={() => setIsSettingsModalOpen(false)}
+                  className="rounded-full border border-white/25 bg-white/10 p-2.5 text-white transition-colors hover:bg-white/20"
+                  aria-label="Close settings modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
-            
-            <div className="p-6 space-y-8 flex-grow">
-              <div className="space-y-4">
-                <h3 className="text-[16px] font-bold text-[#1b1c1d] border-b border-[#e4e2e3] pb-2">Header Configuration</h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-[14px] font-semibold text-[#1b1c1d] mb-1.5">Navigation Title (Logo Text)</label>
-                    <input 
+
+            <div className="max-h-[calc(92vh-184px)] overflow-y-auto px-5 py-6 md:px-7 md:py-7 space-y-6">
+              <section className="rounded-2xl border border-[#dce2ea] bg-white p-5 shadow-sm md:p-6">
+                <div className="mb-4 flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-[#0f4f74]" />
+                  <h3 className="text-[16px] font-bold text-[#122235]">Header and Browser Branding</h3>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2 rounded-xl border border-[#d8e7f2] bg-[#f4fafe] p-4">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-[#154463]">Browser Tab Title</label>
+                    <input
                       type="text"
-                      className="w-full px-4 py-2 border border-[#c4c6cd] rounded-lg text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                      className="w-full rounded-lg border border-[#b9d3e6] bg-white px-4 py-2.5 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#c9e4f5]"
+                      value={editingSettings.browserTitle}
+                      onChange={(e) => setEditingSettings({ ...editingSettings, browserTitle: e.target.value })}
+                      placeholder="SachiHouse78 | Property Listings"
+                    />
+                    <p className="mt-1 text-[12px] text-[#3d6882]">This controls the tab title for listings and global pages.</p>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-[13px] font-semibold text-[#122235]">Navigation Title</label>
+                    <input
+                      type="text"
+                      className="w-full rounded-lg border border-[#c8d0da] bg-white px-4 py-2.5 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#d7e6f2]"
                       value={editingSettings.navTitle}
-                      onChange={(e) => setEditingSettings({...editingSettings, navTitle: e.target.value})}
+                      onChange={(e) => setEditingSettings({ ...editingSettings, navTitle: e.target.value })}
                     />
                   </div>
+
                   <div>
-                    <label className="block text-[14px] font-semibold text-[#1b1c1d] mb-1.5">Header Title</label>
-                    <input 
+                    <label className="mb-1.5 block text-[13px] font-semibold text-[#122235]">Header Title</label>
+                    <input
                       type="text"
-                      className="w-full px-4 py-2 border border-[#c4c6cd] rounded-lg text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                      className="w-full rounded-lg border border-[#c8d0da] bg-white px-4 py-2.5 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#d7e6f2]"
                       value={editingSettings.headerTitle}
-                      onChange={(e) => setEditingSettings({...editingSettings, headerTitle: e.target.value})}
+                      onChange={(e) => setEditingSettings({ ...editingSettings, headerTitle: e.target.value })}
                     />
                   </div>
-                  <div>
-                    <label className="block text-[14px] font-semibold text-[#1b1c1d] mb-1.5">Header Subtitle (Contents)</label>
-                    <textarea 
-                      className="w-full px-4 py-2 border border-[#c4c6cd] rounded-lg text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] min-h-[100px] resize-y"
+
+                  <div className="md:col-span-2">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-[#122235]">Header Subtitle</label>
+                    <textarea
+                      className="min-h-[96px] w-full resize-y rounded-lg border border-[#c8d0da] bg-white px-4 py-2.5 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#d7e6f2]"
                       value={editingSettings.headerSubtitle}
-                      onChange={(e) => setEditingSettings({...editingSettings, headerSubtitle: e.target.value})}
+                      onChange={(e) => setEditingSettings({ ...editingSettings, headerSubtitle: e.target.value })}
                     />
                   </div>
-                  <div>
-                    <label className="block text-[14px] font-semibold text-[#1b1c1d] mb-1.5">Site Favicon URL</label>
-                    <div className="flex gap-2 items-center">
+
+                  <div className="md:col-span-2">
+                    <label className="mb-1.5 block text-[13px] font-semibold text-[#122235]">Site Favicon URL</label>
+                    <div className="flex items-center gap-2">
                       <input
                         type="text"
-                        className="w-full px-4 py-2 border border-[#c4c6cd] rounded-lg text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                        className="w-full rounded-lg border border-[#c8d0da] bg-white px-4 py-2.5 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#d7e6f2]"
                         value={editingSettings.faviconUrl || ''}
                         onChange={(e) => setEditingSettings({ ...editingSettings, faviconUrl: e.target.value })}
                         placeholder="https://example.com/favicon.png"
                       />
                       {editingSettings.faviconUrl && (
-                        <div className="w-10 h-10 shrink-0 bg-white rounded-lg border border-[#c4c6cd] flex items-center justify-center p-1">
-                          <img src={editingSettings.faviconUrl} alt="Favicon preview" className="w-6 h-6 object-contain" />
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#c8d0da] bg-white p-1.5">
+                          <img src={editingSettings.faviconUrl} alt="Favicon preview" className="h-7 w-7 object-contain" />
                         </div>
                       )}
                     </div>
-                    <p className="text-[12px] text-[#74777d] mt-1">This icon is applied globally across the whole website.</p>
+                    <p className="mt-1 text-[12px] text-[#63768a]">Applied globally across listings, login, and admin pages.</p>
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <div className="space-y-4">
-                <h3 className="text-[16px] font-bold text-[#1b1c1d] border-b border-[#e4e2e3] pb-2">Listings Filter Locations</h3>
-                <p className="text-[13px] text-[#74777d]">Only these country/province options will appear in the listings filters.</p>
+              <section className="rounded-2xl border border-[#dce2ea] bg-white p-5 shadow-sm md:p-6">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-[#0f4f74]" />
+                    <h3 className="text-[16px] font-bold text-[#122235]">Listings Filter Locations</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddLocationRow}
+                    className="rounded-lg border border-[#0f4f74] px-3.5 py-2 text-[13px] font-semibold text-[#0f4f74] transition-colors hover:bg-[#f0f7fc]"
+                  >
+                    Add location row
+                  </button>
+                </div>
+
+                <p className="mb-3 text-[13px] text-[#63768a]">Only these locations appear in the country and province filters.</p>
+
                 <div className="space-y-3">
                   {allowedLocationRows.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-[#c4c6cd] p-3 text-[13px] text-[#74777d]">No allowed locations yet. Add at least one row.</div>
+                    <div className="rounded-xl border border-dashed border-[#c8d0da] bg-[#fafbfc] p-4 text-[13px] text-[#63768a]">
+                      No allowed locations yet. Add at least one row.
+                    </div>
                   ) : allowedLocationRows.map((row, index) => (
-                    <div key={`${row.countryCode}-${row.provinceCode}-${index}`} className="rounded-lg border border-[#e4e2e3] p-3">
+                    <div key={`${row.countryCode}-${row.provinceCode}-${index}`} className="rounded-xl border border-[#dce2ea] bg-[#fcfdfd] p-4">
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <input
                           type="text"
                           value={row.countryCode}
                           onChange={(event) => handleLocationFieldChange(index, 'countryCode', event.target.value)}
                           placeholder="Country Code (e.g. JP)"
-                          className="w-full rounded-lg border border-[#c4c6cd] px-3 py-2 text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                          className="w-full rounded-lg border border-[#c8d0da] px-3 py-2 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#d7e6f2]"
                         />
                         <input
                           type="text"
                           value={row.countryName}
                           onChange={(event) => handleLocationFieldChange(index, 'countryName', event.target.value)}
                           placeholder="Country Name"
-                          className="w-full rounded-lg border border-[#c4c6cd] px-3 py-2 text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                          className="w-full rounded-lg border border-[#c8d0da] px-3 py-2 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#d7e6f2]"
                         />
                         <input
                           type="text"
                           value={row.provinceCode}
                           onChange={(event) => handleLocationFieldChange(index, 'provinceCode', event.target.value)}
                           placeholder="Province Code (e.g. JP-13)"
-                          className="w-full rounded-lg border border-[#c4c6cd] px-3 py-2 text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                          className="w-full rounded-lg border border-[#c8d0da] px-3 py-2 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#d7e6f2]"
                         />
                         <input
                           type="text"
                           value={row.provinceName}
                           onChange={(event) => handleLocationFieldChange(index, 'provinceName', event.target.value)}
                           placeholder="Province Name"
-                          className="w-full rounded-lg border border-[#c4c6cd] px-3 py-2 text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                          className="w-full rounded-lg border border-[#c8d0da] px-3 py-2 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#d7e6f2]"
                         />
                       </div>
-                      <div className="mt-2 flex justify-end">
+                      <div className="mt-3 flex justify-end">
                         <button
                           type="button"
                           onClick={() => handleRemoveLocationRow(index)}
-                          className="text-[13px] font-semibold text-[#ba1a1a]"
+                          className="rounded-md px-2.5 py-1 text-[13px] font-semibold text-[#ba1a1a] transition-colors hover:bg-[#fff0f0]"
                         >
                           Remove
                         </button>
@@ -886,54 +938,50 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                     </div>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAddLocationRow}
-                  className="rounded-lg border border-[#041627] px-4 py-2 text-[13px] font-semibold text-[#041627] hover:bg-[#efedef]"
-                >
-                  Add location row
-                </button>
-              </div>
+              </section>
 
-              <div className="space-y-4">
-                <h3 className="text-[16px] font-bold text-[#1b1c1d] border-b border-[#e4e2e3] pb-2">Footer Configuration</h3>
-                <div className="space-y-4">
+              <section className="rounded-2xl border border-[#dce2ea] bg-white p-5 shadow-sm md:p-6">
+                <div className="mb-4 flex items-center gap-2">
+                  <Home className="h-4 w-4 text-[#0f4f74]" />
+                  <h3 className="text-[16px] font-bold text-[#122235]">Footer Configuration</h3>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
-                    <label className="block text-[14px] font-semibold text-[#1b1c1d] mb-1.5">Footer Title</label>
-                    <input 
+                    <label className="mb-1.5 block text-[13px] font-semibold text-[#122235]">Footer Title</label>
+                    <input
                       type="text"
-                      className="w-full px-4 py-2 border border-[#c4c6cd] rounded-lg text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                      className="w-full rounded-lg border border-[#c8d0da] bg-white px-4 py-2.5 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#d7e6f2]"
                       value={editingSettings.footerTitle}
-                      onChange={(e) => setEditingSettings({...editingSettings, footerTitle: e.target.value})}
+                      onChange={(e) => setEditingSettings({ ...editingSettings, footerTitle: e.target.value })}
                     />
                   </div>
                   <div>
-                    <label className="block text-[14px] font-semibold text-[#1b1c1d] mb-1.5">Footer Copyright</label>
-                    <input 
+                    <label className="mb-1.5 block text-[13px] font-semibold text-[#122235]">Footer Copyright</label>
+                    <input
                       type="text"
-                      className="w-full px-4 py-2 border border-[#c4c6cd] rounded-lg text-[14px] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                      className="w-full rounded-lg border border-[#c8d0da] bg-white px-4 py-2.5 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#d7e6f2]"
                       value={editingSettings.footerCopyright}
-                      onChange={(e) => setEditingSettings({...editingSettings, footerCopyright: e.target.value})}
+                      onChange={(e) => setEditingSettings({ ...editingSettings, footerCopyright: e.target.value })}
                     />
                   </div>
                 </div>
-              </div>
+              </section>
             </div>
 
-            <div className="p-6 border-t border-[#e4e2e3] bg-[#f5f3f4] sticky bottom-0 flex justify-end gap-3 z-10">
-              <button 
+            <div className="sticky bottom-0 z-10 flex items-center justify-end gap-3 border-t border-[#dce2ea] bg-gradient-to-r from-[#f1f3f6] to-[#edf2f6] px-5 py-4 md:px-7">
+              <button
                 onClick={() => setIsSettingsModalOpen(false)}
-                className="px-6 py-2 border border-[#c4c6cd] text-[#44474c] font-semibold rounded-lg hover:bg-[#e4e2e3] transition-colors"
+                className="rounded-lg border border-[#c1cad4] bg-white px-5 py-2.5 text-[14px] font-semibold text-[#3b4c5f] transition-colors hover:bg-[#f3f5f8]"
                 disabled={isSavingSettings}
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleSaveSettings}
                 disabled={isSavingSettings}
-                className="px-6 py-2 bg-[#041627] text-white font-semibold rounded-lg hover:bg-[#041627]/90 transition-colors flex items-center gap-2"
+                className="flex items-center gap-2 rounded-lg bg-[#0f3459] px-5 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-[#0a2947] disabled:opacity-75"
               >
-                {isSavingSettings ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                {isSavingSettings ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
                 Save Changes
               </button>
             </div>
