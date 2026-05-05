@@ -3,6 +3,7 @@ import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSe
 import {
   AuthUser,
   BlogPost,
+  CheckInGuest,
   CheckInListFilters,
   CheckInSubmission,
   CheckInSubmissionInput,
@@ -449,6 +450,33 @@ export class MemoryStore implements DataStore {
   async getCheckInSubmission(id: string): Promise<CheckInSubmission | null> {
     const row = this.assertState().checkIns.find((item) => item.id === id);
     return row ? structuredClone(row) : null;
+  }
+
+  async updateCheckInSubmission(
+    id: string,
+    patch: {
+      checkInDate?: string;
+      checkOutDate?: string;
+      guests?: CheckInGuest[];
+    },
+  ): Promise<CheckInSubmission | null> {
+    const state = this.assertState();
+    const rowIndex = state.checkIns.findIndex((item) => item.id === id);
+    if (rowIndex < 0) {
+      return null;
+    }
+
+    const current = state.checkIns[rowIndex];
+    const next: CheckInSubmission = {
+      ...current,
+      checkInDate: patch.checkInDate ?? current.checkInDate,
+      checkOutDate: patch.checkOutDate ?? current.checkOutDate,
+      guests: patch.guests ? structuredClone(patch.guests) : structuredClone(current.guests),
+      updatedAt: Date.now(),
+    };
+
+    state.checkIns[rowIndex] = next;
+    return structuredClone(next);
   }
 
   async deleteCheckInSubmission(id: string): Promise<boolean> {

@@ -247,6 +247,14 @@ export interface DataStore {
   createCheckInSubmission(input: CheckInSubmissionInput): Promise<CheckInSubmission>;
   listCheckInSubmissions(filters?: CheckInListFilters): Promise<CheckInSubmission[]>;
   getCheckInSubmission(id: string): Promise<CheckInSubmission | null>;
+  updateCheckInSubmission(
+    id: string,
+    patch: {
+      checkInDate?: string;
+      checkOutDate?: string;
+      guests?: CheckInGuest[];
+    },
+  ): Promise<CheckInSubmission | null>;
   deleteCheckInSubmission(id: string): Promise<boolean>;
   deleteExpiredCheckInSubmissions(olderThanTimestamp: number): Promise<CheckInSubmission[]>;
 }

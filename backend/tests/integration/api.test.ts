@@ -433,6 +433,65 @@ describe('API integration', () => {
     expect(list.body.submissions[0].audit.ipAddress).toContain('203.0.113.24');
   });
 
+  it('allows admin to edit a check-in record', async () => {
+    const started = await request(app)
+      .post('/api/properties/main/checkins/start')
+      .expect(201);
+
+    const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5iN2sAAAAASUVORK5CYII=';
+    const ocr = await request(app)
+      .post('/api/properties/main/checkins/ocr')
+      .send({ imageBase64: tinyPng, guestId: 'guest_edit', checkinToken: started.body.checkinToken })
+      .expect(201);
+
+    const submit = await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: started.body.checkinToken,
+        checkInDate: '2026-06-24',
+        checkOutDate: '2026-06-26',
+        consent: {
+          accepted: true,
+          acceptedAt: 1760000000000,
+          noticeVersion: 'v1',
+        },
+        guests: [
+          {
+            ...ocr.body.guest,
+            fullName: 'Original Guest',
+            nationality: 'JP',
+          },
+        ],
+      })
+      .expect(201);
+
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+    const updated = await request(app)
+      .patch(`/api/checkins/${submit.body.submission.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        checkInDate: '2026-06-25',
+        checkOutDate: '2026-06-27',
+        guestId: 'guest_edit',
+        guest: {
+          fullName: 'Updated Guest',
+          birthYear: 1995,
+          gender: 'FEMALE',
+          nationality: 'VN',
+          address: 'HA NOI',
+          occupation: 'ENGINEER',
+          documentType: 'passport',
+          documentNumber: 'B1234567',
+        },
+      })
+      .expect(200);
+
+    expect(updated.body.submission.checkInDate).toBe('2026-06-25');
+    expect(updated.body.submission.checkOutDate).toBe('2026-06-27');
+    expect(updated.body.submission.guests[0].fullName).toBe('Updated Guest');
+    expect(updated.body.submission.guests[0].documentNumber).toBe('B1234567');
+  });
+
   it('allows host to delete a check-in submission for assigned property', async () => {
     const started = await request(app)
       .post('/api/properties/main/checkins/start')

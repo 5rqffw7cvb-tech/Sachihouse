@@ -3,6 +3,7 @@ import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSe
 import {
   AuthUser,
   BlogPost,
+  CheckInGuest,
   CheckInListFilters,
   CheckInSubmission,
   CheckInSubmissionInput,
@@ -625,6 +626,35 @@ export class PostgresStore implements DataStore {
   async getCheckInSubmission(id: string): Promise<CheckInSubmission | null> {
     const result = await this.pool.query<{ data: CheckInSubmission }>('SELECT data FROM checkin_submissions WHERE id = $1 LIMIT 1', [id]);
     return result.rows[0]?.data ?? null;
+  }
+
+  async updateCheckInSubmission(
+    id: string,
+    patch: {
+      checkInDate?: string;
+      checkOutDate?: string;
+      guests?: CheckInGuest[];
+    },
+  ): Promise<CheckInSubmission | null> {
+    const current = await this.getCheckInSubmission(id);
+    if (!current) {
+      return null;
+    }
+
+    const next: CheckInSubmission = {
+      ...current,
+      checkInDate: patch.checkInDate ?? current.checkInDate,
+      checkOutDate: patch.checkOutDate ?? current.checkOutDate,
+      guests: patch.guests ? structuredClone(patch.guests) : structuredClone(current.guests),
+      updatedAt: Date.now(),
+    };
+
+    await this.pool.query(
+      'UPDATE checkin_submissions SET check_in_date = $2, check_out_date = $3, data = $4::jsonb, updated_at = $5 WHERE id = $1',
+      [id, next.checkInDate, next.checkOutDate, JSON.stringify(next), next.updatedAt],
+    );
+
+    return structuredClone(next);
   }
 
   async deleteCheckInSubmission(id: string): Promise<boolean> {

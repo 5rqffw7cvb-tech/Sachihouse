@@ -76,6 +76,31 @@ export async function deleteCheckIn(checkInId: string): Promise<void> {
   });
 }
 
+export async function updateCheckInRecord(
+  checkInId: string,
+  payload: {
+    checkInDate: string;
+    checkOutDate: string;
+    guestId: string;
+    guest: {
+      fullName: string;
+      birthYear: number | null;
+      gender: string;
+      nationality: string;
+      address: string;
+      occupation: string;
+      documentType: CheckInGuest['documentType'];
+      documentNumber: string;
+    };
+  },
+): Promise<CheckInSubmission> {
+  const response = await apiRequest<{ submission: CheckInSubmission }>(`/checkins/${checkInId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  return response.submission;
+}
+
 export interface CsvImportResult {
   imported: number;
   errors: Array<{ row: number; message: string }>;

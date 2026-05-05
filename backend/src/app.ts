@@ -983,6 +983,105 @@ export function createApp(store: DataStore) {
     return res.json({ submission: resolvedSubmission });
   });
 
+  app.patch('/api/checkins/:id', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    if (actor.role === 'HOST' && (actor.hostLevel ?? 0) < 3) {
+      return res.status(403).json({ error: 'Check-in access requires host level 3. Contact admin.' });
+    }
+
+    const submission = await store.getCheckInSubmission(getParam(req.params.id));
+    if (!submission) {
+      return res.status(404).json({ error: 'Check-in submission not found.' });
+    }
+
+    if (!canPerformAction(actor, 'property.write', submission.propertyId)) {
+      return res.status(403).json({ error: 'Check-in update not allowed.' });
+    }
+
+    const checkInDateRaw = req.body?.checkInDate;
+    const checkOutDateRaw = req.body?.checkOutDate;
+    const guestIdRaw = req.body?.guestId;
+    const guestRaw = req.body?.guest as Record<string, unknown> | undefined;
+
+    const nextCheckInDate = typeof checkInDateRaw === 'string' ? checkInDateRaw : submission.checkInDate;
+    const nextCheckOutDate = typeof checkOutDateRaw === 'string' ? checkOutDateRaw : submission.checkOutDate;
+    if (!isIsoDate(nextCheckInDate) || !isIsoDate(nextCheckOutDate)) {
+      return res.status(400).json({ error: 'checkInDate/checkOutDate must be YYYY-MM-DD.' });
+    }
+    if (nextCheckInDate >= nextCheckOutDate) {
+      return res.status(400).json({ error: 'checkOutDate must be after checkInDate.' });
+    }
+
+    if (typeof guestIdRaw !== 'string' || !guestIdRaw.trim() || !guestRaw || typeof guestRaw !== 'object') {
+      return res.status(400).json({ error: 'guestId and guest patch are required.' });
+    }
+
+    const guestId = guestIdRaw.trim();
+    const guestIndex = submission.guests.findIndex((guest) => guest.id === guestId);
+    if (guestIndex < 0) {
+      return res.status(404).json({ error: 'Guest not found in this check-in submission.' });
+    }
+
+    const birthYearRaw = guestRaw.birthYear;
+    let birthYear: number | null = null;
+    if (typeof birthYearRaw === 'number') {
+      if (!Number.isInteger(birthYearRaw)) {
+        return res.status(400).json({ error: 'birthYear must be an integer or null.' });
+      }
+      birthYear = birthYearRaw;
+    } else if (typeof birthYearRaw === 'string' && birthYearRaw.trim()) {
+      const parsed = Number(birthYearRaw);
+      if (!Number.isInteger(parsed)) {
+        return res.status(400).json({ error: 'birthYear must be an integer or null.' });
+      }
+      birthYear = parsed;
+    } else if (birthYearRaw !== null && birthYearRaw !== undefined && birthYearRaw !== '') {
+      return res.status(400).json({ error: 'birthYear must be an integer or null.' });
+    }
+
+    const currentYear = new Date().getFullYear();
+    if (birthYear !== null && (birthYear < 1900 || birthYear > currentYear)) {
+      return res.status(400).json({ error: `birthYear must be between 1900 and ${currentYear}.` });
+    }
+
+    const documentType = normalizeText(guestRaw.documentType || 'unknown').toLowerCase();
+    const allowedDocumentTypes = new Set(['passport', 'driver_license', 'residence_card', 'national_id', 'unknown']);
+    if (!allowedDocumentTypes.has(documentType)) {
+      return res.status(400).json({ error: 'Invalid documentType.' });
+    }
+
+    const fullName = normalizeText(guestRaw.fullName);
+    if (!fullName) {
+      return res.status(400).json({ error: 'fullName is required.' });
+    }
+
+    const nextGuests = structuredClone(submission.guests);
+    nextGuests[guestIndex] = {
+      ...nextGuests[guestIndex],
+      fullName,
+      birthYear,
+      gender: normalizeText(guestRaw.gender).toUpperCase(),
+      nationality: normalizeText(guestRaw.nationality).toUpperCase(),
+      address: normalizeText(guestRaw.address),
+      occupation: normalizeText(guestRaw.occupation),
+      documentType: documentType as CheckInGuest['documentType'],
+      documentNumber: normalizeText(guestRaw.documentNumber).toUpperCase(),
+    };
+
+    const updated = await store.updateCheckInSubmission(submission.id, {
+      checkInDate: nextCheckInDate,
+      checkOutDate: nextCheckOutDate,
+      guests: nextGuests,
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Check-in submission not found.' });
+    }
+
+    const resolvedSubmission = await resolveSubmissionEvidence(updated);
+    return res.json({ submission: resolvedSubmission });
+  });
+
   app.delete('/api/checkins/:id', requireAuth, requireHostOrAdmin, async (req, res) => {
     const actor = req.authUser!;
     if (actor.role === 'HOST' && (actor.hostLevel ?? 0) < 3) {
