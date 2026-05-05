@@ -11,6 +11,7 @@ import {
   deleteUser,
   listUsers,
   resetUserPassword,
+  setCheckInPermission,
   setUserArchived,
   updateUserEmail,
   updateUserCanEditBlog,
@@ -77,6 +78,10 @@ const AdminUsersPage: React.FC = () => {
   const [pendingBlogPermissionUserId, setPendingBlogPermissionUserId] = useState<number | null>(null);
   const [pendingAssignmentSaveUserId, setPendingAssignmentSaveUserId] = useState<number | null>(null);
   const [pendingResetUserId, setPendingResetUserId] = useState<number | null>(null);
+  const [pendingCheckInPermUserId, setPendingCheckInPermUserId] = useState<number | null>(null);
+
+  // Check-in permission drafts: { userId -> { validFrom, validUntil } | null }
+  const [checkInPermDrafts, setCheckInPermDrafts] = useState<Record<number, { validFrom: string; validUntil: string } | null>>({});
 
   // Drafts
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<number, string[]>>({});
@@ -322,6 +327,26 @@ const AdminUsersPage: React.FC = () => {
       setErrorMsg(message);
     } finally {
       setPendingBlogPermissionUserId(null);
+    }
+  };
+
+  const handleSaveCheckInPermission = async (user: ApiUser) => {
+    const draft = checkInPermDrafts[user.id];
+    // draft === undefined means not touched yet, treat as null (revoke)
+    const permission = draft !== undefined ? draft : user.checkInPermission;
+    setErrorMsg(null);
+    setInfoMsg(null);
+    setPendingCheckInPermUserId(user.id);
+    try {
+      await setCheckInPermission(user.id, permission);
+      await loadData(true);
+      setCheckInPermDrafts(prev => { const next = { ...prev }; delete next[user.id]; return next; });
+      setInfoMsg(`Check-in permission updated for ${user.email}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update check-in permission.';
+      setErrorMsg(message);
+    } finally {
+      setPendingCheckInPermUserId(null);
     }
   };
 
@@ -633,6 +658,15 @@ const AdminUsersPage: React.FC = () => {
                           : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#e6f5ec] text-[#0f7a44]">Active</span>
                         }
                         {user.canEditBlog && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#44474c]">Blog Editor</span>}
+                        {user.role === 'HOST' && (() => {
+                          const perm = user.checkInPermission;
+                          if (!perm) return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#74777d]">No Check-in Access</span>;
+                          const today = new Date().toISOString().substring(0, 10);
+                          const active = today >= perm.validFrom && today <= perm.validUntil;
+                          return active
+                            ? <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#e6f5ec] text-[#0f7a44]">Check-in Active</span>
+                            : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Check-in Expired</span>;
+                        })()}
                         {isSelf && <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">You</span>}
                       </div>
                       <div className="text-xs text-slate-400 mt-0.5 truncate">
@@ -728,6 +762,58 @@ const AdminUsersPage: React.FC = () => {
                               <p className="text-xs text-[#74777d] mt-1.5">Can create and edit blog posts.</p>
                             </div>
                           </div>
+                          {user.role === 'HOST' && (
+                            <div className="mt-5 pt-5 border-t border-[#e4e2e3]">
+                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-3">Check-in Access Period</label>
+                              <p className="text-xs text-[#74777d] mb-3">Set the date range during which this host can view and use the check-in system. Leave empty to revoke access.</p>
+                              {(() => {
+                                const draftVal = checkInPermDrafts[user.id];
+                                const current = user.checkInPermission;
+                                const val = draftVal !== undefined ? draftVal : current;
+                                const validFrom = val?.validFrom ?? '';
+                                const validUntil = val?.validUntil ?? '';
+                                const isDirty = draftVal !== undefined;
+                                return (
+                                  <div className="flex flex-col sm:flex-row gap-3 items-start">
+                                    <div className="flex flex-col gap-1">
+                                      <label className="text-[11px] font-semibold text-[#74777d] uppercase tracking-wide">From</label>
+                                      <input type="date" value={validFrom}
+                                        onChange={e => setCheckInPermDrafts(prev => ({ ...prev, [user.id]: { validFrom: e.target.value, validUntil: (prev[user.id] ?? current)?.validUntil ?? '' } }))}
+                                        className={inputCls + ' w-40'} />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      <label className="text-[11px] font-semibold text-[#74777d] uppercase tracking-wide">Until</label>
+                                      <input type="date" value={validUntil}
+                                        onChange={e => setCheckInPermDrafts(prev => ({ ...prev, [user.id]: { validFrom: (prev[user.id] ?? current)?.validFrom ?? '', validUntil: e.target.value } }))}
+                                        className={inputCls + ' w-40'} />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      <label className="text-[11px] font-semibold text-[#74777d] uppercase tracking-wide invisible">Save</label>
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => handleSaveCheckInPermission(user)}
+                                          disabled={pendingCheckInPermUserId === user.id || (!isDirty && !!current)}
+                                          className={primaryBtnCls + ' py-2.5'}>
+                                          {pendingCheckInPermUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                          Save
+                                        </button>
+                                        {(current || isDirty) && (
+                                          <button
+                                            onClick={() => {
+                                              setCheckInPermDrafts(prev => ({ ...prev, [user.id]: null }));
+                                            }}
+                                            disabled={pendingCheckInPermUserId === user.id}
+                                            className={secondaryBtnCls + ' py-2.5 text-red-600 border-red-200 hover:bg-red-50'}>
+                                            Revoke
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          )}
                         </div>
                       )}
 

@@ -1,3 +1,8 @@
+export interface CheckInPermission {
+  validFrom: string;
+  validUntil: string;
+}
+
 export interface ApiUser {
   id: number;
   name: string;
@@ -6,6 +11,7 @@ export interface ApiUser {
   canEditBlog: boolean;
   archivedAt?: number | null;
   assignedPropertyIds: string[];
+  checkInPermission: CheckInPermission | null;
 }
 
 export class ApiError extends Error {
@@ -41,6 +47,7 @@ export function getStoredUser(): ApiUser | null {
       canEditBlog: Boolean(parsed.canEditBlog),
       archivedAt: typeof parsed.archivedAt === 'number' ? parsed.archivedAt : null,
       assignedPropertyIds: Array.isArray(parsed.assignedPropertyIds) ? parsed.assignedPropertyIds : [],
+      checkInPermission: parsed.checkInPermission && typeof parsed.checkInPermission === 'object' && 'validFrom' in parsed.checkInPermission ? parsed.checkInPermission : null,
     };
   } catch {
     return null;

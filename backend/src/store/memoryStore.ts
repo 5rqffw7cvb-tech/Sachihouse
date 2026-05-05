@@ -4,6 +4,7 @@ import {
   AuthUser,
   BlogPost,
   CheckInListFilters,
+  CheckInPermission,
   CheckInSubmission,
   CheckInSubmissionInput,
   DataStore,
@@ -56,6 +57,7 @@ export class MemoryStore implements DataStore {
       canEditBlog: user.canEditBlog,
       archivedAt: user.archivedAt ?? null,
       assignedPropertyIds: [...user.assignedPropertyIds],
+      checkInPermission: user.checkInPermission ?? null,
     };
   }
 
@@ -100,6 +102,7 @@ export class MemoryStore implements DataStore {
       passwordHash,
       archivedAt: null,
       assignedPropertyIds: [],
+      checkInPermission: null,
     };
     state.users.push(nextUser);
     return this.toAuthUser(nextUser);
@@ -160,6 +163,16 @@ export class MemoryStore implements DataStore {
     }
 
     user.canEditBlog = canEditBlog;
+    return this.toAuthUser(user);
+  }
+
+  async updateUserCheckInPermission(userId: number, permission: CheckInPermission | null, _actor: AuthUser): Promise<AuthUser> {
+    const state = this.assertState();
+    const user = state.users.find((candidate) => candidate.id === userId);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+    user.checkInPermission = permission;
     return this.toAuthUser(user);
   }
 

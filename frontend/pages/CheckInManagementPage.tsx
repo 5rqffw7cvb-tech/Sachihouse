@@ -61,7 +61,12 @@ const CheckInManagementPage: React.FC = () => {
   const [draftGuestName, setDraftGuestName] = useState('');
   const [draftNationality, setDraftNationality] = useState('');
 
+  const today = new Date().toISOString().substring(0, 10);
   const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
+  const hasCheckInPermission = authUser?.role === 'ADMIN' || (() => {
+    const perm = authUser?.checkInPermission;
+    return !!perm && today >= perm.validFrom && today <= perm.validUntil;
+  })();
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -85,7 +90,7 @@ const CheckInManagementPage: React.FC = () => {
     guestName?: string;
     nationality?: string;
   }) => {
-    if (!canAccess) {
+    if (!canAccess || !hasCheckInPermission) {
       setLoading(false);
       return;
     }
@@ -124,7 +129,7 @@ const CheckInManagementPage: React.FC = () => {
 
   useEffect(() => {
     void loadData();
-  }, [canAccess]);
+  }, [canAccess, hasCheckInPermission]);
 
   const scopedProperties = useMemo(() => {
     if (!authUser) {
@@ -273,6 +278,23 @@ const CheckInManagementPage: React.FC = () => {
         <TopNavBar />
         <div className="max-w-3xl mx-auto px-4 pt-[120px]">
           <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">Host or admin role required.</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasCheckInPermission) {
+    return (
+      <div className="min-h-screen bg-[#e8e5e6]">
+        <TopNavBar />
+        <div className="max-w-3xl mx-auto px-4 pt-[120px]">
+          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
+              <span className="text-2xl">🔒</span>
+            </div>
+            <h2 className="font-['Plus_Jakarta_Sans'] font-bold text-[18px] text-[#1b1c1d] mb-2">Check-in access not permitted</h2>
+            <p className="text-sm text-[#44474c]">Your account does not have an active check-in permission period. Please contact an admin to set up access.</p>
+          </div>
         </div>
       </div>
     );

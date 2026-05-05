@@ -1,4 +1,4 @@
-import { ApiUser, apiRequest } from './api';
+import { ApiUser, CheckInPermission, apiRequest } from './api';
 
 export type UserRole = ApiUser['role'];
 
@@ -74,6 +74,14 @@ export async function deleteUser(userId: number): Promise<void> {
   await apiRequest(`/users/${userId}`, {
     method: 'DELETE',
   });
+}
+
+export async function setCheckInPermission(userId: number, permission: CheckInPermission | null): Promise<ApiUser> {
+  const response = await apiRequest<{ user: ApiUser }>(`/users/${userId}/checkin-permission`, {
+    method: 'PUT',
+    body: JSON.stringify(permission ?? {}),
+  });
+  return response.user;
 }
 
 export async function assignHostToProperty(propertyId: string, hostUserId: number): Promise<void> {

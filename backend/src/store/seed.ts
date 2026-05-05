@@ -197,6 +197,7 @@ export async function createUserSeed(): Promise<StoredUser[]> {
       role: 'ADMIN',
       canEditBlog: true,
       assignedPropertyIds: propertiesSeed.map((property) => property.id),
+      checkInPermission: null,
       passwordHash: await bcrypt.hash('admin123', 10)
     },
     {
@@ -206,6 +207,7 @@ export async function createUserSeed(): Promise<StoredUser[]> {
       role: 'HOST',
       canEditBlog: false,
       assignedPropertyIds: ['main'],
+      checkInPermission: null,
       passwordHash: await bcrypt.hash('host123', 10)
     }
   ];

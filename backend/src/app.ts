@@ -406,6 +406,27 @@ export function createApp(store: DataStore) {
     return res.json({ user });
   });
 
+  app.put('/api/users/:id/checkin-permission', requireAdmin, async (req, res) => {
+    const userId = Number(getParam(req.params.id));
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Valid user id is required.' });
+    }
+    const { validFrom, validUntil } = req.body ?? {};
+    // null body = revoke
+    let permission: { validFrom: string; validUntil: string } | null = null;
+    if (validFrom != null || validUntil != null) {
+      if (!isIsoDate(String(validFrom)) || !isIsoDate(String(validUntil))) {
+        return res.status(400).json({ error: 'validFrom and validUntil must be YYYY-MM-DD dates.' });
+      }
+      if (validFrom > validUntil) {
+        return res.status(400).json({ error: 'validFrom must not be after validUntil.' });
+      }
+      permission = { validFrom: String(validFrom), validUntil: String(validUntil) };
+    }
+    const user = await store.updateUserCheckInPermission(userId, permission, req.authUser!);
+    return res.json({ user });
+  });
+
   app.patch('/api/users/:id/archive', requireAdmin, async (req, res) => {
     const userId = Number(getParam(req.params.id));
     const archived = toBoolean(req.body?.archived);
@@ -902,6 +923,14 @@ export function createApp(store: DataStore) {
   });
 
   app.get('/api/checkins', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    if (actor.role === 'HOST') {
+      const today = new Date().toISOString().substring(0, 10);
+      const perm = actor.checkInPermission;
+      if (!perm || today < perm.validFrom || today > perm.validUntil) {
+        return res.status(403).json({ error: 'Check-in access not permitted. Contact admin to set a valid permission period.' });
+      }
+    }
     const propertyIdRaw = req.query.propertyId;
     const fromDateRaw = req.query.fromDate;
     const toDateRaw = req.query.toDate;
