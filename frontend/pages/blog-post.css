@@ -1,8 +1,8 @@
 .article-markdown {
   color: #1b1c1d;
   font-family: 'Inter', sans-serif;
-  font-size: 18px;
-  line-height: 1.8;
+  font-size: 15px;
+  line-height: 1.75;
 }
 
 .article-markdown h1,
@@ -15,47 +15,50 @@
   font-weight: 700;
   color: #1b1c1d;
   letter-spacing: -0.01em;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .article-markdown h1 {
-  font-size: 32px;
-  margin: 48px 0 24px;
+  font-size: 20px;
+  margin: 28px 0 14px;
 }
 
 .article-markdown h2 {
-  font-size: 28px;
-  margin: 48px 0 24px;
+  font-size: 18px;
+  margin: 24px 0 12px;
+  border-bottom: 2px solid #e4e2e3;
+  padding-bottom: 6px;
 }
 
 .article-markdown h3 {
-  font-size: 22px;
-  margin: 32px 0 16px;
+  font-size: 16px;
+  margin: 20px 0 10px;
 }
 
 .article-markdown p {
-  margin: 0 0 24px;
-  color: #44474c;
+  margin: 0 0 14px;
+  color: #2c2f33;
 }
 
 .article-markdown a {
-  color: #041627;
-  text-decoration: underline;
+  color: #0a5497;
+  text-decoration: none;
 }
 
 .article-markdown a:hover {
+  text-decoration: underline;
   color: #2563eb;
 }
 
 .article-markdown ul,
 .article-markdown ol {
-  margin: 0 0 24px;
-  padding-left: 24px;
+  margin: 0 0 14px;
+  padding-left: 20px;
 }
 
 .article-markdown li {
-  color: #44474c;
-  margin: 0 0 8px;
+  color: #2c2f33;
+  margin: 0 0 6px;
 }
 
 .article-markdown strong {
@@ -64,15 +67,44 @@
 }
 
 .article-markdown blockquote {
-  border-left: 4px solid #e4e2e3;
-  padding-left: 24px;
-  margin: 24px 0;
+  border-left: 3px solid #c4c6cd;
+  padding: 10px 16px;
+  margin: 16px 0;
   font-style: italic;
   color: #74777d;
+  background: #f9f8f8;
+  font-size: 14px;
 }
 
 .article-markdown img {
-  border-radius: 16px;
+  border-radius: 8px;
   border: 1px solid #e4e2e3;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* Desktop: slightly larger for comfortable reading */
+@media (min-width: 768px) {
+  .article-markdown {
+    font-size: 16px;
+    line-height: 1.8;
+  }
+
+  .article-markdown h1 {
+    font-size: 24px;
+    margin: 36px 0 16px;
+  }
+
+  .article-markdown h2 {
+    font-size: 20px;
+    margin: 32px 0 14px;
+  }
+
+  .article-markdown h3 {
+    font-size: 17px;
+    margin: 24px 0 12px;
+  }
+
+  .article-markdown p {
+    margin: 0 0 18px;
+  }
 }
