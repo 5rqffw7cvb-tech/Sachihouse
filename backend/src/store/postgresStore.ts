@@ -17,6 +17,20 @@ import { Role } from '../types/domain.js';
 export class PostgresStore implements DataStore {
   constructor(private readonly pool: Pool) {}
 
+  private hydrateCheckInSubmission(row: {
+    data: CheckInSubmission;
+    property_id: string;
+    check_in_date: string;
+    check_out_date: string;
+  }): CheckInSubmission {
+    return {
+      ...row.data,
+      propertyId: row.property_id,
+      checkInDate: row.check_in_date,
+      checkOutDate: row.check_out_date,
+    };
+  }
+
   async init(): Promise<void> {
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -93,6 +107,11 @@ export class PostgresStore implements DataStore {
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS checkin_permission_from DATE');
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS host_level INT');
     await this.pool.query("UPDATE users SET name = split_part(email, '@', 1) WHERE name IS NULL OR trim(name) = ''");
+    await this.pool.query(`
+      UPDATE checkin_submissions
+      SET data = jsonb_set(data, '{propertyId}', to_jsonb(property_id::text), true)
+      WHERE data->>'propertyId' IS DISTINCT FROM property_id
+    `);
 
     // Add translations column to properties table if it doesn't exist
     await this.pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS translations JSONB DEFAULT NULL');
@@ -408,7 +427,15 @@ export class PostgresStore implements DataStore {
 
       await client.query('UPDATE property_assignments SET property_id = $2 WHERE property_id = $1', [current.id, targetId]);
       await client.query('UPDATE blocked_dates SET property_id = $2 WHERE property_id = $1', [current.id, targetId]);
-      await client.query('UPDATE checkin_submissions SET property_id = $2 WHERE property_id = $1', [current.id, targetId]);
+      await client.query(
+        `
+          UPDATE checkin_submissions
+          SET property_id = $2,
+              data = jsonb_set(data, '{propertyId}', to_jsonb($2::text), true)
+          WHERE property_id = $1
+        `,
+        [current.id, targetId],
+      );
 
       await client.query('DELETE FROM properties WHERE id = $1', [current.id]);
 
@@ -603,18 +630,23 @@ export class PostgresStore implements DataStore {
     }
 
     const query = `
-      SELECT data
+      SELECT data, property_id, check_in_date::text, check_out_date::text
       FROM checkin_submissions
       ${clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''}
       ORDER BY created_at DESC
     `;
 
-    const result = await this.pool.query<{ data: CheckInSubmission }>(query, values);
+    const result = await this.pool.query<{
+      data: CheckInSubmission;
+      property_id: string;
+      check_in_date: string;
+      check_out_date: string;
+    }>(query, values);
     const guestNameNeedle = filters?.guestName?.trim().toLowerCase() ?? '';
     const nationalityNeedle = filters?.nationality?.trim().toLowerCase() ?? '';
 
     return result.rows
-      .map((row) => row.data)
+      .map((row) => this.hydrateCheckInSubmission(row))
       .filter((submission) => {
         if (guestNameNeedle && !submission.guests.some((guest) => guest.fullName.toLowerCase().includes(guestNameNeedle))) {
           return false;
@@ -627,8 +659,16 @@ export class PostgresStore implements DataStore {
   }
 
   async getCheckInSubmission(id: string): Promise<CheckInSubmission | null> {
-    const result = await this.pool.query<{ data: CheckInSubmission }>('SELECT data FROM checkin_submissions WHERE id = $1 LIMIT 1', [id]);
-    return result.rows[0]?.data ?? null;
+    const result = await this.pool.query<{
+      data: CheckInSubmission;
+      property_id: string;
+      check_in_date: string;
+      check_out_date: string;
+    }>(
+      'SELECT data, property_id, check_in_date::text, check_out_date::text FROM checkin_submissions WHERE id = $1 LIMIT 1',
+      [id],
+    );
+    return result.rows[0] ? this.hydrateCheckInSubmission(result.rows[0]) : null;
   }
 
   async updateCheckInSubmission(
