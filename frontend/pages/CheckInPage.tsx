@@ -24,6 +24,8 @@ const documentTypeLabels: Record<CheckInGuest['documentType'], string> = {
 };
 
 const createGuestId = (): string => `guest_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+const MAX_CHECKIN_UPLOAD_BYTES = 8 * 1024 * 1024;
+const MAX_CHECKIN_UPLOAD_DIMENSION = 2200;
 
 const createEmptyGuest = (id: string): CheckInGuest => ({
   id,
@@ -58,6 +60,74 @@ const isGuestEmpty = (guest: CheckInGuest): boolean => {
     && !guest.occupation.trim()
     && guest.documentType === 'unknown'
     && !guest.documentNumber.trim();
+};
+
+const estimateDataUrlBytes = (dataUrl: string): number => {
+  const base64 = dataUrl.split(',')[1] ?? '';
+  if (!base64) {
+    return 0;
+  }
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  return Math.floor((base64.length * 3) / 4) - padding;
+};
+
+const loadImageElement = (file: File): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
+  const url = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => {
+    URL.revokeObjectURL(url);
+    resolve(image);
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(url);
+    reject(new Error('Unable to decode image.'));
+  };
+  image.src = url;
+});
+
+const prepareCheckInImage = async (file: File): Promise<string> => {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Please select a valid image file.');
+  }
+
+  const toDataUrl = (): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Unable to read image.'));
+    reader.readAsDataURL(file);
+  });
+
+  const originalDataUrl = await toDataUrl();
+  if (estimateDataUrlBytes(originalDataUrl) <= MAX_CHECKIN_UPLOAD_BYTES && file.size <= MAX_CHECKIN_UPLOAD_BYTES) {
+    return originalDataUrl;
+  }
+
+  const image = await loadImageElement(file);
+  const baseScale = Math.min(1, MAX_CHECKIN_UPLOAD_DIMENSION / Math.max(image.width, image.height));
+  const qualityCandidates = [0.88, 0.8, 0.72, 0.64, 0.56, 0.48, 0.4];
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const scale = baseScale * Math.pow(0.85, attempt);
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Unable to process image. Please try another file.');
+    }
+    context.drawImage(image, 0, 0, width, height);
+
+    for (const quality of qualityCandidates) {
+      const compressed = canvas.toDataURL('image/jpeg', quality);
+      if (estimateDataUrlBytes(compressed) <= MAX_CHECKIN_UPLOAD_BYTES) {
+        return compressed;
+      }
+    }
+  }
+
+  throw new Error('Image is too large after compression. Please upload a clearer photo under 8MB.');
 };
 
 const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
@@ -247,13 +317,6 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     }
   };
 
-  const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Unable to read image.'));
-    reader.readAsDataURL(file);
-  });
-
   const openEditor = (guestId: string) => {
     if (editorGuestId === guestId) {
       closeEditor();
@@ -282,7 +345,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     setReviewedGuestIds((prev) => prev.filter((id) => id !== guestId));
 
     try {
-      const base64 = await fileToBase64(file);
+      const base64 = await prepareCheckInImage(file);
       setPhotoPreviewByGuest((prev) => ({ ...prev, [guestId]: base64 }));
 
       const extracted = await ocrGuestDocument(propertyId, {
@@ -296,7 +359,10 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       setEditorDraft({ ...extracted });
       setEditorError(null);
     } catch (error) {
-      const message = error instanceof ApiError
+      const backendMessage = error instanceof ApiError ? error.message : '';
+      const message = backendMessage.toLowerCase().includes('too large')
+        ? 'Photo is too large. Please upload a clearer image and avoid original full-resolution camera files.'
+        : error instanceof ApiError
         ? error.message
         : error instanceof Error
           ? error.message
