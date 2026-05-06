@@ -585,7 +585,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {visibleProperties.map((property, index) => {
-            const imageUrl = property.galleryImages?.find(img => img.showOnHome)?.url || "https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?auto=format&fit=crop&q=72&w=800";
+            const imageUrl = property.galleryImages
+              ?.find((img) => img && img.showOnHome)
+              ?.url || "https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?auto=format&fit=crop&q=72&w=800";
             const imageSrc = buildOptimizedImageUrl(imageUrl, index === 0 ? 640 : 480);
             const imageSrcSet = `${buildOptimizedImageUrl(imageUrl, 320)} 320w, ${buildOptimizedImageUrl(imageUrl, 480)} 480w, ${buildOptimizedImageUrl(imageUrl, 640)} 640w`;
             const assignedHosts = hosts.filter((host) => host.assignedPropertyIds?.includes(property.id));
