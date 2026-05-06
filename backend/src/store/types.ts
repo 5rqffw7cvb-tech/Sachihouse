@@ -212,6 +212,9 @@ export interface PropertyData {
     menuRules: string;
     menuManual: string;
   };
+  translations?: {
+    [language: string]: Partial<PropertyData>;
+  };
 }
 
 export interface DataStore {

@@ -21,6 +21,7 @@ import { Role } from './types/domain.js';
 import { IcalSyncService } from './services/icalSync.js';
 import { IdProcessingService } from './services/idProcessing.js';
 import { ObjectStorageService } from './services/objectStorage.js';
+import { TranslationService } from './services/translationService.js';
 
 const ALLOWED_ROLES: Role[] = ['ADMIN', 'HOST', 'GUEST'];
 
@@ -95,6 +96,7 @@ export function createApp(store: DataStore) {
   });
   const idProcessing = new IdProcessingService();
   const objectStorage = new ObjectStorageService();
+  const translationService = new TranslationService();
   const ocrRateMap = new Map<string, { count: number; resetAt: number }>();
   const retentionDaysRaw = Number(process.env.CHECKIN_RETENTION_DAYS ?? 7);
   const checkInRetentionDays = Number.isFinite(retentionDaysRaw) && retentionDaysRaw > 0 ? Math.trunc(retentionDaysRaw) : 7;
@@ -776,6 +778,30 @@ export function createApp(store: DataStore) {
       reviewStatus: reviewStatusRaw,
     }, req.authUser!);
     res.json({ property });
+  });
+
+  app.post('/api/properties/:id/translate-content', requireAuth, async (req, res) => {
+    const propertyId = getParam(req.params.id);
+    const current = await store.getProperty(propertyId);
+    if (!current) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (!canPerformAction(req.authUser!, 'property.write', current.id)) {
+      return res.status(403).json({ error: 'Property write not allowed.' });
+    }
+
+    const { fieldName, fieldValue, targetLanguages } = req.body ?? {};
+    if (typeof fieldName !== 'string' || !fieldName.trim()) {
+      return res.status(400).json({ error: 'fieldName is required.' });
+    }
+    if (typeof fieldValue !== 'string' || !fieldValue.trim()) {
+      return res.status(400).json({ error: 'fieldValue is required.' });
+    }
+
+    const langs = Array.isArray(targetLanguages) ? targetLanguages.filter((l) => typeof l === 'string') : ['vi', 'ja', 'zh', 'ko'];
+    const translations = await translationService.translateText(fieldValue, langs);
+
+    res.json({ translations });
   });
 
   app.get('/api/site-settings', async (_req, res) => {

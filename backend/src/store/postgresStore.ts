@@ -94,6 +94,9 @@ export class PostgresStore implements DataStore {
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS host_level INT');
     await this.pool.query("UPDATE users SET name = split_part(email, '@', 1) WHERE name IS NULL OR trim(name) = ''");
 
+    // Add translations column to properties table if it doesn't exist
+    await this.pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS translations JSONB DEFAULT NULL');
+
     const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
     if (existing.rows[0]?.count !== '0') {
       return;
