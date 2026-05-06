@@ -101,18 +101,16 @@ function deepMergeRecord(base: unknown, patch: unknown): unknown {
   }
   if (Array.isArray(patch)) {
     if (!Array.isArray(base)) {
-      return structuredClone(patch);
+      return structuredClone(patch).filter((item: unknown) => item !== undefined);
     }
-    const maxLength = Math.max(base.length, patch.length);
-    const mergedArray = new Array(maxLength);
-    for (let i = 0; i < maxLength; i += 1) {
+    // Keep base array shape; ignore out-of-range translated indices from stale snapshots.
+    const mergedArray = new Array(base.length);
+    for (let i = 0; i < base.length; i += 1) {
       const baseItem = base[i];
       const patchItem = patch[i];
-      if (patchItem === undefined) {
-        mergedArray[i] = structuredClone(baseItem);
-      } else {
-        mergedArray[i] = deepMergeRecord(baseItem, patchItem);
-      }
+      mergedArray[i] = patchItem === undefined
+        ? structuredClone(baseItem)
+        : deepMergeRecord(baseItem, patchItem);
     }
     return mergedArray;
   }

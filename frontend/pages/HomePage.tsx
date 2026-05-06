@@ -270,16 +270,20 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
   const [galleryTitle, setGalleryTitle] = useState<string | undefined>(undefined);
 
   // --- LOGIC TO SELECT MAIN HERO IMAGES ---
+  const safeGalleryImages = (Array.isArray(data.galleryImages) ? data.galleryImages : [])
+    .filter((img): img is NonNullable<typeof data.galleryImages[number]> => !!img && typeof img === 'object')
+    .filter((img) => typeof img.url === 'string' && !!img.url);
+
   // 1. Filter for images marked with 'showOnHome'
-  const featuredImages = data.galleryImages.filter(img => img.showOnHome);
+  const featuredImages = safeGalleryImages.filter((img) => !!img.showOnHome);
   // 2. Filter for others (to fallback)
-  const otherImages = data.galleryImages.filter(img => !img.showOnHome);
+  const otherImages = safeGalleryImages.filter((img) => !img.showOnHome);
   // 3. Combine them, prioritizing featured ones
   const pool = [...featuredImages, ...otherImages];
-  
+
   // 4. Take top 5, or fallback to placeholder if completely empty
   const mainImages = (pool.length > 0)
-    ? pool.slice(0, 5).map(img => img.url)
+    ? pool.slice(0, 5).map((img) => img.url)
     : Array(5).fill("https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?auto=format&fit=crop&q=80&w=800");
 
   const { id } = useParams<{ id: string }>();
