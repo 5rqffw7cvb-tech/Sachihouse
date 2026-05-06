@@ -27,6 +27,10 @@ services:
       DATABASE_URL: postgresql://sachihouse:sachihouse@db:5432/sachihouse
       GOOGLE_APPLICATION_CREDENTIALS: /run/credentials/gcp-service-account.json
       GCP_SERVICE_ACCOUNT_FILE: gcp-service-account.json
+      # Check-in retention policy: 3 years (1095 days), cleaned up every Sunday at 00:00 JST
+      CHECKIN_RETENTION_DAYS: 1095
+      CHECKIN_RETENTION_CRON_SCHEDULE: 0 0 * * 0
+      CHECKIN_RETENTION_TIMEZONE: Asia/Tokyo
       # Secrets — injected from host env or root .env file (gitignored)
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}

@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import cron from 'node-cron';
 import { createApp } from './app.js';
 import { loadEnvironment } from './env.js';
 import { ObjectStorageService } from './services/objectStorage.js';
@@ -10,11 +11,6 @@ loadEnvironment();
 
 const PORT = Number(process.env.PORT ?? 3001);
 const STORE_MODE = process.env.STORE_MODE ?? 'postgres';
-
-function getCleanupIntervalMs(): number {
-  const raw = Number(process.env.CHECKIN_RETENTION_CLEANUP_INTERVAL_MS ?? 60 * 60 * 1000);
-  return Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : 60 * 60 * 1000;
-}
 
 async function purgeExpiredCheckIns(params: {
   store: MemoryStore | PostgresStore;
@@ -58,11 +54,12 @@ async function main() {
     }
   };
 
-  await runCleanup();
-  const cleanupTimer = setInterval(() => {
-    void runCleanup();
-  }, getCleanupIntervalMs());
-  cleanupTimer.unref();
+  // Schedule check-in retention cleanup using cron
+  const cronSchedule = process.env.CHECKIN_RETENTION_CRON_SCHEDULE || '0 0 * * 0';
+  const timezone = process.env.CHECKIN_RETENTION_TIMEZONE || 'Asia/Tokyo';
+  
+  cron.schedule(cronSchedule, runCleanup, { timezone });
+  console.log(`Check-in retention cleanup scheduled: "${cronSchedule}" (${timezone})`);
 
   const app = createApp(store);
   app.listen(PORT, () => {
