@@ -938,6 +938,9 @@ export function createApp(store: DataStore) {
     if (!canPerformAction(req.authUser!, 'property.write', current.id)) {
       return res.status(403).json({ error: 'Property write not allowed.' });
     }
+    if (req.authUser?.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Only admins can auto-translate property content.' });
+    }
 
     const { fieldName, fieldValue, targetLanguages, persist = true } = req.body ?? {};
     const langs = Array.isArray(targetLanguages)

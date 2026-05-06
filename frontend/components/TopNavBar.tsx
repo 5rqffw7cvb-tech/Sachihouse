@@ -31,7 +31,7 @@ const getInitialNavTitle = (): string => {
   return NAV_TITLE_FALLBACK;
 };
 
-export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ actionButton }) => {
+export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionButton?: React.ReactNode }> = ({ actionButton, mobileActionButton }) => {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const [authUser, setAuthUser] = useState(getCurrentUser());
@@ -219,8 +219,9 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode }> = ({ action
             className={`md:hidden fixed top-0 left-0 w-full bg-[#ffffff]/95 backdrop-blur-sm font-['Plus_Jakarta_Sans'] antialiased border-b border-[#e4e2e3] shadow-[0_2px_12px_rgba(0,0,0,0.04)] z-50 transition-transform duration-300 ${isMobileHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}
             style={{ paddingTop: 'env(safe-area-inset-top)' }}
           >
-            <div className="px-3 py-3 text-left">
-              <span className="text-[18px] font-bold tracking-tight text-[#1b1c1d]">{mobilePageTitle}</span>
+            <div className="px-3 py-3 flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate text-[18px] font-bold tracking-tight text-[#1b1c1d]">{mobilePageTitle}</span>
+              {mobileActionButton ? <div className="shrink-0">{mobileActionButton}</div> : null}
             </div>
           </nav>
           <div className="md:hidden" style={{ height: `calc(env(safe-area-inset-top) + ${MOBILE_HEADER_HEIGHT}px)` }} />

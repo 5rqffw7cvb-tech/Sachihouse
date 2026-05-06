@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PropertyData, PricingConfig, ICalFeed, HouseRule, ManualItem, SleepingArrangement, HighlightItem, AccessInfo, PricingTier, CleaningTier, SocialInfo, PropertyTitles, GalleryItem, GalleryCategoryDef } from '../types';
 import { savePropertyData, translateAndSavePropertyContent } from '../services/storage';
-import { checkAuth, logout } from '../services/auth';
+import { checkAuth, getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { 
   Save, Plus, Trash2, Lock, LayoutDashboard, DollarSign, Calendar, 
   FileText, BookOpen, List, Map, CigaretteOff, PartyPopper, Moon, 
@@ -274,6 +274,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
   // Initialize auth state from localStorage
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
+    const [currentUser, setCurrentUser] = useState(getCurrentUser());
   const [errorMsg, setErrorMsg] = useState('');
   
   const [formData, setFormData] = useState<PropertyData>(data);
@@ -286,6 +287,18 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   // Category Management State
   const [isManagingCategories, setIsManagingCategories] = useState(false);
   const [newCategoryLabel, setNewCategoryLabel] = useState('');
+    const canAutoTranslate = currentUser?.role === 'ADMIN';
+
+        useEffect(() => {
+                let unsubscribe = () => {};
+                subscribeToAuth((user) => {
+                        setCurrentUser(user);
+                        setIsAuthenticated(!!user);
+                }).then((fn) => {
+                        unsubscribe = fn;
+                });
+                return () => unsubscribe();
+        }, []);
 
     useEffect(() => {
                 const inferredLocation = data.location ?? inferLocationFromAddress(data.address || '');
@@ -800,14 +813,16 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             <LogOut className="w-4 h-4" />
             Logout
             </button>
-            <button
-            onClick={handleAutoTranslate}
-            disabled={isTranslating || saveStatus === 'saving'}
-            className="flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex disabled:opacity-60"
-            >
-            {isTranslating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
-            {isTranslating ? 'Translating...' : 'Auto Translate'}
-            </button>
+                        {canAutoTranslate && (
+                            <button
+                            onClick={handleAutoTranslate}
+                            disabled={isTranslating || saveStatus === 'saving'}
+                            className="flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex disabled:opacity-60"
+                            >
+                            {isTranslating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+                            {isTranslating ? 'Translating...' : 'Auto Translate'}
+                            </button>
+                        )}
             <button 
             onClick={handleSave}
             disabled={saveStatus !== 'idle' || isTranslating}

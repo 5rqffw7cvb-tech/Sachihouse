@@ -69,6 +69,9 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
           <ChevronLeft className="w-6 h-6" />
         </Link>
       </div>
+      <div className="md:hidden fixed top-4 right-4 z-50">
+        <LanguageSwitcher compact />
+      </div>
 
       {/* Desktop Navbar (Hidden on mobile) */}
       <header className="hidden md:block fixed top-0 w-full bg-white/90 backdrop-blur-md z-50 border-b border-gray-100 shadow-sm transition-all duration-300">
@@ -198,11 +201,6 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
       {/* MOBILE BOTTOM NAVIGATION BAR */}
       <div className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 z-50 pb-safe safe-area-bottom">
         <div className="flex justify-around items-center h-16 relative">
-            
-           <div className="absolute -top-12 right-4 z-50">
-             <LanguageSwitcher compact />
-           </div>
-
           {navItems.map((item) => {
             // Customize label and icon for mobile Pricing item
             const isPricing = item.path === '/pricing';
