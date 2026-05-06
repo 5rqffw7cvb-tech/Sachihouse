@@ -201,6 +201,42 @@ async function testConnection() {
     return;
 }
 
+// ---------------------------------------------------------------------------
+// Client-side localization helpers (mirrors backend deepMergeRecord logic)
+// ---------------------------------------------------------------------------
+function clientDeepMerge(base: unknown, patch: unknown): unknown {
+    if (!patch || typeof patch !== 'object') return patch;
+    if (Array.isArray(patch)) {
+        if (!Array.isArray(base)) return (patch as unknown[]).slice();
+        const merged = new Array(base.length);
+        for (let i = 0; i < base.length; i++) {
+            const p = (patch as unknown[])[i];
+            merged[i] = (p === undefined || p === null) ? base[i] : clientDeepMerge(base[i], p);
+        }
+        return merged;
+    }
+    if (!base || typeof base !== 'object' || Array.isArray(base)) {
+        return { ...(patch as Record<string, unknown>) };
+    }
+    const merged = { ...(base as Record<string, unknown>) };
+    for (const [k, v] of Object.entries(patch as Record<string, unknown>)) {
+        merged[k] = (v && typeof v === 'object') ? clientDeepMerge(merged[k], v) : v;
+    }
+    return merged;
+}
+
+function applyClientLocalization<T extends PropertyData>(property: T, lang: string): T {
+    if (lang === 'en' || !property.translations || typeof property.translations !== 'object') {
+        return property;
+    }
+    const patch = property.translations[lang];
+    if (!patch || typeof patch !== 'object') return property;
+    const merged = clientDeepMerge(property, patch) as T;
+    // Preserve identity fields and translation map
+    return { ...merged, id: (property as T & { id?: string }).id, translations: property.translations };
+}
+
+
 const createDraftPropertyData = (propertyId: string): PropertyData => {
     const readableName = propertyId
         .replace(/^list_/, '')
@@ -296,7 +332,7 @@ const PropertyRoutes = () => {
         setData(null);
 
         import('./services/storage').then(({ getPropertyData, refreshBlockedDates }) => {
-            getPropertyData(propertyId, language).then(cloudData => {
+            getPropertyData(propertyId).then(cloudData => {
                 if (cancelled) return;
                 setData(cloudData);
                 setIsSyncing(false);
@@ -328,7 +364,7 @@ const PropertyRoutes = () => {
         return () => {
             cancelled = true;
         };
-    }, [propertyId, pathname, language]);
+    }, [propertyId, pathname]);
 
     useEffect(() => {
         const handler = () => setIcalUpdate(n => n + 1);
@@ -376,22 +412,25 @@ const PropertyRoutes = () => {
 
     if (!data) return <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center text-red-500">Failed to load property data for {propertyId}</div>;
 
+    // Apply translation client-side — no re-fetch needed on language change
+    const localizedData = applyClientLocalization(data, language);
+
     return (
         <>
             <ThemeInjector theme={data.themeColor} />
-            <SEOHead data={data} />
+            <SEOHead data={localizedData} />
             <Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}>
                 <Routes>
-                    <Route element={<Layout data={data} />}>
-                        <Route index element={<HomePage data={data} />} />
-                        <Route path="access" element={<AccessPage data={data} />} />
-                        <Route path="pricing" element={<PricingPage data={data} />} />
-                        <Route path="rules" element={<RulesPage data={data} />} />
-                        <Route path="manual" element={<ManualPage data={data} />} />
+                    <Route element={<Layout data={localizedData} />}>
+                        <Route index element={<HomePage data={localizedData} />} />
+                        <Route path="access" element={<AccessPage data={localizedData} />} />
+                        <Route path="pricing" element={<PricingPage data={localizedData} />} />
+                        <Route path="rules" element={<RulesPage data={localizedData} />} />
+                        <Route path="manual" element={<ManualPage data={localizedData} />} />
                         <Route path="admin" element={<AdminPage data={data} onUpdate={handleDataUpdate} />} />
                     </Route>
-                    <Route path="photos" element={<PhotoTourPage data={data} />} />
-                    <Route path="checkin" element={<CheckInPage data={data} propertyId={propertyId} />} />
+                    <Route path="photos" element={<PhotoTourPage data={localizedData} />} />
+                    <Route path="checkin" element={<CheckInPage data={localizedData} propertyId={propertyId} />} />
                 </Routes>
             </Suspense>
         </>
@@ -487,7 +526,7 @@ const ListingsRoute = () => {
         setLoadError(null);
         setIsLoading(!properties || !settings);
 
-        Promise.all([getAllProperties(undefined, language), getSiteSettings()]).then(([data, settingsData]) => {
+        Promise.all([getAllProperties(), getSiteSettings()]).then(([data, settingsData]) => {
             if (cancelled) return;
             setProperties(data);
             setSettings(settingsData);
@@ -507,7 +546,7 @@ const ListingsRoute = () => {
             cancelled = true;
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [language]);
+    }, []);
 
     const handleUpdateSettings = (newSettings: SiteSettings) => {
         setSettings(newSettings);
@@ -532,7 +571,11 @@ const ListingsRoute = () => {
                     {loadError}
                 </div>
             )}
-            <ListingsPage properties={properties} settings={settings} onUpdateSettings={handleUpdateSettings} />
+            <ListingsPage
+                properties={properties.map(p => applyClientLocalization(p, language))}
+                settings={settings}
+                onUpdateSettings={handleUpdateSettings}
+            />
         </>
     );
 }

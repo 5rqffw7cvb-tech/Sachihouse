@@ -12,7 +12,7 @@ const PhotoTourPage: React.FC<PhotoTourPageProps> = ({ data }) => {
 
   // Helper to get images for a specific category ID
   const getImagesByCategory = (catId: string) => {
-      return data.galleryImages.filter(img => img.category === catId);
+      return (data.galleryImages ?? []).filter(img => img && img.category === catId);
   };
 
   // Helper to render a generic section

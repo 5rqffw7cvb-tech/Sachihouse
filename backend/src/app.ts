@@ -104,11 +104,13 @@ function deepMergeRecord(base: unknown, patch: unknown): unknown {
       return structuredClone(patch).filter((item: unknown) => item !== undefined);
     }
     // Keep base array shape; ignore out-of-range translated indices from stale snapshots.
+    // Treat null patch items the same as undefined — null can appear when JSON-serialising
+    // sparse arrays (e.g. gallery images that only have captions at certain indices).
     const mergedArray = new Array(base.length);
     for (let i = 0; i < base.length; i += 1) {
       const baseItem = base[i];
       const patchItem = patch[i];
-      mergedArray[i] = patchItem === undefined
+      mergedArray[i] = (patchItem === undefined || patchItem === null)
         ? structuredClone(baseItem)
         : deepMergeRecord(baseItem, patchItem);
     }
