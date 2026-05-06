@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PropertyData, PricingConfig, ICalFeed, HouseRule, ManualItem, SleepingArrangement, HighlightItem, AccessInfo, PricingTier, CleaningTier, SocialInfo, PropertyTitles, GalleryItem, GalleryCategoryDef } from '../types';
-import { savePropertyData } from '../services/storage';
+import { savePropertyData, translateAndSavePropertyContent } from '../services/storage';
 import { checkAuth, logout } from '../services/auth';
 import { 
   Save, Plus, Trash2, Lock, LayoutDashboard, DollarSign, Calendar, 
@@ -280,6 +280,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'pricing' | 'ical' | 'amenities' | 'rules' | 'manual' | 'gallery' | 'rooms' | 'highlights' | 'access' | 'labels'>('general');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
+    const [isTranslating, setIsTranslating] = useState(false);
   const [customAmenity, setCustomAmenity] = useState('');
 
   // Category Management State
@@ -350,6 +351,26 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
         setSaveMessage('');
     }, 4000);
   };
+
+    const handleAutoTranslate = async () => {
+        setSaveMessage('');
+        setIsTranslating(true);
+        try {
+            const translated = await translateAndSavePropertyContent(propertyId);
+            setFormData(translated);
+            onUpdate(translated);
+            setSaveStatus('saved');
+            setSaveMessage('Auto-translated and saved for vi, ja, zh, ko.');
+        } catch (error) {
+            setSaveStatus('error');
+            setSaveMessage(error instanceof Error ? error.message : 'Auto-translation failed.');
+        } finally {
+            setIsTranslating(false);
+            setTimeout(() => {
+                setSaveStatus('idle');
+            }, 4000);
+        }
+    };
 
   const handleChange = (field: keyof PropertyData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -779,9 +800,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             <LogOut className="w-4 h-4" />
             Logout
             </button>
+            <button
+            onClick={handleAutoTranslate}
+            disabled={isTranslating || saveStatus === 'saving'}
+            className="flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex disabled:opacity-60"
+            >
+            {isTranslating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+            {isTranslating ? 'Translating...' : 'Auto Translate'}
+            </button>
             <button 
             onClick={handleSave}
-            disabled={saveStatus !== 'idle'}
+            disabled={saveStatus !== 'idle' || isTranslating}
             className={`
                 flex-1 md:flex-none items-center justify-center gap-2 px-6 py-2.5 rounded-lg font-bold text-white transition-all flex
                 ${saveStatus === 'saved' ? 'bg-green-500' : saveStatus === 'error' ? 'bg-red-500' : 'bg-gray-900 hover:bg-gray-800'}

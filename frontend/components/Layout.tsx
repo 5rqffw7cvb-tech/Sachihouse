@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation, useParams, Outlet } from 'react-router-dom';
-import { Home, MapPin, DollarSign, BookOpen, Settings, ShieldCheck, Calculator, ThumbsUp, ExternalLink, Globe, List, ChevronLeft } from 'lucide-react';
+import { Home, MapPin, DollarSign, BookOpen, Settings, ShieldCheck, Calculator, ThumbsUp, ExternalLink, List, ChevronLeft } from 'lucide-react';
 import { PropertyData } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Language } from '../utils/translations';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 interface LayoutProps {
   data: PropertyData;
@@ -42,7 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
   const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const baseUrl = `/${id || 'main'}`;
-  const { language, setLanguage, t } = useLanguage();
+  const { language, t } = useLanguage();
   const [authUser, setAuthUser] = useState(getCurrentUser());
 
   useEffect(() => {
@@ -52,28 +52,6 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
   }, []);
 
   const canAccessAdmin = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
-
-  const toggleLanguage = () => {
-    const langs: Language[] = ['en', 'vi', 'ja', 'zh'];
-    const currentIndex = langs.indexOf(language);
-    const nextIndex = (currentIndex + 1) % langs.length;
-    setLanguage(langs[nextIndex]);
-  };
-
-  // Label maps for display
-  const LANG_LABELS: Record<Language, string> = {
-    en: 'English',
-    vi: 'Tiếng Việt',
-    ja: '日本語',
-    zh: '中文'
-  };
-
-  const LANG_SHORT_LABELS: Record<Language, string> = {
-    en: 'EN',
-    vi: 'VN',
-    ja: 'JP',
-    zh: 'CN'
-  };
 
   const navItems = [
     { path: baseUrl, label: data.titles.menuHome && language === 'en' ? data.titles.menuHome : t('nav_home'), icon: Home, end: true },
@@ -135,14 +113,7 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
 
             {/* Right Action */}
             <div className="flex items-center gap-3">
-               <button 
-                  onClick={toggleLanguage}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors min-w-[100px] justify-center"
-                  title="Switch Language"
-               >
-                  <Globe className="w-4 h-4" />
-                  <span>{LANG_LABELS[language]}</span>
-               </button>
+              <LanguageSwitcher />
                <div className="h-6 w-px bg-gray-200 mx-1"></div>
                {canAccessAdmin && (
                  <Link to={`${baseUrl}/admin`} className="flex items-center text-gray-400 hover:text-gray-600 transition-colors" title={t('nav_host')}>
@@ -228,14 +199,9 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
       <div className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 z-50 pb-safe safe-area-bottom">
         <div className="flex justify-around items-center h-16 relative">
             
-           {/* Language Switcher Mobile - Floating Absolute or just item */}
-           <button 
-                onClick={toggleLanguage}
-                className="absolute -top-12 right-4 bg-white/90 backdrop-blur border border-gray-200 shadow-sm rounded-full px-3 py-1.5 text-xs font-bold text-gray-700 flex items-center gap-1.5 z-50 min-w-[60px] justify-center"
-            >
-                <Globe className="w-3.5 h-3.5" />
-                {LANG_SHORT_LABELS[language]}
-           </button>
+           <div className="absolute -top-12 right-4 z-50">
+             <LanguageSwitcher compact />
+           </div>
 
           {navItems.map((item) => {
             // Customize label and icon for mobile Pricing item

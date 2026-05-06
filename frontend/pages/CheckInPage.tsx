@@ -1,5 +1,5 @@
 import React, { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronUp, EyeOff, FileBadge2, Globe, Lock, Loader2, Menu, PencilLine, Plus, ShieldCheck, Upload, X } from 'lucide-react';
+import { Check, ChevronUp, EyeOff, FileBadge2, Lock, Loader2, Menu, PencilLine, Plus, ShieldCheck, Upload, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PropertyData, CheckInGuest } from '../types';
 import { CheckInConsentPolicy, ocrGuestDocument, startCheckInSession, submitCheckIn } from '../services/checkin';
@@ -8,6 +8,7 @@ import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { HoldToSubmitButton } from '../components/HoldToSubmitButton';
 import { TopNavBar } from '../components/TopNavBar';
 import { useLanguage } from '../contexts/LanguageContext';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 
 interface CheckInPageProps {
   data: PropertyData;
@@ -60,7 +61,7 @@ const isGuestEmpty = (guest: CheckInGuest): boolean => {
 };
 
 const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
-  const { t, language, setLanguage } = useLanguage();
+  const { t } = useLanguage();
   const [checkInDate, setCheckInDate] = useState<string>(toDateInput(0));
   const [checkOutDate, setCheckOutDate] = useState<string>(toDateInput(1));
   const [guests, setGuests] = useState<CheckInGuest[]>([createEmptyGuest('guest_1')]);
@@ -80,8 +81,6 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [langOpen, setLangOpen] = useState(false);
-  const langRef = useRef<HTMLDivElement>(null);
   const [authUser, setAuthUser] = useState<ApiUser | null>(() => getCurrentUser());
 
   useEffect(() => {
@@ -131,17 +130,6 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
-
-  useEffect(() => {
-    if (!langOpen) return;
-    const handler = (event: MouseEvent) => {
-      if (langRef.current && !langRef.current.contains(event.target as Node)) {
-        setLangOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [langOpen]);
 
   const guestIndexById = useMemo(() => Object.fromEntries(guests.map((guest, index) => [guest.id, index])), [guests]);
   const guestsForSubmission = useMemo(() => guests.filter((guest) => !isGuestEmpty(guest)), [guests]);
@@ -382,43 +370,11 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         <div className="flex items-center justify-between px-4 py-3">
           <span className="text-base font-bold text-gray-900">{data.name}</span>
           <div className="flex items-center gap-1">
-            {/* Globe / language picker */}
-            <div className="relative" ref={langRef}>
-              <button
-                type="button"
-                onClick={() => { setLangOpen((v) => !v); setMenuOpen(false); }}
-                className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 active:bg-gray-200"
-                aria-label="Language"
-              >
-                <Globe className="h-5 w-5" />
-              </button>
-              {langOpen && (
-                <div className="absolute right-0 top-full mt-1 w-40 rounded-2xl border border-gray-100 bg-white py-1 shadow-lg">
-                  {([
-                    { code: 'en', flag: '🇺🇸', label: 'English' },
-                    { code: 'ja', flag: '🇯🇵', label: '日本語' },
-                    { code: 'zh', flag: '🇨🇳', label: '中文' },
-                    { code: 'ko', flag: '🇰🇷', label: '한국어' },
-                    { code: 'vi', flag: '🇻🇳', label: 'Tiếng Việt' },
-                  ] as const).map(({ code, flag, label }) => (
-                    <button
-                      key={code}
-                      type="button"
-                      onClick={() => { setLanguage(code); setLangOpen(false); }}
-                      className={`flex w-full items-center gap-2.5 px-4 py-2 text-sm ${
-                        language === code ? 'font-semibold text-gray-900 bg-gray-50' : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="text-base">{flag}</span> {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <LanguageSwitcher compact />
             {/* Hamburger */}
             <button
               type="button"
-              onClick={() => { setMenuOpen((v) => !v); setLangOpen(false); }}
+              onClick={() => { setMenuOpen((v) => !v); }}
               className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 active:bg-gray-200"
               aria-label="Menu"
               aria-expanded={menuOpen}

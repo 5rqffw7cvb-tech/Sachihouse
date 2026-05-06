@@ -87,6 +87,153 @@ function getClientIp(req: Request): string {
   return (req.ip || req.socket.remoteAddress || 'unknown').slice(0, 100);
 }
 
+function toLanguageCode(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized ? normalized : null;
+}
+
+function deepMergeRecord(base: unknown, patch: unknown): unknown {
+  if (!patch || typeof patch !== 'object') {
+    return patch;
+  }
+  if (Array.isArray(patch)) {
+    if (!Array.isArray(base)) {
+      return structuredClone(patch);
+    }
+    const maxLength = Math.max(base.length, patch.length);
+    const mergedArray = new Array(maxLength);
+    for (let i = 0; i < maxLength; i += 1) {
+      const baseItem = base[i];
+      const patchItem = patch[i];
+      if (patchItem === undefined) {
+        mergedArray[i] = structuredClone(baseItem);
+      } else {
+        mergedArray[i] = deepMergeRecord(baseItem, patchItem);
+      }
+    }
+    return mergedArray;
+  }
+  if (!base || typeof base !== 'object' || Array.isArray(base)) {
+    return structuredClone(patch);
+  }
+
+  const merged = { ...(base as Record<string, unknown>) };
+  for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+    const current = merged[key];
+    if (value && typeof value === 'object') {
+      merged[key] = deepMergeRecord(current, value);
+      continue;
+    }
+    merged[key] = value;
+  }
+  return merged;
+}
+
+function applyPropertyLocalization(property: PropertyData & { id: string }, lang: string | null): PropertyData & { id: string } {
+  if (!lang || !property.translations || typeof property.translations !== 'object') {
+    return property;
+  }
+
+  const localizedPatch = property.translations[lang];
+  if (!localizedPatch || typeof localizedPatch !== 'object') {
+    return property;
+  }
+
+  const merged = deepMergeRecord(property, localizedPatch) as PropertyData & { id: string };
+  return {
+    ...merged,
+    id: property.id,
+    translations: property.translations,
+  };
+}
+
+function setPathValue(target: Record<string, unknown>, path: string, value: string): void {
+  const segments = path.split('.');
+  if (segments.length === 0) {
+    return;
+  }
+
+  let cursor: Record<string, unknown> = target;
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    const segment = segments[i];
+    const nextSegment = segments[i + 1];
+    const nextIsIndex = /^\d+$/.test(nextSegment);
+    const existing = cursor[segment];
+
+    if (existing && typeof existing === 'object') {
+      cursor = existing as Record<string, unknown>;
+      continue;
+    }
+
+    cursor[segment] = nextIsIndex ? [] : {};
+    cursor = cursor[segment] as Record<string, unknown>;
+  }
+
+  const last = segments[segments.length - 1];
+  cursor[last] = value;
+}
+
+function buildTranslatableFields(property: PropertyData): Array<{ path: string; value: string }> {
+  const fields: Array<{ path: string; value: string }> = [];
+  const push = (path: string, value: unknown) => {
+    if (typeof value === 'string' && value.trim()) {
+      fields.push({ path, value: value.trim() });
+    }
+  };
+
+  push('name', property.name);
+  push('subtitle', property.subtitle);
+  push('description', property.description);
+  push('address', property.address);
+  push('hostName', property.hostName);
+  push('additionalRules', property.additionalRules);
+  push('accessInfo.train', property.accessInfo?.train);
+  push('accessInfo.airport', property.accessInfo?.airport);
+  push('accessInfo.checkIn', property.accessInfo?.checkIn);
+
+  if (property.titles) {
+    for (const [key, value] of Object.entries(property.titles)) {
+      push(`titles.${key}`, value);
+    }
+  }
+
+  property.highlights?.forEach((item, index) => {
+    push(`highlights.${index}.title`, item.title);
+    push(`highlights.${index}.description`, item.description);
+  });
+
+  property.rules?.forEach((rule, index) => {
+    push(`rules.${index}.text`, rule.text);
+  });
+
+  property.manual?.forEach((item, index) => {
+    push(`manual.${index}.title`, item.title);
+    push(`manual.${index}.content`, item.content);
+  });
+
+  property.amenities?.forEach((item, index) => {
+    push(`amenities.${index}`, item);
+  });
+
+  property.galleryCategories?.forEach((item, index) => {
+    push(`galleryCategories.${index}.label`, item.label);
+  });
+
+  property.galleryImages?.forEach((item, index) => {
+    push(`galleryImages.${index}.caption`, item.caption);
+  });
+
+  property.sleepingArrangements?.forEach((item, index) => {
+    push(`sleepingArrangements.${index}.title`, item.title);
+    push(`sleepingArrangements.${index}.description`, item.description);
+  });
+
+  return fields;
+}
+
 export function createApp(store: DataStore) {
   const app = express();
   const icalSync = new IcalSyncService({
@@ -623,6 +770,7 @@ export function createApp(store: DataStore) {
     const countryCode = toNormalizedCode(countryCodeRaw);
     const provinceCode = toNormalizedCode(provinceCodeRaw);
     const includeArchived = req.query.includeArchived === 'true' && !!req.authUser;
+    const lang = toLanguageCode(req.query.lang);
 
     if (typeof minBedroomsRaw === 'string' && minBedrooms === null) {
       return res.status(400).json({ error: 'minBedrooms must be a positive integer.' });
@@ -659,17 +807,18 @@ export function createApp(store: DataStore) {
       return true;
     });
 
-    res.json({ properties: filtered });
+    res.json({ properties: filtered.map((property) => applyPropertyLocalization(property, lang)) });
   });
 
   app.get('/api/properties/:id', async (req, res) => {
+    const lang = toLanguageCode(req.query.lang);
     const property = await store.getProperty(req.params.id);
     const canReadArchived = property && property.archivedAt && req.authUser && canPerformAction(req.authUser, 'property.read', property.id);
     const canReadPending = property && property.reviewStatus === 'pending_review' && canViewPendingProperty(req.authUser, property.id);
     if (!property || (property.archivedAt && !canReadArchived) || (property.reviewStatus === 'pending_review' && !canReadPending)) {
       return res.status(404).json({ error: 'Property not found.' });
     }
-    res.json({ property });
+    res.json({ property: applyPropertyLocalization(property, lang) });
   });
 
   app.get('/api/properties/:id/blocked-dates', async (req, res) => {
@@ -790,18 +939,64 @@ export function createApp(store: DataStore) {
       return res.status(403).json({ error: 'Property write not allowed.' });
     }
 
-    const { fieldName, fieldValue, targetLanguages } = req.body ?? {};
-    if (typeof fieldName !== 'string' || !fieldName.trim()) {
-      return res.status(400).json({ error: 'fieldName is required.' });
-    }
-    if (typeof fieldValue !== 'string' || !fieldValue.trim()) {
-      return res.status(400).json({ error: 'fieldValue is required.' });
+    const { fieldName, fieldValue, targetLanguages, persist = true } = req.body ?? {};
+    const langs = Array.isArray(targetLanguages)
+      ? targetLanguages.filter((l): l is string => typeof l === 'string' && !!l.trim()).map((l) => l.trim().toLowerCase())
+      : ['vi', 'ja', 'zh', 'ko'];
+
+    if (langs.length === 0) {
+      return res.status(400).json({ error: 'At least one target language is required.' });
     }
 
-    const langs = Array.isArray(targetLanguages) ? targetLanguages.filter((l) => typeof l === 'string') : ['vi', 'ja', 'zh', 'ko'];
-    const translations = await translationService.translateText(fieldValue, langs);
+    // Backward-compatible mode: translate one free-text field without persisting.
+    if (typeof fieldName === 'string' && fieldName.trim() && typeof fieldValue === 'string' && fieldValue.trim()) {
+      const translations = await translationService.translateText(fieldValue, langs);
+      return res.json({ translations, fieldName: fieldName.trim() });
+    }
 
-    res.json({ translations });
+    const fields = buildTranslatableFields(current);
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No translatable text fields found on this property.' });
+    }
+
+    const translatedByLanguage: Record<string, Record<string, string>> = {};
+    for (const field of fields) {
+      const translated = await translationService.translateText(field.value, langs);
+      for (const lang of langs) {
+        const text = translated[lang];
+        if (!text) {
+          continue;
+        }
+        translatedByLanguage[lang] = translatedByLanguage[lang] ?? {};
+        translatedByLanguage[lang][field.path] = text;
+      }
+    }
+
+    const nextTranslations = { ...(current.translations ?? {}) };
+    for (const [lang, pathMap] of Object.entries(translatedByLanguage)) {
+      const langPatch = (nextTranslations[lang] && typeof nextTranslations[lang] === 'object')
+        ? { ...(nextTranslations[lang] as Record<string, unknown>) }
+        : {};
+      for (const [path, text] of Object.entries(pathMap)) {
+        setPathValue(langPatch, path, text);
+      }
+      nextTranslations[lang] = langPatch as Partial<PropertyData>;
+    }
+
+    if (persist === false) {
+      return res.json({ translations: translatedByLanguage });
+    }
+
+    const saved = await store.saveProperty(current.id, {
+      ...current,
+      translations: nextTranslations,
+    }, req.authUser!);
+
+    return res.json({
+      property: saved,
+      translatedLanguages: Object.keys(translatedByLanguage),
+      translatedFieldCount: fields.length,
+    });
   });
 
   app.get('/api/site-settings', async (_req, res) => {

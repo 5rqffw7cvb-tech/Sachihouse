@@ -154,7 +154,7 @@ export interface PropertyListFilters {
   includeArchived?: boolean;
 }
 
-export const getAllProperties = async (filters?: PropertyListFilters): Promise<(PropertyData & { id: string })[]> => {
+export const getAllProperties = async (filters?: PropertyListFilters, lang?: string): Promise<(PropertyData & { id: string })[]> => {
   const query = new URLSearchParams();
   if (filters?.countryCode) {
     query.set('countryCode', filters.countryCode);
@@ -171,6 +171,9 @@ export const getAllProperties = async (filters?: PropertyListFilters): Promise<(
   if (filters?.includeArchived) {
     query.set('includeArchived', 'true');
   }
+  if (lang?.trim()) {
+    query.set('lang', lang.trim().toLowerCase());
+  }
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
   try {
@@ -184,9 +187,10 @@ export const getAllProperties = async (filters?: PropertyListFilters): Promise<(
   }
 };
 
-export const getPropertyData = async (propertyId: string = 'main'): Promise<PropertyData> => {
+export const getPropertyData = async (propertyId: string = 'main', lang?: string): Promise<PropertyData> => {
   try {
-    const response = await apiRequest<{ property: PropertyData & { id: string } }>(`/properties/${propertyId}`);
+    const suffix = lang?.trim() ? `?lang=${encodeURIComponent(lang.trim().toLowerCase())}` : '';
+    const response = await apiRequest<{ property: PropertyData & { id: string } }>(`/properties/${propertyId}${suffix}`);
     if (!response.property || typeof response.property !== 'object') {
       throw new Error('Invalid property payload');
     }
@@ -217,6 +221,17 @@ export const savePropertyData = async (data: PropertyData, propertyId: string = 
     }
     throw error;
   }
+};
+
+export const translateAndSavePropertyContent = async (
+  propertyId: string,
+  targetLanguages: string[] = ['vi', 'ja', 'zh', 'ko'],
+): Promise<PropertyData & { id: string }> => {
+  const response = await apiRequest<{ property: PropertyData & { id: string } }>(`/properties/${propertyId}/translate-content`, {
+    method: 'POST',
+    body: JSON.stringify({ targetLanguages, persist: true }),
+  });
+  return response.property;
 };
 
 export const deletePropertyData = async (propertyId: string): Promise<void> => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { TopNavBar } from './TopNavBar';
 import { MobileBottomNav } from './MobileBottomNav';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import { getSiteSettings } from '../services/storage';
 
 export const GlobalLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -28,12 +29,16 @@ export const GlobalLayout: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <div className="bg-[#e8e5e6] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
-      <TopNavBar />
+      <TopNavBar actionButton={<LanguageSwitcher />} />
 
       {/* Main Content */}
       <main className="flex-1 max-w-[1280px] mx-auto px-3 md:px-6 py-12 md:py-16 pt-6 md:pt-[120px] pb-24 md:pb-12 w-full">
         {children}
       </main>
+
+      <div className="fixed bottom-20 right-4 z-40 md:hidden">
+        <LanguageSwitcher compact />
+      </div>
 
       {/* BottomNavBar (Mobile Only) */}
       <MobileBottomNav />

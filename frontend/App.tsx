@@ -5,7 +5,7 @@ import Layout from './components/Layout';
 import SEOHead from './components/SEOHead';
 import { PropertyData, SiteSettings } from './types';
 import { Loader2 } from 'lucide-react';
-import { LanguageProvider } from './contexts/LanguageContext';
+import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { HelmetProvider } from 'react-helmet-async';
 import ListingsPage from './pages/ListingsPage';
 import { getAllProperties, getSiteSettings } from './services/storage';
@@ -280,6 +280,7 @@ const createDraftPropertyData = (propertyId: string): PropertyData => {
 const PropertyRoutes = () => {
     const { id } = useParams<{ id: string }>();
     const { pathname } = useLocation();
+    const { language } = useLanguage();
     const propertyId = id || 'main'; // default
     
     const [data, setData] = useState<PropertyData | null>(null);
@@ -295,7 +296,7 @@ const PropertyRoutes = () => {
         setData(null);
 
         import('./services/storage').then(({ getPropertyData, refreshBlockedDates }) => {
-            getPropertyData(propertyId).then(cloudData => {
+            getPropertyData(propertyId, language).then(cloudData => {
                 if (cancelled) return;
                 setData(cloudData);
                 setIsSyncing(false);
@@ -327,7 +328,7 @@ const PropertyRoutes = () => {
         return () => {
             cancelled = true;
         };
-    }, [propertyId, pathname]);
+    }, [propertyId, pathname, language]);
 
     useEffect(() => {
         const handler = () => setIcalUpdate(n => n + 1);
@@ -438,6 +439,7 @@ const ListingsSkeleton = () => (
 );
 
 const ListingsRoute = () => {
+    const { language } = useLanguage();
     const getCachedProperties = (): (PropertyData & { id: string })[] | null => {
         if (typeof window !== 'undefined') {
             const cached = localStorage.getItem('cache_properties');
@@ -485,7 +487,7 @@ const ListingsRoute = () => {
         setLoadError(null);
         setIsLoading(!properties || !settings);
 
-        Promise.all([getAllProperties(), getSiteSettings()]).then(([data, settingsData]) => {
+        Promise.all([getAllProperties(undefined, language), getSiteSettings()]).then(([data, settingsData]) => {
             if (cancelled) return;
             setProperties(data);
             setSettings(settingsData);
@@ -505,7 +507,7 @@ const ListingsRoute = () => {
             cancelled = true;
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [language]);
 
     const handleUpdateSettings = (newSettings: SiteSettings) => {
         setSettings(newSettings);
