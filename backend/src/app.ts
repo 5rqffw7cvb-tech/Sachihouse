@@ -1304,12 +1304,6 @@ export function createApp(store: DataStore) {
   });
 
   app.get('/api/checkins', requireAuth, requireHostOrAdmin, async (req, res) => {
-    const actor = req.authUser!;
-    if (actor.role === 'HOST') {
-      if ((actor.hostLevel ?? 0) < 3) {
-        return res.status(403).json({ error: 'Check-in access requires host level 3. Contact admin.' });
-      }
-    }
     const propertyIdRaw = req.query.propertyId;
     const fromDateRaw = req.query.fromDate;
     const toDateRaw = req.query.toDate;
