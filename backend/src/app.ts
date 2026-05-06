@@ -1304,6 +1304,10 @@ export function createApp(store: DataStore) {
   });
 
   app.get('/api/checkins', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    if (actor.role === 'HOST' && (actor.hostLevel ?? 0) < 3) {
+      return res.status(403).json({ error: 'Check-in access requires host level 3. Contact admin.' });
+    }
     const propertyIdRaw = req.query.propertyId;
     const fromDateRaw = req.query.fromDate;
     const toDateRaw = req.query.toDate;
@@ -1337,12 +1341,17 @@ export function createApp(store: DataStore) {
   });
 
   app.get('/api/checkins/:id', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    if (actor.role === 'HOST' && (actor.hostLevel ?? 0) < 3) {
+      return res.status(403).json({ error: 'Check-in access requires host level 3. Contact admin.' });
+    }
+
     const submission = await store.getCheckInSubmission(getParam(req.params.id));
     if (!submission) {
       return res.status(404).json({ error: 'Check-in submission not found.' });
     }
 
-    if (!canPerformAction(req.authUser!, 'property.read', submission.propertyId)) {
+    if (!canPerformAction(actor, 'property.read', submission.propertyId)) {
       return res.status(403).json({ error: 'Check-in read not allowed.' });
     }
 
