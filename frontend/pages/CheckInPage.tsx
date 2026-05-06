@@ -26,6 +26,7 @@ const documentTypeLabels: Record<CheckInGuest['documentType'], string> = {
 const createGuestId = (): string => `guest_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 const MAX_CHECKIN_UPLOAD_BYTES = 8 * 1024 * 1024;
 const MAX_CHECKIN_UPLOAD_DIMENSION = 2200;
+const SUPPORTED_CHECKIN_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
 
 const createEmptyGuest = (id: string): CheckInGuest => ({
   id,
@@ -98,11 +99,17 @@ const prepareCheckInImage = async (file: File): Promise<string> => {
   });
 
   const originalDataUrl = await toDataUrl();
-  if (estimateDataUrlBytes(originalDataUrl) <= MAX_CHECKIN_UPLOAD_BYTES && file.size <= MAX_CHECKIN_UPLOAD_BYTES) {
-    return originalDataUrl;
+
+  let image: HTMLImageElement;
+  try {
+    image = await loadImageElement(file);
+  } catch {
+    if (SUPPORTED_CHECKIN_IMAGE_TYPES.has(file.type.toLowerCase()) && estimateDataUrlBytes(originalDataUrl) <= MAX_CHECKIN_UPLOAD_BYTES) {
+      return originalDataUrl;
+    }
+    throw new Error('Unable to decode this photo. Please upload JPEG/PNG/WebP image.');
   }
 
-  const image = await loadImageElement(file);
   const baseScale = Math.min(1, MAX_CHECKIN_UPLOAD_DIMENSION / Math.max(image.width, image.height));
   const qualityCandidates = [0.88, 0.8, 0.72, 0.64, 0.56, 0.48, 0.4];
 

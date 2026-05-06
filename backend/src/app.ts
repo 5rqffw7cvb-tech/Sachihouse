@@ -24,6 +24,7 @@ import { ObjectStorageService } from './services/objectStorage.js';
 import { TranslationService } from './services/translationService.js';
 
 const ALLOWED_ROLES: Role[] = ['ADMIN', 'HOST', 'GUEST'];
+const CHECKIN_OCR_MAX_IMAGE_BYTES = Number(process.env.CHECKIN_OCR_MAX_IMAGE_MB ?? 20) * 1024 * 1024;
 
 function isRole(value: unknown): value is Role {
   return typeof value === 'string' && ALLOWED_ROLES.includes(value as Role);
@@ -1177,8 +1178,8 @@ export function createApp(store: DataStore) {
       return res.status(400).json({ error: 'Image payload is empty.' });
     }
 
-    if (rawBuffer.length > 12 * 1024 * 1024) {
-      return res.status(400).json({ error: 'Image is too large. Max 12MB.' });
+    if (rawBuffer.length > CHECKIN_OCR_MAX_IMAGE_BYTES) {
+      return res.status(400).json({ error: `Image is too large. Max ${Math.round(CHECKIN_OCR_MAX_IMAGE_BYTES / (1024 * 1024))}MB.` });
     }
 
     const guestId = normalizeText(req.body?.guestId) || `guest_${Math.random().toString(36).slice(2, 8)}`;
