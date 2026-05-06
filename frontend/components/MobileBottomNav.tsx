@@ -13,6 +13,7 @@ export const MobileBottomNav: React.FC = () => {
   const [userEmail, setUserEmail] = useState<string | null>(getCurrentUser()?.email ?? null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const lastScrollY = useRef(0);
+  const navRef = useRef<HTMLElement>(null);
 
   const isAuthenticated = !!authUser;
   const canManageUsers = authUser?.role === 'ADMIN';
@@ -54,6 +55,34 @@ export const MobileBottomNav: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Keep nav anchored to physical screen bottom when software keyboard shrinks the viewport
+  useEffect(() => {
+    let baseHeight = window.innerHeight;
+
+    const resetBase = () => {
+      baseHeight = window.innerHeight;
+      if (navRef.current) navRef.current.style.bottom = '';
+    };
+
+    const handleResize = () => {
+      if (!navRef.current) return;
+      const delta = baseHeight - window.innerHeight;
+      if (delta > 100) {
+        // Keyboard appeared: push nav back down so it stays at physical screen bottom
+        navRef.current.style.bottom = `${-delta}px`;
+      } else {
+        resetBase();
+      }
+    };
+
+    window.addEventListener('resize', handleResize, { passive: true });
+    window.addEventListener('orientationchange', resetBase);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', resetBase);
+    };
+  }, []);
+
   const handleLogin = () => {
     navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
   };
@@ -69,7 +98,7 @@ export const MobileBottomNav: React.FC = () => {
   const isBlog = pathname.startsWith('/blog');
 
   return (
-    <nav className={navContainerClass} style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <nav ref={navRef} className={navContainerClass} style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
       <Link 
         className={`flex flex-col items-center justify-center rounded-lg px-4 py-1 duration-200 ${isHome ? 'text-[#1b1c1d] bg-[#efedef]' : 'text-[#44474c] hover:bg-[#e4e2e3]'}`} 
         to="/"

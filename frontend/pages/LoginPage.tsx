@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, Loader2, RotateCcw } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, Loader2, RotateCcw } from 'lucide-react';
 import { checkAuth, getLoginChallenge, login } from '../services/auth';
 import { GlobalLayout } from '../components/GlobalLayout';
 
@@ -21,6 +21,7 @@ const LoginPage: React.FC = () => {
   const [isLoadingChallenge, setIsLoadingChallenge] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const loadChallenge = async (resetAnswer = true) => {
     setIsLoadingChallenge(true);
@@ -95,15 +96,26 @@ const LoginPage: React.FC = () => {
 
             <div>
               <label className="block text-[13px] font-semibold text-[#1b1c1d] mb-1.5">Password</label>
-              <input
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-4 py-2.5 text-base text-[#1b1c1d] placeholder:text-[#9ea3ab] focus:outline-none focus:border-[#1b1c1d] focus:ring-1 focus:ring-[#1b1c1d] transition-colors"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-lg border border-[#c4c6cd] bg-white px-4 py-2.5 pr-10 text-base text-[#1b1c1d] placeholder:text-[#9ea3ab] focus:outline-none focus:border-[#1b1c1d] focus:ring-1 focus:ring-[#1b1c1d] transition-colors"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPassword(v => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 flex items-center justify-center w-10 text-[#9ea3ab] hover:text-[#1b1c1d] transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             <div className="rounded-lg border border-[#e4e2e3] bg-[#f5f3f4] p-3">
