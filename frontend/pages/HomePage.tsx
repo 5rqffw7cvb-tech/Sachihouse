@@ -219,7 +219,7 @@ const RoomCarousel: React.FC<{ rooms: SleepingArrangement[]; onSelect: (room: Sl
             <div 
                 ref={scrollRef}
                 onScroll={checkScroll}
-                className="flex gap-5 overflow-x-auto pb-6 pt-2 px-1 snap-x snap-mandatory no-scrollbar"
+                className="flex gap-4 overflow-x-auto pb-3 md:pb-6 pt-1 md:pt-2 px-1 snap-x snap-mandatory no-scrollbar"
                 style={{ scrollBehavior: 'smooth' }}
             >
                 {rooms.map((room) => (
@@ -336,7 +336,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
     const bathFacilityLabel = data.baths === 1 ? bathFacilityBaseLabel : `${bathFacilityBaseLabel}s`;
 
   return (
-    <div className="pb-8 md:pb-10">
+    <div className="pb-4 md:pb-10">
       
       {/* ROOM LIGHTBOX */}
       {isGalleryOpen && (
@@ -455,7 +455,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
         </section>
 
         {/* Mobile Title Section */}
-        <section className="md:hidden py-4 border-b border-gray-100">
+        <section className="md:hidden pt-3 pb-2 border-b border-gray-100">
              <h1 className="text-[22px] font-bold text-gray-900 leading-[1.25] mb-2">{data.name}</h1>
              <div className="flex items-center gap-2 text-[14px] text-gray-600 leading-[1.6]">
                  <MapPin className="w-4 h-4"/>
@@ -466,7 +466,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                      </span>
                  )}
              </div>
-             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[14px] text-gray-600 leading-[1.6]">
+             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[14px] text-gray-600 leading-[1.6]">
                  <span>{data.maxGuests} Guests</span>
                  <span>{data.bedrooms} Bedrooms</span>
                  <span>{data.beds} Beds</span>
@@ -474,7 +474,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                  <span>{data.toilets} Toilets</span>
              </div>
              {data.accessInfo?.nearestAirportDriveTime && (
-                 <div className="mt-3 flex flex-wrap gap-2">
+                 <div className="mt-2 flex flex-wrap gap-2">
                      <div className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-900">
                          <Navigation className="h-3 w-3" />
                          <span>Airport by car · {data.accessInfo.nearestAirportDriveTime}</span>
@@ -483,20 +483,20 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
              )}
         </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:gap-8 mt-3 md:mt-6">
             {/* Main Content */}
             <div className="lg:col-span-2">
                 
                 {/* Host Info - Redesigned */}
-                <div className="py-6 border-b border-gray-200">
-                    <div className="flex items-start md:items-center gap-6">
+                <div className="py-3 md:py-6 border-b border-gray-200">
+                    <div className="flex items-start md:items-center gap-4">
                         {/* Left: Avatar */}
                         <div className="relative flex-shrink-0">
                             <img
                                 src={data.hostImageUrl || "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100"}
                                 alt={data.hostName}
                                 loading="lazy"
-                                className="w-20 h-20 rounded-full object-cover border-[3px] border-white shadow-lg"
+                                className="w-14 h-14 md:w-20 md:h-20 rounded-full object-cover border-[3px] border-white shadow-lg"
                             />
                         </div>
 
@@ -538,7 +538,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
 
                 {/* Highlights */}
                 {(data.highlights || []).length > 0 && (
-                    <div className="py-6 border-b border-gray-200 space-y-4">
+                    <div className="py-3 md:py-6 border-b border-gray-200 space-y-3 md:space-y-4">
                         {data.highlights.map(item => {
                             const Icon = iconMap[item.icon] || Monitor;
                             return (
@@ -555,8 +555,8 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                 )}
 
                 {/* Description */}
-                <div className="py-6 border-b border-gray-200">
-                    <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-4">{data.titles.about && language === 'en' ? data.titles.about : t('nav_home')}</h2>
+                <div className="py-3 md:py-6 border-b border-gray-200">
+                    <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-2 md:mb-4">{data.titles.about && language === 'en' ? data.titles.about : t('nav_home')}</h2>
                     <div className={`relative transition-all duration-500 overflow-hidden ${isDescriptionExpanded ? 'max-h-full' : 'max-h-[165px]'}`}>
                         <p className="text-[15px] md:text-[16px] text-[#2c2f33] leading-[1.75] whitespace-pre-line">
                             {data.description}
@@ -568,7 +568,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                     
                     <button 
                         onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                        className="mt-4 flex items-center gap-1.5 font-bold text-gray-900 underline decoration-gray-300 underline-offset-4 hover:text-blue-600 transition-colors"
+                        className="mt-2 md:mt-4 flex items-center gap-1.5 font-bold text-gray-900 underline decoration-gray-300 underline-offset-4 hover:text-blue-600 transition-colors"
                     >
                         {isDescriptionExpanded ? (
                             <>{t('home_show_less')} <ChevronUp className="w-4 h-4" /></>
@@ -579,8 +579,8 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                 </div>
 
                 {/* Where you'll sleep */}
-                <div className="py-4 border-b border-gray-200">
-                     <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-6">{data.titles.sleeping && language === 'en' ? data.titles.sleeping : t('home_sleep')}</h2>
+                <div className="py-3 md:py-4 border-b border-gray-200">
+                     <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-3 md:mb-6">{data.titles.sleeping && language === 'en' ? data.titles.sleeping : t('home_sleep')}</h2>
                      {data.sleepingArrangements && data.sleepingArrangements.length > 0 ? (
                         <RoomCarousel rooms={data.sleepingArrangements} onSelect={openRoomGallery} />
                      ) : (
@@ -591,9 +591,9 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                 </div>
 
                 {/* Amenities Preview */}
-                <div className="py-4 border-b border-gray-200">
-                    <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-6">{data.titles.amenities && language === 'en' ? data.titles.amenities : t('home_amenities')}</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
+                <div className="py-3 md:py-4 border-b border-gray-200">
+                    <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-3 md:mb-6">{data.titles.amenities && language === 'en' ? data.titles.amenities : t('home_amenities')}</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-8">
                         {data.amenities.map((item, idx) => {
                             const Icon = getAmenityIcon(item);
                             return (
@@ -609,16 +609,16 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
             </div>
 
             {/* Sticky Sidebar */}
-            <div className="col-span-1 mt-8 lg:mt-0">
+            <div className="col-span-1 mt-3 lg:mt-0">
                 <BookingWidget pricing={data.pricing} adminEmail={data.adminEmail} />
                 
                 {/* Mobile Only: Platform Links (Now below BookingWidget) */}
-                <div className="py-6 md:hidden">
-                    <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="py-3 md:hidden">
+                    <h2 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
                         <span className="w-1 h-5 bg-blue-600 rounded-full"></span>
                         {t('home_also_on')}
                     </h2>
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-1 gap-2">
                          <PlatformButton url={data.social.airbnbUrl} name="Airbnb" color="#FF385C" label={t('home_book_on')} />
                          <PlatformButton url={data.social.bookingUrl} name="Booking.com" color="#003580" label={t('home_book_on')} />
                          <PlatformButton url={data.social.agodaUrl} name="Agoda" color="#2a2a2a" label={t('home_book_on')} />
