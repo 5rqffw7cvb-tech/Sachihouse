@@ -383,8 +383,8 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
         <section className="hidden md:block py-6">
             <div className="flex justify-between items-start mb-6">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">{data.name}</h1>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <h1 className="text-[24px] md:text-[28px] font-bold text-gray-900 leading-[1.25] mb-2">{data.name}</h1>
+                    <div className="flex items-center gap-2 text-[14px] text-gray-600 leading-[1.6]">
                         <span className="font-medium underline decoration-gray-300 underline-offset-4">{data.address}</span>
                         {nearestStationDistanceInline && (
                             <span className="rounded-full bg-amber-100/80 px-2 py-0.5 font-semibold text-amber-800">
@@ -397,7 +397,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                             {data.subtitle}
                         </div>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600">
+                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[14px] text-gray-600 leading-[1.6]">
                         <span>{data.maxGuests} Guests</span>
                         <span>{data.bedrooms} Bedrooms</span>
                         <span>{data.beds} Beds</span>
@@ -406,7 +406,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                     </div>
                     {data.accessInfo?.nearestAirportDriveTime && (
                         <div className="mt-3 flex flex-wrap gap-2">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-900">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-[12px] font-semibold text-green-900">
                                 <Navigation className="h-3.5 w-3.5" />
                                 <span>Nearest airport by car · {data.accessInfo.nearestAirportDriveTime}</span>
                             </div>
@@ -456,8 +456,8 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
 
         {/* Mobile Title Section */}
         <section className="md:hidden py-4 border-b border-gray-100">
-             <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-2">{data.name}</h1>
-             <div className="flex items-center gap-2 text-sm text-gray-600">
+             <h1 className="text-[22px] font-bold text-gray-900 leading-[1.25] mb-2">{data.name}</h1>
+             <div className="flex items-center gap-2 text-[14px] text-gray-600 leading-[1.6]">
                  <MapPin className="w-4 h-4"/>
                  <span className="truncate">{data.address}</span>
                  {nearestStationDistanceInline && (
@@ -466,7 +466,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                      </span>
                  )}
              </div>
-             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600">
+             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[14px] text-gray-600 leading-[1.6]">
                  <span>{data.maxGuests} Guests</span>
                  <span>{data.bedrooms} Bedrooms</span>
                  <span>{data.beds} Beds</span>
@@ -502,7 +502,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
 
                         {/* Right: Info */}
                         <div className="flex-1">
-                            <h2 className="text-2xl font-bold text-gray-900 mb-1">
+                            <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-1">
                                 {t('home_hosted_by')} {data.hostName}
                             </h2>
                             {data.isSuperhost && (
@@ -556,9 +556,9 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
 
                 {/* Description */}
                 <div className="py-6 border-b border-gray-200">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">{data.titles.about && language === 'en' ? data.titles.about : t('nav_home')}</h2>
+                    <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-4">{data.titles.about && language === 'en' ? data.titles.about : t('nav_home')}</h2>
                     <div className={`relative transition-all duration-500 overflow-hidden ${isDescriptionExpanded ? 'max-h-full' : 'max-h-[165px]'}`}>
-                        <p className="text-gray-600 leading-relaxed whitespace-pre-line text-lg">
+                        <p className="text-[15px] md:text-[16px] text-[#2c2f33] leading-[1.75] whitespace-pre-line">
                             {data.description}
                         </p>
                         {!isDescriptionExpanded && (
@@ -580,7 +580,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
 
                 {/* Where you'll sleep */}
                 <div className="py-4 border-b border-gray-200">
-                     <h2 className="text-2xl font-bold text-gray-900 mb-6">{data.titles.sleeping && language === 'en' ? data.titles.sleeping : t('home_sleep')}</h2>
+                     <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-6">{data.titles.sleeping && language === 'en' ? data.titles.sleeping : t('home_sleep')}</h2>
                      {data.sleepingArrangements && data.sleepingArrangements.length > 0 ? (
                         <RoomCarousel rooms={data.sleepingArrangements} onSelect={openRoomGallery} />
                      ) : (
@@ -592,7 +592,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
 
                 {/* Amenities Preview */}
                 <div className="py-4 border-b border-gray-200">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">{data.titles.amenities && language === 'en' ? data.titles.amenities : t('home_amenities')}</h2>
+                    <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-6">{data.titles.amenities && language === 'en' ? data.titles.amenities : t('home_amenities')}</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
                         {data.amenities.map((item, idx) => {
                             const Icon = getAmenityIcon(item);

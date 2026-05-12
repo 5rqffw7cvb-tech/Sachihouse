@@ -79,8 +79,8 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{data.titles.pricing}</h1>
-        <p className="text-gray-500">{data.titles.pricingSubtitle}</p>
+        <h1 className="text-[22px] md:text-[28px] font-bold text-gray-900 leading-[1.25] mb-2">{data.titles.pricing}</h1>
+        <p className="text-[14px] md:text-[16px] text-gray-500 leading-[1.6]">{data.titles.pricingSubtitle}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

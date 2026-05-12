@@ -27,8 +27,8 @@ const AccessPage: React.FC<AccessPageProps> = ({ data }) => {
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-8">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">{data.titles.access}</h1>
-        <p className="text-gray-500 max-w-2xl mx-auto">
+        <h1 className="text-[22px] md:text-[28px] font-bold text-gray-900 leading-[1.25] mb-3">{data.titles.access}</h1>
+        <p className="text-[14px] md:text-[16px] text-gray-500 leading-[1.6] max-w-2xl mx-auto">
           {data.titles.accessSubtitle}
         </p>
       </div>
