@@ -330,7 +330,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
             : `${nearestStationName} station`
         : 'nearest station';
     const nearestStationDistanceInline = data.accessInfo?.nearestStationDistance
-        ? `(${data.accessInfo.nearestStationDistance} from ${nearestStationReference})`
+        ? `${data.accessInfo.nearestStationDistance} from ${nearestStationReference}`
         : '';
     const bathFacilityBaseLabel = data.bathFacilityType === 'shower_room' ? 'Shower Room' : 'Bathroom';
     const bathFacilityLabel = data.baths === 1 ? bathFacilityBaseLabel : `${bathFacilityBaseLabel}s`;
@@ -386,17 +386,19 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                     <h1 className="text-[24px] md:text-[28px] font-bold text-gray-900 leading-[1.25] mb-2">{data.name}</h1>
                     <div className="flex items-center gap-2 text-[14px] text-gray-600 leading-[1.6]">
                         <span className="font-medium underline decoration-gray-300 underline-offset-4">{data.address}</span>
-                        {nearestStationDistanceInline && (
-                            <span className="rounded-full bg-amber-100/80 px-2 py-0.5 font-semibold text-amber-800">
-                                {nearestStationDistanceInline}
-                            </span>
-                        )}
                         <span>•</span>
                         <div className="flex items-center gap-1 text-blue-600 font-medium">
                             <Monitor className="w-3 h-3" />
                             {data.subtitle}
                         </div>
                     </div>
+                    {nearestStationDistanceInline && (
+                        <div className="mt-1.5">
+                            <span className="inline-flex items-center rounded-full bg-amber-100/80 px-2.5 py-0.5 text-[13px] font-semibold text-amber-800">
+                                {nearestStationDistanceInline}
+                            </span>
+                        </div>
+                    )}
                     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[14px] text-gray-600 leading-[1.6]">
                         <span>{data.maxGuests} Guests</span>
                         <span>{data.bedrooms} Bedrooms</span>
@@ -460,12 +462,14 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
              <div className="flex items-center gap-2 text-[14px] text-gray-600 leading-[1.6]">
                  <MapPin className="w-4 h-4"/>
                  <span className="truncate">{data.address}</span>
-                 {nearestStationDistanceInline && (
-                     <span className="rounded-full bg-amber-100/80 px-2 py-0.5 font-semibold text-amber-800">
+             </div>
+             {nearestStationDistanceInline && (
+                 <div className="mt-1">
+                     <span className="inline-flex items-center rounded-full bg-amber-100/80 px-2.5 py-0.5 text-[13px] font-semibold text-amber-800">
                          {nearestStationDistanceInline}
                      </span>
-                 )}
-             </div>
+                 </div>
+             )}
              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[14px] text-gray-600 leading-[1.6]">
                  <span>{data.maxGuests} Guests</span>
                  <span>{data.bedrooms} Bedrooms</span>
