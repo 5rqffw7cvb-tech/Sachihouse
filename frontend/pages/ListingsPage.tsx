@@ -355,6 +355,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   return (
     <div className="bg-[#e8e5e6] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
       <TopNavBar 
+        navTitleOverride={settings.navTitle}
         actionButton={
           isAdmin && (
             <div className="flex items-center gap-2">

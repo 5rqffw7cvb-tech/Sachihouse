@@ -9,6 +9,7 @@ import { HoldToSubmitButton } from '../components/HoldToSubmitButton';
 import { TopNavBar } from '../components/TopNavBar';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { getSiteSettings } from '../services/storage';
 
 interface CheckInPageProps {
   data: PropertyData;
@@ -159,6 +160,39 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [authUser, setAuthUser] = useState<ApiUser | null>(() => getCurrentUser());
+  const [siteNavTitle, setSiteNavTitle] = useState<string>('');
+  const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+  const [settingsLoadError, setSettingsLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSettings = async () => {
+      setIsSettingsLoading(true);
+      setSettingsLoadError(null);
+      try {
+        const settings = await getSiteSettings();
+        if (!cancelled) {
+          setSiteNavTitle(settings.navTitle || '');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load site settings for check-in page', error);
+          setSettingsLoadError('Failed to load page settings. Please refresh and try again.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsSettingsLoading(false);
+        }
+      }
+    };
+
+    void loadSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -436,6 +470,23 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     }
   };
 
+  if (isSettingsLoading) {
+    return (
+      <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center gap-3 text-[#041627]">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <p className="text-sm font-medium tracking-[0.04em] uppercase">Loading...</p>
+      </div>
+    );
+  }
+
+  if (settingsLoadError) {
+    return (
+      <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center px-6 text-center text-[#ba1a1a]">
+        {settingsLoadError}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
       {/* Mobile header with hamburger */}
@@ -478,7 +529,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
 
       {/* Desktop navbar */}
       <div className="hidden md:block">
-        <TopNavBar />
+        <TopNavBar navTitleOverride={siteNavTitle} />
       </div>
 
       <main className="mx-auto max-w-md px-4 pb-36 pt-4 md:pb-28 md:pt-[88px]">

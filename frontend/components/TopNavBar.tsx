@@ -31,12 +31,12 @@ const getInitialNavTitle = (): string => {
   return NAV_TITLE_FALLBACK;
 };
 
-export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionButton?: React.ReactNode }> = ({ actionButton, mobileActionButton }) => {
+export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionButton?: React.ReactNode; navTitleOverride?: string }> = ({ actionButton, mobileActionButton, navTitleOverride }) => {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const [authUser, setAuthUser] = useState(getCurrentUser());
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [navTitle, setNavTitle] = useState<string>(getInitialNavTitle);
+  const [navTitle, setNavTitle] = useState<string>(() => navTitleOverride?.trim() || getInitialNavTitle());
   const [userEmail, setUserEmail] = useState<string | null>(getCurrentUser()?.email ?? null);
   const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
   const [pullDistance, setPullDistance] = useState(0);
@@ -59,6 +59,16 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
   const mobilePageTitle = navTitle || NAV_TITLE_FALLBACK;
 
   useEffect(() => {
+    if (typeof navTitleOverride === 'string' && navTitleOverride.trim()) {
+      setNavTitle(navTitleOverride.trim());
+    }
+  }, [navTitleOverride]);
+
+  useEffect(() => {
+    if (typeof navTitleOverride === 'string' && navTitleOverride.trim()) {
+      return;
+    }
+
     const fetchSettings = async () => {
       try {
         const settings = await getSiteSettings();
@@ -73,7 +83,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
 
     window.addEventListener('site-settings-updated', fetchSettings);
     return () => window.removeEventListener('site-settings-updated', fetchSettings);
-  }, []);
+  }, [navTitleOverride]);
 
   useEffect(() => {
     let unsubscribe = () => {};

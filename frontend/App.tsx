@@ -479,52 +479,15 @@ const ListingsSkeleton = () => (
 
 const ListingsRoute = () => {
     const { language } = useLanguage();
-    const getCachedProperties = (): (PropertyData & { id: string })[] | null => {
-        if (typeof window !== 'undefined') {
-            const cached = localStorage.getItem('cache_properties');
-            if (cached) {
-                try {
-                    const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        return parsed;
-                    }
-                } catch {
-                    // Ignore malformed cache.
-                }
-            }
-        }
-        return null;
-    };
-
-    const getCachedSettings = (): SiteSettings | null => {
-        if (typeof window !== 'undefined') {
-            const cached = localStorage.getItem('cache_settings');
-            if (cached) {
-                try {
-                    const parsed = JSON.parse(cached);
-                    if (parsed && typeof parsed === 'object') {
-                        return parsed as SiteSettings;
-                    }
-                } catch {
-                    // Ignore malformed cache.
-                }
-            }
-        }
-        return null;
-    };
-
-    const cachedProperties = getCachedProperties();
-    const cachedSettings = getCachedSettings();
-
-    const [properties, setProperties] = useState<(PropertyData & { id: string })[] | null>(cachedProperties);
-    const [settings, setSettings] = useState<SiteSettings | null>(cachedSettings);
-    const [isLoading, setIsLoading] = useState(!cachedProperties || !cachedSettings);
+    const [properties, setProperties] = useState<(PropertyData & { id: string })[] | null>(null);
+    const [settings, setSettings] = useState<SiteSettings | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
     
     useEffect(() => {
         let cancelled = false;
         setLoadError(null);
-        setIsLoading(!properties || !settings);
+        setIsLoading(true);
 
         Promise.all([getAllProperties(), getSiteSettings()]).then(([data, settingsData]) => {
             if (cancelled) return;
@@ -536,16 +499,13 @@ const ListingsRoute = () => {
         }).catch(err => {
             if (cancelled) return;
             console.error(err);
-            setLoadError(properties && settings
-                ? 'Showing cached data. Failed to refresh latest listings.'
-                : 'Failed to load listings data. Please refresh and try again.');
+            setLoadError('Failed to load listings data. Please refresh and try again.');
             setIsLoading(false);
         });
 
         return () => {
             cancelled = true;
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleUpdateSettings = (newSettings: SiteSettings) => {
@@ -553,10 +513,16 @@ const ListingsRoute = () => {
         localStorage.setItem('cache_settings', JSON.stringify(newSettings));
     };
 
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center gap-3 text-[#041627]">
+                <Loader2 className="w-8 h-8 animate-spin" />
+                <p className="text-sm font-medium tracking-[0.04em] uppercase">Loading...</p>
+            </div>
+        );
+    }
+
     if (!properties || !settings) {
-        if (isLoading) {
-            return <ListingsSkeleton />;
-        }
         return (
             <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center px-6 text-center text-[#ba1a1a]">
                 Failed to load homepage data. Please refresh and try again.

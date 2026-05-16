@@ -9,6 +9,7 @@ import { Helmet } from 'react-helmet-async';
 const BlogPage: React.FC = () => {
   const [allPosts, setAllPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [draftCategory, setDraftCategory] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -54,10 +55,35 @@ const BlogPage: React.FC = () => {
   }, [categoryFilter]);
 
   useEffect(() => {
-    blogService.getPosts().then(data => {
-      setAllPosts(data);
-      setLoading(false);
-    });
+    let cancelled = false;
+
+    const loadPosts = async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const data = await blogService.getPosts();
+        if (cancelled) {
+          return;
+        }
+        setAllPosts(data);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        console.error('Failed to load blog posts', error);
+        setLoadError('Failed to load blog posts. Please refresh and try again.');
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadPosts();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const posts = useMemo(() => {
@@ -82,8 +108,19 @@ const BlogPage: React.FC = () => {
   if (loading) {
     return (
       <GlobalLayout>
-        <div className="flex justify-center items-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        <div className="flex flex-col justify-center items-center py-20 gap-3 text-[#041627]">
+          <Loader2 className="w-8 h-8 animate-spin" />
+          <p className="text-sm font-medium tracking-[0.04em] uppercase">Loading...</p>
+        </div>
+      </GlobalLayout>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <GlobalLayout>
+        <div className="min-h-[40vh] flex items-center justify-center px-6 text-center text-[#ba1a1a]">
+          {loadError}
         </div>
       </GlobalLayout>
     );

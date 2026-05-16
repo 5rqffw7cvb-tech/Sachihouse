@@ -176,31 +176,20 @@ export const getAllProperties = async (filters?: PropertyListFilters, lang?: str
   }
   const suffix = query.toString() ? `?${query.toString()}` : '';
 
-  try {
-    const response = await apiRequest<{ properties: (PropertyData & { id: string })[] }>(`/properties${suffix}`);
-    if (!Array.isArray(response.properties)) {
-      throw new Error('Invalid properties payload');
-    }
-    return response.properties;
-  } catch {
-    return [{ ...DEFAULT_DATA, id: DEFAULT_DATA.id || 'main' }];
+  const response = await apiRequest<{ properties: (PropertyData & { id: string })[] }>(`/properties${suffix}`);
+  if (!Array.isArray(response.properties)) {
+    throw new Error('Invalid properties payload');
   }
+  return response.properties;
 };
 
 export const getPropertyData = async (propertyId: string = 'main', lang?: string): Promise<PropertyData> => {
-  try {
-    const suffix = lang?.trim() ? `?lang=${encodeURIComponent(lang.trim().toLowerCase())}` : '';
-    const response = await apiRequest<{ property: PropertyData & { id: string } }>(`/properties/${propertyId}${suffix}`);
-    if (!response.property || typeof response.property !== 'object') {
-      throw new Error('Invalid property payload');
-    }
-    return response.property;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
-      throw error;
-    }
-    return { ...DEFAULT_DATA, id: propertyId };
+  const suffix = lang?.trim() ? `?lang=${encodeURIComponent(lang.trim().toLowerCase())}` : '';
+  const response = await apiRequest<{ property: PropertyData & { id: string } }>(`/properties/${propertyId}${suffix}`);
+  if (!response.property || typeof response.property !== 'object') {
+    throw new Error('Invalid property payload');
   }
+  return response.property;
 };
 
 export const savePropertyData = async (data: PropertyData, propertyId: string = 'main'): Promise<void> => {
@@ -258,15 +247,11 @@ export const setPropertyReviewStatus = async (
 };
 
 export const getSiteSettings = async (): Promise<SiteSettings> => {
-  try {
-    const response = await apiRequest<{ settings: SiteSettings }>('/site-settings');
-    if (!response.settings || typeof response.settings !== 'object') {
-      throw new Error('Invalid site settings payload');
-    }
-    return { ...DEFAULT_SITE_SETTINGS, ...(response.settings ?? {}) };
-  } catch {
-    return { ...DEFAULT_SITE_SETTINGS };
+  const response = await apiRequest<{ settings: SiteSettings }>('/site-settings');
+  if (!response.settings || typeof response.settings !== 'object') {
+    throw new Error('Invalid site settings payload');
   }
+  return { ...DEFAULT_SITE_SETTINGS, ...(response.settings ?? {}) };
 };
 
 export const saveSiteSettings = async (settings: SiteSettings): Promise<void> => {
