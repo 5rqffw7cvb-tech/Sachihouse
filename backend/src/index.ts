@@ -16,8 +16,7 @@ async function purgeExpiredCheckIns(params: {
   store: MemoryStore | PostgresStore;
   objectStorage: ObjectStorageService;
 }): Promise<number> {
-  const retentionDays = Number(process.env.CHECKIN_RETENTION_DAYS ?? 7);
-  const safeRetentionDays = Number.isFinite(retentionDays) && retentionDays > 0 ? Math.trunc(retentionDays) : 7;
+  const safeRetentionDays = 1095; // 3 years
   const cutoffTimestamp = Date.now() - safeRetentionDays * 24 * 60 * 60 * 1000;
   const expired = await params.store.deleteExpiredCheckInSubmissions(cutoffTimestamp);
 
