@@ -584,7 +584,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               : 'No properties match the selected filters.'}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0 md:gap-6 -mx-3 md:mx-0">
             {visibleProperties.map((property, index) => {
             const imageUrl = property.galleryImages
               ?.find((img) => img && img.showOnHome)
@@ -594,22 +594,22 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             const assignedHosts = hosts.filter((host) => host.assignedPropertyIds?.includes(property.id));
             
             return (
-              <div key={property.id} className="bg-[#ffffff] rounded-xl border border-[#e4e2e3] overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col h-full relative group">
-                <Link to={`/${property.metalink || property.id}`} className="flex-grow flex flex-col cursor-pointer">
+              <div key={property.id} className="bg-[#ffffff] md:rounded-xl border-b border-[#e4e2e3] md:border overflow-hidden md:shadow-[0_4px_20px_rgba(0,0,0,0.05)] md:hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col h-full relative group">
+                <Link to={`/${property.metalink || property.id}`} className="flex flex-row md:flex-col flex-grow cursor-pointer p-4 md:p-0">
                   {/* Image Container */}
-                  <div className="relative aspect-[4/3] overflow-hidden bg-[#e4e2e3]">
-                    <img 
+                  <div className="relative w-[112px] h-[88px] shrink-0 rounded-lg md:rounded-none md:w-full md:h-auto md:aspect-[4/3] overflow-hidden bg-[#e4e2e3]">
+                    <img
                       src={imageSrc}
                       srcSet={imageSrcSet}
                       sizes="(max-width: 767px) 92vw, (max-width: 1023px) 46vw, 30vw"
-                      alt={property.name} 
+                      alt={property.name}
                       loading={index < 2 ? "eager" : "lazy"}
                       fetchPriority={index === 0 ? "high" : "auto"}
                       decoding="async"
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                      className="absolute md:relative inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                     {/* Badges */}
-                    <div className="absolute top-3 left-3 flex gap-2">
+                    <div className="hidden md:flex absolute top-3 left-3 gap-2">
                       {property.isSuperhost && (
                         <span className="bg-[#1b4332]/90 backdrop-blur-sm text-white px-2 py-1 rounded text-[12px] tracking-[0.05em] font-semibold flex items-center gap-1 shadow-sm leading-none">
                           <Star className="w-3.5 h-3.5 fill-white" />
@@ -618,46 +618,46 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                       )}
                     </div>
                   </div>
-                  
+
                   {/* Content */}
-                  <div className="p-6 flex flex-col flex-grow">
-                    <div className="flex justify-between items-start mb-2">
-                      <h2 className="font-['Plus_Jakarta_Sans'] font-semibold text-[18px]/[1.4] text-[#041627] line-clamp-1 pr-2">{property.name}</h2>
+                  <div className="pl-4 py-1 pr-0 md:p-6 flex flex-col flex-grow min-w-0 justify-center md:justify-start">
+                    <div className="flex justify-between items-start mb-0 md:mb-2">
+                      <h2 className="font-['Plus_Jakarta_Sans'] font-semibold text-[15px] md:text-[18px]/[1.4] text-[#041627] line-clamp-1 pr-2">{property.name}</h2>
                       <div className="flex items-center gap-1 text-[#1b1c1d] shrink-0">
-                        <Star className="w-4 h-4 text-[#eab308] fill-[#eab308]" />
-                        <span className="font-semibold text-[14px]/[1.4]">4.96</span>
+                        <Star className="w-3.5 h-3.5 md:w-4 md:h-4 text-[#eab308] fill-[#eab308]" />
+                        <span className="font-semibold text-[12.5px] md:text-[14px]/[1.4]">4.96</span>
                       </div>
                     </div>
-                    <p className="text-[14px]/[1.5] text-[#44474c] mb-4 line-clamp-1">{property.subtitle || 'Property in Tokyo'}</p>
-                    <div className="mb-4 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#74777d]">
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span>
+                    <p className="hidden md:block text-[14px]/[1.5] text-[#44474c] mb-4 line-clamp-1">{property.subtitle || 'Property in Tokyo'}</p>
+                    <div className="mt-1 md:mt-0 md:mb-4 flex items-center gap-1 md:gap-1.5 text-[12px] text-[#74777d] md:font-semibold md:uppercase md:tracking-[0.06em]">
+                      <MapPin className="h-3 w-3 md:h-3.5 md:w-3.5 shrink-0" />
+                      <span className="line-clamp-1">
                         {property.location
                           ? `${property.location.provinceName}, ${property.location.countryName}`
                           : property.address || 'Location not set'}
                       </span>
                     </div>
                     {(property.accessInfo?.nearestStationName || property.accessInfo?.nearestStationDistance) && (
-                      <div className="mb-4 flex items-center gap-1.5 text-[12px] font-semibold text-[#5b3f00]">
-                        <Train className="h-3.5 w-3.5" />
-                        <span>
+                      <div className="mt-1 md:mt-0 md:mb-4 flex items-center gap-1 md:gap-1.5 text-[11.5px] md:text-[12px] font-semibold text-[#5b3f00]">
+                        <Train className="h-3 w-3 md:h-3.5 md:w-3.5 shrink-0" />
+                        <span className="line-clamp-1">
                           {property.accessInfo?.nearestStationDistance || 'Nearby'}
                           {' from '}
                           {property.accessInfo?.nearestStationName || 'nearest station'}
                         </span>
                       </div>
                     )}
-                    
-                    <div className="flex items-center gap-4 pt-3 mt-auto border-t border-[#efedef] text-[12.5px] font-semibold text-[#44474c]">
+
+                    <div className="flex items-center gap-3 md:gap-4 mt-1.5 md:mt-auto pt-0 md:pt-3 md:border-t md:border-[#efedef] text-[11.5px] md:text-[12.5px] font-semibold text-[#44474c]">
                       <span className="flex items-center gap-1" title={`${property.maxGuests} guests`}>
-                        <Users className="w-4 h-4" />
+                        <Users className="w-3.5 h-3.5 md:w-4 md:h-4" />
                         {property.maxGuests}
                       </span>
                       <span className="flex items-center gap-1" title={`${property.bedrooms} bedrooms`}>
-                        <BedSingle className="w-4 h-4" />
+                        <BedSingle className="w-3.5 h-3.5 md:w-4 md:h-4" />
                         {property.bedrooms}
                       </span>
-                      <span className="flex items-center gap-1" title={`${property.beds} beds`}>
+                      <span className="hidden md:flex items-center gap-1" title={`${property.beds} beds`}>
                         <BedDouble className="w-4 h-4" />
                         {property.beds}
                       </span>
@@ -667,10 +667,10 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                           ? property.baths === 1 ? 'shower room' : 'shower rooms'
                           : property.baths === 1 ? 'bathroom' : 'bathrooms'}`}
                       >
-                        <Bath className="w-4 h-4" />
+                        <Bath className="w-3.5 h-3.5 md:w-4 md:h-4" />
                         {property.baths}
                       </span>
-                      <span className="flex items-center gap-1" title={`${property.toilets} toilets`}>
+                      <span className="hidden md:flex items-center gap-1" title={`${property.toilets} toilets`}>
                         <Toilet className="w-4 h-4" />
                         {property.toilets}
                       </span>
@@ -680,7 +680,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
                 {/* Admin Actions Overlay */}
                 {isAdmin && (
-                  <div className="px-6 pb-6 pt-0 mt-auto z-10 relative">
+                  <div className="px-4 pb-4 pt-0 md:px-6 md:pb-6 mt-auto z-10 relative">
                     <div className="flex gap-3 pt-4 border-t border-[#e4e2e3]">
                       <button 
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/${property.metalink || property.id}/admin`); }}
