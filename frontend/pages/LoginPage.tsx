@@ -1,8 +1,55 @@
+
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, Eye, EyeOff, Loader2, RotateCcw } from 'lucide-react';
-import { checkAuth, getLoginChallenge, login } from '../services/auth';
+import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { checkAuth, login } from '../services/auth';
 import { GlobalLayout } from '../components/GlobalLayout';
+
+// Cloudflare's published always-pass test site key, used only as a local-dev
+// fallback when VITE_TURNSTILE_SITE_KEY isn't configured.
+// https://developers.cloudflare.com/turnstile/troubleshooting/testing/
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA';
+const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: HTMLElement, options: {
+        sitekey: string;
+        callback: (token: string) => void;
+        'expired-callback'?: () => void;
+        'error-callback'?: () => void;
+      }) => string;
+      reset: (widgetId?: string) => void;
+      remove: (widgetId?: string) => void;
+    };
+  }
+}
+
+let turnstileScriptPromise: Promise<void> | null = null;
+const loadTurnstileScript = (): Promise<void> => {
+  if (window.turnstile) {
+    return Promise.resolve();
+  }
+  if (!turnstileScriptPromise) {
+    turnstileScriptPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[src="${TURNSTILE_SCRIPT_SRC}"]`);
+      if (existing) {
+        existing.addEventListener('load', () => resolve());
+        existing.addEventListener('error', () => reject(new Error('Failed to load Turnstile script.')));
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = TURNSTILE_SCRIPT_SRC;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load Turnstile script.'));
+      document.head.appendChild(script);
+    });
+  }
+  return turnstileScriptPromise;
+};
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,49 +65,59 @@ const LoginPage: React.FC = () => {
   // Uncontrolled on purpose: mobile browsers autofill these fields by writing
   // straight to the DOM without firing onChange, so a controlled value bound
   // to React state would go stale and get wiped on the next unrelated
-  // re-render (e.g. typing the anti-bot answer). Read values from refs instead.
+  // re-render. Read values from refs instead.
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
-  const [challengeId, setChallengeId] = useState('');
-  const [challengePrompt, setChallengePrompt] = useState('');
-  const [challengeAnswer, setChallengeAnswer] = useState('');
-  const [isLoadingChallenge, setIsLoadingChallenge] = useState(true);
+  const turnstileContainerRef = useRef<HTMLDivElement>(null);
+  const turnstileWidgetIdRef = useRef<string | null>(null);
+
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [isTurnstileReady, setIsTurnstileReady] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-
-  const loadChallenge = async (resetAnswer = true) => {
-    setIsLoadingChallenge(true);
-    try {
-      const challenge = await getLoginChallenge();
-      setChallengeId(challenge.challengeId);
-      setChallengePrompt(challenge.prompt);
-      if (resetAnswer) {
-        setChallengeAnswer('');
-      }
-    } catch {
-      setChallengeId('');
-      setChallengePrompt('');
-      setErrorMsg('Could not initialize anti-bot challenge. Please refresh this page.');
-    } finally {
-      setIsLoadingChallenge(false);
-    }
-  };
 
   useEffect(() => {
     if (checkAuth()) {
       navigate(redirectTarget, { replace: true });
       return;
     }
-    void loadChallenge();
+
+    let cancelled = false;
+    loadTurnstileScript()
+      .then(() => {
+        if (cancelled || !turnstileContainerRef.current || !window.turnstile) {
+          return;
+        }
+        turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          callback: (token) => setTurnstileToken(token),
+          'expired-callback': () => setTurnstileToken(''),
+          'error-callback': () => setTurnstileToken(''),
+        });
+        setIsTurnstileReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setErrorMsg('Could not load the anti-bot check. Please refresh this page.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (window.turnstile && turnstileWidgetIdRef.current) {
+        window.turnstile.remove(turnstileWidgetIdRef.current);
+        turnstileWidgetIdRef.current = null;
+      }
+    };
   }, [navigate, redirectTarget]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setErrorMsg(null);
 
-    if (!challengeId || !challengeAnswer.trim()) {
-      setErrorMsg('Please complete the anti-bot challenge.');
+    if (!turnstileToken) {
+      setErrorMsg('Please complete the anti-bot check.');
       return;
     }
 
@@ -68,17 +125,17 @@ const LoginPage: React.FC = () => {
 
     const email = emailRef.current?.value.trim() ?? '';
     const password = passwordRef.current?.value ?? '';
-    const result = await login(email, password, {
-      challengeId,
-      challengeAnswer: challengeAnswer.trim(),
-    });
+    const result = await login(email, password, turnstileToken);
     if (result.success) {
       navigate(redirectTarget, { replace: true });
       return;
     }
 
     setErrorMsg(result.error || 'Email or password is incorrect. Please try again.');
-    await loadChallenge();
+    setTurnstileToken('');
+    if (window.turnstile && turnstileWidgetIdRef.current) {
+      window.turnstile.reset(turnstileWidgetIdRef.current);
+    }
     setIsSubmitting(false);
   };
 
@@ -127,33 +184,8 @@ const LoginPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="rounded-lg border border-[#e4e2e3] bg-[#f5f3f4] p-3">
-              <div className="flex items-center justify-between gap-2">
-                <label className="block text-[13px] font-semibold text-[#1b1c1d]">Anti-bot check</label>
-                <button
-                  type="button"
-                  onClick={() => void loadChallenge()}
-                  disabled={isLoadingChallenge || isSubmitting}
-                  className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#1b1c1d] hover:underline disabled:opacity-50"
-                >
-                  {isLoadingChallenge ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                  Refresh
-                </button>
-              </div>
-
-              <p className="mt-2 text-[13px] text-[#44474c] min-h-[20px]">
-                {isLoadingChallenge ? 'Loading challenge...' : challengePrompt || 'Challenge unavailable'}
-              </p>
-
-              <input
-                type="text"
-                inputMode="numeric"
-                required
-                value={challengeAnswer}
-                onChange={(e) => setChallengeAnswer(e.target.value)}
-                className="mt-2 w-full rounded-lg border border-[#c4c6cd] bg-white px-4 py-2.5 text-base text-[#1b1c1d] placeholder:text-[#9ea3ab] focus:outline-none focus:border-[#1b1c1d] focus:ring-1 focus:ring-[#1b1c1d] transition-colors"
-                placeholder="Enter answer"
-              />
+            <div ref={turnstileContainerRef} className="flex justify-center min-h-[65px] items-center">
+              {!isTurnstileReady && <Loader2 className="w-5 h-5 animate-spin text-[#9ea3ab]" />}
             </div>
 
             {errorMsg && (
@@ -165,7 +197,7 @@ const LoginPage: React.FC = () => {
 
             <button
               type="submit"
-              disabled={isSubmitting || isLoadingChallenge}
+              disabled={isSubmitting || !turnstileToken}
               className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#1b1c1d] text-white font-semibold text-[14px] px-4 py-2.5 hover:bg-[#041627] disabled:opacity-50 transition-colors"
             >
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}

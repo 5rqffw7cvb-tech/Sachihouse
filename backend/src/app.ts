@@ -252,11 +252,12 @@ export function createApp(store: DataStore) {
   const retentionDaysRaw = Number(process.env.CHECKIN_RETENTION_DAYS ?? 7);
   const checkInRetentionDays = Number.isFinite(retentionDaysRaw) && retentionDaysRaw > 0 ? Math.trunc(retentionDaysRaw) : 7;
   const checkInRetentionNoticeVersion = (process.env.CHECKIN_RETENTION_NOTICE_VERSION ?? 'v1').trim() || 'v1';
-  const loginChallengeMap = new Map<string, { answer: string; expiresAt: number }>();
   const loginAttemptMap = new Map<string, { fails: number; lockUntil: number }>();
-  const loginChallengeTtlMs = Math.max(30_000, Number(process.env.LOGIN_CHALLENGE_TTL_SECONDS ?? 180) * 1000);
   const loginMaxFails = Math.max(3, Number(process.env.LOGIN_MAX_FAILS ?? 5));
   const loginLockMs = Math.max(30_000, Number(process.env.LOGIN_LOCK_SECONDS ?? 120) * 1000);
+  // Cloudflare's published always-pass test secret, used only as a local-dev fallback
+  // when TURNSTILE_SECRET_KEY isn't configured. https://developers.cloudflare.com/turnstile/troubleshooting/testing/
+  const turnstileSecretKey = process.env.TURNSTILE_SECRET_KEY || '1x0000000000000000000000000000000AA';
 
   async function getEffectiveBlockedDates(
     property: PropertyData & { id: string },
@@ -475,12 +476,7 @@ export function createApp(store: DataStore) {
     };
   }
 
-  function pruneLoginSecurityState(now: number): void {
-    loginChallengeMap.forEach((value, key) => {
-      if (value.expiresAt <= now) {
-        loginChallengeMap.delete(key);
-      }
-    });
+  function pruneLoginAttemptState(now: number): void {
     loginAttemptMap.forEach((value, key) => {
       if (value.lockUntil <= now && value.fails === 0) {
         loginAttemptMap.delete(key);
@@ -488,38 +484,27 @@ export function createApp(store: DataStore) {
     });
   }
 
-  function buildLoginChallenge(): { challengeId: string; prompt: string; expiresInSeconds: number } {
-    const now = Date.now();
-    pruneLoginSecurityState(now);
-
-    const left = Math.floor(Math.random() * 8) + 2;
-    const right = Math.floor(Math.random() * 8) + 2;
-    const challengeId = `lc_${Math.random().toString(36).slice(2, 10)}_${now.toString(36)}`;
-    loginChallengeMap.set(challengeId, {
-      answer: String(left + right),
-      expiresAt: now + loginChallengeTtlMs,
-    });
-
-    return {
-      challengeId,
-      prompt: `${left} + ${right} = ?`,
-      expiresInSeconds: Math.floor(loginChallengeTtlMs / 1000),
-    };
-  }
-
-  function verifyLoginChallenge(challengeId: unknown, challengeAnswer: unknown): boolean {
-    if (typeof challengeId !== 'string' || typeof challengeAnswer !== 'string') {
+  async function verifyTurnstileToken(token: unknown, remoteIp: string): Promise<boolean> {
+    if (typeof token !== 'string' || !token.trim()) {
       return false;
     }
-    const row = loginChallengeMap.get(challengeId);
-    if (!row) {
+    try {
+      const params = new URLSearchParams();
+      params.set('secret', turnstileSecretKey);
+      params.set('response', token);
+      if (remoteIp && remoteIp !== 'unknown') {
+        params.set('remoteip', remoteIp);
+      }
+      const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
+      });
+      const data = (await response.json()) as { success?: boolean };
+      return data.success === true;
+    } catch {
       return false;
     }
-    loginChallengeMap.delete(challengeId);
-    if (row.expiresAt <= Date.now()) {
-      return false;
-    }
-    return row.answer === challengeAnswer.trim();
   }
 
   function getLoginAttemptKey(req: Request, email: string): string {
@@ -615,18 +600,16 @@ export function createApp(store: DataStore) {
     res.json({ status: 'ok' });
   });
 
-  app.get('/api/auth/login-challenge', (_req, res) => {
-    return res.json(buildLoginChallenge());
-  });
-
   app.post('/api/auth/login', async (req, res) => {
-    const { email, password, challengeId, challengeAnswer } = req.body ?? {};
+    const { email, password, turnstileToken } = req.body ?? {};
     if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
     const attemptKey = getLoginAttemptKey(req, email);
     if (process.env.NODE_ENV !== 'test') {
+      pruneLoginAttemptState(Date.now());
+
       const lockRemainingMs = getLoginLockRemainingMs(attemptKey);
       if (lockRemainingMs > 0) {
         return res.status(429).json({
@@ -634,9 +617,9 @@ export function createApp(store: DataStore) {
         });
       }
 
-      const challengeOk = verifyLoginChallenge(challengeId, challengeAnswer);
-      if (!challengeOk) {
-        return res.status(400).json({ error: 'Invalid or expired anti-bot challenge. Please refresh and try again.' });
+      const turnstileOk = await verifyTurnstileToken(turnstileToken, getClientIp(req));
+      if (!turnstileOk) {
+        return res.status(400).json({ error: 'Anti-bot verification failed. Please try again.' });
       }
     }
 

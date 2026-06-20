@@ -1,11 +1,5 @@
 import { apiRequest, ApiUser, clearSession, getStoredUser, storeSession } from './api';
 
-export interface LoginChallenge {
-  challengeId: string;
-  prompt: string;
-  expiresInSeconds: number;
-}
-
 export interface LoginResult {
   success: boolean;
   error?: string;
@@ -46,14 +40,10 @@ export const checkAuth = (): boolean => !!currentUser;
 
 export const getCurrentUser = (): ApiUser | null => currentUser;
 
-export const getLoginChallenge = async (): Promise<LoginChallenge> => {
-  return apiRequest<LoginChallenge>('/auth/login-challenge');
-};
-
 export const login = async (
   email: string,
   password: string,
-  challenge?: { challengeId: string; challengeAnswer: string },
+  turnstileToken: string,
 ): Promise<LoginResult> => {
   if (!email || !password) {
     return { success: false, error: 'Email and password are required.' };
@@ -65,8 +55,7 @@ export const login = async (
       body: JSON.stringify({
         email,
         password,
-        challengeId: challenge?.challengeId,
-        challengeAnswer: challenge?.challengeAnswer,
+        turnstileToken,
       }),
     });
     storeSession(response.token, response.user);
