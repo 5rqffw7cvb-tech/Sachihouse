@@ -1,7 +1,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import { checkAuth, login } from '../services/auth';
 import { GlobalLayout } from '../components/GlobalLayout';
 
@@ -174,79 +174,86 @@ const LoginPage: React.FC = () => {
   return (
     <GlobalLayout>
       <div className="flex items-center justify-center min-h-[60vh] px-4">
-        <div className="w-full max-w-sm">
-          <h1 className="font-['Plus_Jakarta_Sans'] text-[26px] font-bold text-[#1b1c1d] mb-1">Sign in</h1>
-          <p className="text-[14px] text-[#74777d] mb-8">Staff and host access only.</p>
-
-          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
-            <div>
-              <label className="block text-[13px] font-semibold text-[#1b1c1d] mb-1.5">Email</label>
-              <input
-                type="email"
-                autoComplete="off"
-                required
-                ref={emailRef}
-                defaultValue=""
-                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-4 py-2.5 text-base text-[#1b1c1d] placeholder:text-[#9ea3ab] focus:outline-none focus:border-[#1b1c1d] focus:ring-1 focus:ring-[#1b1c1d] transition-colors"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[13px] font-semibold text-[#1b1c1d] mb-1.5">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  required
-                  ref={passwordRef}
-                  defaultValue=""
-                  className="w-full rounded-lg border border-[#c4c6cd] bg-white px-4 py-2.5 pr-10 text-base text-[#1b1c1d] placeholder:text-[#9ea3ab] focus:outline-none focus:border-[#1b1c1d] focus:ring-1 focus:ring-[#1b1c1d] transition-colors"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowPassword(v => !v)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 flex items-center justify-center w-10 text-[#9ea3ab] hover:text-[#1b1c1d] transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+        <div className="w-full max-w-[380px]">
+          <div className="bg-white rounded-2xl border border-[#e4e2e3] shadow-[0_1px_2px_rgba(27,28,29,0.04),0_8px_24px_rgba(27,28,29,0.06)] px-7 py-8 sm:px-9 sm:py-10">
+            <div className="flex flex-col items-center text-center mb-7">
+              <div className="w-11 h-11 rounded-full bg-[#1b1c1d] flex items-center justify-center mb-4">
+                <ShieldCheck className="w-5 h-5 text-white" strokeWidth={2} />
               </div>
+              <h1 className="font-['Plus_Jakarta_Sans'] text-[22px] font-bold text-[#1b1c1d] tracking-tight">Sign in</h1>
+              <p className="text-[13px] text-[#74777d] mt-1">Staff and host access only</p>
             </div>
 
-            <div className="relative flex justify-center min-h-[65px] items-center">
-              {/* Turnstile injects its iframe directly into this DOM node outside
-                  React's control, so it must not also be a React-rendered parent
-                  (e.g. of the spinner below) - that causes React/DOM conflicts
-                  on reconciliation and leaves the widget stuck. */}
-              <div ref={setTurnstileContainerEl} />
-              {!isTurnstileReady && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <Loader2 className="w-5 h-5 animate-spin text-[#9ea3ab]" />
+            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+              <div>
+                <label className="block text-[12px] font-semibold text-[#44474c] uppercase tracking-[0.04em] mb-1.5">Email</label>
+                <input
+                  type="email"
+                  autoComplete="off"
+                  required
+                  ref={emailRef}
+                  defaultValue=""
+                  className="w-full rounded-xl border border-[#d8d6d8] bg-[#fbfafa] px-3.5 py-2.5 text-[15px] text-[#1b1c1d] placeholder:text-[#9ea3ab] focus:outline-none focus:border-[#1b1c1d] focus:ring-2 focus:ring-[#1b1c1d]/10 focus:bg-white transition-colors"
+                  placeholder="you@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-[#44474c] uppercase tracking-[0.04em] mb-1.5">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    required
+                    ref={passwordRef}
+                    defaultValue=""
+                    className="w-full rounded-xl border border-[#d8d6d8] bg-[#fbfafa] px-3.5 py-2.5 pr-10 text-[15px] text-[#1b1c1d] placeholder:text-[#9ea3ab] focus:outline-none focus:border-[#1b1c1d] focus:ring-2 focus:ring-[#1b1c1d]/10 focus:bg-white transition-colors"
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPassword(v => !v)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 flex items-center justify-center w-10 text-[#9ea3ab] hover:text-[#1b1c1d] transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative flex justify-center min-h-[65px] items-center pt-1">
+                {/* Turnstile injects its iframe directly into this DOM node outside
+                    React's control, so it must not also be a React-rendered parent
+                    (e.g. of the spinner below) - that causes React/DOM conflicts
+                    on reconciliation and leaves the widget stuck. */}
+                <div ref={setTurnstileContainerEl} />
+                {!isTurnstileReady && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <Loader2 className="w-5 h-5 animate-spin text-[#9ea3ab]" />
+                  </div>
+                )}
+              </div>
+
+              {errorMsg && (
+                <div className="flex items-start gap-2 text-red-600 text-[13px] bg-red-50 rounded-lg px-3 py-2.5">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{errorMsg}</span>
                 </div>
               )}
-            </div>
 
-            {errorMsg && (
-              <div className="flex items-start gap-2 text-red-600 text-[13px]">
-                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
+              <button
+                type="submit"
+                disabled={isSubmitting || !turnstileToken}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#1b1c1d] text-white font-semibold text-[14px] px-4 py-2.5 hover:bg-[#041627] active:scale-[0.99] disabled:opacity-40 disabled:active:scale-100 transition-all"
+              >
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                Sign in
+              </button>
+            </form>
+          </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting || !turnstileToken}
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#1b1c1d] text-white font-semibold text-[14px] px-4 py-2.5 hover:bg-[#041627] disabled:opacity-50 transition-colors"
-            >
-              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              Sign in
-            </button>
-          </form>
-
-          <p className="mt-6 text-[13px] text-[#74777d]">
+          <p className="mt-6 text-[13px] text-[#74777d] text-center">
             Not staff?{' '}
             <Link to="/" className="text-[#1b1c1d] font-semibold hover:underline">
               Back to listings
