@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronUp, Loader2, Pencil, Save, Trash2, Upload, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronRight, Download, FileText, Loader2, MoreHorizontal, Pencil, Save, Trash2, Upload, X } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -120,6 +120,7 @@ const CheckInManagementPage: React.FC = () => {
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
 
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
 
   // Import state
   const [isImporting, setIsImporting] = useState(false);
@@ -617,90 +618,38 @@ const CheckInManagementPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
       <TopNavBar />
-      <main className="flex-1 w-full max-w-none mx-auto px-4 md:px-8 xl:px-12 pt-4 md:pt-[110px] pb-24 md:pb-10">
-        <div className="flex items-end justify-between gap-4 mb-4 md:mb-6">
+      <main className="flex-1 w-full max-w-none mx-auto px-0 md:px-8 xl:px-12 pt-3 md:pt-[110px] pb-24 md:pb-10">
+        <div className="flex items-end justify-between gap-4 mb-3 px-4 md:mb-6 md:px-0">
           <div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-[22px] md:text-[28px] font-bold tracking-tight leading-none">Check-in management</h1>
+            <h1 className="font-['Plus_Jakarta_Sans'] text-[19px] md:text-[28px] font-bold tracking-tight leading-none">Check-in management</h1>
             <p className="hidden md:block mt-1.5 text-[13px] text-[#74777d]">Review, search, and edit guest ID records.</p>
           </div>
-          <div className="hidden md:flex items-baseline gap-1.5 shrink-0">
-            <span className="font-['Plus_Jakarta_Sans'] text-[26px] font-bold tracking-tight tabular-nums">{sortedRows.length}</span>
-            <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d] pb-0.5">record{sortedRows.length === 1 ? '' : 's'}</span>
+          <div className="flex items-baseline gap-1.5 shrink-0">
+            <span className="font-['Plus_Jakarta_Sans'] text-[18px] md:text-[26px] font-bold tracking-tight tabular-nums">{sortedRows.length}</span>
+            <span className="text-[11px] md:text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d] pb-0.5">record{sortedRows.length === 1 ? '' : 's'}</span>
           </div>
         </div>
 
-        {/* Mobile filter toggle */}
-        <div className="mb-4 md:hidden">
+        {/* Mobile compact action bar */}
+        <div className="mb-3 px-4 md:hidden">
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsMobileFiltersOpen((prev) => !prev)}
-              className="flex min-w-0 flex-1 items-center justify-between rounded-xl border border-[#c4c6cd] bg-white px-4 py-3 text-left text-[14px] font-semibold text-[#1b1c1d]"
+              onClick={() => setIsMobileFiltersOpen(true)}
+              className="flex min-w-0 flex-1 items-center justify-between rounded-xl border border-[#c4c6cd] bg-white px-4 py-2.5 text-left text-[13px] font-semibold text-[#1b1c1d]"
             >
               <span>Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
-              {isMobileFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              <ChevronDown className="h-4 w-4 text-[#9a9ca1]" />
             </button>
             <button
               type="button"
-              onClick={handleReset}
-              className="shrink-0 rounded-xl border border-[#c4c6cd] bg-white px-3 py-3 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
+              onClick={() => setIsMobileMoreOpen(true)}
+              aria-label="More actions"
+              className="shrink-0 rounded-xl border border-[#c4c6cd] bg-white w-[42px] h-[42px] flex items-center justify-center text-[#1b1c1d]"
             >
-              Clear
+              <MoreHorizontal className="h-4.5 w-4.5" />
             </button>
           </div>
-          {isMobileFiltersOpen && (
-            <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-[#e4e2e3] bg-white p-3">
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Property</label>
-                <select value={draftPropertyId} onChange={(e) => setDraftPropertyId(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
-                  <option value="">All properties</option>
-                  {scopedProperties.map((property) => (
-                    <option key={property.id} value={property.id}>{property.name || property.id}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">From</label>
-                  <input type="date" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">To</label>
-                  <input type="date" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-                </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guest Name</label>
-                <input value={draftGuestName} onChange={(e) => setDraftGuestName(e.target.value)} placeholder="e.g. NGUYEN VAN A" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Nationality</label>
-                <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Sort By</label>
-                  <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
-                    <option value="createdAt">Created Time</option>
-                    <option value="checkInDate">Check-in Date</option>
-                    <option value="checkOutDate">Check-out Date</option>
-                    <option value="guestName">Guest Name</option>
-                    <option value="nationality">Nationality</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Order</label>
-                  <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as SortDirection)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
-                    <option value="desc">Descending</option>
-                    <option value="asc">Ascending</option>
-                  </select>
-                </div>
-              </div>
-              <button type="button" onClick={applyFilters} className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90">
-                Apply filter
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Desktop filter bar */}
@@ -753,12 +702,11 @@ const CheckInManagementPage: React.FC = () => {
               <button type="button" onClick={applyFilters} className="rounded-lg bg-[#041627] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#0a2238]">Apply filters</button>
             </div>
           </div>
-          <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleImportFile} />
         </div>
 
-        {errorMsg && <div className="mb-4 text-sm text-red-700">{errorMsg}</div>}
+        {errorMsg && <div className="mb-4 px-4 md:px-0 text-sm text-red-700">{errorMsg}</div>}
 
-        <section className="bg-white border border-[#e7e5e6] rounded-2xl overflow-hidden">
+        <section className="bg-white md:border md:border-[#e7e5e6] rounded-none md:rounded-2xl overflow-hidden">
           <div className="px-4 md:px-5 py-3 border-b border-[#eeecec] flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-[13px]">
               <span className="font-semibold text-[#1b1c1d]">{paginatedRows.length}</span>
@@ -794,28 +742,6 @@ const CheckInManagementPage: React.FC = () => {
                 <option value="50">50 / page</option>
                 <option value="100">100 / page</option>
               </select>
-            </div>
-
-            {/* Mobile actions */}
-            <div className="flex md:hidden gap-2 flex-wrap justify-end">
-              <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="rounded-lg border border-[#c4c6cd] bg-white px-2 py-1.5 text-[12px] font-semibold text-[#1b1c1d]">
-                <option value="20">20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-              <button onClick={handleCheckDuplicates} disabled={isCheckingDuplicates || loading || submissions.length === 0} className="inline-flex items-center gap-1 rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef] disabled:opacity-50">
-                {isCheckingDuplicates ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                Check dup
-              </button>
-              <button onClick={handleDeleteDuplicates} disabled={isDeletingDuplicates || duplicateSubmissionIds.length === 0} className="inline-flex items-center gap-1 rounded-lg border border-[#f0b4b4] bg-[#fff8f8] px-3 py-1.5 text-[12px] font-semibold text-[#a23535] transition-colors hover:bg-[#ffecec] disabled:opacity-50">
-                {isDeletingDuplicates ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                Delete dup
-              </button>
-              <button onClick={exportCsv} disabled={flattenedRows.length === 0} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-40 disabled:cursor-not-allowed">Export CSV</button>
-              <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="inline-flex items-center gap-1 rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef]">
-                {isImporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                Import
-              </button>
             </div>
           </div>
 
@@ -901,66 +827,31 @@ const CheckInManagementPage: React.FC = () => {
                 </table>
               </div>
 
-              <div className="md:hidden divide-y divide-[#efedef]">
+              <div className="md:hidden divide-y divide-[#edeaeb]">
                 {paginatedRows.map(({ submission, guest, rowId }) => {
-                  const isChecked = checkedRowIdSet.has(rowId);
                   const isDuplicate = duplicateSubmissionIdSet.has(submission.id);
                   return (
-                  <article key={rowId} className={`px-4 py-3 ${isDuplicate ? 'bg-[#fff8f8]' : 'bg-white'}`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex items-start gap-2">
-                        <input type="checkbox" checked={isChecked} onChange={() => toggleRowChecked(rowId)} className="mt-0.5" aria-label="Check row" />
-                        <div>
-                        <div className="font-semibold text-[14px] truncate">{guest.fullName || '-'}</div>
-                        <div className="text-[12px] text-[#74777d] truncate">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-[10px] text-[#74777d] font-mono pt-0.5">{submission.id}</div>
-                    </div>
-                    <div className="mt-1 text-[12px] text-[#44474c]">
-                      {submission.checkInDate}{submission.checkInTime ? ` ${submission.checkInTime}` : ''} → {submission.checkOutDate}{submission.checkOutTime ? ` ${submission.checkOutTime}` : ''}
-                    </div>
-                    <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 text-[12px]">
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Born</div>
-                        <div className="font-medium">{guest.birthYear ?? '-'}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Gender</div>
-                        <div className="font-medium">{guest.gender || '-'}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Nationality</div>
-                        <div className="font-medium">{guest.nationality || '-'}</div>
-                      </div>
-                      <div className="col-span-2">
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Document</div>
-                        <div className="font-medium capitalize">{guest.documentType || '-'} <span className="text-[#74777d] font-mono text-[10px]">{guest.documentNumber || ''}</span></div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Occupation</div>
-                        <div className="font-medium truncate">{guest.occupation || '-'}</div>
-                      </div>
-                      <div className="col-span-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Address</div>
-                        <div className="font-medium text-[12px]">{guest.address || '-'}</div>
-                      </div>
-                      <div className="col-span-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Contact</div>
-                        <div className="font-medium text-[12px]">{guest.contactInfo || '-'}</div>
-                      </div>
-                      <div className="col-span-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Travel (from → to)</div>
-                        <div className="font-medium text-[12px]">{guest.previousLocation || '-'} → {guest.nextLocation || '-'}</div>
-                      </div>
-                      {guest.evidenceUrl && (
-                        <div>
-                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Evidence</div>
-                          <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#003580] underline font-medium">View</a>
-                        </div>
+                  <button
+                    key={rowId}
+                    type="button"
+                    onClick={() => setSelectedRow({ submission, guest })}
+                    className={`w-full px-4 py-3 text-left active:bg-[#faf9fa] ${isDuplicate ? 'bg-[#fef6f5]' : 'bg-white'}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="min-w-0 flex-1 truncate font-semibold text-[14px] text-[#1b1c1d]">{guest.fullName || '-'}</p>
+                      {isDuplicate ? (
+                        <span className="shrink-0 rounded-full bg-[#fdecea] px-2 py-0.5 text-[10px] font-bold text-[#b3261e]">DUPLICATE</span>
+                      ) : (
+                        <ChevronRight className="h-4 w-4 shrink-0 text-[#c4c6cd]" />
                       )}
                     </div>
-                  </article>
+                    <p className="mt-0.5 truncate text-[12px] text-[#74777d]">
+                      {propertyNameMap.get(submission.propertyId) || submission.propertyId} · {submission.checkInDate} → {submission.checkOutDate}
+                    </p>
+                    <p className="mt-0.5 truncate text-[11px] text-[#9a9ca1]">
+                      {guest.nationality || '-'} · {(guest.documentType || '-').replace('_', ' ')}
+                    </p>
+                  </button>
                 )})}
               </div>
 
@@ -995,6 +886,139 @@ const CheckInManagementPage: React.FC = () => {
         <div className="text-[16px] md:text-[18px] font-bold text-[#1b1c1d]">{siteSettings.footerTitle}</div>
         <div className="text-[#44474c]">{siteSettings.footerCopyright}</div>
       </footer>
+
+      {/* Mobile filters bottom sheet */}
+      {isMobileFiltersOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setIsMobileFiltersOpen(false)} />
+          <div className="absolute bottom-0 inset-x-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-white">
+            <div className="flex items-center justify-between border-b border-[#e4e2e3] px-4 py-3.5">
+              <h2 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold">Filters</h2>
+              <button type="button" onClick={() => setIsMobileFiltersOpen(false)} className="text-[#74777d]"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Property</label>
+                <select value={draftPropertyId} onChange={(e) => setDraftPropertyId(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                  <option value="">All properties</option>
+                  {scopedProperties.map((property) => (
+                    <option key={property.id} value={property.id}>{property.name || property.id}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">From</label>
+                  <input type="date" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">To</label>
+                  <input type="date" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Guest Name</label>
+                <input value={draftGuestName} onChange={(e) => setDraftGuestName(e.target.value)} placeholder="e.g. NGUYEN VAN A" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Nationality</label>
+                <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Sort By</label>
+                  <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                    <option value="createdAt">Created Time</option>
+                    <option value="checkInDate">Check-in Date</option>
+                    <option value="checkOutDate">Check-out Date</option>
+                    <option value="guestName">Guest Name</option>
+                    <option value="nationality">Nationality</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Order</label>
+                  <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as SortDirection)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                    <option value="desc">Descending</option>
+                    <option value="asc">Ascending</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Page size</label>
+                <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                  <option value="20">20 / page</option>
+                  <option value="50">50 / page</option>
+                  <option value="100">100 / page</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 border-t border-[#e4e2e3] px-4 py-3">
+              <button type="button" onClick={handleReset} className="rounded-full border border-[#c4c6cd] bg-white px-5 py-2.5 text-sm font-semibold text-[#1b1c1d]">Clear</button>
+              <button type="button" onClick={applyFilters} className="flex-1 rounded-full bg-[#041627] py-2.5 text-sm font-semibold text-white">Apply filters</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile more-actions bottom sheet */}
+      {isMobileMoreOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setIsMobileMoreOpen(false)} />
+          <div className="absolute bottom-0 inset-x-0 rounded-t-2xl bg-white">
+            <div className="flex items-center justify-between border-b border-[#e4e2e3] px-4 py-3.5">
+              <h2 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold">More actions</h2>
+              <button type="button" onClick={() => setIsMobileMoreOpen(false)} className="text-[#74777d]"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
+              <button
+                type="button"
+                onClick={() => { setIsMobileMoreOpen(false); handleCheckDuplicates(); }}
+                disabled={isCheckingDuplicates || loading || submissions.length === 0}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-[#1b1c1d] active:bg-[#f1eff0] disabled:opacity-40"
+              >
+                {isCheckingDuplicates ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Check duplicates
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsMobileMoreOpen(false); void handleDeleteDuplicates(); }}
+                disabled={isDeletingDuplicates || duplicateSubmissionIds.length === 0}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-[#b3261e] active:bg-[#fdecea] disabled:opacity-40"
+              >
+                {isDeletingDuplicates ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Delete duplicates{duplicateSubmissionIds.length > 0 ? ` (${duplicateSubmissionIds.length})` : ''}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsMobileMoreOpen(false); exportCsv(); }}
+                disabled={flattenedRows.length === 0}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-[#0f7a44] active:bg-[#e6f5ec] disabled:opacity-40"
+              >
+                <Download className="h-4 w-4" />
+                Export CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsMobileMoreOpen(false); fileInputRef.current?.click(); }}
+                disabled={isImporting}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-[#1b1c1d] active:bg-[#f1eff0] disabled:opacity-40"
+              >
+                {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                Import CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsMobileMoreOpen(false); downloadTemplate(); }}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-[#74777d] active:bg-[#f1eff0]"
+              >
+                <FileText className="h-4 w-4" />
+                Download template
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleImportFile} />
 
       {/* Guest detail modal */}
       {selectedRow && (() => {
