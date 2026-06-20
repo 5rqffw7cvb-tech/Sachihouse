@@ -1531,6 +1531,14 @@ export function createApp(store: DataStore) {
       return res.status(403).json({ error: 'Check-in delete not allowed.' });
     }
 
+    await Promise.all(
+      submission.guests.map((guest) =>
+        objectStorage.deleteEvidenceObject(guest.evidenceUrl).catch((error) => {
+          console.error(`Failed to delete check-in evidence for guest ${guest.id}`, error);
+        }),
+      ),
+    );
+
     await store.deleteCheckInSubmission(submission.id);
     return res.status(204).send();
   });
