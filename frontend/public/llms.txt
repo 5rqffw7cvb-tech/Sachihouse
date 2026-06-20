@@ -1,0 +1,11 @@
+# SachiHouse
+
+> SachiHouse offers family-friendly stays in Tokyo with clear pricing, transport guidance, and direct host support for online booking.
+
+SachiHouse manages a portfolio of vetted, family- and group-friendly properties across Tokyo. Each listing includes verified pricing, nearest-station walking directions, house rules, and a guided check-in flow for guests.
+
+## Pages
+
+- [Property Listings](https://sachi-house.net/#/): Browse all current SachiHouse properties in Tokyo, with filters for location, bedrooms, and guest count.
+- [Travel Blog](https://sachi-house.net/#/blog): Tokyo travel guides and stay tips written by the SachiHouse team.
+- [Sign In](https://sachi-house.net/#/login): Staff and host portal access.
