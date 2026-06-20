@@ -597,6 +597,8 @@ export class PostgresStore implements DataStore {
       propertyId: input.propertyId,
       checkInDate: input.checkInDate,
       checkOutDate: input.checkOutDate,
+      checkInTime: input.checkInTime,
+      checkOutTime: input.checkOutTime,
       guests: input.guests,
       consent: structuredClone(input.consent),
       audit: structuredClone(input.audit),

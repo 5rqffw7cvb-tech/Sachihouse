@@ -523,10 +523,16 @@ const CheckInManagementPage: React.FC = () => {
       'property_id',
       'property_name',
       'checkin_date',
+      'checkin_time',
       'checkout_date',
+      'checkout_time',
       'guest_name',
       'guest_birth_year',
+      'guest_gender',
       'guest_address',
+      'guest_contact',
+      'previous_location',
+      'next_location',
       'guest_occupation',
       'guest_nationality',
       'document_type',
@@ -541,10 +547,16 @@ const CheckInManagementPage: React.FC = () => {
         submission.propertyId,
         propertyNameMap.get(submission.propertyId) || submission.propertyId,
         submission.checkInDate,
+        submission.checkInTime || '',
         submission.checkOutDate,
+        submission.checkOutTime || '',
         guest.fullName || '',
         guest.birthYear ?? '',
+        guest.gender || '',
         guest.address || '',
+        guest.contactInfo || '',
+        guest.previousLocation || '',
+        guest.nextLocation || '',
         guest.occupation || '',
         guest.nationality || '',
         guest.documentType || '',
@@ -834,7 +846,13 @@ const CheckInManagementPage: React.FC = () => {
                         <td className="px-3 py-2">
                           <div className="font-medium leading-snug">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap">{submission.checkInDate}<br/><span className="text-[#74777d]">{submission.checkOutDate}</span></td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                          {submission.checkInDate}
+                          {submission.checkInTime ? <span className="text-[#74777d] text-[11px]"> {submission.checkInTime}</span> : null}
+                          <br/>
+                          <span className="text-[#74777d]">{submission.checkOutDate}</span>
+                          {submission.checkOutTime ? <span className="text-[#74777d] text-[11px]"> {submission.checkOutTime}</span> : null}
+                        </td>
                         <td className="px-3 py-2 font-medium">{guest.fullName || '-'}</td>
                         <td className="px-3 py-2 text-center">{guest.birthYear ?? '-'}</td>
                         <td className="px-3 py-2 max-w-[200px] truncate text-[#44474c]">{guest.address || '-'}</td>
@@ -873,7 +891,9 @@ const CheckInManagementPage: React.FC = () => {
                       </div>
                       <div className="shrink-0 text-[10px] text-[#74777d] font-mono pt-0.5">{submission.id}</div>
                     </div>
-                    <div className="mt-1 text-[12px] text-[#44474c]">{submission.checkInDate} → {submission.checkOutDate}</div>
+                    <div className="mt-1 text-[12px] text-[#44474c]">
+                      {submission.checkInDate}{submission.checkInTime ? ` ${submission.checkInTime}` : ''} → {submission.checkOutDate}{submission.checkOutTime ? ` ${submission.checkOutTime}` : ''}
+                    </div>
                     <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 text-[12px]">
                       <div>
                         <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Born</div>
@@ -900,6 +920,24 @@ const CheckInManagementPage: React.FC = () => {
                         <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Address</div>
                         <div className="font-medium text-[12px]">{guest.address || '-'}</div>
                       </div>
+                      {guest.contactInfo && (
+                        <div className="col-span-3">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Contact</div>
+                          <div className="font-medium text-[12px]">{guest.contactInfo}</div>
+                        </div>
+                      )}
+                      {guest.previousLocation && (
+                        <div className="col-span-3">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Previous Location</div>
+                          <div className="font-medium text-[12px]">{guest.previousLocation}</div>
+                        </div>
+                      )}
+                      {guest.nextLocation && (
+                        <div className="col-span-3">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Next Location</div>
+                          <div className="font-medium text-[12px]">{guest.nextLocation}</div>
+                        </div>
+                      )}
                     </div>
                   </article>
                 )})}
@@ -944,13 +982,16 @@ const CheckInManagementPage: React.FC = () => {
         const fields: { label: string; value: string | number | null | undefined }[] = [
           { label: 'Submission ID', value: submission.id },
           { label: 'Property', value: propName },
-          { label: 'Check-in Date', value: submission.checkInDate },
-          { label: 'Check-out Date', value: submission.checkOutDate },
+          { label: 'Check-in Date', value: submission.checkInDate + (submission.checkInTime ? ' • ' + submission.checkInTime : '') },
+          { label: 'Check-out Date', value: submission.checkOutDate + (submission.checkOutTime ? ' • ' + submission.checkOutTime : '') },
           { label: 'Full Name', value: guest.fullName },
           { label: 'Birth Year', value: guest.birthYear },
           { label: 'Gender', value: guest.gender },
           { label: 'Nationality', value: guest.nationality },
           { label: 'Address', value: guest.address },
+          { label: 'Contact (Phone/Email)', value: guest.contactInfo },
+          { label: 'Previous Location', value: guest.previousLocation },
+          { label: 'Next Location', value: guest.nextLocation },
           { label: 'Occupation', value: guest.occupation },
           { label: 'Document Type', value: guest.documentType },
           { label: 'Document Number', value: guest.documentNumber },
@@ -1032,7 +1073,7 @@ const CheckInManagementPage: React.FC = () => {
                   <>
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
                       {fields.map(f => f.value != null && String(f.value).trim() !== '' && (
-                        <div key={f.label} className={f.label === 'Address' || f.label === 'Submission ID' ? 'col-span-2' : ''}>
+                        <div key={f.label} className={f.label === 'Address' || f.label === 'Previous Location' || f.label === 'Next Location' || f.label === 'Contact (Phone/Email)' || f.label === 'Submission ID' ? 'col-span-2' : ''}>
                           <dt className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">{f.label}</dt>
                           <dd className={`mt-0.5 text-[13px] font-medium text-[#1b1c1d] break-words${f.label === 'Submission ID' || f.label === 'Document Number' ? ' font-mono text-[11px] text-[#44474c]' : ''}`}>{String(f.value)}</dd>
                         </div>

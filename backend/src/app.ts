@@ -321,6 +321,23 @@ export function createApp(store: DataStore) {
     return true;
   }
 
+  function getCountryCapitalBackend(nationality: string): string {
+    const capitals: Record<string, string> = {
+      JPN: 'Tokyo', VNM: 'Hanoi', CHN: 'Beijing', KOR: 'Seoul', TWN: 'Taipei',
+      THA: 'Bangkok', SGP: 'Singapore', MYS: 'Kuala Lumpur', PHL: 'Manila',
+      IDN: 'Jakarta', IND: 'New Delhi', AUS: 'Canberra', NZL: 'Wellington',
+      HKG: 'Hong Kong', MMR: 'Naypyidaw', KHM: 'Phnom Penh', LAO: 'Vientiane',
+      NPL: 'Kathmandu', BGD: 'Dhaka', LKA: 'Sri Jayawardenepura Kotte', PAK: 'Islamabad',
+      USA: 'Washington D.C.', CAN: 'Ottawa', MEX: 'Mexico City', BRA: 'Brasilia',
+      GBR: 'London', FRA: 'Paris', DEU: 'Berlin', ITA: 'Rome', ESP: 'Madrid',
+      PRT: 'Lisbon', NLD: 'Amsterdam', CHE: 'Bern', AUT: 'Vienna', SWE: 'Stockholm',
+      NOR: 'Oslo', DNK: 'Copenhagen', FIN: 'Helsinki', POL: 'Warsaw', RUS: 'Moscow',
+      TUR: 'Ankara', SAU: 'Riyadh', ARE: 'Abu Dhabi', EGY: 'Cairo', ZAF: 'Pretoria',
+      ARG: 'Buenos Aires', CHL: 'Santiago', COL: 'Bogota', PER: 'Lima', IRN: 'Tehran',
+    };
+    return capitals[nationality.toUpperCase().trim()] ?? '';
+  }
+
   function toNormalizedGuest(guest: unknown, index: number): CheckInGuest {
     const row = (guest as Partial<CheckInGuest>) ?? {};
     const nowYear = new Date().getFullYear();
@@ -342,7 +359,7 @@ export function createApp(store: DataStore) {
       confidence.nationality = confidence.nationality ?? 0.2;
     }
 
-    const address = normalizeText(row.address) || 'NA';
+    const address = normalizeText(row.address) || getCountryCapitalBackend(normalizeText(row.nationality) || nationality) || 'UNKNOWN';
     if (!normalizeText(row.address)) {
       estimated.address = true;
       confidence.address = confidence.address ?? 0.2;
@@ -387,6 +404,9 @@ export function createApp(store: DataStore) {
       ocrText: normalizeText(row.ocrText),
       estimated,
       confidence,
+      contactInfo: normalizeText(row.contactInfo),
+      previousLocation: normalizeText(row.previousLocation),
+      nextLocation: normalizeText(row.nextLocation),
     };
   }
 
@@ -1283,10 +1303,17 @@ export function createApp(store: DataStore) {
 
     const submittedAt = Date.now();
 
+    const checkInTimeRaw = req.body?.checkInTime;
+    const checkOutTimeRaw = req.body?.checkOutTime;
+    const checkInTime = typeof checkInTimeRaw === 'string' ? checkInTimeRaw.slice(0, 5) : '15:00';
+    const checkOutTime = typeof checkOutTimeRaw === 'string' ? checkOutTimeRaw.slice(0, 5) : '10:00';
+
     const submission = await store.createCheckInSubmission({
       propertyId: property.id,
       checkInDate,
       checkOutDate,
+      checkInTime,
+      checkOutTime,
       guests,
       consent: {
         accepted: true,

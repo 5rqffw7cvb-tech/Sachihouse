@@ -38,6 +38,8 @@ export async function submitCheckIn(propertyId: string, payload: {
   checkinToken: string;
   checkInDate: string;
   checkOutDate: string;
+  checkInTime?: string;
+  checkOutTime?: string;
   guests: CheckInGuest[];
   consent: {
     accepted: boolean;

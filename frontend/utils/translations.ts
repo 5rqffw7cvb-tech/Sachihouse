@@ -102,6 +102,11 @@ export const translations = {
     checkin_success_title: "Check-in submitted!",
     checkin_success_ref: "Reference",
     checkin_success_done: "Done",
+    checkin_time_in: "Check-in time",
+    checkin_time_out: "Check-out time",
+    checkin_popup_contact: "Phone / Email",
+    checkin_popup_prev_location: "Where were you before arriving?",
+    checkin_popup_next_location: "Where will you go after check-out?",
   },
   vi: {
     // Navigation
@@ -203,6 +208,11 @@ export const translations = {
     checkin_success_title: "Đã gửi đăng ký!",
     checkin_success_ref: "Mã đăng ký",
     checkin_success_done: "Hoàn tất",
+    checkin_time_in: "Giờ nhận phòng",
+    checkin_time_out: "Giờ trả phòng",
+    checkin_popup_contact: "SĐT / Email liên hệ",
+    checkin_popup_prev_location: "Bạn ở đâu trước khi đến SachiHouse?",
+    checkin_popup_next_location: "Sau khi trả phòng bạn sẽ đi đâu?",
   },
   ja: {
     // Navigation
@@ -304,6 +314,11 @@ export const translations = {
     checkin_success_title: "チェックイン完了！",
     checkin_success_ref: "参照番号",
     checkin_success_done: "完了",
+    checkin_time_in: "チェックイン時刻",
+    checkin_time_out: "チェックアウト時刻",
+    checkin_popup_contact: "電話・メール",
+    checkin_popup_prev_location: "入居前の毺居地は？",
+    checkin_popup_next_location: "チェックアウト後の目的地は？",
   },
   zh: {
     // Navigation
@@ -405,6 +420,11 @@ export const translations = {
     checkin_success_title: "登记成功！",
     checkin_success_ref: "参考编号",
     checkin_success_done: "完成",
+    checkin_time_in: "入住时间",
+    checkin_time_out: "退房时间",
+    checkin_popup_contact: "手机 / 邮箕",
+    checkin_popup_prev_location: "来此之前在哪里？",
+    checkin_popup_next_location: "退房后将前往哪里？",
   },
   ko: {
     // Navigation
@@ -506,5 +526,10 @@ export const translations = {
     checkin_success_title: "체크인 완료!",
     checkin_success_ref: "참조 번호",
     checkin_success_done: "완료",
+    checkin_time_in: "체크인 시간",
+    checkin_time_out: "체크아웃 시간",
+    checkin_popup_contact: "전화 / 이메일",
+    checkin_popup_prev_location: "체크인 전 어디에 계셨나요?",
+    checkin_popup_next_location: "체크아웃 후 어디로 가시나요?",
   }
 };

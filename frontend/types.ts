@@ -238,6 +238,9 @@ export interface CheckInGuest {
   ocrText?: string;
   estimated: CheckInGuestEstimatedFlags;
   confidence: CheckInGuestConfidence;
+  contactInfo?: string;
+  previousLocation?: string;
+  nextLocation?: string;
 }
 
 export interface CheckInConsent {
@@ -258,6 +261,8 @@ export interface CheckInSubmission {
   propertyId: string;
   checkInDate: string;
   checkOutDate: string;
+  checkInTime?: string;
+  checkOutTime?: string;
   guests: CheckInGuest[];
   consent: CheckInConsent;
   audit: CheckInAuditInfo;

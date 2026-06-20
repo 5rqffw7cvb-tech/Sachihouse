@@ -10,6 +10,7 @@ import { TopNavBar } from '../components/TopNavBar';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { getSiteSettings } from '../services/storage';
+import { getCountryCapital } from '../utils/countryCapitals';
 
 interface CheckInPageProps {
   data: PropertyData;
@@ -44,6 +45,9 @@ const createEmptyGuest = (id: string): CheckInGuest => ({
   ocrText: '',
   estimated: {},
   confidence: {},
+  contactInfo: '',
+  previousLocation: '',
+  nextLocation: '',
 });
 
 const toDateInput = (offsetDays = 0): string => {
@@ -142,6 +146,8 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const { t } = useLanguage();
   const [checkInDate, setCheckInDate] = useState<string>(toDateInput(0));
   const [checkOutDate, setCheckOutDate] = useState<string>(toDateInput(1));
+  const [checkInTime, setCheckInTime] = useState<string>('15:00');
+  const [checkOutTime, setCheckOutTime] = useState<string>('10:00');
   const [guests, setGuests] = useState<CheckInGuest[]>([createEmptyGuest('guest_1')]);
   const [photoPreviewByGuest, setPhotoPreviewByGuest] = useState<Record<string, string>>({});
   const [processingByGuest, setProcessingByGuest] = useState<Record<string, boolean>>({});
@@ -395,9 +401,20 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         checkinToken,
       });
 
-      updateGuest(guestId, extracted);
+      // Fix address: replace NA/empty with capital of nationality
+      const capital = getCountryCapital(extracted.nationality);
+      const addressValue = (extracted.address && extracted.address !== 'NA') ? extracted.address : capital;
+      const locationDefault = addressValue || capital;
+      const enrichedGuest: CheckInGuest = {
+        ...extracted,
+        address: addressValue,
+        previousLocation: extracted.previousLocation || locationDefault,
+        nextLocation: extracted.nextLocation || locationDefault,
+      };
+
+      updateGuest(guestId, enrichedGuest);
       setEditorGuestId(guestId);
-      setEditorDraft({ ...extracted });
+      setEditorDraft({ ...enrichedGuest });
       setEditorError(null);
     } catch (error) {
       const backendMessage = error instanceof ApiError ? error.message : '';
@@ -427,6 +444,9 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       gender: editorDraft.gender.trim(),
       occupation: editorDraft.occupation.trim(),
       documentNumber: editorDraft.documentNumber.trim(),
+      contactInfo: (editorDraft.contactInfo ?? '').trim(),
+      previousLocation: (editorDraft.previousLocation ?? '').trim(),
+      nextLocation: (editorDraft.nextLocation ?? '').trim(),
     };
 
     if (!normalizedGuest.fullName || !normalizedGuest.evidenceUrl) {
@@ -454,6 +474,8 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         checkinToken,
         checkInDate,
         checkOutDate,
+        checkInTime,
+        checkOutTime,
         guests: guestsForSubmission,
         consent: {
           accepted: true,
@@ -548,7 +570,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{sessionError}</p>
         )}
 
-        {/* Dates */}
+        {/* Dates + Times */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{t('checkin_date_in')}</p>
@@ -565,6 +587,24 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
               type="date"
               value={checkOutDate}
               onChange={(event) => setCheckOutDate(event.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{t('checkin_time_in')}</p>
+            <input
+              type="time"
+              value={checkInTime}
+              onChange={(event) => setCheckInTime(event.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{t('checkin_time_out')}</p>
+            <input
+              type="time"
+              value={checkOutTime}
+              onChange={(event) => setCheckOutTime(event.target.value)}
               className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
             />
           </div>
@@ -738,6 +778,31 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <input
                           value={editorDraft.address}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, address: event.target.value } : prev)); setEditorError(null); }}
+                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_contact')}</p>
+                        <input
+                          value={editorDraft.contactInfo ?? ''}
+                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, contactInfo: event.target.value } : prev)); setEditorError(null); }}
+                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                          placeholder="e.g. +81-90-xxxx-xxxx"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_prev_location')}</p>
+                        <input
+                          value={editorDraft.previousLocation ?? ''}
+                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, previousLocation: event.target.value } : prev)); setEditorError(null); }}
+                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_next_location')}</p>
+                        <input
+                          value={editorDraft.nextLocation ?? ''}
+                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, nextLocation: event.target.value } : prev)); setEditorError(null); }}
                           className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
                         />
                       </div>
