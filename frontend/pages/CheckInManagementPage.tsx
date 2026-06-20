@@ -111,7 +111,6 @@ function compareText(left: string, right: string): number {
 }
 
 const CheckInManagementPage: React.FC = () => {
-  const buildVersion = '2026-06-20-2';
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
   const [loading, setLoading] = useState(true);
@@ -524,16 +523,10 @@ const CheckInManagementPage: React.FC = () => {
       'property_id',
       'property_name',
       'checkin_date',
-      'checkin_time',
       'checkout_date',
-      'checkout_time',
       'guest_name',
       'guest_birth_year',
-      'guest_gender',
       'guest_address',
-      'guest_contact',
-      'previous_location',
-      'next_location',
       'guest_occupation',
       'guest_nationality',
       'document_type',
@@ -548,16 +541,10 @@ const CheckInManagementPage: React.FC = () => {
         submission.propertyId,
         propertyNameMap.get(submission.propertyId) || submission.propertyId,
         submission.checkInDate,
-        submission.checkInTime || '',
         submission.checkOutDate,
-        submission.checkOutTime || '',
         guest.fullName || '',
         guest.birthYear ?? '',
-        guest.gender || '',
         guest.address || '',
-        guest.contactInfo || '',
-        guest.previousLocation || '',
-        guest.nextLocation || '',
         guest.occupation || '',
         guest.nationality || '',
         guest.documentType || '',
@@ -616,11 +603,18 @@ const CheckInManagementPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col" data-build-version={buildVersion}>
+    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
       <TopNavBar />
-      <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 pt-4 md:pt-[110px] pb-24 md:pb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="font-['Plus_Jakarta_Sans'] text-[22px] md:text-[26px] font-bold tracking-tight">Check-in Management</h1>
+      <main className="flex-1 w-full max-w-none mx-auto px-4 md:px-8 xl:px-12 pt-4 md:pt-[110px] pb-24 md:pb-10">
+        <div className="flex items-end justify-between gap-4 mb-4 md:mb-6">
+          <div>
+            <h1 className="font-['Plus_Jakarta_Sans'] text-[22px] md:text-[28px] font-bold tracking-tight leading-none">Check-in management</h1>
+            <p className="hidden md:block mt-1.5 text-[13px] text-[#74777d]">Review, search, and edit guest ID records.</p>
+          </div>
+          <div className="hidden md:flex items-baseline gap-1.5 shrink-0">
+            <span className="font-['Plus_Jakarta_Sans'] text-[26px] font-bold tracking-tight tabular-nums">{sortedRows.length}</span>
+            <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d] pb-0.5">record{sortedRows.length === 1 ? '' : 's'}</span>
+          </div>
         </div>
 
         {/* Mobile filter toggle */}
@@ -697,102 +691,116 @@ const CheckInManagementPage: React.FC = () => {
           )}
         </div>
 
-        {/* Desktop filter row */}
-        <div className="mb-5 hidden md:flex items-end flex-wrap gap-3">
-          <div className="w-[180px]">
-            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Property</label>
-            <select value={draftPropertyId} onChange={(e) => setDraftPropertyId(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
-              <option value="">All properties</option>
-              {scopedProperties.map((property) => (
-                <option key={property.id} value={property.id}>{property.name || property.id}</option>
-              ))}
-            </select>
+        {/* Desktop filter bar */}
+        <div className="mb-5 hidden md:block rounded-2xl border border-[#e7e5e6] bg-white px-4 py-3.5">
+          <div className="flex items-end flex-wrap gap-x-3 gap-y-3">
+            <div className="min-w-[180px] flex-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Property</label>
+              <select value={draftPropertyId} onChange={(e) => setDraftPropertyId(e.target.value)} className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10">
+                <option value="">All properties</option>
+                {scopedProperties.map((property) => (
+                  <option key={property.id} value={property.id}>{property.name || property.id}</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-[150px]">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">From</label>
+              <input type="date" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10" />
+            </div>
+            <div className="w-[150px]">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">To</label>
+              <input type="date" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10" />
+            </div>
+            <div className="min-w-[160px] flex-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Guest name</label>
+              <input value={draftGuestName} onChange={(e) => setDraftGuestName(e.target.value)} placeholder="e.g. NGUYEN" className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors placeholder:text-[#b9bbbf] focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10" />
+            </div>
+            <div className="w-[130px]">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Nationality</label>
+              <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors placeholder:text-[#b9bbbf] focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10" />
+            </div>
+            <div className="w-[160px]">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Sort by</label>
+              <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)} className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10">
+                <option value="createdAt">Created time</option>
+                <option value="checkInDate">Check-in date</option>
+                <option value="checkOutDate">Check-out date</option>
+                <option value="guestName">Guest name</option>
+                <option value="nationality">Nationality</option>
+              </select>
+            </div>
+            <div className="w-[130px]">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Order</label>
+              <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as SortDirection)} className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10">
+                <option value="desc">Descending</option>
+                <option value="asc">Ascending</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <button type="button" onClick={handleReset} className="rounded-lg px-3 py-2 text-[13px] font-semibold text-[#74777d] transition-colors hover:bg-[#f1eff0] hover:text-[#1b1c1d]">Clear</button>
+              <button type="button" onClick={applyFilters} className="rounded-lg bg-[#041627] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#0a2238]">Apply filters</button>
+            </div>
           </div>
-          <div className="w-[148px]">
-            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">From</label>
-            <input type="date" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-          </div>
-          <div className="w-[148px]">
-            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">To</label>
-            <input type="date" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-          </div>
-          <div className="w-[180px]">
-            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guest Name</label>
-            <input value={draftGuestName} onChange={(e) => setDraftGuestName(e.target.value)} placeholder="e.g. NGUYEN" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-          </div>
-          <div className="w-[140px]">
-            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Nationality</label>
-            <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-          </div>
-          <div className="w-[170px]">
-            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Sort By</label>
-            <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
-              <option value="createdAt">Created Time</option>
-              <option value="checkInDate">Check-in Date</option>
-              <option value="checkOutDate">Check-out Date</option>
-              <option value="guestName">Guest Name</option>
-              <option value="nationality">Nationality</option>
-            </select>
-          </div>
-          <div className="w-[140px]">
-            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Order</label>
-            <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as SortDirection)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
-            </select>
-          </div>
-          <div className="w-[120px]">
-            <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Per Page</label>
-            <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
-              <option value="20">20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-          </div>
-          <button type="button" onClick={applyFilters} className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90">Apply filter</button>
-          <button type="button" onClick={handleReset} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]">Clear filter</button>
-          <button type="button" onClick={handleCheckDuplicates} disabled={isCheckingDuplicates || loading || submissions.length === 0} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef] disabled:opacity-50">
-            {isCheckingDuplicates ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-            Check duplicate
-          </button>
-          <button type="button" onClick={handleDeleteDuplicates} disabled={isDeletingDuplicates || duplicateSubmissionIds.length === 0} className="inline-flex items-center gap-1.5 rounded-lg border border-[#f0b4b4] bg-[#fff8f8] px-3 py-2 text-[13px] font-semibold text-[#a23535] transition-colors hover:bg-[#ffecec] disabled:opacity-50">
-            {isDeletingDuplicates ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-            Delete duplicate ({duplicateSubmissionIds.length})
-          </button>
-          <button type="button" onClick={exportCsv} disabled={flattenedRows.length === 0} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-50 disabled:cursor-not-allowed">Export CSV</button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef] disabled:opacity-50">
-            {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-            Import CSV
-          </button>
-          <button type="button" onClick={downloadTemplate} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]">Template</button>
           <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleImportFile} />
         </div>
 
         {errorMsg && <div className="mb-4 text-sm text-red-700">{errorMsg}</div>}
 
-        <section className="bg-white border border-[#e4e2e3] rounded-2xl overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-[#e4e2e3] bg-[#f5f3f4] flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold">
-              Showing {paginatedRows.length} / {sortedRows.length} guest record{sortedRows.length === 1 ? '' : 's'}
-              {checkedRowIds.length > 0 ? ` · Checked ${checkedRowIds.length}` : ''}
-              {duplicateVisibleRowsCount > 0 ? ` · Duplicate ${duplicateVisibleRowsCount}` : ''}
-            </span>
-            <div className="flex gap-2 flex-wrap justify-end">
-              <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="md:hidden rounded-lg border border-[#c4c6cd] bg-white px-2 py-1.5 text-[12px] font-semibold text-[#1b1c1d]">
+        <section className="bg-white border border-[#e7e5e6] rounded-2xl overflow-hidden">
+          <div className="px-4 md:px-5 py-3 border-b border-[#eeecec] flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-[13px]">
+              <span className="font-semibold text-[#1b1c1d]">{paginatedRows.length}</span>
+              <span className="text-[#9a9ca1]">of {sortedRows.length} shown</span>
+              {checkedRowIds.length > 0 && (
+                <span className="rounded-full bg-[#041627]/[0.06] px-2 py-0.5 text-[11px] font-semibold text-[#041627]">{checkedRowIds.length} checked</span>
+              )}
+              {duplicateVisibleRowsCount > 0 && (
+                <span className="rounded-full bg-[#fdecea] px-2 py-0.5 text-[11px] font-semibold text-[#b3261e]">{duplicateVisibleRowsCount} duplicate</span>
+              )}
+            </div>
+
+            {/* Desktop actions */}
+            <div className="hidden md:flex items-center gap-1">
+              <button type="button" onClick={handleCheckDuplicates} disabled={isCheckingDuplicates || loading || submissions.length === 0} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#f1eff0] disabled:opacity-40">
+                {isCheckingDuplicates ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                Check duplicates
+              </button>
+              <button type="button" onClick={handleDeleteDuplicates} disabled={isDeletingDuplicates || duplicateSubmissionIds.length === 0} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-[#b3261e] transition-colors hover:bg-[#fdecea] disabled:opacity-40">
+                {isDeletingDuplicates ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                Delete duplicates{duplicateSubmissionIds.length > 0 ? ` (${duplicateSubmissionIds.length})` : ''}
+              </button>
+              <span className="mx-1 h-5 w-px bg-[#e7e5e6]" />
+              <button type="button" onClick={exportCsv} disabled={flattenedRows.length === 0} className="rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-40">Export CSV</button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#f1eff0] disabled:opacity-40">
+                {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                Import
+              </button>
+              <button type="button" onClick={downloadTemplate} className="rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-[#74777d] transition-colors hover:bg-[#f1eff0]">Template</button>
+              <span className="mx-1 h-5 w-px bg-[#e7e5e6]" />
+              <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="rounded-lg border border-[#e2e0e1] bg-white px-2.5 py-1.5 text-[13px] font-semibold text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10">
+                <option value="20">20 / page</option>
+                <option value="50">50 / page</option>
+                <option value="100">100 / page</option>
+              </select>
+            </div>
+
+            {/* Mobile actions */}
+            <div className="flex md:hidden gap-2 flex-wrap justify-end">
+              <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="rounded-lg border border-[#c4c6cd] bg-white px-2 py-1.5 text-[12px] font-semibold text-[#1b1c1d]">
                 <option value="20">20</option>
                 <option value="50">50</option>
                 <option value="100">100</option>
               </select>
-              <button onClick={handleCheckDuplicates} disabled={isCheckingDuplicates || loading || submissions.length === 0} className="md:hidden inline-flex items-center gap-1 rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef] disabled:opacity-50">
+              <button onClick={handleCheckDuplicates} disabled={isCheckingDuplicates || loading || submissions.length === 0} className="inline-flex items-center gap-1 rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef] disabled:opacity-50">
                 {isCheckingDuplicates ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
                 Check dup
               </button>
-              <button onClick={handleDeleteDuplicates} disabled={isDeletingDuplicates || duplicateSubmissionIds.length === 0} className="md:hidden inline-flex items-center gap-1 rounded-lg border border-[#f0b4b4] bg-[#fff8f8] px-3 py-1.5 text-[12px] font-semibold text-[#a23535] transition-colors hover:bg-[#ffecec] disabled:opacity-50">
+              <button onClick={handleDeleteDuplicates} disabled={isDeletingDuplicates || duplicateSubmissionIds.length === 0} className="inline-flex items-center gap-1 rounded-lg border border-[#f0b4b4] bg-[#fff8f8] px-3 py-1.5 text-[12px] font-semibold text-[#a23535] transition-colors hover:bg-[#ffecec] disabled:opacity-50">
                 {isDeletingDuplicates ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                 Delete dup
               </button>
-              <button onClick={exportCsv} disabled={flattenedRows.length === 0} className="md:hidden rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-40 disabled:cursor-not-allowed">Export CSV</button>
-              <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="md:hidden inline-flex items-center gap-1 rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef]">
+              <button onClick={exportCsv} disabled={flattenedRows.length === 0} className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-40 disabled:cursor-not-allowed">Export CSV</button>
+              <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="inline-flex items-center gap-1 rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1b1c1d] transition-colors hover:bg-[#efedef]">
                 {isImporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
                 Import
               </button>
@@ -806,27 +814,28 @@ const CheckInManagementPage: React.FC = () => {
           ) : (
             <>
               <div className="hidden md:block overflow-x-auto">
-                <table className="min-w-[1120px] text-sm">
-                  <thead className="bg-[#f5f3f4] text-[#44474c]">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">
+                <table className="w-full min-w-[1024px] text-sm border-separate border-spacing-0">
+                  <thead>
+                    <tr className="[&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-white [&>th]:border-b [&>th]:border-[#e7e5e6] text-[#9a9ca1]">
+                      <th className="text-left pl-5 pr-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-10">
                         <input
                           type="checkbox"
                           checked={allVisibleRowsChecked}
                           onChange={toggleAllVisibleRows}
                           aria-label="Check all visible rows"
+                          className="accent-[#041627]"
                         />
                       </th>
-                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Check-in ID</th>
-                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Property</th>
-                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Stay</th>
-                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Guest</th>
-                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Born</th>
-                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Address</th>
-                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Occupation</th>
-                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Document</th>
-                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Nationality</th>
-                      <th className="text-left px-3 py-2 font-semibold uppercase text-[11px] tracking-wide">Evidence</th>
+                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Check-in ID</th>
+                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Property</th>
+                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Stay</th>
+                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Guest</th>
+                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Born</th>
+                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Address</th>
+                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Occupation</th>
+                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Document</th>
+                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Nationality</th>
+                      <th className="text-left px-3 pr-5 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Evidence</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -834,40 +843,35 @@ const CheckInManagementPage: React.FC = () => {
                       const isChecked = checkedRowIdSet.has(rowId);
                       const isDuplicate = duplicateSubmissionIdSet.has(submission.id);
                       return (
-                      <tr key={rowId} onClick={() => setSelectedRow({ submission, guest })} className={`border-t border-[#efedef] align-top hover:bg-[#faf9f9] text-[13px] cursor-pointer ${isDuplicate ? 'bg-[#fff8f8]' : ''}`}>
-                        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                      <tr key={rowId} onClick={() => setSelectedRow({ submission, guest })} className={`group align-top text-[13px] cursor-pointer transition-colors [&>td]:border-b [&>td]:border-[#f1eff0] hover:[&>td]:bg-[#faf9fa] ${isChecked ? '[&>td]:bg-[#041627]/[0.025]' : ''} ${isDuplicate ? '[&>td]:bg-[#fef6f5]' : ''}`}>
+                        <td className="pl-5 pr-3 py-3" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => toggleRowChecked(rowId)}
                             aria-label="Check row"
+                            className="accent-[#041627]"
                           />
                         </td>
-                        <td className="px-3 py-2 font-mono text-[11px] text-[#74777d]">{submission.id}</td>
-                        <td className="px-3 py-2">
-                          <div className="font-medium leading-snug">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
+                        <td className="px-3 py-3 font-mono text-[11px] text-[#9a9ca1] whitespace-nowrap">{submission.id}</td>
+                        <td className="px-3 py-3">
+                          <div className="font-medium leading-snug text-[#1b1c1d]">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
                         </td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                          {submission.checkInDate}
-                          {submission.checkInTime ? <span className="text-[#74777d] text-[11px]"> {submission.checkInTime}</span> : null}
-                          <br/>
-                          <span className="text-[#74777d]">{submission.checkOutDate}</span>
-                          {submission.checkOutTime ? <span className="text-[#74777d] text-[11px]"> {submission.checkOutTime}</span> : null}
+                        <td className="px-3 py-3 whitespace-nowrap text-[#1b1c1d]">{submission.checkInDate}<br/><span className="text-[#9a9ca1]">{submission.checkOutDate}</span></td>
+                        <td className="px-3 py-3 font-semibold text-[#1b1c1d]">{guest.fullName || '-'}</td>
+                        <td className="px-3 py-3 tabular-nums text-[#44474c]">{guest.birthYear ?? '-'}</td>
+                        <td className="px-3 py-3 max-w-[220px] truncate text-[#44474c]">{guest.address || '-'}</td>
+                        <td className="px-3 py-3 max-w-[150px] truncate text-[#44474c]">{guest.occupation || '-'}</td>
+                        <td className="px-3 py-3">
+                          <div className="capitalize text-[#1b1c1d]">{(guest.documentType || '-').replace('_', ' ')}</div>
+                          <div className="text-[11px] text-[#9a9ca1] font-mono">{guest.documentNumber || '-'}</div>
                         </td>
-                        <td className="px-3 py-2 font-medium">{guest.fullName || '-'}</td>
-                        <td className="px-3 py-2 text-center">{guest.birthYear ?? '-'}</td>
-                        <td className="px-3 py-2 max-w-[200px] truncate text-[#44474c]">{guest.address || '-'}</td>
-                        <td className="px-3 py-2 max-w-[140px] truncate text-[#44474c]">{guest.occupation || '-'}</td>
-                        <td className="px-3 py-2">
-                          <div className="capitalize">{guest.documentType || '-'}</div>
-                          <div className="text-[11px] text-[#74777d] font-mono">{guest.documentNumber || '-'}</div>
-                        </td>
-                        <td className="px-3 py-2 font-medium">{guest.nationality || '-'}</td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-3 font-medium text-[#1b1c1d]">{guest.nationality || '-'}</td>
+                        <td className="px-3 pr-5 py-3">
                           {guest.evidenceUrl ? (
-                            <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-[#003580] underline">View</a>
+                            <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center rounded-md px-2 py-1 text-[12px] font-semibold text-[#041627] transition-colors hover:bg-[#041627]/[0.06]">View</a>
                           ) : (
-                            <span className="text-[#74777d]">—</span>
+                            <span className="text-[#c4c6cd]">—</span>
                           )}
                         </td>
                       </tr>
@@ -892,9 +896,7 @@ const CheckInManagementPage: React.FC = () => {
                       </div>
                       <div className="shrink-0 text-[10px] text-[#74777d] font-mono pt-0.5">{submission.id}</div>
                     </div>
-                    <div className="mt-1 text-[12px] text-[#44474c]">
-                      {submission.checkInDate}{submission.checkInTime ? ` ${submission.checkInTime}` : ''} → {submission.checkOutDate}{submission.checkOutTime ? ` ${submission.checkOutTime}` : ''}
-                    </div>
+                    <div className="mt-1 text-[12px] text-[#44474c]">{submission.checkInDate} → {submission.checkOutDate}</div>
                     <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 text-[12px]">
                       <div>
                         <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Born</div>
@@ -921,37 +923,19 @@ const CheckInManagementPage: React.FC = () => {
                         <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Address</div>
                         <div className="font-medium text-[12px]">{guest.address || '-'}</div>
                       </div>
-                      {guest.contactInfo && (
-                        <div className="col-span-3">
-                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Contact</div>
-                          <div className="font-medium text-[12px]">{guest.contactInfo}</div>
-                        </div>
-                      )}
-                      {guest.previousLocation && (
-                        <div className="col-span-3">
-                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Previous Location</div>
-                          <div className="font-medium text-[12px]">{guest.previousLocation}</div>
-                        </div>
-                      )}
-                      {guest.nextLocation && (
-                        <div className="col-span-3">
-                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Next Location</div>
-                          <div className="font-medium text-[12px]">{guest.nextLocation}</div>
-                        </div>
-                      )}
                     </div>
                   </article>
                 )})}
               </div>
 
-              <div className="px-4 py-3 border-t border-[#e4e2e3] bg-[#faf9f9] flex items-center justify-between gap-3">
-                <div className="text-[12px] text-[#74777d]">Page {currentPage} / {totalPages}</div>
-                <div className="flex items-center gap-2">
+              <div className="px-4 md:px-5 py-3 border-t border-[#eeecec] flex items-center justify-between gap-3">
+                <div className="text-[12px] text-[#9a9ca1]">Page <span className="font-semibold text-[#1b1c1d] tabular-nums">{currentPage}</span> of <span className="tabular-nums">{totalPages}</span></div>
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                     disabled={currentPage <= 1}
-                    className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef] disabled:opacity-50"
+                    className="rounded-lg border border-[#e2e0e1] bg-white px-3.5 py-1.5 text-[12px] font-semibold text-[#44474c] transition-colors hover:bg-[#f1eff0] disabled:opacity-40 disabled:hover:bg-white"
                   >
                     Prev
                   </button>
@@ -959,7 +943,7 @@ const CheckInManagementPage: React.FC = () => {
                     type="button"
                     onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                     disabled={currentPage >= totalPages}
-                    className="rounded-lg border border-[#c4c6cd] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef] disabled:opacity-50"
+                    className="rounded-lg border border-[#e2e0e1] bg-white px-3.5 py-1.5 text-[12px] font-semibold text-[#44474c] transition-colors hover:bg-[#f1eff0] disabled:opacity-40 disabled:hover:bg-white"
                   >
                     Next
                   </button>
@@ -983,16 +967,13 @@ const CheckInManagementPage: React.FC = () => {
         const fields: { label: string; value: string | number | null | undefined }[] = [
           { label: 'Submission ID', value: submission.id },
           { label: 'Property', value: propName },
-          { label: 'Check-in Date', value: submission.checkInDate + (submission.checkInTime ? ' • ' + submission.checkInTime : '') },
-          { label: 'Check-out Date', value: submission.checkOutDate + (submission.checkOutTime ? ' • ' + submission.checkOutTime : '') },
+          { label: 'Check-in Date', value: submission.checkInDate },
+          { label: 'Check-out Date', value: submission.checkOutDate },
           { label: 'Full Name', value: guest.fullName },
           { label: 'Birth Year', value: guest.birthYear },
           { label: 'Gender', value: guest.gender },
           { label: 'Nationality', value: guest.nationality },
           { label: 'Address', value: guest.address },
-          { label: 'Contact (Phone/Email)', value: guest.contactInfo },
-          { label: 'Previous Location', value: guest.previousLocation },
-          { label: 'Next Location', value: guest.nextLocation },
           { label: 'Occupation', value: guest.occupation },
           { label: 'Document Type', value: guest.documentType },
           { label: 'Document Number', value: guest.documentNumber },
@@ -1074,7 +1055,7 @@ const CheckInManagementPage: React.FC = () => {
                   <>
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
                       {fields.map(f => f.value != null && String(f.value).trim() !== '' && (
-                        <div key={f.label} className={f.label === 'Address' || f.label === 'Previous Location' || f.label === 'Next Location' || f.label === 'Contact (Phone/Email)' || f.label === 'Submission ID' ? 'col-span-2' : ''}>
+                        <div key={f.label} className={f.label === 'Address' || f.label === 'Submission ID' ? 'col-span-2' : ''}>
                           <dt className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">{f.label}</dt>
                           <dd className={`mt-0.5 text-[13px] font-medium text-[#1b1c1d] break-words${f.label === 'Submission ID' || f.label === 'Document Number' ? ' font-mono text-[11px] text-[#44474c]' : ''}`}>{String(f.value)}</dd>
                         </div>
