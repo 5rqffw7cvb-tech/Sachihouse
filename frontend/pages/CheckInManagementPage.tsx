@@ -524,13 +524,19 @@ const CheckInManagementPage: React.FC = () => {
       'property_name',
       'checkin_date',
       'checkout_date',
+      'checkin_time',
+      'checkout_time',
       'guest_name',
       'guest_birth_year',
+      'guest_gender',
       'guest_address',
       'guest_occupation',
       'guest_nationality',
       'document_type',
       'document_number',
+      'contact_info',
+      'previous_location',
+      'next_location',
       'evidence_url',
     ];
 
@@ -542,13 +548,19 @@ const CheckInManagementPage: React.FC = () => {
         propertyNameMap.get(submission.propertyId) || submission.propertyId,
         submission.checkInDate,
         submission.checkOutDate,
+        submission.checkInTime || '',
+        submission.checkOutTime || '',
         guest.fullName || '',
         guest.birthYear ?? '',
+        guest.gender || '',
         guest.address || '',
         guest.occupation || '',
         guest.nationality || '',
         guest.documentType || '',
         guest.documentNumber || '',
+        guest.contactInfo || '',
+        guest.previousLocation || '',
+        guest.nextLocation || '',
         guest.evidenceUrl || '',
       ];
       lines.push(row.map((value) => csvEscape(value as string | number | boolean)).join(','));
@@ -814,10 +826,10 @@ const CheckInManagementPage: React.FC = () => {
           ) : (
             <>
               <div className="hidden md:block overflow-x-auto">
-                <table className="w-full min-w-[1024px] text-sm border-separate border-spacing-0">
+                <table className="w-full text-sm border-separate border-spacing-0 table-fixed">
                   <thead>
                     <tr className="[&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-white [&>th]:border-b [&>th]:border-[#e7e5e6] text-[#9a9ca1]">
-                      <th className="text-left pl-5 pr-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-10">
+                      <th className="text-left pl-5 pr-2 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-8">
                         <input
                           type="checkbox"
                           checked={allVisibleRowsChecked}
@@ -826,25 +838,24 @@ const CheckInManagementPage: React.FC = () => {
                           className="accent-[#041627]"
                         />
                       </th>
-                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Check-in ID</th>
-                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Property</th>
-                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Stay</th>
-                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Guest</th>
-                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Born</th>
-                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Address</th>
-                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Occupation</th>
-                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Document</th>
-                      <th className="text-left px-3 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Nationality</th>
-                      <th className="text-left px-3 pr-5 py-3 font-semibold uppercase text-[11px] tracking-[0.06em]">Evidence</th>
+                      <th className="text-left px-2 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-[14%]">Guest</th>
+                      <th className="text-left px-2 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-[12%]">Property</th>
+                      <th className="text-left px-2 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-[11%]">Stay</th>
+                      <th className="text-left px-2 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-[9%]">Nationality</th>
+                      <th className="text-left px-2 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-[11%]">Document</th>
+                      <th className="text-left px-2 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-[16%]">Address / Occupation</th>
+                      <th className="text-left px-2 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-[19%]">Contact &amp; Travel</th>
+                      <th className="text-left px-2 pr-5 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-[8%]">Evidence</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedRows.map(({ submission, guest, rowId }) => {
                       const isChecked = checkedRowIdSet.has(rowId);
                       const isDuplicate = duplicateSubmissionIdSet.has(submission.id);
+                      const travelLine = `${guest.previousLocation || '-'} → ${guest.nextLocation || '-'}`;
                       return (
                       <tr key={rowId} onClick={() => setSelectedRow({ submission, guest })} className={`group align-top text-[13px] cursor-pointer transition-colors [&>td]:border-b [&>td]:border-[#f1eff0] hover:[&>td]:bg-[#faf9fa] ${isChecked ? '[&>td]:bg-[#041627]/[0.025]' : ''} ${isDuplicate ? '[&>td]:bg-[#fef6f5]' : ''}`}>
-                        <td className="pl-5 pr-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <td className="pl-5 pr-2 py-3" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={isChecked}
@@ -853,21 +864,31 @@ const CheckInManagementPage: React.FC = () => {
                             className="accent-[#041627]"
                           />
                         </td>
-                        <td className="px-3 py-3 font-mono text-[11px] text-[#9a9ca1] whitespace-nowrap">{submission.id}</td>
-                        <td className="px-3 py-3">
-                          <div className="font-medium leading-snug text-[#1b1c1d]">{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
+                        <td className="px-2 py-3">
+                          <div className="font-semibold text-[#1b1c1d] truncate" title={guest.fullName || ''}>{guest.fullName || '-'}</div>
+                          <div className="mt-0.5 text-[11px] text-[#9a9ca1]">{guest.birthYear ?? '-'}{guest.gender ? ` · ${guest.gender}` : ''}</div>
                         </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-[#1b1c1d]">{submission.checkInDate}<br/><span className="text-[#9a9ca1]">{submission.checkOutDate}</span></td>
-                        <td className="px-3 py-3 font-semibold text-[#1b1c1d]">{guest.fullName || '-'}</td>
-                        <td className="px-3 py-3 tabular-nums text-[#44474c]">{guest.birthYear ?? '-'}</td>
-                        <td className="px-3 py-3 max-w-[220px] truncate text-[#44474c]">{guest.address || '-'}</td>
-                        <td className="px-3 py-3 max-w-[150px] truncate text-[#44474c]">{guest.occupation || '-'}</td>
-                        <td className="px-3 py-3">
-                          <div className="capitalize text-[#1b1c1d]">{(guest.documentType || '-').replace('_', ' ')}</div>
-                          <div className="text-[11px] text-[#9a9ca1] font-mono">{guest.documentNumber || '-'}</div>
+                        <td className="px-2 py-3">
+                          <div className="font-medium leading-snug text-[#1b1c1d] truncate" title={propertyNameMap.get(submission.propertyId) || submission.propertyId}>{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
                         </td>
-                        <td className="px-3 py-3 font-medium text-[#1b1c1d]">{guest.nationality || '-'}</td>
-                        <td className="px-3 pr-5 py-3">
+                        <td className="px-2 py-3 text-[#1b1c1d]">
+                          <div>{submission.checkInDate}{submission.checkInTime ? ` ${submission.checkInTime}` : ''}</div>
+                          <div className="text-[#9a9ca1]">{submission.checkOutDate}{submission.checkOutTime ? ` ${submission.checkOutTime}` : ''}</div>
+                        </td>
+                        <td className="px-2 py-3 font-medium text-[#1b1c1d] truncate">{guest.nationality || '-'}</td>
+                        <td className="px-2 py-3">
+                          <div className="capitalize text-[#1b1c1d] truncate">{(guest.documentType || '-').replace('_', ' ')}</div>
+                          <div className="text-[11px] text-[#9a9ca1] font-mono truncate">{guest.documentNumber || '-'}</div>
+                        </td>
+                        <td className="px-2 py-3">
+                          <div className="truncate text-[#44474c]" title={guest.address || ''}>{guest.address || '-'}</div>
+                          <div className="text-[11px] text-[#9a9ca1] truncate" title={guest.occupation || ''}>{guest.occupation || '-'}</div>
+                        </td>
+                        <td className="px-2 py-3">
+                          <div className="truncate text-[#44474c]" title={guest.contactInfo || ''}>{guest.contactInfo || '-'}</div>
+                          <div className="text-[11px] text-[#9a9ca1] truncate" title={travelLine}>{travelLine}</div>
+                        </td>
+                        <td className="px-2 pr-5 py-3">
                           {guest.evidenceUrl ? (
                             <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center rounded-md px-2 py-1 text-[12px] font-semibold text-[#041627] transition-colors hover:bg-[#041627]/[0.06]">View</a>
                           ) : (
@@ -896,33 +917,48 @@ const CheckInManagementPage: React.FC = () => {
                       </div>
                       <div className="shrink-0 text-[10px] text-[#74777d] font-mono pt-0.5">{submission.id}</div>
                     </div>
-                    <div className="mt-1 text-[12px] text-[#44474c]">{submission.checkInDate} → {submission.checkOutDate}</div>
+                    <div className="mt-1 text-[12px] text-[#44474c]">
+                      {submission.checkInDate}{submission.checkInTime ? ` ${submission.checkInTime}` : ''} → {submission.checkOutDate}{submission.checkOutTime ? ` ${submission.checkOutTime}` : ''}
+                    </div>
                     <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 text-[12px]">
                       <div>
                         <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Born</div>
                         <div className="font-medium">{guest.birthYear ?? '-'}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Nationality</div>
-                        <div className="font-medium">{guest.nationality || '-'}</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Gender</div>
+                        <div className="font-medium">{guest.gender || '-'}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Occupation</div>
-                        <div className="font-medium truncate">{guest.occupation || '-'}</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Nationality</div>
+                        <div className="font-medium">{guest.nationality || '-'}</div>
                       </div>
                       <div className="col-span-2">
                         <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Document</div>
                         <div className="font-medium capitalize">{guest.documentType || '-'} <span className="text-[#74777d] font-mono text-[10px]">{guest.documentNumber || ''}</span></div>
                       </div>
                       <div>
-                        {guest.evidenceUrl ? (
-                          <><div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Evidence</div><a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#003580] underline font-medium">View</a></>
-                        ) : null}
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Occupation</div>
+                        <div className="font-medium truncate">{guest.occupation || '-'}</div>
                       </div>
                       <div className="col-span-3">
                         <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Address</div>
                         <div className="font-medium text-[12px]">{guest.address || '-'}</div>
                       </div>
+                      <div className="col-span-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Contact</div>
+                        <div className="font-medium text-[12px]">{guest.contactInfo || '-'}</div>
+                      </div>
+                      <div className="col-span-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Travel (from → to)</div>
+                        <div className="font-medium text-[12px]">{guest.previousLocation || '-'} → {guest.nextLocation || '-'}</div>
+                      </div>
+                      {guest.evidenceUrl && (
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Evidence</div>
+                          <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="text-[#003580] underline font-medium">View</a>
+                        </div>
+                      )}
                     </div>
                   </article>
                 )})}
@@ -968,7 +1004,9 @@ const CheckInManagementPage: React.FC = () => {
           { label: 'Submission ID', value: submission.id },
           { label: 'Property', value: propName },
           { label: 'Check-in Date', value: submission.checkInDate },
+          { label: 'Check-in Time', value: submission.checkInTime },
           { label: 'Check-out Date', value: submission.checkOutDate },
+          { label: 'Check-out Time', value: submission.checkOutTime },
           { label: 'Full Name', value: guest.fullName },
           { label: 'Birth Year', value: guest.birthYear },
           { label: 'Gender', value: guest.gender },
@@ -977,6 +1015,9 @@ const CheckInManagementPage: React.FC = () => {
           { label: 'Occupation', value: guest.occupation },
           { label: 'Document Type', value: guest.documentType },
           { label: 'Document Number', value: guest.documentNumber },
+          { label: 'Contact (Phone/Email)', value: guest.contactInfo },
+          { label: 'Previous Location', value: guest.previousLocation },
+          { label: 'Next Location', value: guest.nextLocation },
         ];
         return (
           <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-0 md:p-4 backdrop-blur-sm" onClick={handleCloseDetail}>
@@ -1055,7 +1096,7 @@ const CheckInManagementPage: React.FC = () => {
                   <>
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
                       {fields.map(f => f.value != null && String(f.value).trim() !== '' && (
-                        <div key={f.label} className={f.label === 'Address' || f.label === 'Submission ID' ? 'col-span-2' : ''}>
+                        <div key={f.label} className={['Address', 'Submission ID', 'Contact (Phone/Email)', 'Previous Location', 'Next Location'].includes(f.label) ? 'col-span-2' : ''}>
                           <dt className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">{f.label}</dt>
                           <dd className={`mt-0.5 text-[13px] font-medium text-[#1b1c1d] break-words${f.label === 'Submission ID' || f.label === 'Document Number' ? ' font-mono text-[11px] text-[#44474c]' : ''}`}>{String(f.value)}</dd>
                         </div>
