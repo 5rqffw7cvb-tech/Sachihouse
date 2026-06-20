@@ -635,16 +635,16 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                   </div>
 
                   {/* Content */}
-                  <div className="pl-3 md:pl-0 py-0 md:p-6 flex flex-col flex-grow min-w-0 justify-center md:justify-start">
-                    <div className="flex justify-between items-start mb-0 md:mb-2">
+                  <div className="pl-3 py-0 md:p-6 flex flex-col flex-grow min-w-0 justify-center md:justify-start">
+                    <div className="flex justify-between items-start mb-0 md:mb-1.5">
                       <h2 className="font-['Plus_Jakarta_Sans'] font-semibold tracking-tight md:tracking-normal text-[14.5px] md:text-[18px]/[1.4] text-[#041627] line-clamp-1 pr-2">{property.name}</h2>
                       <div className="hidden md:flex items-center gap-1 text-[#1b1c1d] shrink-0">
                         <Star className="w-4 h-4 text-[#eab308] fill-[#eab308]" />
                         <span className="font-semibold text-[14px]/[1.4]">4.96</span>
                       </div>
                     </div>
-                    <p className="hidden md:block text-[14px]/[1.5] text-[#44474c] mb-4 line-clamp-1">{property.subtitle || 'Property in Tokyo'}</p>
-                    <div className="mt-1 md:mt-0 md:mb-4 flex items-center gap-1 md:gap-1.5 text-[11.5px] md:text-[12px] text-[#74777d] md:font-semibold md:uppercase md:tracking-[0.06em]">
+                    <p className="hidden md:block text-[14px]/[1.4] text-[#44474c] mb-1.5 line-clamp-1">{property.subtitle || 'Property in Tokyo'}</p>
+                    <div className="mt-1 md:mt-0 md:mb-1.5 flex items-center gap-1 md:gap-1.5 text-[11.5px] md:text-[12px] text-[#74777d] md:font-semibold md:uppercase md:tracking-[0.06em]">
                       <MapPin className="h-3 w-3 md:h-3.5 md:w-3.5 shrink-0 text-[#9ea3ab] md:text-[#74777d]" />
                       <span className="line-clamp-1">
                         {property.location
@@ -653,7 +653,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                       </span>
                     </div>
                     {(property.accessInfo?.nearestStationName || property.accessInfo?.nearestStationDistance) && (
-                      <div className="mt-1 md:mt-0 md:mb-4 flex items-center gap-1 md:gap-1.5 text-[11px] md:text-[12px] font-semibold text-[#5b3f00]">
+                      <div className="mt-1 md:mt-0 md:mb-1.5 flex items-center gap-1 md:gap-1.5 text-[11px] md:text-[12px] font-semibold text-[#5b3f00]">
                         <Train className="h-3 w-3 md:h-3.5 md:w-3.5 shrink-0" />
                         <span className="line-clamp-1">
                           {property.accessInfo?.nearestStationDistance || 'Nearby'}
