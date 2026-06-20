@@ -107,6 +107,10 @@ export const translations = {
     checkin_popup_contact: "Phone / Email",
     checkin_popup_prev_location: "Where were you before arriving?",
     checkin_popup_next_location: "Where will you go after check-out?",
+    checkin_popup_same_as_lead: "Same as Guest 1 (contact & travel info)",
+    checkin_draft_found: "We found an unfinished check-in from earlier. Restore it?",
+    checkin_draft_restore: "Restore",
+    checkin_draft_discard: "Start over",
   },
   vi: {
     // Navigation
@@ -213,6 +217,10 @@ export const translations = {
     checkin_popup_contact: "SĐT / Email liên hệ",
     checkin_popup_prev_location: "Bạn ở đâu trước khi đến SachiHouse?",
     checkin_popup_next_location: "Sau khi trả phòng bạn sẽ đi đâu?",
+    checkin_popup_same_as_lead: "Giống khách 1 (liên hệ & lịch trình)",
+    checkin_draft_found: "Phát hiện thông tin check-in chưa hoàn tất từ trước. Bạn muốn khôi phục không?",
+    checkin_draft_restore: "Khôi phục",
+    checkin_draft_discard: "Làm lại từ đầu",
   },
   ja: {
     // Navigation
@@ -319,6 +327,10 @@ export const translations = {
     checkin_popup_contact: "電話・メール",
     checkin_popup_prev_location: "入居前の毺居地は？",
     checkin_popup_next_location: "チェックアウト後の目的地は？",
+    checkin_popup_same_as_lead: "ゲスト1と同じ（連絡先・移動情報）",
+    checkin_draft_found: "前回入力途中のチェックイン情報が見つかりました。復元しますか？",
+    checkin_draft_restore: "復元する",
+    checkin_draft_discard: "最初からやり直す",
   },
   zh: {
     // Navigation
@@ -425,6 +437,10 @@ export const translations = {
     checkin_popup_contact: "手机 / 邮箕",
     checkin_popup_prev_location: "来此之前在哪里？",
     checkin_popup_next_location: "退房后将前往哪里？",
+    checkin_popup_same_as_lead: "与住客1相同（联系方式与行程信息）",
+    checkin_draft_found: "发现之前未完成的入住登记信息，是否恢复？",
+    checkin_draft_restore: "恢复",
+    checkin_draft_discard: "重新开始",
   },
   ko: {
     // Navigation
@@ -531,5 +547,9 @@ export const translations = {
     checkin_popup_contact: "전화 / 이메일",
     checkin_popup_prev_location: "체크인 전 어디에 계셨나요?",
     checkin_popup_next_location: "체크아웃 후 어디로 가시나요?",
+    checkin_popup_same_as_lead: "게스트 1과 동일 (연락처 및 이동 정보)",
+    checkin_draft_found: "이전에 작성하던 체크인 정보가 있습니다. 복원하시겠습니까?",
+    checkin_draft_restore: "복원하기",
+    checkin_draft_discard: "처음부터 다시 시작",
   }
 };

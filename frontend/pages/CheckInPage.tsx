@@ -136,6 +136,54 @@ const isGuestEmpty = (guest: CheckInGuest): boolean => {
     && !guest.documentNumber.trim();
 };
 
+interface CheckInDraft {
+  savedAt: number;
+  checkInDate: string;
+  checkOutDate: string;
+  checkInTime: string;
+  checkOutTime: string;
+  guests: CheckInGuest[];
+  reviewedGuestIds: string[];
+  sameAsLeadByGuest: Record<string, boolean>;
+}
+
+const CHECKIN_DRAFT_TTL_MS = 6 * 60 * 60 * 1000;
+const getCheckInDraftStorageKey = (propertyId: string): string => `checkin_draft_${propertyId}`;
+const draftHasContent = (draft: Pick<CheckInDraft, 'guests'>): boolean => draft.guests.some((guest) => !isGuestEmpty(guest));
+
+const readCheckInDraft = (propertyId: string): CheckInDraft | null => {
+  try {
+    const raw = localStorage.getItem(getCheckInDraftStorageKey(propertyId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CheckInDraft;
+    if (!parsed || typeof parsed.savedAt !== 'number' || !Array.isArray(parsed.guests)) {
+      return null;
+    }
+    if (Date.now() - parsed.savedAt > CHECKIN_DRAFT_TTL_MS || !draftHasContent(parsed)) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writeCheckInDraft = (propertyId: string, draft: CheckInDraft): void => {
+  try {
+    localStorage.setItem(getCheckInDraftStorageKey(propertyId), JSON.stringify(draft));
+  } catch {
+    // Ignore storage failures (private mode, quota, etc.)
+  }
+};
+
+const clearCheckInDraft = (propertyId: string): void => {
+  try {
+    localStorage.removeItem(getCheckInDraftStorageKey(propertyId));
+  } catch {
+    // Ignore storage failures.
+  }
+};
+
 const estimateDataUrlBytes = (dataUrl: string): number => {
   const base64 = dataUrl.split(',')[1] ?? '';
   if (!base64) {
@@ -238,6 +286,9 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const [siteNavTitle, setSiteNavTitle] = useState<string>('');
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [settingsLoadError, setSettingsLoadError] = useState<string | null>(null);
+  const [sameAsLeadByGuest, setSameAsLeadByGuest] = useState<Record<string, boolean>>({});
+  const [pendingDraft, setPendingDraft] = useState<CheckInDraft | null>(null);
+  const [draftCheckDone, setDraftCheckDone] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -306,6 +357,37 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     return () => unsub();
   }, []);
 
+  // Check once for an unfinished draft saved earlier for this property.
+  useEffect(() => {
+    setPendingDraft(readCheckInDraft(propertyId));
+    setDraftCheckDone(true);
+  }, [propertyId]);
+
+  // Autosave the in-progress form (excluding photo previews) so a reload doesn't lose guest data.
+  useEffect(() => {
+    if (!draftCheckDone || pendingDraft) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      const draft: CheckInDraft = {
+        savedAt: Date.now(),
+        checkInDate,
+        checkOutDate,
+        checkInTime,
+        checkOutTime,
+        guests,
+        reviewedGuestIds,
+        sameAsLeadByGuest,
+      };
+      if (draftHasContent(draft)) {
+        writeCheckInDraft(propertyId, draft);
+      } else {
+        clearCheckInDraft(propertyId);
+      }
+    }, 400);
+    return () => window.clearTimeout(timeoutId);
+  }, [draftCheckDone, pendingDraft, propertyId, checkInDate, checkOutDate, checkInTime, checkOutTime, guests, reviewedGuestIds, sameAsLeadByGuest]);
+
   useEffect(() => {
     if (!menuOpen) return;
     const handler = (event: MouseEvent) => {
@@ -361,6 +443,23 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         ? 'All confirmed guests are ready. Hold the button once to send the full check-in.'
         : 'Start with the lead guest. The flow will create the next slot automatically after each confirmation.';
 
+  const restoreDraft = () => {
+    if (!pendingDraft) return;
+    setCheckInDate(pendingDraft.checkInDate);
+    setCheckOutDate(pendingDraft.checkOutDate);
+    setCheckInTime(pendingDraft.checkInTime);
+    setCheckOutTime(pendingDraft.checkOutTime);
+    setGuests(pendingDraft.guests.length > 0 ? pendingDraft.guests : [createEmptyGuest('guest_1')]);
+    setReviewedGuestIds(pendingDraft.reviewedGuestIds);
+    setSameAsLeadByGuest(pendingDraft.sameAsLeadByGuest ?? {});
+    setPendingDraft(null);
+  };
+
+  const discardDraft = () => {
+    clearCheckInDraft(propertyId);
+    setPendingDraft(null);
+  };
+
   const replaceGuest = (guestId: string, nextGuest: CheckInGuest) => {
     setGuests((prev) => prev.map((guest) => (guest.id === guestId ? nextGuest : guest)));
   };
@@ -370,14 +469,18 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   };
 
   const ensureDraftGuest = () => {
-    setGuests((prev) => (prev.some((guest) => isGuestEmpty(guest)) ? prev : [...prev, createEmptyGuest(createGuestId())]));
+    const newId = createGuestId();
+    setSameAsLeadByGuest((flags) => ({ ...flags, [newId]: true }));
+    setGuests((prev) => (prev.some((guest) => isGuestEmpty(guest)) ? prev : [...prev, createEmptyGuest(newId)]));
   };
 
   const addGuest = () => {
     if (guests.some((guest) => isGuestEmpty(guest))) {
       return;
     }
-    setGuests((prev) => [...prev, createEmptyGuest(createGuestId())]);
+    const newId = createGuestId();
+    setSameAsLeadByGuest((flags) => ({ ...flags, [newId]: true }));
+    setGuests((prev) => [...prev, createEmptyGuest(newId)]);
   };
 
   const closeEditor = () => {
@@ -443,10 +546,39 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     if (!guest || isGuestEmpty(guest)) {
       return;
     }
+    const index = guestIndexById[guestId] ?? -1;
+    const lead = guests[0];
+    const sameAsLead = sameAsLeadByGuest[guestId] ?? index > 0;
+    const draft: CheckInGuest = (index > 0 && sameAsLead && lead)
+      ? {
+          ...guest,
+          contactInfo: lead.contactInfo ?? guest.contactInfo,
+          previousLocation: lead.previousLocation ?? guest.previousLocation,
+          nextLocation: lead.nextLocation ?? guest.nextLocation,
+        }
+      : { ...guest };
     setEditorGuestId(guestId);
-    setEditorDraft({ ...guest });
+    setEditorDraft(draft);
+    if (index > 0 && sameAsLeadByGuest[guestId] === undefined) {
+      setSameAsLeadByGuest((flags) => ({ ...flags, [guestId]: true }));
+    }
     setEditorError(null);
     setEditorFieldErrors({});
+  };
+
+  const toggleSameAsLead = (guestId: string) => {
+    setSameAsLeadByGuest((prev) => {
+      const next = !prev[guestId];
+      if (next) {
+        const lead = guests[0];
+        if (lead) {
+          setEditorDraft((draft) => (draft && draft.id === guestId
+            ? { ...draft, contactInfo: lead.contactInfo ?? '', previousLocation: lead.previousLocation ?? '', nextLocation: lead.nextLocation ?? '' }
+            : draft));
+        }
+      }
+      return { ...prev, [guestId]: next };
+    });
   };
 
   const handleImageChange = async (guestId: string, event: ChangeEvent<HTMLInputElement>) => {
@@ -484,9 +616,24 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         nextLocation: (extracted.nextLocation && extracted.nextLocation.toUpperCase() !== 'UNKNOWN') ? extracted.nextLocation : locationDefault,
       };
 
-      updateGuest(guestId, enrichedGuest);
+      const index = guestIndexById[guestId] ?? -1;
+      const lead = guests[0];
+      const sameAsLead = sameAsLeadByGuest[guestId] ?? index > 0;
+      const finalGuest: CheckInGuest = (index > 0 && sameAsLead && lead)
+        ? {
+            ...enrichedGuest,
+            contactInfo: lead.contactInfo ?? enrichedGuest.contactInfo,
+            previousLocation: lead.previousLocation ?? enrichedGuest.previousLocation,
+            nextLocation: lead.nextLocation ?? enrichedGuest.nextLocation,
+          }
+        : enrichedGuest;
+
+      updateGuest(guestId, finalGuest);
       setEditorGuestId(guestId);
-      setEditorDraft({ ...enrichedGuest });
+      setEditorDraft({ ...finalGuest });
+      if (index > 0 && sameAsLeadByGuest[guestId] === undefined) {
+        setSameAsLeadByGuest((flags) => ({ ...flags, [guestId]: true }));
+      }
       setEditorError(null);
     } catch (error) {
       const backendMessage = error instanceof ApiError ? error.message : '';
@@ -563,6 +710,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         },
       });
       setSubmitSuccess(submission.id);
+      clearCheckInDraft(propertyId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to submit check-in.';
       setSubmitError(message);
@@ -647,6 +795,28 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         )}
         {sessionError && (
           <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{sessionError}</p>
+        )}
+
+        {pendingDraft && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+            <p className="text-xs text-blue-800">{t('checkin_draft_found')}</p>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={discardDraft}
+                className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+              >
+                {t('checkin_draft_discard')}
+              </button>
+              <button
+                type="button"
+                onClick={restoreDraft}
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+              >
+                {t('checkin_draft_restore')}
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Dates + Times */}
@@ -860,12 +1030,27 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                           className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.address ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
+                      {index > 0 && (
+                        <div className="col-span-2 -mb-1 flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id={`same-as-lead-${guest.id}`}
+                            checked={Boolean(sameAsLeadByGuest[guest.id])}
+                            onChange={() => toggleSameAsLead(guest.id)}
+                            className="h-3.5 w-3.5 rounded border-gray-300"
+                          />
+                          <label htmlFor={`same-as-lead-${guest.id}`} className="text-xs text-gray-500">
+                            {t('checkin_popup_same_as_lead')}
+                          </label>
+                        </div>
+                      )}
                       <div className="col-span-2">
                         <RequiredLabel text={t('checkin_popup_contact')} required />
                         <input
                           value={editorDraft.contactInfo ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, contactInfo: event.target.value } : prev)); setEditorError(null); }}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.contactInfo ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                          disabled={index > 0 && Boolean(sameAsLeadByGuest[guest.id])}
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 ${editorFieldErrors.contactInfo ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                           placeholder="e.g. +81-90-xxxx-xxxx"
                         />
                       </div>
@@ -874,7 +1059,8 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <input
                           value={editorDraft.previousLocation ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, previousLocation: event.target.value } : prev)); setEditorError(null); }}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.previousLocation ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                          disabled={index > 0 && Boolean(sameAsLeadByGuest[guest.id])}
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 ${editorFieldErrors.previousLocation ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
                       <div className="col-span-2">
@@ -882,7 +1068,8 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <input
                           value={editorDraft.nextLocation ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, nextLocation: event.target.value } : prev)); setEditorError(null); }}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.nextLocation ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                          disabled={index > 0 && Boolean(sameAsLeadByGuest[guest.id])}
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 ${editorFieldErrors.nextLocation ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
                       <div>
