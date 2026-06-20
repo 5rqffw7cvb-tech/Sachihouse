@@ -411,7 +411,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
           {isMobileFiltersOpen && (
             <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-[#e4e2e3] bg-white p-3">
               <div>
-                <label htmlFor="mobile-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Country</label>
+                <label htmlFor="mobile-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Country</label>
                 <select
                   id="mobile-listing-country"
                   value={draftCountryCode}
@@ -428,7 +428,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 </select>
               </div>
               <div>
-                <label htmlFor="mobile-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Province</label>
+                <label htmlFor="mobile-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Province</label>
                 <select
                   id="mobile-listing-province"
                   value={draftProvinceCode}
@@ -445,7 +445,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 </select>
               </div>
               <div>
-                <label htmlFor="mobile-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Bedrooms</label>
+                <label htmlFor="mobile-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Bedrooms</label>
                 <select
                   id="mobile-listing-bedrooms"
                   value={draftMinBedrooms}
@@ -459,7 +459,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 </select>
               </div>
               <div>
-                <label htmlFor="mobile-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guests</label>
+                <label htmlFor="mobile-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Guests</label>
                 <select
                   id="mobile-listing-guests"
                   value={draftMinGuests}
@@ -485,7 +485,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
         <div className="mb-10 hidden w-full flex-wrap items-center justify-start gap-3 md:flex">
             <div className="w-full sm:w-[200px]">
-              <label htmlFor="desktop-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Country</label>
+              <label htmlFor="desktop-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Country</label>
               <select
                 id="desktop-listing-country"
                 value={draftCountryCode}
@@ -502,7 +502,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               </select>
             </div>
             <div className="w-full sm:w-[200px]">
-              <label htmlFor="desktop-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Province</label>
+              <label htmlFor="desktop-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Province</label>
               <select
                 id="desktop-listing-province"
                 value={draftProvinceCode}
@@ -519,7 +519,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               </select>
             </div>
             <div className="w-[140px]">
-              <label htmlFor="desktop-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Bedrooms</label>
+              <label htmlFor="desktop-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Bedrooms</label>
               <select
                 id="desktop-listing-bedrooms"
                 value={draftMinBedrooms}
@@ -533,7 +533,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               </select>
             </div>
             <div className="w-[140px]">
-              <label htmlFor="desktop-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guests</label>
+              <label htmlFor="desktop-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Guests</label>
               <select
                 id="desktop-listing-guests"
                 value={draftMinGuests}
