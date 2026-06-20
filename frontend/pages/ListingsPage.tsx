@@ -411,8 +411,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
           {isMobileFiltersOpen && (
             <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-[#e4e2e3] bg-white p-3">
               <div>
-                <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Country</label>
+                <label htmlFor="mobile-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Country</label>
                 <select
+                  id="mobile-listing-country"
                   value={draftCountryCode}
                   onChange={(event) => {
                     setDraftCountryCode(event.target.value.toUpperCase());
@@ -427,8 +428,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Province</label>
+                <label htmlFor="mobile-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Province</label>
                 <select
+                  id="mobile-listing-province"
                   value={draftProvinceCode}
                   disabled={!draftCountryCode}
                   onChange={(event) => {
@@ -443,8 +445,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Bedrooms</label>
+                <label htmlFor="mobile-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Bedrooms</label>
                 <select
+                  id="mobile-listing-bedrooms"
                   value={draftMinBedrooms}
                   onChange={(event) => setDraftMinBedrooms(event.target.value)}
                   className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
@@ -456,8 +459,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guests</label>
+                <label htmlFor="mobile-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guests</label>
                 <select
+                  id="mobile-listing-guests"
                   value={draftMinGuests}
                   onChange={(event) => setDraftMinGuests(event.target.value)}
                   className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
@@ -481,8 +485,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
         <div className="mb-10 hidden w-full flex-wrap items-center justify-start gap-3 md:flex">
             <div className="w-full sm:w-[200px]">
-              <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Country</label>
+              <label htmlFor="desktop-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Country</label>
               <select
+                id="desktop-listing-country"
                 value={draftCountryCode}
                 onChange={(event) => {
                   setDraftCountryCode(event.target.value.toUpperCase());
@@ -497,8 +502,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               </select>
             </div>
             <div className="w-full sm:w-[200px]">
-              <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Province</label>
+              <label htmlFor="desktop-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Province</label>
               <select
+                id="desktop-listing-province"
                 value={draftProvinceCode}
                 disabled={!draftCountryCode}
                 onChange={(event) => {
@@ -513,8 +519,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               </select>
             </div>
             <div className="w-[140px]">
-              <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Bedrooms</label>
+              <label htmlFor="desktop-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Bedrooms</label>
               <select
+                id="desktop-listing-bedrooms"
                 value={draftMinBedrooms}
                 onChange={(event) => setDraftMinBedrooms(event.target.value)}
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
@@ -526,8 +533,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               </select>
             </div>
             <div className="w-[140px]">
-              <label className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guests</label>
+              <label htmlFor="desktop-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">Guests</label>
               <select
+                id="desktop-listing-guests"
                 value={draftMinGuests}
                 onChange={(event) => setDraftMinGuests(event.target.value)}
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
