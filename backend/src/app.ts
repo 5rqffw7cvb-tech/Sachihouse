@@ -81,10 +81,9 @@ function toNonNegativeInt(value: unknown): number | null {
 }
 
 function getClientIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0].trim().slice(0, 100);
-  }
+  // Relies on `app.set('trust proxy', ...)` so Express resolves req.ip from the
+  // trusted hop count rather than blindly trusting a client-suppliable header
+  // (otherwise X-Forwarded-For spoofing trivially bypasses IP-based rate limiting).
   return (req.ip || req.socket.remoteAddress || 'unknown').slice(0, 100);
 }
 
@@ -237,6 +236,10 @@ function buildTranslatableFields(property: PropertyData): Array<{ path: string; 
 
 export function createApp(store: DataStore) {
   const app = express();
+  // Railway terminates TLS and proxies requests through a single hop, so trust
+  // exactly one X-Forwarded-For entry. Without this, getClientIp() would trust
+  // a header any client can set, letting IP-based rate limiting be spoofed.
+  app.set('trust proxy', 1);
   const icalSync = new IcalSyncService({
     enabled: process.env.ICAL_SYNC_ENABLED !== 'false' && process.env.NODE_ENV !== 'test',
     ttlMs: Number(process.env.ICAL_SYNC_TTL_MS ?? 60000),

@@ -10,7 +10,9 @@ const LoginPage: React.FC = () => {
 
   const redirectTarget = useMemo(() => {
     const raw = searchParams.get('redirect') || '/';
-    return raw.startsWith('/') ? raw : '/';
+    // Reject "//evil.com"-style protocol-relative paths in addition to absolute
+    // URLs, since they also start with "/" but resolve off-origin.
+    return raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
   }, [searchParams]);
 
   const [email, setEmail] = useState('');
@@ -44,6 +46,7 @@ const LoginPage: React.FC = () => {
   useEffect(() => {
     if (checkAuth()) {
       navigate(redirectTarget, { replace: true });
+      return;
     }
     void loadChallenge();
   }, [navigate, redirectTarget]);
