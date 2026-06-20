@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertCircle, Eye, EyeOff, Loader2, RotateCcw } from 'lucide-react';
 import { checkAuth, getLoginChallenge, login } from '../services/auth';
@@ -15,8 +15,12 @@ const LoginPage: React.FC = () => {
     return raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
   }, [searchParams]);
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // Uncontrolled on purpose: mobile browsers autofill these fields by writing
+  // straight to the DOM without firing onChange, so a controlled value bound
+  // to React state would go stale and get wiped on the next unrelated
+  // re-render (e.g. typing the anti-bot answer). Read values from refs instead.
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const [challengeId, setChallengeId] = useState('');
   const [challengePrompt, setChallengePrompt] = useState('');
   const [challengeAnswer, setChallengeAnswer] = useState('');
@@ -62,7 +66,9 @@ const LoginPage: React.FC = () => {
 
     setIsSubmitting(true);
 
-    const result = await login(email.trim(), password, {
+    const email = emailRef.current?.value.trim() ?? '';
+    const password = passwordRef.current?.value ?? '';
+    const result = await login(email, password, {
       challengeId,
       challengeAnswer: challengeAnswer.trim(),
     });
@@ -90,8 +96,8 @@ const LoginPage: React.FC = () => {
                 type="email"
                 autoComplete="email"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                ref={emailRef}
+                defaultValue=""
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-4 py-2.5 text-base text-[#1b1c1d] placeholder:text-[#9ea3ab] focus:outline-none focus:border-[#1b1c1d] focus:ring-1 focus:ring-[#1b1c1d] transition-colors"
                 placeholder="you@example.com"
               />
@@ -104,8 +110,8 @@ const LoginPage: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  ref={passwordRef}
+                  defaultValue=""
                   className="w-full rounded-lg border border-[#c4c6cd] bg-white px-4 py-2.5 pr-10 text-base text-[#1b1c1d] placeholder:text-[#9ea3ab] focus:outline-none focus:border-[#1b1c1d] focus:ring-1 focus:ring-[#1b1c1d] transition-colors"
                   placeholder="••••••••"
                 />
