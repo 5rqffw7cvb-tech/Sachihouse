@@ -184,8 +184,17 @@ const LoginPage: React.FC = () => {
               </div>
             </div>
 
-            <div ref={turnstileContainerRef} className="flex justify-center min-h-[65px] items-center">
-              {!isTurnstileReady && <Loader2 className="w-5 h-5 animate-spin text-[#9ea3ab]" />}
+            <div className="relative flex justify-center min-h-[65px] items-center">
+              {/* Turnstile injects its iframe directly into this DOM node outside
+                  React's control, so it must not also be a React-rendered parent
+                  (e.g. of the spinner below) - that causes React/DOM conflicts
+                  on reconciliation and leaves the widget stuck. */}
+              <div ref={turnstileContainerRef} />
+              {!isTurnstileReady && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <Loader2 className="w-5 h-5 animate-spin text-[#9ea3ab]" />
+                </div>
+              )}
             </div>
 
             {errorMsg && (
