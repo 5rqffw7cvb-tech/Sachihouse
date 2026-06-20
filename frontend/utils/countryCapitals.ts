@@ -152,6 +152,35 @@ const NAME_TO_CODE: Record<string, string> = {
   'SOUTH AFRICA': 'ZAF',
 };
 
+// Map ISO alpha-3 code to display country name
+const COUNTRY_NAMES: Record<string, string> = {
+  JPN: 'Japan', VNM: 'Viet Nam', CHN: 'China', KOR: 'South Korea', TWN: 'Taiwan',
+  THA: 'Thailand', SGP: 'Singapore', MYS: 'Malaysia', PHL: 'Philippines',
+  IDN: 'Indonesia', IND: 'India', AUS: 'Australia', NZL: 'New Zealand',
+  HKG: 'Hong Kong', MAC: 'Macao', MMR: 'Myanmar', KHM: 'Cambodia', LAO: 'Laos',
+  BRN: 'Brunei', TLS: 'Timor-Leste', NPL: 'Nepal', BGD: 'Bangladesh',
+  LKA: 'Sri Lanka', PAK: 'Pakistan', AFG: 'Afghanistan', IRN: 'Iran', IRQ: 'Iraq',
+  USA: 'United States', CAN: 'Canada', MEX: 'Mexico', BRA: 'Brazil', ARG: 'Argentina',
+  CHL: 'Chile', COL: 'Colombia', PER: 'Peru', VEN: 'Venezuela', ECU: 'Ecuador',
+  BOL: 'Bolivia', PRY: 'Paraguay', URY: 'Uruguay',
+  GBR: 'United Kingdom', FRA: 'France', DEU: 'Germany', ITA: 'Italy', ESP: 'Spain',
+  PRT: 'Portugal', NLD: 'Netherlands', BEL: 'Belgium', CHE: 'Switzerland',
+  AUT: 'Austria', SWE: 'Sweden', NOR: 'Norway', DNK: 'Denmark', FIN: 'Finland',
+  POL: 'Poland', RUS: 'Russia', UKR: 'Ukraine', CZE: 'Czech Republic',
+  SVK: 'Slovakia', HUN: 'Hungary', ROU: 'Romania', BGR: 'Bulgaria',
+  SRB: 'Serbia', HRV: 'Croatia', GRC: 'Greece', TUR: 'Turkey',
+  SAU: 'Saudi Arabia', ARE: 'UAE', QAT: 'Qatar', KWT: 'Kuwait',
+  BHR: 'Bahrain', OMN: 'Oman', ISR: 'Israel', JOR: 'Jordan', LBN: 'Lebanon',
+  EGY: 'Egypt', ZAF: 'South Africa', NGA: 'Nigeria', KEN: 'Kenya',
+  ETH: 'Ethiopia', GHA: 'Ghana', TZA: 'Tanzania', UGA: 'Uganda',
+};
+
+function resolveCode(nationality: string): string | null {
+  const upper = nationality.toUpperCase().trim();
+  if (CAPITALS_BY_CODE[upper]) return upper;
+  return NAME_TO_CODE[upper] ?? null;
+}
+
 /**
  * Returns the capital city for a given nationality string.
  * Accepts ISO alpha-3 codes (e.g. "JPN") or common country name variants (e.g. "Japan").
@@ -159,11 +188,20 @@ const NAME_TO_CODE: Record<string, string> = {
  */
 export function getCountryCapital(nationality: string): string {
   if (!nationality) return '';
-  const upper = nationality.toUpperCase().trim();
-  // Try ISO 3-letter code first
-  if (CAPITALS_BY_CODE[upper]) return CAPITALS_BY_CODE[upper];
-  // Try full name lookup
-  const code = NAME_TO_CODE[upper];
-  if (code && CAPITALS_BY_CODE[code]) return CAPITALS_BY_CODE[code];
-  return '';
+  const code = resolveCode(nationality);
+  return code ? (CAPITALS_BY_CODE[code] ?? '') : '';
+}
+
+/**
+ * Returns "Capital, Country" formatted string (e.g. "Hanoi, Viet Nam").
+ * Returns empty string if nationality is not recognized.
+ */
+export function getCapitalWithCountry(nationality: string): string {
+  if (!nationality) return '';
+  const code = resolveCode(nationality);
+  if (!code) return '';
+  const capital = CAPITALS_BY_CODE[code];
+  const country = COUNTRY_NAMES[code];
+  if (!capital) return '';
+  return country ? `${capital}, ${country}` : capital;
 }

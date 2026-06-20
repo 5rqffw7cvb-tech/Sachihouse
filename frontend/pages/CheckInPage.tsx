@@ -10,7 +10,7 @@ import { TopNavBar } from '../components/TopNavBar';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { getSiteSettings } from '../services/storage';
-import { getCountryCapital } from '../utils/countryCapitals';
+import { getCapitalWithCountry } from '../utils/countryCapitals';
 
 interface CheckInPageProps {
   data: PropertyData;
@@ -401,15 +401,16 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         checkinToken,
       });
 
-      // Fix address: replace NA/empty with capital of nationality
-      const capital = getCountryCapital(extracted.nationality);
-      const addressValue = (extracted.address && extracted.address !== 'NA') ? extracted.address : capital;
-      const locationDefault = addressValue || capital;
+      // Fix address: replace NA/UNKNOWN/empty with "Capital, Country" from nationality
+      const capitalWithCountry = getCapitalWithCountry(extracted.nationality);
+      const isBlankAddress = !extracted.address || extracted.address === 'NA' || extracted.address.toUpperCase() === 'UNKNOWN';
+      const addressValue = isBlankAddress ? capitalWithCountry : extracted.address;
+      const locationDefault = capitalWithCountry || addressValue;
       const enrichedGuest: CheckInGuest = {
         ...extracted,
         address: addressValue,
-        previousLocation: extracted.previousLocation || locationDefault,
-        nextLocation: extracted.nextLocation || locationDefault,
+        previousLocation: (extracted.previousLocation && extracted.previousLocation.toUpperCase() !== 'UNKNOWN') ? extracted.previousLocation : locationDefault,
+        nextLocation: (extracted.nextLocation && extracted.nextLocation.toUpperCase() !== 'UNKNOWN') ? extracted.nextLocation : locationDefault,
       };
 
       updateGuest(guestId, enrichedGuest);

@@ -323,19 +323,45 @@ export function createApp(store: DataStore) {
 
   function getCountryCapitalBackend(nationality: string): string {
     const capitals: Record<string, string> = {
-      JPN: 'Tokyo', VNM: 'Hanoi', CHN: 'Beijing', KOR: 'Seoul', TWN: 'Taipei',
-      THA: 'Bangkok', SGP: 'Singapore', MYS: 'Kuala Lumpur', PHL: 'Manila',
-      IDN: 'Jakarta', IND: 'New Delhi', AUS: 'Canberra', NZL: 'Wellington',
-      HKG: 'Hong Kong', MMR: 'Naypyidaw', KHM: 'Phnom Penh', LAO: 'Vientiane',
-      NPL: 'Kathmandu', BGD: 'Dhaka', LKA: 'Sri Jayawardenepura Kotte', PAK: 'Islamabad',
-      USA: 'Washington D.C.', CAN: 'Ottawa', MEX: 'Mexico City', BRA: 'Brasilia',
-      GBR: 'London', FRA: 'Paris', DEU: 'Berlin', ITA: 'Rome', ESP: 'Madrid',
-      PRT: 'Lisbon', NLD: 'Amsterdam', CHE: 'Bern', AUT: 'Vienna', SWE: 'Stockholm',
-      NOR: 'Oslo', DNK: 'Copenhagen', FIN: 'Helsinki', POL: 'Warsaw', RUS: 'Moscow',
-      TUR: 'Ankara', SAU: 'Riyadh', ARE: 'Abu Dhabi', EGY: 'Cairo', ZAF: 'Pretoria',
-      ARG: 'Buenos Aires', CHL: 'Santiago', COL: 'Bogota', PER: 'Lima', IRN: 'Tehran',
+      JPN: 'Tokyo, Japan', VNM: 'Hanoi, Viet Nam', CHN: 'Beijing, China',
+      KOR: 'Seoul, South Korea', TWN: 'Taipei, Taiwan', THA: 'Bangkok, Thailand',
+      SGP: 'Singapore, Singapore', MYS: 'Kuala Lumpur, Malaysia', PHL: 'Manila, Philippines',
+      IDN: 'Jakarta, Indonesia', IND: 'New Delhi, India', AUS: 'Canberra, Australia',
+      NZL: 'Wellington, New Zealand', HKG: 'Hong Kong', MMR: 'Naypyidaw, Myanmar',
+      KHM: 'Phnom Penh, Cambodia', LAO: 'Vientiane, Laos', NPL: 'Kathmandu, Nepal',
+      BGD: 'Dhaka, Bangladesh', LKA: 'Colombo, Sri Lanka', PAK: 'Islamabad, Pakistan',
+      USA: 'Washington D.C., United States', CAN: 'Ottawa, Canada', MEX: 'Mexico City, Mexico',
+      BRA: 'Brasilia, Brazil', GBR: 'London, United Kingdom', FRA: 'Paris, France',
+      DEU: 'Berlin, Germany', ITA: 'Rome, Italy', ESP: 'Madrid, Spain',
+      PRT: 'Lisbon, Portugal', NLD: 'Amsterdam, Netherlands', CHE: 'Bern, Switzerland',
+      AUT: 'Vienna, Austria', SWE: 'Stockholm, Sweden', NOR: 'Oslo, Norway',
+      DNK: 'Copenhagen, Denmark', FIN: 'Helsinki, Finland', POL: 'Warsaw, Poland',
+      RUS: 'Moscow, Russia', TUR: 'Ankara, Turkey', SAU: 'Riyadh, Saudi Arabia',
+      ARE: 'Abu Dhabi, UAE', EGY: 'Cairo, Egypt', ZAF: 'Pretoria, South Africa',
+      ARG: 'Buenos Aires, Argentina', CHL: 'Santiago, Chile', COL: 'Bogota, Colombia',
+      PER: 'Lima, Peru', IRN: 'Tehran, Iran',
     };
-    return capitals[nationality.toUpperCase().trim()] ?? '';
+    const nameToCode: Record<string, string> = {
+      JAPAN: 'JPN', VIETNAM: 'VNM', 'VIET NAM': 'VNM', CHINA: 'CHN',
+      'SOUTH KOREA': 'KOR', KOREA: 'KOR', TAIWAN: 'TWN', THAILAND: 'THA',
+      SINGAPORE: 'SGP', MALAYSIA: 'MYS', PHILIPPINES: 'PHL', INDONESIA: 'IDN',
+      INDIA: 'IND', AUSTRALIA: 'AUS', 'NEW ZEALAND': 'NZL', 'HONG KONG': 'HKG',
+      MYANMAR: 'MMR', CAMBODIA: 'KHM', LAOS: 'LAO', NEPAL: 'NPL',
+      BANGLADESH: 'BGD', 'SRI LANKA': 'LKA', PAKISTAN: 'PAK',
+      USA: 'USA', 'UNITED STATES': 'USA', 'UNITED STATES OF AMERICA': 'USA',
+      CANADA: 'CAN', MEXICO: 'MEX', BRAZIL: 'BRA', ARGENTINA: 'ARG',
+      'UNITED KINGDOM': 'GBR', UK: 'GBR', ENGLAND: 'GBR', FRANCE: 'FRA',
+      GERMANY: 'DEU', ITALY: 'ITA', SPAIN: 'ESP', PORTUGAL: 'PRT',
+      NETHERLANDS: 'NLD', SWITZERLAND: 'CHE', AUSTRIA: 'AUT', SWEDEN: 'SWE',
+      NORWAY: 'NOR', DENMARK: 'DNK', FINLAND: 'FIN', POLAND: 'POL',
+      RUSSIA: 'RUS', TURKEY: 'TUR', 'SAUDI ARABIA': 'SAU',
+      UAE: 'ARE', 'UNITED ARAB EMIRATES': 'ARE', EGYPT: 'EGY', 'SOUTH AFRICA': 'ZAF',
+    };
+    const upper = nationality.toUpperCase().trim();
+    const directResult = capitals[upper];
+    if (directResult) return directResult;
+    const code = nameToCode[upper];
+    return code ? (capitals[code] ?? '') : '';
   }
 
   function toNormalizedGuest(guest: unknown, index: number): CheckInGuest {
