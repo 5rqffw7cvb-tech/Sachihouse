@@ -5,7 +5,7 @@ import { getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { getSiteSettings } from '../services/storage';
 import { CheckInLinkPicker } from './CheckInLinkPicker';
 
-const NAV_TITLE_FALLBACK = 'SachiHouse78';
+const NAV_TITLE_FALLBACK = 'SachiHouse';
 const MOBILE_HEADER_HEIGHT = 58;
 const PULL_REFRESH_THRESHOLD = 64;
 const MAX_PULL_DISTANCE = 90;

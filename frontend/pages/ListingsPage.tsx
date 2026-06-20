@@ -88,7 +88,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   }, [isAdmin]);
 
   useEffect(() => {
-    const nextTitle = settings.browserTitle?.trim() || settings.navTitle?.trim() || 'SachiHouse78';
+    const nextTitle = settings.browserTitle?.trim() || settings.navTitle?.trim() || 'SachiHouse';
     document.title = nextTitle;
   }, [settings.browserTitle, settings.navTitle]);
 
@@ -196,7 +196,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         navTitle: editingSettings.navTitle.trim(),
         headerTitle: editingSettings.headerTitle.trim(),
         headerSubtitle: editingSettings.headerSubtitle.trim(),
-        browserTitle: editingSettings.browserTitle.trim() || editingSettings.navTitle.trim() || 'SachiHouse78',
+        browserTitle: editingSettings.browserTitle.trim() || editingSettings.navTitle.trim() || 'SachiHouse',
         faviconUrl: editingSettings.faviconUrl.trim(),
         footerTitle: editingSettings.footerTitle.trim(),
         footerCopyright: editingSettings.footerCopyright.trim(),
@@ -648,36 +648,32 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                       </div>
                     )}
                     
-                    <div className="flex flex-wrap gap-4 mb-6 mt-auto">
-                      <div className="flex items-center gap-1.5 text-[#44474c]">
+                    <div className="flex items-center gap-4 pt-3 mt-auto border-t border-[#efedef] text-[12.5px] font-semibold text-[#44474c]">
+                      <span className="flex items-center gap-1" title={`${property.maxGuests} guests`}>
                         <Users className="w-4 h-4" />
-                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.maxGuests} Guests</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[#44474c]">
+                        {property.maxGuests}
+                      </span>
+                      <span className="flex items-center gap-1" title={`${property.bedrooms} bedrooms`}>
                         <BedSingle className="w-4 h-4" />
-                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.bedrooms} Bedrooms</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[#44474c]">
+                        {property.bedrooms}
+                      </span>
+                      <span className="flex items-center gap-1" title={`${property.beds} beds`}>
                         <BedDouble className="w-4 h-4" />
-                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.beds} Beds</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[#44474c]">
+                        {property.beds}
+                      </span>
+                      <span
+                        className="flex items-center gap-1"
+                        title={`${property.baths} ${property.bathFacilityType === 'shower_room'
+                          ? property.baths === 1 ? 'shower room' : 'shower rooms'
+                          : property.baths === 1 ? 'bathroom' : 'bathrooms'}`}
+                      >
                         <Bath className="w-4 h-4" />
-                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">
-                          {property.baths}{' '}
-                          {property.bathFacilityType === 'shower_room'
-                            ? property.baths === 1
-                              ? 'Shower Room'
-                              : 'Shower Rooms'
-                            : property.baths === 1
-                              ? 'Bathroom'
-                              : 'Bathrooms'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[#44474c]">
+                        {property.baths}
+                      </span>
+                      <span className="flex items-center gap-1" title={`${property.toilets} toilets`}>
                         <Toilet className="w-4 h-4" />
-                        <span className="font-semibold text-[12px] tracking-[0.05em] leading-none">{property.toilets} Toilets</span>
-                      </div>
+                        {property.toilets}
+                      </span>
                     </div>
                   </div>
                 </Link>
@@ -770,11 +766,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
       <MobileBottomNav />
 
       {/* Footer */}
-      <footer className="bg-[#f5f3f4] text-[#1b1c1d] text-[12px] md:text-[14px] font-['Plus_Jakarta_Sans'] border-t border-[#e4e2e3] w-full py-6 md:py-8 px-4 md:px-6 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6 pb-20 md:pb-8 mt-auto">
-        <div className="text-[16px] md:text-[18px] font-bold text-[#1b1c1d]">
-          {settings.footerTitle}
-        </div>
-        <div className="text-[#44474c]">
+      <footer className="bg-[#f5f3f4] text-[#1b1c1d] text-[12px] md:text-[14px] font-['Plus_Jakarta_Sans'] border-t border-[#e4e2e3] w-full py-6 md:py-8 px-4 md:px-6 flex items-center justify-center pb-20 md:pb-8 mt-auto">
+        <div className="text-[#44474c] text-center">
           {settings.footerCopyright}
         </div>
       </footer>
@@ -814,7 +807,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                       className="w-full rounded-lg border border-[#b9d3e6] bg-white px-4 py-2.5 text-[14px] text-[#122235] focus:outline-none focus:border-[#0f4f74] focus:ring-2 focus:ring-[#c9e4f5]"
                       value={editingSettings.browserTitle}
                       onChange={(e) => setEditingSettings({ ...editingSettings, browserTitle: e.target.value })}
-                      placeholder="SachiHouse78 | Property Listings"
+                      placeholder="SachiHouse | Property Listings"
                     />
                     <p className="mt-1 text-[12px] text-[#3d6882]">This controls the tab title for listings and global pages.</p>
                   </div>

@@ -44,7 +44,7 @@ const SEOHead: React.FC<SEOHeadProps> = ({ data }) => {
   useEffect(() => {
     if (!data) return;
 
-    const title = (data.metaTitle || data.name || 'SachiHouse78').trim();
+    const title = (data.metaTitle || data.name || 'SachiHouse').trim();
     const description = (data.description || data.subtitle || 'SachiHouse Tokyo stay information.').trim();
     const pageUrl = toAbsoluteUrl(window.location.href) || window.location.href;
     const imageUrl =
