@@ -59,6 +59,47 @@ const RequiredLabel: React.FC<{ text: string; required?: boolean }> = ({ text, r
 
 const isFilledString = (value?: string | null): boolean => Boolean(value && value.trim());
 
+type GuestValidationField =
+  | 'fullName'
+  | 'birthYear'
+  | 'gender'
+  | 'nationality'
+  | 'address'
+  | 'contactInfo'
+  | 'previousLocation'
+  | 'nextLocation'
+  | 'documentNumber'
+  | 'documentType'
+  | 'evidenceUrl';
+
+const REQUIRED_GUEST_FIELDS: Array<{ key: GuestValidationField; label: string }> = [
+  { key: 'fullName', label: 'Full name' },
+  { key: 'birthYear', label: 'Birth year' },
+  { key: 'gender', label: 'Gender' },
+  { key: 'nationality', label: 'Nationality' },
+  { key: 'address', label: 'Address' },
+  { key: 'contactInfo', label: 'Phone / Email' },
+  { key: 'previousLocation', label: 'Previous location' },
+  { key: 'nextLocation', label: 'Next location' },
+  { key: 'documentNumber', label: 'Document number' },
+  { key: 'documentType', label: 'Document type' },
+  { key: 'evidenceUrl', label: 'ID image' },
+];
+
+const validateGuestFields = (guest: CheckInGuest): Record<GuestValidationField, boolean> => ({
+  fullName: !isFilledString(guest.fullName),
+  birthYear: guest.birthYear == null,
+  gender: !isFilledString(guest.gender),
+  nationality: !isFilledString(guest.nationality),
+  address: !isFilledString(guest.address),
+  contactInfo: !isFilledString(guest.contactInfo),
+  previousLocation: !isFilledString(guest.previousLocation),
+  nextLocation: !isFilledString(guest.nextLocation),
+  documentNumber: !isFilledString(guest.documentNumber),
+  documentType: !guest.documentType || guest.documentType === 'unknown',
+  evidenceUrl: !isFilledString(guest.evidenceUrl),
+});
+
 const getMissingRequiredGuestFields = (guest: CheckInGuest): string[] => {
   const missing: string[] = [];
 
@@ -183,6 +224,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const [editorGuestId, setEditorGuestId] = useState<string | null>(null);
   const [editorDraft, setEditorDraft] = useState<CheckInGuest | null>(null);
   const [editorError, setEditorError] = useState<string | null>(null);
+  const [editorFieldErrors, setEditorFieldErrors] = useState<Partial<Record<GuestValidationField, boolean>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
@@ -342,6 +384,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     setEditorGuestId(null);
     setEditorDraft(null);
     setEditorError(null);
+    setEditorFieldErrors({});
   };
 
   const clearGuestFeedback = (guestId: string) => {
@@ -403,6 +446,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     setEditorGuestId(guestId);
     setEditorDraft({ ...guest });
     setEditorError(null);
+    setEditorFieldErrors({});
   };
 
   const handleImageChange = async (guestId: string, event: ChangeEvent<HTMLInputElement>) => {
@@ -477,7 +521,13 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       nextLocation: (editorDraft.nextLocation ?? '').trim(),
     };
 
-    const missingFields = getMissingRequiredGuestFields(normalizedGuest);
+    const fieldErrors = validateGuestFields(normalizedGuest);
+    setEditorFieldErrors(fieldErrors);
+
+    const missingFields = REQUIRED_GUEST_FIELDS
+      .filter(({ key }) => fieldErrors[key])
+      .map(({ label }) => label);
+
     if (missingFields.length > 0) {
       setEditorError(`Please complete all required fields: ${missingFields.join(', ')}.`);
       return;
@@ -602,7 +652,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         {/* Dates + Times */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{t('checkin_date_in')}</p>
+            <RequiredLabel text={t('checkin_date_in')} required />
             <input
               type="date"
               value={checkInDate}
@@ -611,7 +661,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
             />
           </div>
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{t('checkin_date_out')}</p>
+            <RequiredLabel text={t('checkin_date_out')} required />
             <input
               type="date"
               value={checkOutDate}
@@ -620,7 +670,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
             />
           </div>
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{t('checkin_time_in')}</p>
+            <RequiredLabel text={t('checkin_time_in')} required />
             <input
               type="time"
               value={checkInTime}
@@ -629,7 +679,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
             />
           </div>
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{t('checkin_time_out')}</p>
+            <RequiredLabel text={t('checkin_time_out')} required />
             <input
               type="time"
               value={checkOutTime}
@@ -766,7 +816,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <input
                           value={editorDraft.fullName}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, fullName: event.target.value } : prev)); setEditorError(null); }}
-                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.fullName ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
                       <div>
@@ -775,7 +825,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                           type="number"
                           value={editorDraft.birthYear ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, birthYear: event.target.value ? Number(event.target.value) : null } : prev)); setEditorError(null); }}
-                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.birthYear ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
                       <div>
@@ -783,7 +833,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <input
                           value={editorDraft.gender}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, gender: event.target.value } : prev)); setEditorError(null); }}
-                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.gender ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
                       <div>
@@ -791,7 +841,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <input
                           value={editorDraft.nationality}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, nationality: event.target.value } : prev)); setEditorError(null); }}
-                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.nationality ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
                       <div>
@@ -807,7 +857,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <input
                           value={editorDraft.address}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, address: event.target.value } : prev)); setEditorError(null); }}
-                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.address ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
                       <div className="col-span-2">
@@ -815,7 +865,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <input
                           value={editorDraft.contactInfo ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, contactInfo: event.target.value } : prev)); setEditorError(null); }}
-                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.contactInfo ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                           placeholder="e.g. +81-90-xxxx-xxxx"
                         />
                       </div>
@@ -824,7 +874,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <input
                           value={editorDraft.previousLocation ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, previousLocation: event.target.value } : prev)); setEditorError(null); }}
-                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.previousLocation ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
                       <div className="col-span-2">
@@ -832,7 +882,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <input
                           value={editorDraft.nextLocation ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, nextLocation: event.target.value } : prev)); setEditorError(null); }}
-                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.nextLocation ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
                       <div>
@@ -840,7 +890,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <input
                           value={editorDraft.documentNumber}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, documentNumber: event.target.value } : prev)); setEditorError(null); }}
-                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.documentNumber ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
                       <div>
@@ -848,7 +898,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         <select
                           value={editorDraft.documentType}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, documentType: event.target.value as CheckInGuest['documentType'] } : prev)); setEditorError(null); }}
-                          className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-900"
+                          className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.documentType ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         >
                           {Object.entries(documentTypeLabels).map(([value, label]) => (
                             <option key={value} value={value}>{label}</option>
