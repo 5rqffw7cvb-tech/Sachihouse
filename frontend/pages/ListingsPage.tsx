@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PropertyData, SiteSettings } from '../types';
-import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train, Globe } from 'lucide-react';
+import { MapPin, Users, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, ChevronDown, ChevronUp, Train, Globe } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -600,7 +600,17 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             const imageSrc = buildOptimizedImageUrl(imageUrl, index === 0 ? 640 : 480);
             const imageSrcSet = `${buildOptimizedImageUrl(imageUrl, 320)} 320w, ${buildOptimizedImageUrl(imageUrl, 480)} 480w, ${buildOptimizedImageUrl(imageUrl, 640)} 640w`;
             const assignedHosts = hosts.filter((host) => host.assignedPropertyIds?.includes(property.id));
-            
+            const bathLabel = `${property.baths} ${property.bathFacilityType === 'shower_room'
+              ? property.baths === 1 ? 'shower room' : 'shower rooms'
+              : property.baths === 1 ? 'bathroom' : 'bathrooms'}`;
+            const statsSummary = [
+              `${property.maxGuests} guest${property.maxGuests === 1 ? '' : 's'}`,
+              `${property.bedrooms} bedroom${property.bedrooms === 1 ? '' : 's'}`,
+              `${property.beds} bed${property.beds === 1 ? '' : 's'}`,
+              bathLabel,
+              `${property.toilets} toilet${property.toilets === 1 ? '' : 's'}`,
+            ].join(' · ');
+
             return (
               <div key={property.id} className="bg-[#ffffff] rounded-2xl md:rounded-xl border border-[#ecebea] md:border-[#e4e2e3] shadow-[0_2px_10px_rgba(15,23,42,0.05)] md:shadow-[0_4px_20px_rgba(0,0,0,0.05)] md:hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] active:scale-[0.99] md:active:scale-100 overflow-hidden transition-all duration-300 flex flex-col h-full relative group">
                 <Link to={`/${property.metalink || property.id}`} className="flex flex-row md:flex-col flex-grow cursor-pointer p-3 md:p-0">
@@ -660,32 +670,26 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                       </div>
                     )}
 
-                    <div className="flex items-center gap-1.5 md:gap-4 mt-2 md:mt-auto pt-0 md:pt-3 md:border-t md:border-[#efedef] text-[10.5px] md:text-[12.5px] font-semibold text-[#44474c]">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f3f4] px-2 py-0.5 md:bg-transparent md:rounded-none md:px-0 md:py-0" title={`${property.maxGuests} guests`}>
-                        <Users className="w-3 h-3 md:w-4 md:h-4" />
+                    {/* Mobile: compact pill badges */}
+                    <div className="flex md:hidden items-center gap-1.5 mt-2 text-[10.5px] font-semibold text-[#44474c]">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f3f4] px-2 py-0.5" title={`${property.maxGuests} guests`}>
+                        <Users className="w-3 h-3" />
                         {property.maxGuests}
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f3f4] px-2 py-0.5 md:bg-transparent md:rounded-none md:px-0 md:py-0" title={`${property.bedrooms} bedrooms`}>
-                        <BedSingle className="w-3 h-3 md:w-4 md:h-4" />
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f3f4] px-2 py-0.5" title={`${property.bedrooms} bedrooms`}>
+                        <BedSingle className="w-3 h-3" />
                         {property.bedrooms}
                       </span>
-                      <span className="hidden md:flex items-center gap-1" title={`${property.beds} beds`}>
-                        <BedDouble className="w-4 h-4" />
-                        {property.beds}
-                      </span>
-                      <span
-                        className="inline-flex items-center gap-1 rounded-full bg-[#f5f3f4] px-2 py-0.5 md:bg-transparent md:rounded-none md:px-0 md:py-0"
-                        title={`${property.baths} ${property.bathFacilityType === 'shower_room'
-                          ? property.baths === 1 ? 'shower room' : 'shower rooms'
-                          : property.baths === 1 ? 'bathroom' : 'bathrooms'}`}
-                      >
-                        <Bath className="w-3 h-3 md:w-4 md:h-4" />
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f3f4] px-2 py-0.5" title={bathLabel}>
+                        <Bath className="w-3 h-3" />
                         {property.baths}
                       </span>
-                      <span className="hidden md:flex items-center gap-1" title={`${property.toilets} toilets`}>
-                        <Toilet className="w-4 h-4" />
-                        {property.toilets}
-                      </span>
+                    </div>
+
+                    {/* Desktop: single readable summary line */}
+                    <div className="hidden md:flex items-center gap-1.5 mt-auto pt-3 border-t border-[#efedef] text-[12.5px] font-semibold text-[#44474c]">
+                      <Users className="w-4 h-4 shrink-0 text-[#74777d]" />
+                      <span>{statsSummary}</span>
                     </div>
                   </div>
                 </Link>
