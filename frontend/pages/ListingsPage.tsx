@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PropertyData, SiteSettings } from '../types';
-import { MapPin, Users, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, ChevronDown, ChevronUp, Train, Globe } from 'lucide-react';
+import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train, Globe } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -603,13 +603,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             const bathLabel = `${property.baths} ${property.bathFacilityType === 'shower_room'
               ? property.baths === 1 ? 'shower room' : 'shower rooms'
               : property.baths === 1 ? 'bathroom' : 'bathrooms'}`;
-            const statsSummary = [
-              `${property.maxGuests} guest${property.maxGuests === 1 ? '' : 's'}`,
-              `${property.bedrooms} bedroom${property.bedrooms === 1 ? '' : 's'}`,
-              `${property.beds} bed${property.beds === 1 ? '' : 's'}`,
-              bathLabel,
-              `${property.toilets} toilet${property.toilets === 1 ? '' : 's'}`,
-            ].join(' · ');
 
             return (
               <div key={property.id} className="bg-[#ffffff] rounded-2xl md:rounded-xl border border-[#ecebea] md:border-[#e4e2e3] shadow-[0_2px_10px_rgba(15,23,42,0.05)] md:shadow-[0_4px_20px_rgba(0,0,0,0.05)] md:hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] active:scale-[0.99] md:active:scale-100 overflow-hidden transition-all duration-300 flex flex-col h-full relative group">
@@ -686,10 +679,32 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                       </span>
                     </div>
 
-                    {/* Desktop: single readable summary line */}
-                    <div className="hidden md:flex items-center gap-1.5 mt-auto pt-3 border-t border-[#efedef] text-[12.5px] font-semibold text-[#44474c]">
-                      <Users className="w-4 h-4 shrink-0 text-[#74777d]" />
-                      <span>{statsSummary}</span>
+                    {/* Desktop: evenly distributed stat blocks */}
+                    <div className="hidden md:flex items-stretch justify-between mt-auto pt-3 border-t border-[#efedef]">
+                      <div className="flex flex-1 flex-col items-center gap-1" title={`${property.maxGuests} guests`}>
+                        <Users className="w-4 h-4 text-[#74777d]" />
+                        <span className="text-[13px] font-bold text-[#1b1c1d]">{property.maxGuests}</span>
+                      </div>
+                      <div className="w-px bg-[#efedef]" />
+                      <div className="flex flex-1 flex-col items-center gap-1" title={`${property.bedrooms} bedrooms`}>
+                        <BedSingle className="w-4 h-4 text-[#74777d]" />
+                        <span className="text-[13px] font-bold text-[#1b1c1d]">{property.bedrooms}</span>
+                      </div>
+                      <div className="w-px bg-[#efedef]" />
+                      <div className="flex flex-1 flex-col items-center gap-1" title={`${property.beds} beds`}>
+                        <BedDouble className="w-4 h-4 text-[#74777d]" />
+                        <span className="text-[13px] font-bold text-[#1b1c1d]">{property.beds}</span>
+                      </div>
+                      <div className="w-px bg-[#efedef]" />
+                      <div className="flex flex-1 flex-col items-center gap-1" title={bathLabel}>
+                        <Bath className="w-4 h-4 text-[#74777d]" />
+                        <span className="text-[13px] font-bold text-[#1b1c1d]">{property.baths}</span>
+                      </div>
+                      <div className="w-px bg-[#efedef]" />
+                      <div className="flex flex-1 flex-col items-center gap-1" title={`${property.toilets} toilets`}>
+                        <Toilet className="w-4 h-4 text-[#74777d]" />
+                        <span className="text-[13px] font-bold text-[#1b1c1d]">{property.toilets}</span>
+                      </div>
                     </div>
                   </div>
                 </Link>
