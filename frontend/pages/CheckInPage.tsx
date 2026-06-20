@@ -50,6 +50,33 @@ const createEmptyGuest = (id: string): CheckInGuest => ({
   nextLocation: '',
 });
 
+const RequiredLabel: React.FC<{ text: string; required?: boolean }> = ({ text, required = false }) => (
+  <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+    {text}
+    {required ? <span className="ml-1 text-red-500">*</span> : null}
+  </p>
+);
+
+const isFilledString = (value?: string | null): boolean => Boolean(value && value.trim());
+
+const getMissingRequiredGuestFields = (guest: CheckInGuest): string[] => {
+  const missing: string[] = [];
+
+  if (!isFilledString(guest.fullName)) missing.push('Full name');
+  if (guest.birthYear == null) missing.push('Birth year');
+  if (!isFilledString(guest.gender)) missing.push('Gender');
+  if (!isFilledString(guest.nationality)) missing.push('Nationality');
+  if (!isFilledString(guest.address)) missing.push('Address');
+  if (!isFilledString(guest.contactInfo)) missing.push('Phone / Email');
+  if (!isFilledString(guest.previousLocation)) missing.push('Previous location');
+  if (!isFilledString(guest.nextLocation)) missing.push('Next location');
+  if (!isFilledString(guest.documentNumber)) missing.push('Document number');
+  if (!isFilledString(guest.evidenceUrl)) missing.push('ID image');
+  if (!guest.documentType || guest.documentType === 'unknown') missing.push('Document type');
+
+  return missing;
+};
+
 const toDateInput = (offsetDays = 0): string => {
   const date = new Date();
   date.setDate(date.getDate() + offsetDays);
@@ -450,8 +477,9 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       nextLocation: (editorDraft.nextLocation ?? '').trim(),
     };
 
-    if (!normalizedGuest.fullName || !normalizedGuest.evidenceUrl) {
-      setEditorError('Full name and an uploaded ID image are required before confirming this guest.');
+    const missingFields = getMissingRequiredGuestFields(normalizedGuest);
+    if (missingFields.length > 0) {
+      setEditorError(`Please complete all required fields: ${missingFields.join(', ')}.`);
       return;
     }
 
@@ -734,7 +762,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
 
                     <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
                       <div className="col-span-2">
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_fullname')}</p>
+                        <RequiredLabel text={t('checkin_popup_fullname')} required />
                         <input
                           value={editorDraft.fullName}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, fullName: event.target.value } : prev)); setEditorError(null); }}
@@ -742,7 +770,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         />
                       </div>
                       <div>
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_birthyear')}</p>
+                        <RequiredLabel text={t('checkin_popup_birthyear')} required />
                         <input
                           type="number"
                           value={editorDraft.birthYear ?? ''}
@@ -751,7 +779,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         />
                       </div>
                       <div>
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_gender')}</p>
+                        <RequiredLabel text={t('checkin_popup_gender')} required />
                         <input
                           value={editorDraft.gender}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, gender: event.target.value } : prev)); setEditorError(null); }}
@@ -759,7 +787,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         />
                       </div>
                       <div>
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_nationality')}</p>
+                        <RequiredLabel text={t('checkin_popup_nationality')} required />
                         <input
                           value={editorDraft.nationality}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, nationality: event.target.value } : prev)); setEditorError(null); }}
@@ -767,7 +795,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         />
                       </div>
                       <div>
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_occupation')}</p>
+                        <RequiredLabel text={t('checkin_popup_occupation')} />
                         <input
                           value={editorDraft.occupation}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, occupation: event.target.value } : prev)); setEditorError(null); }}
@@ -775,7 +803,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         />
                       </div>
                       <div className="col-span-2">
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_address')}</p>
+                        <RequiredLabel text={t('checkin_popup_address')} required />
                         <input
                           value={editorDraft.address}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, address: event.target.value } : prev)); setEditorError(null); }}
@@ -783,7 +811,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         />
                       </div>
                       <div className="col-span-2">
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_contact')}</p>
+                        <RequiredLabel text={t('checkin_popup_contact')} required />
                         <input
                           value={editorDraft.contactInfo ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, contactInfo: event.target.value } : prev)); setEditorError(null); }}
@@ -792,7 +820,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         />
                       </div>
                       <div className="col-span-2">
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_prev_location')}</p>
+                        <RequiredLabel text={t('checkin_popup_prev_location')} required />
                         <input
                           value={editorDraft.previousLocation ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, previousLocation: event.target.value } : prev)); setEditorError(null); }}
@@ -800,7 +828,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         />
                       </div>
                       <div className="col-span-2">
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_next_location')}</p>
+                        <RequiredLabel text={t('checkin_popup_next_location')} required />
                         <input
                           value={editorDraft.nextLocation ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, nextLocation: event.target.value } : prev)); setEditorError(null); }}
@@ -808,7 +836,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         />
                       </div>
                       <div>
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_docnum')}</p>
+                        <RequiredLabel text={t('checkin_popup_docnum')} required />
                         <input
                           value={editorDraft.documentNumber}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, documentNumber: event.target.value } : prev)); setEditorError(null); }}
@@ -816,7 +844,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         />
                       </div>
                       <div>
-                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{t('checkin_popup_doctype')}</p>
+                        <RequiredLabel text={t('checkin_popup_doctype')} required />
                         <select
                           value={editorDraft.documentType}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, documentType: event.target.value as CheckInGuest['documentType'] } : prev)); setEditorError(null); }}
