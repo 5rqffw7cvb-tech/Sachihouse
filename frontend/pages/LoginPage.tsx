@@ -18,7 +18,7 @@ declare global {
         sitekey: string;
         callback: (token: string) => void;
         'expired-callback'?: () => void;
-        'error-callback'?: () => void;
+        'error-callback'?: (errorCode?: string) => void;
       }) => string;
       reset: (widgetId?: string) => void;
       remove: (widgetId?: string) => void;
@@ -86,18 +86,42 @@ const LoginPage: React.FC = () => {
     let cancelled = false;
     loadTurnstileScript()
       .then(() => {
-        if (cancelled || !turnstileContainerRef.current || !window.turnstile) {
+        if (cancelled) {
+          console.warn('[turnstile] effect cancelled before script resolved');
           return;
         }
-        turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
-          sitekey: TURNSTILE_SITE_KEY,
-          callback: (token) => setTurnstileToken(token),
-          'expired-callback': () => setTurnstileToken(''),
-          'error-callback': () => setTurnstileToken(''),
-        });
-        setIsTurnstileReady(true);
+        if (!turnstileContainerRef.current) {
+          console.warn('[turnstile] container ref missing at render time');
+          return;
+        }
+        if (!window.turnstile) {
+          console.warn('[turnstile] window.turnstile missing after script resolved');
+          return;
+        }
+        console.log('[turnstile] calling render() with sitekey', TURNSTILE_SITE_KEY);
+        try {
+          turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
+            sitekey: TURNSTILE_SITE_KEY,
+            callback: (token) => {
+              console.log('[turnstile] callback fired, token received');
+              setTurnstileToken(token);
+            },
+            'expired-callback': () => setTurnstileToken(''),
+            'error-callback': (code?: string) => {
+              console.error('[turnstile] error-callback fired', code);
+              setTurnstileToken('');
+              setErrorMsg(`Anti-bot check error (${code ?? 'unknown'}). Please refresh.`);
+            },
+          });
+          console.log('[turnstile] render() returned widget id', turnstileWidgetIdRef.current);
+          setIsTurnstileReady(true);
+        } catch (err) {
+          console.error('[turnstile] render() threw', err);
+          setErrorMsg(`Could not start the anti-bot check (${err instanceof Error ? err.message : String(err)}).`);
+        }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[turnstile] script failed to load', err);
         if (!cancelled) {
           setErrorMsg('Could not load the anti-bot check. Please refresh this page.');
         }
