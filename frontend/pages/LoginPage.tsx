@@ -68,8 +68,15 @@ const LoginPage: React.FC = () => {
   // re-render. Read values from refs instead.
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
-  const turnstileContainerRef = useRef<HTMLDivElement>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
+
+  // GlobalLayout renders a "Loading..." placeholder instead of children
+  // until its own async siteSettings fetch resolves, so the Turnstile
+  // container div doesn't exist in the DOM yet when LoginPage's effects
+  // first run. A plain useRef would capture null forever in that case -
+  // track the node via state (callback ref) so the render effect re-fires
+  // once GlobalLayout actually mounts it.
+  const [turnstileContainerEl, setTurnstileContainerEl] = useState<HTMLDivElement | null>(null);
 
   const [turnstileToken, setTurnstileToken] = useState('');
   const [isTurnstileReady, setIsTurnstileReady] = useState(false);
@@ -83,15 +90,16 @@ const LoginPage: React.FC = () => {
       return;
     }
 
+    if (!turnstileContainerEl) {
+      console.log('[turnstile] container not mounted yet, waiting');
+      return;
+    }
+
     let cancelled = false;
     loadTurnstileScript()
       .then(() => {
         if (cancelled) {
           console.warn('[turnstile] effect cancelled before script resolved');
-          return;
-        }
-        if (!turnstileContainerRef.current) {
-          console.warn('[turnstile] container ref missing at render time');
           return;
         }
         if (!window.turnstile) {
@@ -100,7 +108,7 @@ const LoginPage: React.FC = () => {
         }
         console.log('[turnstile] calling render() with sitekey', TURNSTILE_SITE_KEY);
         try {
-          turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
+          turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerEl, {
             sitekey: TURNSTILE_SITE_KEY,
             callback: (token) => {
               console.log('[turnstile] callback fired, token received');
@@ -134,7 +142,7 @@ const LoginPage: React.FC = () => {
         turnstileWidgetIdRef.current = null;
       }
     };
-  }, [navigate, redirectTarget]);
+  }, [navigate, redirectTarget, turnstileContainerEl]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -213,7 +221,7 @@ const LoginPage: React.FC = () => {
                   React's control, so it must not also be a React-rendered parent
                   (e.g. of the spinner below) - that causes React/DOM conflicts
                   on reconciliation and leaves the widget stuck. */}
-              <div ref={turnstileContainerRef} />
+              <div ref={setTurnstileContainerEl} />
               {!isTurnstileReady && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <Loader2 className="w-5 h-5 animate-spin text-[#9ea3ab]" />
