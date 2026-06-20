@@ -111,6 +111,7 @@ function compareText(left: string, right: string): number {
 }
 
 const CheckInManagementPage: React.FC = () => {
+  const buildVersion = '2026-06-20-2';
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
   const [loading, setLoading] = useState(true);
@@ -615,7 +616,7 @@ const CheckInManagementPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
+    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col" data-build-version={buildVersion}>
       <TopNavBar />
       <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 pt-4 md:pt-[110px] pb-24 md:pb-8">
         <div className="flex items-center justify-between mb-4">
