@@ -89,12 +89,12 @@ const LoginPage: React.FC = () => {
           <h1 className="font-['Plus_Jakarta_Sans'] text-[26px] font-bold text-[#1b1c1d] mb-1">Sign in</h1>
           <p className="text-[14px] text-[#74777d] mb-8">Staff and host access only.</p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             <div>
               <label className="block text-[13px] font-semibold text-[#1b1c1d] mb-1.5">Email</label>
               <input
                 type="email"
-                autoComplete="email"
+                autoComplete="off"
                 required
                 ref={emailRef}
                 defaultValue=""
@@ -108,7 +108,7 @@ const LoginPage: React.FC = () => {
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   required
                   ref={passwordRef}
                   defaultValue=""
