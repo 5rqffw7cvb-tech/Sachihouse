@@ -602,12 +602,12 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       const capitalWithCountry = getCapitalWithCountry(extracted.nationality);
       const isBlankAddress = !extracted.address || extracted.address === 'NA' || extracted.address.toUpperCase() === 'UNKNOWN';
       const addressValue = isBlankAddress ? capitalWithCountry : extracted.address;
-      const locationDefault = capitalWithCountry || addressValue;
+      // Default previous/next location to the guest's address
       const enrichedGuest: CheckInGuest = {
         ...extracted,
         address: addressValue,
-        previousLocation: (extracted.previousLocation && extracted.previousLocation.toUpperCase() !== 'UNKNOWN') ? extracted.previousLocation : locationDefault,
-        nextLocation: (extracted.nextLocation && extracted.nextLocation.toUpperCase() !== 'UNKNOWN') ? extracted.nextLocation : locationDefault,
+        previousLocation: (extracted.previousLocation && extracted.previousLocation.toUpperCase() !== 'UNKNOWN') ? extracted.previousLocation : addressValue,
+        nextLocation: (extracted.nextLocation && extracted.nextLocation.toUpperCase() !== 'UNKNOWN') ? extracted.nextLocation : addressValue,
       };
 
       const index = guestIndexById[guestId] ?? -1;
