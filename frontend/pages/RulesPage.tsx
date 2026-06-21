@@ -1,6 +1,7 @@
 import React from 'react';
 import { PropertyData } from '../types';
 import { CigaretteOff, PartyPopper, Moon, Footprints, AlertCircle, CheckCircle } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface RulesPageProps {
   data: PropertyData;
@@ -14,6 +15,7 @@ const iconMap: Record<string, React.ElementType> = {
 };
 
 const RulesPage: React.FC<RulesPageProps> = ({ data }) => {
+  const { t } = useLanguage();
   return (
     <div className="max-w-3xl mx-auto px-3 sm:px-6 lg:px-8 py-8">
              <div className="text-center mb-8">
@@ -37,7 +39,7 @@ const RulesPage: React.FC<RulesPageProps> = ({ data }) => {
                               {rule.text}
                           </h3>
                           <p className="text-gray-500 text-sm">
-                              {rule.type === 'forbidden' ? 'Strictly prohibited in the property.' : 'We appreciate your cooperation.'}
+                              {rule.type === 'forbidden' ? t('rules_forbidden_desc') : t('rules_allowed_desc')}
                           </p>
                       </div>
                       <div className="ml-auto">
@@ -54,7 +56,7 @@ const RulesPage: React.FC<RulesPageProps> = ({ data }) => {
 
       <div className="mt-8 bg-gray-50 border border-gray-200 rounded-xl p-6">
           <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-gray-600"/> Additional Notes
+              <AlertCircle className="w-5 h-5 text-gray-600"/> {t('rules_additional_notes')}
           </h3>
           <p className="text-gray-600 text-sm whitespace-pre-line leading-relaxed">
              {data.additionalRules}

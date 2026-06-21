@@ -478,7 +478,7 @@ const ListingsSkeleton = () => (
 );
 
 const ListingsRoute = () => {
-    const { language } = useLanguage();
+    const { language, t } = useLanguage();
     const [properties, setProperties] = useState<(PropertyData & { id: string })[] | null>(null);
     const [settings, setSettings] = useState<SiteSettings | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -499,7 +499,7 @@ const ListingsRoute = () => {
         }).catch(err => {
             if (cancelled) return;
             console.error(err);
-            setLoadError('Failed to load listings data. Please refresh and try again.');
+            setLoadError(t('common_err_homepage_load'));
             setIsLoading(false);
         });
 
@@ -517,7 +517,7 @@ const ListingsRoute = () => {
         return (
             <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center gap-3 text-[#041627]">
                 <Loader2 className="w-8 h-8 animate-spin" />
-                <p className="text-sm font-medium tracking-[0.04em] uppercase">Loading...</p>
+                <p className="text-sm font-medium tracking-[0.04em] uppercase">{t('loading')}</p>
             </div>
         );
     }
@@ -525,7 +525,7 @@ const ListingsRoute = () => {
     if (!properties || !settings) {
         return (
             <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center px-6 text-center text-[#ba1a1a]">
-                Failed to load homepage data. Please refresh and try again.
+                {t('common_err_homepage_load')}
             </div>
         );
     }

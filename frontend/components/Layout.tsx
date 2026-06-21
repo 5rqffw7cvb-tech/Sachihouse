@@ -81,7 +81,7 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
             <div className="flex items-center gap-4">
               <Link to="/" className="text-gray-400 hover:text-gray-900 transition-colors group flex items-center gap-1 text-sm font-medium">
                 <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                <span className="hidden lg:inline">Properties</span>
+                <span className="hidden lg:inline">{t('common_properties')}</span>
               </Link>
               <div className="w-px h-6 bg-gray-200"></div>
               <div className="flex items-center gap-2 group cursor-pointer">
@@ -154,7 +154,7 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
                       />
                     ) : (
                       <div className="w-20 h-20 rounded-full bg-gray-200 border-4 border-white shadow-sm flex items-center justify-center">
-                        <span className="text-gray-400 text-[10px]">No img</span>
+                        <span className="text-gray-400 text-[10px]">{t('layout_no_image_fallback')}</span>
                       </div>
                     )}
                     <div className="absolute -bottom-1 -right-1 bg-[#1877f2] text-white p-1.5 rounded-full border-2 border-white shadow-sm">
@@ -167,11 +167,11 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
                       {data.name.split(':')[0] || "Sachi House"}
                     </h3>
                     <p className="text-gray-500 text-xs mb-3 flex items-center gap-1.5">
-                       <MapPin className="w-3.5 h-3.5"/> Tokyo, Japan
+                       <MapPin className="w-3.5 h-3.5"/> {t('layout_facebook_location')}
                     </p>
                     <div className="inline-flex items-center gap-1.5 bg-[#1877f2]/5 group-hover:bg-[#1877f2] text-[#1877f2] group-hover:text-white text-xs font-bold px-4 py-2 rounded-full transition-all duration-300">
                        <ThumbsUp className="w-3.5 h-3.5" />
-                       <span>Like Page</span>
+                       <span>{t('layout_like_page')}</span>
                     </div>
                   </div>
                </a>
@@ -208,10 +208,7 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
             let label = item.label;
             // Simple localized override for simulator if needed, else t() handles it
             if (isPricing) {
-                if (language === 'en') label = 'Simulator';
-                else if (language === 'vi') label = 'Tính giá';
-                else if (language === 'ja') label = '計算';
-                else if (language === 'zh') label = '计算';
+                label = t('nav_pricing_short');
             }
 
             const Icon = isPricing ? Calculator : item.icon;

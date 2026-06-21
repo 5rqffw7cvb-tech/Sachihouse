@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Loader2 } from 'lucide-react';
 import { BlogPost, blogService } from '../services/blogService';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export const BlogSidebar: React.FC = () => {
+  const { t } = useLanguage();
   const [recentPosts, setRecentPosts] = useState<BlogPost[]>([]);
   const [categories, setCategories] = useState<{name: string, count: number}[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,13 +44,13 @@ export const BlogSidebar: React.FC = () => {
     <div className="w-full lg:w-[340px] flex-shrink-0 space-y-6">
       {/* Search */}
       <div className="bg-[#ffffff] rounded-2xl border border-[#e4e2e3] p-6 shadow-sm">
-        <h3 className="font-['Plus_Jakarta_Sans'] font-bold text-[18px] text-[#1b1c1d] mb-4">Search</h3>
+        <h3 className="font-['Plus_Jakarta_Sans'] font-bold text-[18px] text-[#1b1c1d] mb-4">{t('blog_sidebar_search')}</h3>
         <form className="relative" onSubmit={handleSearch}>
-          <input 
-            type="text" 
+          <input
+            type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search stories..." 
+            placeholder={t('blog_sidebar_search_placeholder')}
             className="w-full bg-[#f5f3f4] border border-[#e4e2e3] rounded-lg pl-4 pr-10 py-3 text-[14px] text-[#1b1c1d] focus:outline-none focus:ring-1 focus:ring-[#041627] transition-colors"
           />
           <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#74777d] hover:text-[#1b1c1d]">
@@ -59,11 +61,11 @@ export const BlogSidebar: React.FC = () => {
 
       {/* Categories */}
       <div className="bg-[#ffffff] rounded-2xl border border-[#e4e2e3] p-6 shadow-sm">
-        <h3 className="font-['Plus_Jakarta_Sans'] font-bold text-[18px] text-[#1b1c1d] mb-4">Categories</h3>
+        <h3 className="font-['Plus_Jakarta_Sans'] font-bold text-[18px] text-[#1b1c1d] mb-4">{t('blog_sidebar_categories')}</h3>
         {loading ? (
             <div className="flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
         ) : categories.length === 0 ? (
-            <div className="text-sm text-gray-500">No categories</div>
+            <div className="text-sm text-gray-500">{t('blog_sidebar_no_categories')}</div>
         ) : (
             <div className="space-y-3">
             {categories.map((cat, idx) => (
@@ -78,11 +80,11 @@ export const BlogSidebar: React.FC = () => {
 
       {/* Recent Posts */}
       <div className="bg-[#ffffff] rounded-2xl border border-[#e4e2e3] p-6 shadow-sm">
-        <h3 className="font-['Plus_Jakarta_Sans'] font-bold text-[18px] text-[#1b1c1d] mb-4">Recent Posts</h3>
+        <h3 className="font-['Plus_Jakarta_Sans'] font-bold text-[18px] text-[#1b1c1d] mb-4">{t('blog_sidebar_recent_posts')}</h3>
         {loading ? (
             <div className="flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
         ) : recentPosts.length === 0 ? (
-            <div className="text-sm text-gray-500">No recent posts</div>
+            <div className="text-sm text-gray-500">{t('blog_sidebar_no_recent')}</div>
         ) : (
             <div className="space-y-6">
             {recentPosts.map(post => (

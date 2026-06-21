@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { PropertyData } from '../types';
 import { ChevronDown, ChevronUp, BookOpen, Search } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface ManualPageProps {
   data: PropertyData;
 }
 
 const ManualPage: React.FC<ManualPageProps> = ({ data }) => {
+  const { t } = useLanguage();
   const [openId, setOpenId] = useState<string | null>(data.manual[0]?.id || null);
   const [search, setSearch] = useState('');
 
@@ -24,9 +26,9 @@ const ManualPage: React.FC<ManualPageProps> = ({ data }) => {
             </div>
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input 
-                    type="text" 
-                    placeholder="Search guides..." 
+                <input
+                    type="text"
+                    placeholder={t('manual_search_placeholder')}
                     className="pl-10 pr-4 py-2 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full md:w-64 bg-white text-gray-900"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -74,7 +76,7 @@ const ManualPage: React.FC<ManualPageProps> = ({ data }) => {
                 })
             ) : (
                 <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-                    <p className="text-gray-500">No guides found matching "{search}"</p>
+                    <p className="text-gray-500">{t('manual_no_results').replace('{search}', search)}</p>
                 </div>
             )}
         </div>

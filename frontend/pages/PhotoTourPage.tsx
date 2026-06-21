@@ -2,6 +2,7 @@ import React from 'react';
 import { PropertyData, GalleryItem } from '../types';
 import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface PhotoTourPageProps {
   data: PropertyData;
@@ -9,6 +10,7 @@ interface PhotoTourPageProps {
 
 const PhotoTourPage: React.FC<PhotoTourPageProps> = ({ data }) => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   // Helper to get images for a specific category ID
   const getImagesByCategory = (catId: string) => {
@@ -46,7 +48,7 @@ const PhotoTourPage: React.FC<PhotoTourPageProps> = ({ data }) => {
             <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full mr-4">
                 <ChevronLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-lg font-bold">Photo tour</h1>
+            <h1 className="text-lg font-bold">{t('photos_title')}</h1>
         </div>
 
         <div className="pt-16 pb-16 max-w-5xl mx-auto px-4 sm:px-6">
@@ -54,7 +56,7 @@ const PhotoTourPage: React.FC<PhotoTourPageProps> = ({ data }) => {
             {/* 1. Floor Plan Section - Updated to match Living Room layout */}
             {planImages.length > 0 && (
                 <div className="mb-10">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">Floor plan</h2>
+                    <h2 className="text-xl font-bold text-gray-900 mb-4">{t('photos_floor_plan')}</h2>
                     
                     {/* Hero Image - Aspect Video like Living Room */}
                     <div className="mb-4 aspect-video rounded-sm overflow-hidden bg-gray-50 border border-gray-100">
@@ -62,8 +64,8 @@ const PhotoTourPage: React.FC<PhotoTourPageProps> = ({ data }) => {
                         <img 
                             src={planImages[0].url || undefined} 
                             loading="lazy"
-                            className="w-full h-full object-contain mix-blend-multiply" 
-                            alt="Floor Plan" 
+                            className="w-full h-full object-contain mix-blend-multiply"
+                            alt={t('photos_floor_plan_alt')}
                         />
                     </div>
                     {planImages[0].caption && (
@@ -87,10 +89,10 @@ const PhotoTourPage: React.FC<PhotoTourPageProps> = ({ data }) => {
             {/* 2. Living Room (Hero Style - Only if 'living' category exists and has images) */}
             {livingImages.length > 0 && (
                 <div className="mb-10">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">Living room</h2>
+                    <h2 className="text-xl font-bold text-gray-900 mb-4">{t('photos_living_room')}</h2>
                     {/* Hero Image */}
                     <div className="mb-4 aspect-video rounded-sm overflow-hidden bg-gray-100">
-                        <img src={livingImages[0].url || undefined} loading="lazy" className="w-full h-full object-cover" alt="Living Room Hero" />
+                        <img src={livingImages[0].url || undefined} loading="lazy" className="w-full h-full object-cover" alt={t('photos_living_room_alt')} />
                     </div>
                     {livingImages[0].caption && (
                          <p className="text-sm text-gray-500 mb-6">{livingImages[0].caption}</p>
@@ -124,7 +126,7 @@ const PhotoTourPage: React.FC<PhotoTourPageProps> = ({ data }) => {
                 const knownCategoryIds = data.galleryCategories.map(c => c.id);
                 const orphanedImages = data.galleryImages.filter(img => !knownCategoryIds.includes(img.category));
                 if (orphanedImages.length > 0) {
-                    return renderSection('Uncategorized Photos', orphanedImages);
+                    return renderSection(t('photos_uncategorized'), orphanedImages);
                 }
                 return null;
             })()}

@@ -5,8 +5,10 @@ import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2 } from 'luci
 import { BlogSidebar } from '../components/BlogSidebar';
 import { BlogPost, blogService } from '../services/blogService';
 import { Helmet } from 'react-helmet-async';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const BlogPage: React.FC = () => {
+  const { t } = useLanguage();
   const [allPosts, setAllPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -71,7 +73,7 @@ const BlogPage: React.FC = () => {
           return;
         }
         console.error('Failed to load blog posts', error);
-        setLoadError('Failed to load blog posts. Please refresh and try again.');
+        setLoadError(t('blog_load_error'));
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -110,7 +112,7 @@ const BlogPage: React.FC = () => {
       <GlobalLayout>
         <div className="flex flex-col justify-center items-center py-20 gap-3 text-[#041627]">
           <Loader2 className="w-8 h-8 animate-spin" />
-          <p className="text-sm font-medium tracking-[0.04em] uppercase">Loading...</p>
+          <p className="text-sm font-medium tracking-[0.04em] uppercase">{t('loading')}</p>
         </div>
       </GlobalLayout>
     );
@@ -126,13 +128,13 @@ const BlogPage: React.FC = () => {
     );
   }
 
-  const pageTitle = categoryFilter 
-    ? `Category: ${categoryFilter} | Tokyo Travel Blog` 
+  const pageTitle = categoryFilter
+    ? `${t('blog_category_prefix')} ${categoryFilter} | Tokyo Travel Blog`
     : searchFilter
-    ? `Search: ${searchFilter} | Tokyo Travel Blog`
-    : 'Tokyo Travel Stories & Tips | The Ultimate Guide';
-  
-  const pageDescription = "Discover hidden gems, navigate the bustling streets, and immerse yourself in the culture of Japan's vibrant capital. Curated insights for the modern traveler.";
+    ? `${t('blog_search_prefix')} ${searchFilter} | Tokyo Travel Blog`
+    : `${t('blog_title_default')} | The Ultimate Guide`;
+
+  const pageDescription = t('blog_subtitle_default');
 
   return (
     <GlobalLayout>
@@ -149,15 +151,15 @@ const BlogPage: React.FC = () => {
       
       <div className="flex flex-col mb-8 md:mb-10 gap-2 text-center md:text-left">
         <h1 className="font-['Plus_Jakarta_Sans'] text-[24px] md:text-[36px] font-bold text-[#1b1c1d] leading-[1.2]">
-          {categoryFilter ? `Category: ${categoryFilter}` : searchFilter ? `Search: ${searchFilter}` : 'Tokyo Travel Stories & Tips'}
+          {categoryFilter ? `${t('blog_category_prefix')} ${categoryFilter}` : searchFilter ? `${t('blog_search_prefix')} ${searchFilter}` : t('blog_title_default')}
         </h1>
         {(categoryFilter || searchFilter) ? (
           <p className="text-[14px] md:text-[16px] text-[#44474c] leading-[1.6]">
-            Showing posts for "{categoryFilter || searchFilter}". <Link to="/blog" className="text-blue-600 hover:underline">Clear filter</Link>
+            {t('blog_showing_posts_for').replace('{query}', categoryFilter || searchFilter || '')} <Link to="/blog" className="text-blue-600 hover:underline">{t('blog_clear_filter')}</Link>
           </p>
         ) : (
           <p className="hidden md:block text-[16px] text-[#44474c] leading-[1.6]">
-            Discover hidden gems, navigate the bustling streets, and immerse yourself in the culture<br className="hidden md:block"/>of Japan's vibrant capital. Curated insights for the modern traveler.
+            {t('blog_subtitle_default')}
           </p>
         )}
       </div>
@@ -170,7 +172,7 @@ const BlogPage: React.FC = () => {
             className="flex min-w-0 flex-1 items-center justify-between rounded-xl border border-[#c4c6cd] bg-white px-4 py-3 text-left text-[14px] font-semibold text-[#1b1c1d]"
           >
             <span>
-              Filters
+              {t('blog_filters')}
               {categoryFilter ? ' (1)' : ''}
             </span>
             {isMobileFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -180,7 +182,7 @@ const BlogPage: React.FC = () => {
             onClick={clearMobileCategoryFilter}
             className="shrink-0 rounded-xl border border-[#c4c6cd] bg-white px-3 py-3 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
           >
-            Clear filter
+            {t('blog_clear_filter')}
           </button>
         </div>
 
@@ -188,7 +190,7 @@ const BlogPage: React.FC = () => {
           <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-[#e4e2e3] bg-white p-3">
             <div>
               <label htmlFor="mobile-blog-category" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d]">
-                Category
+                {t('blog_category_label')}
               </label>
               <select
                 id="mobile-blog-category"
@@ -196,7 +198,7 @@ const BlogPage: React.FC = () => {
                 onChange={(event) => setDraftCategory(event.target.value)}
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
               >
-                <option value="">All categories</option>
+                <option value="">{t('blog_all_categories')}</option>
                 {categoryOptions.map((category) => (
                   <option key={category.name} value={category.name}>{category.name}</option>
                 ))}
@@ -207,7 +209,7 @@ const BlogPage: React.FC = () => {
               onClick={applyDraftCategoryFilter}
               className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
             >
-              Apply filter
+              {t('blog_apply_filter')}
             </button>
           </div>
         )}
@@ -228,7 +230,7 @@ const BlogPage: React.FC = () => {
                     />
                   ) : (
                     <div className="absolute md:relative inset-0 w-full h-full flex justify-center items-center">
-                      <span className="text-[#c4c6cd]">No image</span>
+                      <span className="text-[#c4c6cd]">{t('blog_no_image')}</span>
                     </div>
                   )}
                   {featuredPost.category && (
@@ -264,7 +266,7 @@ const BlogPage: React.FC = () => {
                       />
                     ) : (
                       <div className="absolute md:relative inset-0 w-full h-full flex justify-center items-center">
-                        <span className="text-[#c4c6cd]">No image</span>
+                        <span className="text-[#c4c6cd]">{t('blog_no_image')}</span>
                       </div>
                     )}
                     {post.category && (

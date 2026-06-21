@@ -166,7 +166,7 @@ const LightboxGallery: React.FC<{
 };
 
 // 2. Room Carousel Component with Scroll Buttons
-const RoomCarousel: React.FC<{ rooms: SleepingArrangement[]; onSelect: (room: SleepingArrangement) => void }> = ({ rooms, onSelect }) => {
+const RoomCarousel: React.FC<{ rooms: SleepingArrangement[]; onSelect: (room: SleepingArrangement) => void; seePhotosLabel: string }> = ({ rooms, onSelect, seePhotosLabel }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [showLeft, setShowLeft] = useState(false);
     const [showRight, setShowRight] = useState(true);
@@ -237,7 +237,7 @@ const RoomCarousel: React.FC<{ rooms: SleepingArrangement[]; onSelect: (room: Sl
                             />
                             <div className="absolute inset-0 bg-black/0 group-hover/card:bg-black/10 transition-colors" />
                             <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm opacity-0 group-hover/card:opacity-100 transform translate-y-2 group-hover/card:translate-y-0 transition-all">
-                                See Photos
+                                {seePhotosLabel}
                             </div>
                         </div>
                         <div className="p-5">
@@ -328,12 +328,13 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
         ? /station$/i.test(nearestStationName)
             ? nearestStationName
             : `${nearestStationName} station`
-        : 'nearest station';
+        : t('home_nearest_station_fallback');
     const nearestStationDistanceInline = data.accessInfo?.nearestStationDistance
-        ? `${data.accessInfo.nearestStationDistance} from ${nearestStationReference}`
+        ? `${data.accessInfo.nearestStationDistance} ${t('home_from')} ${nearestStationReference}`
         : '';
-    const bathFacilityBaseLabel = data.bathFacilityType === 'shower_room' ? 'Shower Room' : 'Bathroom';
-    const bathFacilityLabel = data.baths === 1 ? bathFacilityBaseLabel : `${bathFacilityBaseLabel}s`;
+    const bathFacilityBaseLabel = data.bathFacilityType === 'shower_room' ? t('home_spec_shower_room') : t('home_spec_bathroom');
+    const bathFacilityLabelPlural = data.bathFacilityType === 'shower_room' ? t('home_spec_shower_rooms') : t('home_spec_bathrooms');
+    const bathFacilityLabel = data.baths === 1 ? bathFacilityBaseLabel : bathFacilityLabelPlural;
 
   return (
     <div className="pb-4 md:pb-10">
@@ -400,17 +401,17 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                         </div>
                     )}
                     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[14px] text-gray-600 leading-[1.6]">
-                        <span>{data.maxGuests} Guests</span>
-                        <span>{data.bedrooms} Bedrooms</span>
-                        <span>{data.beds} Beds</span>
+                        <span>{data.maxGuests} {t('home_spec_guests')}</span>
+                        <span>{data.bedrooms} {t('home_spec_bedrooms')}</span>
+                        <span>{data.beds} {t('home_spec_beds')}</span>
                         <span>{data.baths} {bathFacilityLabel}</span>
-                        <span>{data.toilets} Toilets</span>
+                        <span>{data.toilets} {t('home_spec_toilets')}</span>
                     </div>
                     {data.accessInfo?.nearestAirportDriveTime && (
                         <div className="mt-3 flex flex-wrap gap-2">
                             <div className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-[12px] font-semibold text-green-900">
                                 <Navigation className="h-3.5 w-3.5" />
-                                <span>Nearest airport by car · {data.accessInfo.nearestAirportDriveTime}</span>
+                                <span>{t('home_nearest_airport_by_car')} · {data.accessInfo.nearestAirportDriveTime}</span>
                             </div>
                         </div>
                     )}
@@ -471,17 +472,17 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                  </div>
              )}
              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[14px] text-gray-600 leading-[1.6]">
-                 <span>{data.maxGuests} Guests</span>
-                 <span>{data.bedrooms} Bedrooms</span>
-                 <span>{data.beds} Beds</span>
+                 <span>{data.maxGuests} {t('home_spec_guests')}</span>
+                 <span>{data.bedrooms} {t('home_spec_bedrooms')}</span>
+                 <span>{data.beds} {t('home_spec_beds')}</span>
                  <span>{data.baths} {bathFacilityLabel}</span>
-                 <span>{data.toilets} Toilets</span>
+                 <span>{data.toilets} {t('home_spec_toilets')}</span>
              </div>
              {data.accessInfo?.nearestAirportDriveTime && (
                  <div className="mt-2 flex flex-wrap gap-2">
                      <div className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-900">
                          <Navigation className="h-3 w-3" />
-                         <span>Airport by car · {data.accessInfo.nearestAirportDriveTime}</span>
+                         <span>{t('home_airport_by_car')} · {data.accessInfo.nearestAirportDriveTime}</span>
                      </div>
                  </div>
              )}
@@ -530,7 +531,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                                     {data.superhostSince && (
                                         <>
                                             <span className="hidden sm:inline">•</span>
-                                            <span>Superhost since {data.superhostSince}</span>
+                                            <span>{t('home_superhost_since').replace('{year}', String(data.superhostSince))}</span>
                                         </>
                                     )}
                                 </div>
@@ -586,10 +587,10 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                 <div className="py-3 md:py-4 border-b border-gray-200">
                      <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-3 md:mb-6">{data.titles.sleeping && language === 'en' ? data.titles.sleeping : t('home_sleep')}</h2>
                      {data.sleepingArrangements && data.sleepingArrangements.length > 0 ? (
-                        <RoomCarousel rooms={data.sleepingArrangements} onSelect={openRoomGallery} />
+                        <RoomCarousel rooms={data.sleepingArrangements} onSelect={openRoomGallery} seePhotosLabel={t('home_see_photos')} />
                      ) : (
                          <div className="p-4 border border-gray-100 rounded-lg bg-gray-50 text-gray-500 text-sm">
-                             No sleeping arrangement details available.
+                             {t('home_no_sleeping_info')}
                          </div>
                      )}
                 </div>

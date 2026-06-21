@@ -399,7 +399,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               className="flex min-w-0 flex-1 items-center justify-between rounded-xl border border-[#c4c6cd] bg-white px-4 py-3 text-left text-[14px] font-semibold text-[#1b1c1d]"
             >
               <span>
-                Filters
+                {t('listing_filters')}
                 {activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
               </span>
               {isMobileFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -409,14 +409,14 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               onClick={clearAllFilters}
               className="shrink-0 rounded-xl border border-[#c4c6cd] bg-white px-3 py-3 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
             >
-              Clear filter
+              {t('listing_clear_filter')}
             </button>
           </div>
 
           {isMobileFiltersOpen && (
             <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-[#e4e2e3] bg-white p-3">
               <div>
-                <label htmlFor="mobile-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Country</label>
+                <label htmlFor="mobile-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_country')}</label>
                 <select
                   id="mobile-listing-country"
                   value={draftCountryCode}
@@ -426,14 +426,14 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                   }}
                   className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
                 >
-                  <option value="">All countries</option>
+                  <option value="">{t('listing_all_countries')}</option>
                   {countryOptions.map((country) => (
                     <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label htmlFor="mobile-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Province</label>
+                <label htmlFor="mobile-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_province')}</label>
                 <select
                   id="mobile-listing-province"
                   value={draftProvinceCode}
@@ -443,35 +443,35 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                   }}
                   className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] disabled:bg-[#f5f3f4] disabled:text-[#8a8d92]"
                 >
-                  <option value="">All provinces</option>
+                  <option value="">{t('listing_all_provinces')}</option>
                   {draftProvinceOptions.map((province) => (
                     <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label htmlFor="mobile-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Bedrooms</label>
+                <label htmlFor="mobile-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_bedrooms')}</label>
                 <select
                   id="mobile-listing-bedrooms"
                   value={draftMinBedrooms}
                   onChange={(event) => setDraftMinBedrooms(event.target.value)}
                   className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
                 >
-                  <option value="">Any</option>
+                  <option value="">{t('listing_any')}</option>
                   {bedroomOptions.map((value) => (
                     <option key={value} value={value}>{value}+</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label htmlFor="mobile-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Guests</label>
+                <label htmlFor="mobile-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_guests')}</label>
                 <select
                   id="mobile-listing-guests"
                   value={draftMinGuests}
                   onChange={(event) => setDraftMinGuests(event.target.value)}
                   className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
                 >
-                  <option value="">Any</option>
+                  <option value="">{t('listing_any')}</option>
                   {guestOptions.map((value) => (
                     <option key={value} value={value}>{value}+</option>
                   ))}
@@ -482,7 +482,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 onClick={applyDraftFilters}
                 className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
               >
-                Apply filter
+                {t('listing_apply_filter')}
               </button>
             </div>
           )}
@@ -490,7 +490,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
         <div className="mb-10 hidden w-full flex-wrap items-center justify-start gap-3 md:flex">
             <div className="w-full sm:w-[200px]">
-              <label htmlFor="desktop-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Country</label>
+              <label htmlFor="desktop-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_country')}</label>
               <select
                 id="desktop-listing-country"
                 value={draftCountryCode}
@@ -500,14 +500,14 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 }}
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
               >
-                <option value="">All countries</option>
+                <option value="">{t('listing_all_countries')}</option>
                 {countryOptions.map((country) => (
                   <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>
                 ))}
               </select>
             </div>
             <div className="w-full sm:w-[200px]">
-              <label htmlFor="desktop-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Province</label>
+              <label htmlFor="desktop-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_province')}</label>
               <select
                 id="desktop-listing-province"
                 value={draftProvinceCode}
@@ -517,35 +517,35 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 }}
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] disabled:bg-[#f5f3f4] disabled:text-[#8a8d92]"
               >
-                <option value="">All provinces</option>
+                <option value="">{t('listing_all_provinces')}</option>
                 {draftProvinceOptions.map((province) => (
                   <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
                 ))}
               </select>
             </div>
             <div className="w-[140px]">
-              <label htmlFor="desktop-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Bedrooms</label>
+              <label htmlFor="desktop-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_bedrooms')}</label>
               <select
                 id="desktop-listing-bedrooms"
                 value={draftMinBedrooms}
                 onChange={(event) => setDraftMinBedrooms(event.target.value)}
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
               >
-                <option value="">Any</option>
+                <option value="">{t('listing_any')}</option>
                 {bedroomOptions.map((value) => (
                   <option key={value} value={value}>{value}+</option>
                 ))}
               </select>
             </div>
             <div className="w-[140px]">
-              <label htmlFor="desktop-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">Guests</label>
+              <label htmlFor="desktop-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_guests')}</label>
               <select
                 id="desktop-listing-guests"
                 value={draftMinGuests}
                 onChange={(event) => setDraftMinGuests(event.target.value)}
                 className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
               >
-                <option value="">Any</option>
+                <option value="">{t('listing_any')}</option>
                 {guestOptions.map((value) => (
                   <option key={value} value={value}>{value}+</option>
                 ))}
@@ -556,14 +556,14 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               onClick={applyDraftFilters}
               className="mt-5 rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
             >
-              Apply filter
+              {t('listing_apply_filter')}
             </button>
             <button
               type="button"
               onClick={clearAllFilters}
               className="mt-5 rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
             >
-              Clear filter
+              {t('listing_clear_filter')}
             </button>
             {isHost && (
               <div className="hidden md:flex items-center gap-2 rounded-lg border border-[#c4c6cd] bg-white p-1">
@@ -571,13 +571,13 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                   onClick={() => handleScopeChange('all')}
                   className={`px-3 py-1.5 rounded-md text-[13px] font-semibold transition-colors ${activeScope === 'all' ? 'bg-[#041627] text-white' : 'text-[#44474c] hover:bg-[#efedef]'}`}
                 >
-                  All
+                  {t('listing_scope_all')}
                 </button>
                 <button
                   onClick={() => handleScopeChange('mine')}
                   className={`px-3 py-1.5 rounded-md text-[13px] font-semibold transition-colors ${activeScope === 'mine' ? 'bg-[#041627] text-white' : 'text-[#44474c] hover:bg-[#efedef]'}`}
                 >
-                  My Properties
+                  {t('listing_my_properties')}
                 </button>
               </div>
             )}
@@ -585,7 +585,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
         {isHost && activeScope === 'mine' && (
           <div className="mb-6 text-[14px] text-[#44474c]">
-            Showing only properties assigned to your host account.
+            {t('listing_scope_mine_desc')}
           </div>
         )}
 
@@ -593,8 +593,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         {filteredProperties.length === 0 ? (
           <div className="bg-white border border-[#e4e2e3] rounded-xl px-6 py-10 text-center text-[#44474c]">
             {isHost && activeScope === 'mine'
-              ? 'No assigned properties found for your account.'
-              : 'No properties match the selected filters.'}
+              ? t('listing_empty_mine')
+              : t('listing_empty_all')}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -606,8 +606,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             const imageSrcSet = `${buildOptimizedImageUrl(imageUrl, 320)} 320w, ${buildOptimizedImageUrl(imageUrl, 480)} 480w, ${buildOptimizedImageUrl(imageUrl, 640)} 640w`;
             const assignedHosts = hosts.filter((host) => host.assignedPropertyIds?.includes(property.id));
             const bathLabel = `${property.baths} ${property.bathFacilityType === 'shower_room'
-              ? property.baths === 1 ? 'shower room' : 'shower rooms'
-              : property.baths === 1 ? 'bathroom' : 'bathrooms'}`;
+              ? property.baths === 1 ? t('listing_shower_room') : t('listing_shower_rooms')
+              : property.baths === 1 ? t('listing_bathroom') : t('listing_bathrooms')}`;
 
             return (
               <div key={property.id} className="bg-[#ffffff] rounded-2xl md:rounded-xl border border-[#ecebea] md:border-[#e4e2e3] shadow-[0_2px_10px_rgba(15,23,42,0.05)] md:shadow-[0_4px_20px_rgba(0,0,0,0.05)] md:hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] active:scale-[0.99] md:active:scale-100 overflow-hidden transition-all duration-300 flex flex-col h-full relative group">
@@ -629,7 +629,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                       {property.isSuperhost && (
                         <span className="bg-[#1b4332]/90 backdrop-blur-sm text-white px-1.5 py-0.5 md:px-2 md:py-1 rounded-full md:rounded text-[9.5px] md:text-[12px] tracking-[0.05em] font-bold md:font-semibold flex items-center gap-1 shadow-sm leading-none">
                           <Star className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 fill-white" />
-                          Superhost
+                          {t('listing_superhost')}
                         </span>
                       )}
                     </div>
@@ -648,22 +648,22 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                         <span className="font-semibold text-[14px]/[1.4]">4.96</span>
                       </div>
                     </div>
-                    <p className="hidden md:block text-[14px]/[1.4] text-[#44474c] mb-1.5 line-clamp-1">{property.subtitle || 'Property in Tokyo'}</p>
+                    <p className="hidden md:block text-[14px]/[1.4] text-[#44474c] mb-1.5 line-clamp-1">{property.subtitle || t('listing_property_in_tokyo')}</p>
                     <div className="mt-1 md:mt-0 md:mb-1.5 flex items-center gap-1 md:gap-1.5 text-[11.5px] md:text-[12px] text-[#74777d] md:font-semibold md:uppercase md:tracking-[0.06em]">
                       <MapPin className="h-3 w-3 md:h-3.5 md:w-3.5 shrink-0 text-[#9ea3ab] md:text-[#74777d]" />
                       <span className="line-clamp-1">
                         {property.location
                           ? `${property.location.provinceName}, ${property.location.countryName}`
-                          : property.address || 'Location not set'}
+                          : property.address || t('listing_location_not_set')}
                       </span>
                     </div>
                     {(property.accessInfo?.nearestStationName || property.accessInfo?.nearestStationDistance) && (
                       <div className="mt-1 md:mt-0 md:mb-1.5 flex items-center gap-1 md:gap-1.5 text-[11px] md:text-[12px] font-semibold text-[#5b3f00]">
                         <Train className="h-3 w-3 md:h-3.5 md:w-3.5 shrink-0" />
                         <span className="line-clamp-1">
-                          {property.accessInfo?.nearestStationDistance || 'Nearby'}
-                          {' from '}
-                          {property.accessInfo?.nearestStationName || 'nearest station'}
+                          {property.accessInfo?.nearestStationDistance || t('listing_nearby')}
+                          {` ${t('listing_from')} `}
+                          {property.accessInfo?.nearestStationName || t('listing_nearest_station')}
                         </span>
                       </div>
                     )}

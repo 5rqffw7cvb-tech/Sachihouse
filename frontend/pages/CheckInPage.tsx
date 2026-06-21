@@ -11,18 +11,37 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { getSiteSettings } from '../services/storage';
 import { getCapitalWithCountry } from '../utils/countryCapitals';
+import { TranslationKey } from '../utils/translations';
 
 interface CheckInPageProps {
   data: PropertyData;
   propertyId: string;
 }
 
-const documentTypeLabels: Record<CheckInGuest['documentType'], string> = {
-  passport: 'Passport',
-  driver_license: 'Driver license',
-  residence_card: 'Residence card',
-  national_id: 'National ID',
-  unknown: 'Unknown document',
+const DOCUMENT_TYPE_LABEL_KEYS: Record<CheckInGuest['documentType'], TranslationKey> = {
+  passport: 'checkin_doc_passport',
+  driver_license: 'checkin_doc_driver_license',
+  residence_card: 'checkin_doc_residence_card',
+  national_id: 'checkin_doc_national_id',
+  unknown: 'checkin_doc_unknown',
+};
+
+const CHECKIN_IMG_ERR = {
+  DECODE_IMAGE: 'decode_image',
+  INVALID_FILE: 'invalid_file',
+  READ_IMAGE: 'read_image',
+  DECODE_PHOTO: 'decode_photo',
+  PROCESS_IMAGE: 'process_image',
+  TOO_LARGE_COMPRESSED: 'too_large_compressed',
+} as const;
+
+const CHECKIN_IMG_ERR_KEYS: Record<string, TranslationKey> = {
+  [CHECKIN_IMG_ERR.DECODE_IMAGE]: 'checkin_err_decode_image',
+  [CHECKIN_IMG_ERR.INVALID_FILE]: 'checkin_err_invalid_image',
+  [CHECKIN_IMG_ERR.READ_IMAGE]: 'checkin_err_read_image',
+  [CHECKIN_IMG_ERR.DECODE_PHOTO]: 'checkin_err_decode_photo',
+  [CHECKIN_IMG_ERR.PROCESS_IMAGE]: 'checkin_err_process_image',
+  [CHECKIN_IMG_ERR.TOO_LARGE_COMPRESSED]: 'checkin_err_too_large_compressed',
 };
 
 const createGuestId = (): string => `guest_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -72,18 +91,18 @@ type GuestValidationField =
   | 'documentType'
   | 'evidenceUrl';
 
-const REQUIRED_GUEST_FIELDS: Array<{ key: GuestValidationField; label: string }> = [
-  { key: 'fullName', label: 'Full name' },
-  { key: 'birthYear', label: 'Birth year' },
-  { key: 'gender', label: 'Gender' },
-  { key: 'nationality', label: 'Nationality' },
-  { key: 'address', label: 'Address' },
-  { key: 'contactInfo', label: 'Phone / Email' },
-  { key: 'previousLocation', label: 'Previous location' },
-  { key: 'nextLocation', label: 'Next location' },
-  { key: 'documentNumber', label: 'Document number' },
-  { key: 'documentType', label: 'Document type' },
-  { key: 'evidenceUrl', label: 'ID image' },
+const REQUIRED_GUEST_FIELDS: Array<{ key: GuestValidationField; labelKey: TranslationKey }> = [
+  { key: 'fullName', labelKey: 'checkin_popup_fullname' },
+  { key: 'birthYear', labelKey: 'checkin_popup_birthyear' },
+  { key: 'gender', labelKey: 'checkin_popup_gender' },
+  { key: 'nationality', labelKey: 'checkin_popup_nationality' },
+  { key: 'address', labelKey: 'checkin_popup_address' },
+  { key: 'contactInfo', labelKey: 'checkin_popup_contact' },
+  { key: 'previousLocation', labelKey: 'checkin_popup_prev_location' },
+  { key: 'nextLocation', labelKey: 'checkin_popup_next_location' },
+  { key: 'documentNumber', labelKey: 'checkin_popup_docnum' },
+  { key: 'documentType', labelKey: 'checkin_popup_doctype' },
+  { key: 'evidenceUrl', labelKey: 'checkin_field_id_image' },
 ];
 
 const validateGuestFields = (guest: CheckInGuest): Record<GuestValidationField, boolean> => ({
@@ -99,24 +118,6 @@ const validateGuestFields = (guest: CheckInGuest): Record<GuestValidationField, 
   documentType: !guest.documentType || guest.documentType === 'unknown',
   evidenceUrl: !isFilledString(guest.evidenceUrl),
 });
-
-const getMissingRequiredGuestFields = (guest: CheckInGuest): string[] => {
-  const missing: string[] = [];
-
-  if (!isFilledString(guest.fullName)) missing.push('Full name');
-  if (guest.birthYear == null) missing.push('Birth year');
-  if (!isFilledString(guest.gender)) missing.push('Gender');
-  if (!isFilledString(guest.nationality)) missing.push('Nationality');
-  if (!isFilledString(guest.address)) missing.push('Address');
-  if (!isFilledString(guest.contactInfo)) missing.push('Phone / Email');
-  if (!isFilledString(guest.previousLocation)) missing.push('Previous location');
-  if (!isFilledString(guest.nextLocation)) missing.push('Next location');
-  if (!isFilledString(guest.documentNumber)) missing.push('Document number');
-  if (!isFilledString(guest.evidenceUrl)) missing.push('ID image');
-  if (!guest.documentType || guest.documentType === 'unknown') missing.push('Document type');
-
-  return missing;
-};
 
 const toDateInput = (offsetDays = 0): string => {
   const date = new Date();
@@ -202,20 +203,20 @@ const loadImageElement = (file: File): Promise<HTMLImageElement> => new Promise(
   };
   image.onerror = () => {
     URL.revokeObjectURL(url);
-    reject(new Error('Unable to decode image.'));
+    reject(new Error(CHECKIN_IMG_ERR.DECODE_IMAGE));
   };
   image.src = url;
 });
 
 const prepareCheckInImage = async (file: File): Promise<string> => {
   if (!file.type.startsWith('image/')) {
-    throw new Error('Please select a valid image file.');
+    throw new Error(CHECKIN_IMG_ERR.INVALID_FILE);
   }
 
   const toDataUrl = (): Promise<string> => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Unable to read image.'));
+    reader.onerror = () => reject(new Error(CHECKIN_IMG_ERR.READ_IMAGE));
     reader.readAsDataURL(file);
   });
 
@@ -228,7 +229,7 @@ const prepareCheckInImage = async (file: File): Promise<string> => {
     if (SUPPORTED_CHECKIN_IMAGE_TYPES.has(file.type.toLowerCase()) && estimateDataUrlBytes(originalDataUrl) <= MAX_CHECKIN_UPLOAD_BYTES) {
       return originalDataUrl;
     }
-    throw new Error('Unable to decode this photo. Please upload JPEG/PNG/WebP image.');
+    throw new Error(CHECKIN_IMG_ERR.DECODE_PHOTO);
   }
 
   const baseScale = Math.min(1, MAX_CHECKIN_UPLOAD_DIMENSION / Math.max(image.width, image.height));
@@ -243,7 +244,7 @@ const prepareCheckInImage = async (file: File): Promise<string> => {
     canvas.height = height;
     const context = canvas.getContext('2d');
     if (!context) {
-      throw new Error('Unable to process image. Please try another file.');
+      throw new Error(CHECKIN_IMG_ERR.PROCESS_IMAGE);
     }
     context.drawImage(image, 0, 0, width, height);
 
@@ -255,7 +256,7 @@ const prepareCheckInImage = async (file: File): Promise<string> => {
     }
   }
 
-  throw new Error('Image is too large after compression. Please upload a clearer photo under 8MB.');
+  throw new Error(CHECKIN_IMG_ERR.TOO_LARGE_COMPRESSED);
 };
 
 const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
@@ -304,7 +305,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       } catch (error) {
         if (!cancelled) {
           console.error('Failed to load site settings for check-in page', error);
-          setSettingsLoadError('Failed to load page settings. Please refresh and try again.');
+          setSettingsLoadError(t('common_err_settings_load'));
         }
       } finally {
         if (!cancelled) {
@@ -334,7 +335,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         }
       } catch (error) {
         if (!cancelled) {
-          const message = error instanceof Error ? error.message : 'Failed to initialize check-in session.';
+          const message = error instanceof Error ? error.message : t('checkin_err_session_init');
           setSessionError(message);
         }
       } finally {
@@ -428,20 +429,13 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       : datesReady
         ? 12
         : 0;
-  const currentStepTitle = processingGuestCount > 0
-    ? 'AI is reading the current document'
-    : pendingReviewCount > 0
-      ? 'Review and confirm the pending guest'
-      : confirmedGuestCount > 0
-        ? 'Everything is ready for final send'
-        : 'Upload the first guest ID';
   const currentStepDescription = processingGuestCount > 0
-    ? 'Keep this page open for a moment. The review popup will appear as soon as the scan finishes.'
+    ? t('checkin_step_scan_desc')
     : pendingReviewCount > 0
-      ? 'Open the review popup, fix anything that looks off, then confirm and continue to the next guest.'
+      ? t('checkin_step_review_desc')
       : confirmedGuestCount > 0
-        ? 'All confirmed guests are ready. Hold the button once to send the full check-in.'
-        : 'Start with the lead guest. The flow will create the next slot automatically after each confirmation.';
+        ? t('checkin_step_ready_desc')
+        : t('checkin_step_start_desc');
 
   const restoreDraft = () => {
     if (!pendingDraft) return;
@@ -638,12 +632,12 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     } catch (error) {
       const backendMessage = error instanceof ApiError ? error.message : '';
       const message = backendMessage.toLowerCase().includes('too large')
-        ? 'Photo is too large. Please upload a clearer image and avoid original full-resolution camera files.'
+        ? t('checkin_err_photo_too_large')
         : error instanceof ApiError
         ? error.message
-        : error instanceof Error
-          ? error.message
-          : 'Unable to process this image. Please upload a clear government-issued ID.';
+        : error instanceof Error && CHECKIN_IMG_ERR_KEYS[error.message]
+          ? t(CHECKIN_IMG_ERR_KEYS[error.message])
+          : t('checkin_err_process_generic');
       setErrorByGuest((prev) => ({ ...prev, [guestId]: message }));
     } finally {
       setProcessingByGuest((prev) => ({ ...prev, [guestId]: false }));
@@ -673,10 +667,10 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
 
     const missingFields = REQUIRED_GUEST_FIELDS
       .filter(({ key }) => fieldErrors[key])
-      .map(({ label }) => label);
+      .map(({ labelKey }) => t(labelKey));
 
     if (missingFields.length > 0) {
-      setEditorError(`Please complete all required fields: ${missingFields.join(', ')}.`);
+      setEditorError(`${t('checkin_missing_fields_prefix')} ${missingFields.join(', ')}.`);
       return;
     }
 
@@ -749,7 +743,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
               type="button"
               onClick={() => { setMenuOpen((v) => !v); }}
               className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 active:bg-gray-200"
-              aria-label="Menu"
+              aria-label={t('checkin_menu_aria')}
               aria-expanded={menuOpen}
             >
               <Menu className="h-5 w-5" />
@@ -758,19 +752,19 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         </div>
         {menuOpen && (
           <div className="border-t border-gray-100 bg-white px-2 py-1">
-            <Link to="/" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Home</Link>
-            <Link to="/blog" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Blog</Link>
+            <Link to="/" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">{t('nav_home')}</Link>
+            <Link to="/blog" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">{t('common_blog')}</Link>
             {authUser ? (
               <>
                 {(authUser.role === 'ADMIN' || authUser.role === 'HOST') && (
-                  <Link to="/admin/checkin-management" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Check-in Management</Link>
+                  <Link to="/admin/checkin-management" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">{t('common_admin_checkin_mgmt')}</Link>
                 )}
                 {(authUser.role === 'ADMIN' || authUser.role === 'HOST') && (
-                  <Link to="/admin/properties" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Property Admin</Link>
+                  <Link to="/admin/properties" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">{t('common_admin_property')}</Link>
                 )}
               </>
             ) : (
-              <Link to="/login" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Login</Link>
+              <Link to="/login" onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">{t('common_login')}</Link>
             )}
           </div>
         )}
@@ -902,7 +896,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                   {/* Name + status */}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">
-                      {isEmpty ? `Guest ${index + 1}` : guest.fullName || `Guest ${index + 1}`}
+                      {isEmpty ? `${t('checkin_guest_label')} ${index + 1}` : guest.fullName || `${t('checkin_guest_label')} ${index + 1}`}
                     </p>
                     <p className="mt-0.5 text-xs text-gray-400">
                       {isProcessing
@@ -931,7 +925,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                       type="button"
                       onClick={() => openEditor(guest.id)}
                       className="shrink-0 rounded-xl border border-gray-200 p-2 text-gray-400 hover:text-gray-700"
-                      aria-label="Edit"
+                      aria-label={t('checkin_edit_aria')}
                     >
                       {isExpanded ? <ChevronUp className="h-4 w-4" /> : <PencilLine className="h-4 w-4" />}
                     </button>
@@ -959,7 +953,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                       type="button"
                       onClick={() => removeGuest(guest.id)}
                       className="shrink-0 rounded-xl border border-transparent p-2 text-gray-300 hover:border-gray-200 hover:text-red-400"
-                      aria-label="Remove guest"
+                      aria-label={t('checkin_remove_guest_aria')}
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -1051,7 +1045,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, contactInfo: event.target.value } : prev)); setEditorError(null); }}
                           disabled={index > 0 && Boolean(sameAsLeadByGuest[guest.id])}
                           className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 ${editorFieldErrors.contactInfo ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                          placeholder="e.g. +81-90-xxxx-xxxx"
+                          placeholder={t('checkin_contact_placeholder')}
                         />
                       </div>
                       <div className="col-span-2">
@@ -1087,8 +1081,8 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, documentType: event.target.value as CheckInGuest['documentType'] } : prev)); setEditorError(null); }}
                           className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.documentType ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         >
-                          {Object.entries(documentTypeLabels).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
+                          {Object.entries(DOCUMENT_TYPE_LABEL_KEYS).map(([value, labelKey]) => (
+                            <option key={value} value={value}>{t(labelKey)}</option>
                           ))}
                         </select>
                       </div>
@@ -1135,14 +1129,14 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         <div className="mt-5 flex items-center justify-center gap-5 rounded-xl border border-[#e4e2e3] bg-[#f5f3f4] px-4 py-3">
           <span className="flex items-center gap-1.5 text-[#44474c]">
             <Lock className="h-4 w-4 text-[#0f7a44]" strokeWidth={2.5} />
-            <span className="text-[11px] font-semibold uppercase tracking-wide">SSL</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide">{t('checkin_ssl')}</span>
           </span>
           <span className="h-4 w-px bg-[#e4e2e3]" />
           <ShieldCheck className="h-5 w-5 text-[#0f7a44]" strokeWidth={2} />
           <span className="h-4 w-px bg-[#e4e2e3]" />
           <span className="flex items-center gap-1.5 text-[#44474c]">
             <EyeOff className="h-4 w-4 text-[#44474c]" strokeWidth={2} />
-            <span className="text-[11px] font-semibold uppercase tracking-wide">Private</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide">{t('checkin_private')}</span>
           </span>
         </div>
 
@@ -1155,6 +1149,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
             disabled={!canSubmit || isSubmitting}
             holdMs={1000}
             label={isSubmitting ? t('checkin_submitting') : t('checkin_hold_send')}
+            holdingLabel={(percent) => t('checkin_holding_progress').replace('{percent}', String(percent))}
             onComplete={handleSubmit}
           />
         </div>
@@ -1169,6 +1164,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           disabled={!canSubmit || isSubmitting}
           holdMs={1000}
           label={isSubmitting ? t('checkin_submitting') : t('checkin_hold_send')}
+          holdingLabel={(percent) => t('checkin_holding_progress').replace('{percent}', String(percent))}
           onComplete={handleSubmit}
         />
       </div>

@@ -2,12 +2,14 @@
 import React from 'react';
 import { PropertyData } from '../types';
 import { MapPin, Train, Navigation, Clock, Youtube, PlayCircle, ExternalLink } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface AccessPageProps {
   data: PropertyData;
 }
 
 const AccessPage: React.FC<AccessPageProps> = ({ data }) => {
+  const { t } = useLanguage();
   // Helper to extract YouTube ID from various URL formats
   const getYoutubeId = (url: string | undefined) => {
     if (!url) return null;
@@ -46,7 +48,7 @@ const AccessPage: React.FC<AccessPageProps> = ({ data }) => {
              loading="lazy" 
              referrerPolicy="no-referrer-when-downgrade"
              className="grayscale group-hover:grayscale-0 transition-all duration-500"
-             title="Google Maps Location"
+             title={t('access_map_title')}
            ></iframe>
            <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur px-4 py-2 rounded-lg shadow-sm hidden md:block">
              <div className="flex items-center gap-2 font-semibold text-gray-800">
@@ -69,19 +71,19 @@ const AccessPage: React.FC<AccessPageProps> = ({ data }) => {
                        <Youtube className="w-6 h-6" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-gray-900 leading-tight">Video Walking Guide</h3>
-                        <p className="text-xs text-gray-500 mt-0.5">Route from nearest station to check-in</p>
+                        <h3 className="font-bold text-gray-900 leading-tight">{t('access_video')}</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">{t('access_video_desc')}</p>
                     </div>
                  </div>
                  {/* Functional Fallback Link */}
-                 <a 
+                 <a
                     href={videoUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full self-start sm:self-center hover:bg-blue-100 transition-colors group"
                  >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    Open in YouTube
+                    {t('access_watch')}
                  </a>
               </div>
 
@@ -90,7 +92,7 @@ const AccessPage: React.FC<AccessPageProps> = ({ data }) => {
                 <iframe
                   className="absolute inset-0 w-full h-full"
                   src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&origin=${origin}`}
-                  title="Access Guide"
+                  title={t('access_video_iframe_title')}
                   frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; compute-pressure"
                   allowFullScreen
@@ -107,23 +109,23 @@ const AccessPage: React.FC<AccessPageProps> = ({ data }) => {
           <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
              <Train className="w-6 h-6 text-blue-600" />
           </div>
-          <h3 className="font-bold text-gray-900 text-lg mb-2">By Train</h3>
+          <h3 className="font-bold text-gray-900 text-lg mb-2">{t('access_train')}</h3>
           {(data.accessInfo?.nearestStationName || data.accessInfo?.nearestStationDistance) && (
             <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
               {data.accessInfo?.nearestStationName && (
                 <div>
-                  <span className="font-semibold">Nearest station:</span> {data.accessInfo.nearestStationName}
+                  <span className="font-semibold">{t('access_nearest_station')}</span> {data.accessInfo.nearestStationName}
                 </div>
               )}
               {data.accessInfo?.nearestStationDistance && (
                 <div>
-                  <span className="font-semibold">Distance:</span> {data.accessInfo.nearestStationDistance}
+                  <span className="font-semibold">{t('access_distance')}</span> {data.accessInfo.nearestStationDistance}
                 </div>
               )}
             </div>
           )}
           <p className="text-sm text-gray-600 whitespace-pre-line leading-relaxed">
-            {data.accessInfo?.train || "No train information provided."}
+            {data.accessInfo?.train || t('access_no_train')}
           </p>
         </div>
 
@@ -131,14 +133,14 @@ const AccessPage: React.FC<AccessPageProps> = ({ data }) => {
           <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
              <Navigation className="w-6 h-6 text-green-600" />
           </div>
-          <h3 className="font-bold text-gray-900 text-lg mb-2">From Airports</h3>
+          <h3 className="font-bold text-gray-900 text-lg mb-2">{t('access_airport')}</h3>
           {data.accessInfo?.nearestAirportDriveTime && (
             <div className="mb-3 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-sm text-green-900">
-              <span className="font-semibold">Nearest airport by car:</span> {data.accessInfo.nearestAirportDriveTime}
+              <span className="font-semibold">{t('access_nearest_airport_car')}</span> {data.accessInfo.nearestAirportDriveTime}
             </div>
           )}
           <p className="text-sm text-gray-600 whitespace-pre-line leading-relaxed">
-            {data.accessInfo?.airport || "No airport information provided."}
+            {data.accessInfo?.airport || t('access_no_airport')}
           </p>
         </div>
 
@@ -146,9 +148,9 @@ const AccessPage: React.FC<AccessPageProps> = ({ data }) => {
           <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mb-4">
              <Clock className="w-6 h-6 text-amber-600" />
           </div>
-          <h3 className="font-bold text-gray-900 text-lg mb-2">Check-in Details</h3>
+          <h3 className="font-bold text-gray-900 text-lg mb-2">{t('access_checkin')}</h3>
            <p className="text-sm text-gray-600 whitespace-pre-line leading-relaxed">
-            {data.accessInfo?.checkIn || "No check-in details provided."}
+            {data.accessInfo?.checkIn || t('access_no_checkin')}
           </p>
         </div>
       </div>

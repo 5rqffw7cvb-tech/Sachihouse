@@ -6,8 +6,10 @@ import { MobileBottomNav } from './MobileBottomNav';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { getSiteSettings } from '../services/storage';
 import { SiteSettings } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export const GlobalLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useLanguage();
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -24,7 +26,7 @@ export const GlobalLayout: React.FC<{ children: React.ReactNode }> = ({ children
         setLoadError(null);
       } catch (error) {
         console.error('Failed to load site settings', error);
-        setLoadError('Failed to load page settings. Please refresh and try again.');
+        setLoadError(t('common_err_settings_load'));
       } finally {
         setIsLoading(false);
       }
@@ -42,7 +44,7 @@ export const GlobalLayout: React.FC<{ children: React.ReactNode }> = ({ children
     return (
       <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center gap-3 text-[#041627]">
         <Loader2 className="w-8 h-8 animate-spin" />
-        <p className="text-sm font-medium tracking-[0.04em] uppercase">Loading...</p>
+        <p className="text-sm font-medium tracking-[0.04em] uppercase">{t('loading')}</p>
       </div>
     );
   }
@@ -50,7 +52,7 @@ export const GlobalLayout: React.FC<{ children: React.ReactNode }> = ({ children
   if (loadError || !siteSettings) {
     return (
       <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center px-6 text-center text-[#ba1a1a]">
-        {loadError || 'Failed to load page settings. Please refresh and try again.'}
+        {loadError || t('common_err_settings_load')}
       </div>
     );
   }

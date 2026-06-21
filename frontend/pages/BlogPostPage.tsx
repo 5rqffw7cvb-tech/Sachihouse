@@ -7,9 +7,11 @@ import { BlogSidebar } from '../components/BlogSidebar';
 import { BlogPost, blogService } from '../services/blogService';
 import { Helmet } from 'react-helmet-async';
 import { checkAuth, subscribeToAuth } from '../services/auth';
+import { useLanguage } from '../contexts/LanguageContext';
 import './blog-post.css';
 
 const BlogPostPage: React.FC = () => {
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const [post, setPost] = useState<BlogPost | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,8 +52,8 @@ const BlogPostPage: React.FC = () => {
     return (
       <GlobalLayout>
         <div className="py-20 text-center">
-          <h2 className="text-2xl font-bold mb-4 text-[#1b1c1d]">Post not found</h2>
-          <Link to="/blog" className="text-blue-600 hover:underline">Return to Blog</Link>
+          <h2 className="text-2xl font-bold mb-4 text-[#1b1c1d]">{t('blog_post_not_found')}</h2>
+          <Link to="/blog" className="text-blue-600 hover:underline">{t('blog_return_to_blog')}</Link>
         </div>
       </GlobalLayout>
     );
@@ -80,14 +82,14 @@ const BlogPostPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-3">
           <Link to="/blog" className="inline-flex items-center text-[#44474c] hover:text-[#1b1c1d] font-semibold text-[15px] transition-colors w-fit">
             <ChevronLeft className="w-5 h-5 mr-1" />
-            Back to Blog
+            {t('blog_back_to_blog')}
           </Link>
           {isAdmin && (
             <button 
               onClick={() => navigate(`/blog/admin?edit=${post.id}`)}
               className="inline-flex items-center bg-[#f5f3f4] border border-[#e4e2e3] text-[#1b1c1d] px-4 py-2.5 rounded-full font-semibold text-[14px]/[1.4] hover:bg-[#e4e2e3] transition-colors shadow-sm w-fit"
             >
-              <Edit2 className="w-4 h-4 mr-1.5" /> Edit Post
+              <Edit2 className="w-4 h-4 mr-1.5" /> {t('blog_edit_post')}
             </button>
           )}
         </div>
@@ -118,7 +120,7 @@ const BlogPostPage: React.FC = () => {
               </div>
             ) : (
               <div className="w-full aspect-[16/9] md:aspect-[2.5/1] bg-[#efedef] rounded-xl mb-6 shadow-sm border border-[#e4e2e3] flex items-center justify-center">
-                <span className="text-[#c4c6cd] font-semibold text-[15px]">No image</span>
+                <span className="text-[#c4c6cd] font-semibold text-[15px]">{t('blog_no_image')}</span>
               </div>
             )}
 

@@ -4,6 +4,7 @@ import { Settings, User, LogOut, Loader2 } from 'lucide-react';
 import { getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { getSiteSettings } from '../services/storage';
 import { CheckInLinkPicker } from './CheckInLinkPicker';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const NAV_TITLE_FALLBACK = 'SachiHouse';
 const MOBILE_HEADER_HEIGHT = 58;
@@ -32,6 +33,7 @@ const getInitialNavTitle = (): string => {
 };
 
 export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionButton?: React.ReactNode; navTitleOverride?: string }> = ({ actionButton, mobileActionButton, navTitleOverride }) => {
+  const { t } = useLanguage();
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const [authUser, setAuthUser] = useState(getCurrentUser());
@@ -264,15 +266,15 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
                   ? "text-[#1b1c1d] border-b-2 border-[#1b1c1d] pb-1 font-semibold hover:text-[#1b1c1d] transition-colors duration-150 active:scale-95" 
                   : "text-[#44474c] font-medium hover:text-[#1b1c1d] transition-colors duration-150 active:scale-95"}
               >
-                Properties
+                {t('common_properties')}
               </Link>
-              <Link 
-                to="/blog" 
-                className={isBlog 
-                  ? "text-[#1b1c1d] border-b-2 border-[#1b1c1d] pb-1 font-semibold hover:text-[#1b1c1d] transition-colors duration-150 active:scale-95" 
+              <Link
+                to="/blog"
+                className={isBlog
+                  ? "text-[#1b1c1d] border-b-2 border-[#1b1c1d] pb-1 font-semibold hover:text-[#1b1c1d] transition-colors duration-150 active:scale-95"
                   : "text-[#44474c] font-medium hover:text-[#1b1c1d] transition-colors duration-150 active:scale-95"}
               >
-                Blog
+                {t('common_blog')}
               </Link>
             </div>
           </div>
@@ -280,10 +282,10 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
             {actionButton}
             {isAuthenticated && <CheckInLinkPicker authUser={authUser} direction="down" />}
             {!isAuthenticated ? (
-              <button 
+              <button
                 onClick={handleLogin}
                 className="p-2 text-[#44474c] hover:text-[#1b1c1d] transition-colors"
-                title="Sign In"
+                title={t('common_sign_in_title')}
               >
                 <Settings className="w-5 h-5" />
               </button>
@@ -302,11 +304,11 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
                       <p className="text-sm font-medium text-[#1b1c1d] truncate">{userEmail}</p>
                     </div>
                     {canManageProperties && (
-                      <button 
+                      <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/admin/properties'); }}
                         className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
                       >
-                        Property Admin
+                        {t('common_admin_property')}
                       </button>
                     )}
                     {canManageProperties && (
@@ -314,39 +316,39 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
                         onClick={() => { setIsDropdownOpen(false); navigate('/admin/checkin-management'); }}
                         className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
                       >
-                        Check-in Admin
+                        {t('common_admin_checkin')}
                       </button>
                     )}
                     {canManageBlog && (
-                      <button 
+                      <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/blog/admin'); }}
                         className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
                       >
-                        Blog Admin
+                        {t('common_admin_blog')}
                       </button>
                     )}
                     {canManageUsers && (
-                      <button 
+                      <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/admin/users'); }}
                         className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
                       >
-                        User Admin
+                        {t('common_admin_users')}
                       </button>
                     )}
                     {canUseMyProperties && (
-                      <button 
+                      <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/?scope=mine'); }}
                         className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
                       >
-                        My Properties
+                        {t('common_my_properties')}
                       </button>
                     )}
                     <div className="border-t border-[#e4e2e3] my-1"></div>
-                    <button 
+                    <button
                       onClick={handleLogout}
                       className="w-full text-left px-4 py-2 text-sm text-[#ba1a1a] hover:bg-[#f5f3f4] transition-colors flex items-center gap-2"
                     >
-                      <LogOut className="w-4 h-4" /> Sign out
+                      <LogOut className="w-4 h-4" /> {t('common_sign_out')}
                     </button>
                   </div>
                 )}

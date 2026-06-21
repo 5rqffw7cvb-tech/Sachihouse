@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 
 interface HoldToSubmitButtonProps {
   label?: string;
+  holdingLabel?: (percent: number) => string;
   holdMs?: number;
   disabled?: boolean;
   onComplete: () => void | Promise<void>;
@@ -9,6 +10,7 @@ interface HoldToSubmitButtonProps {
 
 export const HoldToSubmitButton: React.FC<HoldToSubmitButtonProps> = ({
   label = 'Hold 5s to submit',
+  holdingLabel = (percent) => `Holding... ${percent}%`,
   holdMs = 5000,
   disabled,
   onComplete,
@@ -71,7 +73,7 @@ export const HoldToSubmitButton: React.FC<HoldToSubmitButtonProps> = ({
         className="absolute left-0 top-0 h-full bg-[#0d7a5f] transition-[width] duration-75"
         style={{ width: `${progress}%` }}
       />
-      <span className="relative z-10">{isHolding ? `Holding... ${Math.round(progress)}%` : label}</span>
+      <span className="relative z-10">{isHolding ? holdingLabel(Math.round(progress)) : label}</span>
     </button>
   );
 };

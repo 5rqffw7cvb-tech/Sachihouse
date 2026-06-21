@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import { calculateHomestayPrice } from '../utils/pricing';
 import { isDateBlocked } from '../services/storage';
 import { useLanguage } from '../contexts/LanguageContext';
+import { getDateFnsLocale } from '../utils/translations';
 
 interface BookingWidgetProps {
   pricing: PricingConfig;
@@ -37,7 +38,9 @@ const startOfMonth = (date: Date): Date => {
 };
 
 const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, adminEmail }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const dateLocale = getDateFnsLocale(language);
+  const weekdayLabels = [t('weekday_sun'), t('weekday_mon'), t('weekday_tue'), t('weekday_wed'), t('weekday_thu'), t('weekday_fri'), t('weekday_sat')];
   const today = startOfDay(new Date());
   
   // State for values
@@ -75,13 +78,13 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
 
     // 1. Basic Validation
     if (isBefore(checkIn, today) && !isSameDay(checkIn, today)) {
-        return { isValid: false, message: "Check-in cannot be in the past." };
+        return { isValid: false, message: t('sim_err_checkin_past') };
     }
 
     const nights = differenceInDays(checkOut, checkIn);
-    
+
     if (nights <= 0) {
-        return { isValid: false, message: "Check-out must be after check-in." };
+        return { isValid: false, message: t('sim_err_checkout_before') };
     }
 
     // 2. Check for Blocked Dates logic (Fallback validation)
@@ -90,21 +93,21 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
         const hasBlockedDate = nightsToStay.some(night => isDateBlocked(night));
 
         if (hasBlockedDate) {
-            return { isValid: false, message: "Some dates are not available." };
+            return { isValid: false, message: t('sim_err_blocked_dates') };
         }
     } catch (e) {
-        return { isValid: false, message: "Invalid date range." };
+        return { isValid: false, message: t('sim_err_invalid_range') };
     }
 
     // 3. Calculate Price
     const priceDetails = calculateHomestayPrice(adults, children, infants, nights, pricing);
-    
+
     if (!priceDetails.isValid) {
-         return { isValid: false, message: priceDetails.message || "Invalid config" };
+         return { isValid: false, message: priceDetails.message || t('sim_err_invalid_config') };
     }
 
     return { nights, ...priceDetails, isValid: true };
-  }, [checkIn, checkOut, adults, children, infants, pricing, today]);
+  }, [checkIn, checkOut, adults, children, infants, pricing, today, t]);
 
   const handleDateSelect = (day: Date) => {
     if (selectingField === 'checkIn') {
@@ -133,8 +136,21 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
 
     const fmtIn = format(checkIn, 'yyyy-MM-dd');
     const fmtOut = format(checkOut, 'yyyy-MM-dd');
-    const subject = `Booking Inquiry: Tokyo Zen Stay (${fmtIn} - ${fmtOut})`;
-    const body = `Hello,\n\nI am interested in booking your homestay.\n\nCheck-in: ${fmtIn}\nCheck-out: ${fmtOut}\nDuration: ${calculation.nights} nights\nGuests: ${adults} Adults, ${children} Children, ${infants} Infants\n\nEstimated Price: ¥${calculation.total.toLocaleString()}\n\nBest regards,`;
+    const subject = t('sim_email_subject').replace('{checkin}', fmtIn).replace('{checkout}', fmtOut);
+    const body = [
+      `${t('sim_email_greeting')}`,
+      '',
+      t('sim_email_intro'),
+      '',
+      `${t('sim_email_checkin')} ${fmtIn}`,
+      `${t('sim_email_checkout')} ${fmtOut}`,
+      `${t('sim_email_duration')} ${calculation.nights} ${t('sim_email_nights')}`,
+      `${t('sim_email_guests')} ${adults} ${t('sim_adults')}, ${children} ${t('sim_children')}, ${infants} ${t('sim_infants')}`,
+      '',
+      `${t('sim_email_estimated_price')} ¥${calculation.total.toLocaleString()}`,
+      '',
+      t('sim_email_signoff'),
+    ].join('\n');
 
     const recipientEmail = adminEmail || 'sachihouse.ad@gmail.com';
     window.location.href = `mailto:${recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -162,14 +178,14 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                 <button onClick={() => setCalendarViewMonth(addMonths(calendarViewMonth, -1))} disabled={isBefore(calendarViewMonth, startOfMonth(today))} className="p-1 hover:bg-gray-100 rounded-full disabled:opacity-30">
                     <ChevronLeft className="w-5 h-5" />
                 </button>
-                <span className="font-bold text-gray-900">{format(calendarViewMonth, 'MMMM yyyy')}</span>
+                <span className="font-bold text-gray-900">{format(calendarViewMonth, 'MMMM yyyy', { locale: dateLocale })}</span>
                 <button onClick={() => setCalendarViewMonth(addMonths(calendarViewMonth, 1))} className="p-1 hover:bg-gray-100 rounded-full">
                     <ChevronRight className="w-5 h-5" />
                 </button>
             </div>
             <div className="grid grid-cols-7 gap-1 text-center mb-2">
-                {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                    <div key={d} className="text-xs font-bold text-gray-400">{d}</div>
+                {weekdayLabels.map((d, i) => (
+                    <div key={i} className="text-xs font-bold text-gray-400">{d}</div>
                 ))}
             </div>
             <div className="grid grid-cols-7 gap-1">
@@ -256,7 +272,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                         <CalendarIcon className="w-3.5 h-3.5" /> {t('sim_checkin')}
                     </label>
                     <div className={`text-base font-medium ${checkIn ? 'text-gray-900' : 'text-gray-400'}`}>
-                        {checkIn ? format(checkIn, 'MMM dd, yyyy') : t('sim_add_dates')}
+                        {checkIn ? format(checkIn, 'MMM dd, yyyy', { locale: dateLocale }) : t('sim_add_dates')}
                     </div>
                 </div>
                 <div 
@@ -267,7 +283,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                         <CalendarIcon className="w-3.5 h-3.5" /> {t('sim_checkout')}
                     </label>
                     <div className={`text-base font-medium ${checkOut ? 'text-gray-900' : 'text-gray-400'}`}>
-                        {checkOut ? format(checkOut, 'MMM dd, yyyy') : t('sim_add_dates')}
+                        {checkOut ? format(checkOut, 'MMM dd, yyyy', { locale: dateLocale }) : t('sim_add_dates')}
                     </div>
                 </div>
             </div>
@@ -285,14 +301,14 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                     {/* Calendar Footer Info */}
                     <div className="px-4 pb-4 pt-2 flex items-center justify-between text-xs text-gray-500 border-t border-gray-100 mt-2">
                         <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-gray-300"></span> Blocked
-                            <span className="w-2 h-2 rounded-full bg-gray-900"></span> Selected
+                            <span className="w-2 h-2 rounded-full bg-gray-300"></span> {t('sim_legend_blocked')}
+                            <span className="w-2 h-2 rounded-full bg-gray-900"></span> {t('sim_legend_selected')}
                         </div>
-                        <button 
-                            onClick={() => { setCheckIn(null); setCheckOut(null); }} 
+                        <button
+                            onClick={() => { setCheckIn(null); setCheckOut(null); }}
                             className="underline hover:text-blue-600"
                         >
-                            Clear dates
+                            {t('sim_clear_dates')}
                         </button>
                     </div>
                 </div>
@@ -322,7 +338,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                         <div className="flex justify-between items-center mb-6">
                             <div>
                                 <div className="font-bold text-gray-900 text-base">{t('sim_adults')}</div>
-                                <div className="text-xs text-gray-500">Age {pricing.childAgeMax + 1}+</div>
+                                <div className="text-xs text-gray-500">{t('sim_age_prefix')} {pricing.childAgeMax + 1}+</div>
                             </div>
                             <div className="flex items-center gap-4">
                                 <button 
@@ -347,7 +363,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                         <div className="flex justify-between items-center mb-6">
                             <div>
                                 <div className="font-bold text-gray-900 text-base">{t('sim_children')}</div>
-                                <div className="text-xs text-gray-500">Age {pricing.childAgeMin}-{pricing.childAgeMax} (-{pricing.childDiscountPercent}%)</div>
+                                <div className="text-xs text-gray-500">{t('sim_age_prefix')} {pricing.childAgeMin}-{pricing.childAgeMax} (-{pricing.childDiscountPercent}%)</div>
                             </div>
                             <div className="flex items-center gap-4">
                                 <button 
@@ -372,7 +388,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                          <div className="flex justify-between items-center mb-6">
                             <div>
                                 <div className="font-bold text-gray-900 text-base">{t('sim_infants')}</div>
-                                <div className="text-xs text-gray-500">Under {pricing.childAgeMin} (Free)</div>
+                                <div className="text-xs text-gray-500">{t('sim_under_prefix')} {pricing.childAgeMin} {t('sim_free_suffix')}</div>
                             </div>
                             <div className="flex items-center gap-4">
                                 <button 
