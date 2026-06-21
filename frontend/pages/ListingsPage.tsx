@@ -6,6 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { saveSiteSettings, setPropertyArchived } from '../services/storage';
 import { TopNavBar } from '../components/TopNavBar';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { ApiUser } from '../services/api';
 
@@ -354,26 +355,30 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
   return (
     <div className="bg-[#e8e5e6] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
-      <TopNavBar 
+      <TopNavBar
         navTitleOverride={settings.navTitle}
         actionButton={
-          isAdmin && (
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setIsSettingsModalOpen(true)}
-                className="hidden md:flex bg-[#ffffff] border border-[#c4c6cd] text-[#1b1c1d] px-4 py-2 rounded-full font-semibold text-[14px]/[1.4] hover:bg-[#e4e2e3] transition-colors items-center gap-1.5 shadow-sm"
-              >
-                <Settings className="w-4 h-4" /> Edit Page Content
-              </button>
-              <button 
-                onClick={handleCreateNew}
-                className="hidden md:flex bg-[#041627] text-white px-4 py-2 rounded-full font-semibold text-[14px]/[1.4] hover:bg-[#041627]/90 transition-colors items-center gap-1.5 shadow-sm"
-              >
-                <Plus className="w-4 h-4" /> New Property
-              </button>
-            </div>
-          )
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <>
+                <button
+                  onClick={() => setIsSettingsModalOpen(true)}
+                  className="hidden md:flex bg-[#ffffff] border border-[#c4c6cd] text-[#1b1c1d] px-4 py-2 rounded-full font-semibold text-[14px]/[1.4] hover:bg-[#e4e2e3] transition-colors items-center gap-1.5 shadow-sm"
+                >
+                  <Settings className="w-4 h-4" /> Edit Page Content
+                </button>
+                <button
+                  onClick={handleCreateNew}
+                  className="hidden md:flex bg-[#041627] text-white px-4 py-2 rounded-full font-semibold text-[14px]/[1.4] hover:bg-[#041627]/90 transition-colors items-center gap-1.5 shadow-sm"
+                >
+                  <Plus className="w-4 h-4" /> New Property
+                </button>
+              </>
+            )}
+            <LanguageSwitcher />
+          </div>
         }
+        mobileActionButton={<LanguageSwitcher compact />}
       />
 
       {/* Main Content Canvas */}
