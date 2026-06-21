@@ -55,6 +55,13 @@ export const translations = {
     home_amenities: "What this place offers",
     home_also_on: "Also available on",
     home_book_on: "Book on",
+    home_rates_title: "Rates by group size",
+    home_rates_subtitle: "Price per guest drops as your group grows. Cleaning fee is a flat tier.",
+    home_rates_per_guest: "Per guest / night",
+    home_rates_total: "Total / night",
+    home_child_discount_note: "{percent}% off for children aged {min}–{max}",
+    home_longstay_discount_note: "{percent}% off stays of {nights}+ nights",
+    home_trust_selfcheckin: "Self check-in",
     
     // Common
     loading: "Loading...",
@@ -361,6 +368,13 @@ export const translations = {
     home_amenities: "Tiện nghi có sẵn",
     home_also_on: "Hoặc đặt phòng trên",
     home_book_on: "Đặt trên",
+    home_rates_title: "Bảng giá theo số khách",
+    home_rates_subtitle: "Giá mỗi khách giảm dần khi nhóm đông hơn. Phí dọn dẹp tính theo mức cố định.",
+    home_rates_per_guest: "Giá / khách / đêm",
+    home_rates_total: "Tổng / đêm",
+    home_child_discount_note: "Giảm {percent}% cho trẻ em {min}–{max} tuổi",
+    home_longstay_discount_note: "Giảm {percent}% khi ở từ {nights} đêm trở lên",
+    home_trust_selfcheckin: "Tự nhận phòng",
     
     // Common
     loading: "Đang tải...",
@@ -667,6 +681,13 @@ export const translations = {
     home_amenities: "アメニティ・設備",
     home_also_on: "他のサイトで予約",
     home_book_on: "予約する",
+    home_rates_title: "人数別料金",
+    home_rates_subtitle: "人数が増えるほど1人あたりの料金がお得に。清掃料金は段階制です。",
+    home_rates_per_guest: "1人 / 泊",
+    home_rates_total: "合計 / 泊",
+    home_child_discount_note: "{min}〜{max}歳のお子様は{percent}%割引",
+    home_longstay_discount_note: "{nights}泊以上の滞在で{percent}%割引",
+    home_trust_selfcheckin: "セルフチェックイン",
     
     // Common
     loading: "読み込み中...",
@@ -973,6 +994,13 @@ export const translations = {
     home_amenities: "便利设施",
     home_also_on: "其他预订平台",
     home_book_on: "去预订",
+    home_rates_title: "按人数计价",
+    home_rates_subtitle: "人数越多，人均价格越低。清洁费按档位收取。",
+    home_rates_per_guest: "每人 / 晚",
+    home_rates_total: "合计 / 晚",
+    home_child_discount_note: "{min}–{max}岁儿童享{percent}%折扣",
+    home_longstay_discount_note: "连住{nights}晚以上享{percent}%折扣",
+    home_trust_selfcheckin: "自助入住",
     
     // Common
     loading: "加载中...",
@@ -1279,6 +1307,13 @@ export const translations = {
     home_amenities: "편의시설",
     home_also_on: "다른 예약 플랫폼",
     home_book_on: "예약하기",
+    home_rates_title: "인원별 요금",
+    home_rates_subtitle: "인원이 많을수록 1인당 요금이 낮아집니다. 청소비는 구간별 고정 요금입니다.",
+    home_rates_per_guest: "1인 / 박",
+    home_rates_total: "합계 / 박",
+    home_child_discount_note: "{min}–{max}세 어린이 {percent}% 할인",
+    home_longstay_discount_note: "{nights}박 이상 숙박 시 {percent}% 할인",
+    home_trust_selfcheckin: "셀프 체크인",
 
     // Common
     loading: "로딩 중...",

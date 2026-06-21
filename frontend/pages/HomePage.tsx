@@ -5,7 +5,7 @@ import {
     Wifi, Monitor, Coffee, Wind, MapPin, BedDouble, User, X, ChevronRight, ChevronLeft, Image as ImageIcon,
   Tv, Car, Utensils, Waves, Dumbbell, Flame, Sun, Umbrella, Bath, Thermometer, 
   ShieldCheck, Key, Shirt, Speaker, Lock, Music, Grid, Droplets, Briefcase, ExternalLink,
-    Refrigerator, Microwave, ShowerHead, ChevronUp, Medal, Train, Navigation
+    Refrigerator, Microwave, ShowerHead, ChevronUp, Medal, Train, Navigation, CheckCircle2, Baby, CalendarDays
 } from 'lucide-react';
 import BookingWidget from '../components/BookingWidget';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -255,6 +255,63 @@ const RoomCarousel: React.FC<{ rooms: SleepingArrangement[]; onSelect: (room: Sl
 };
 
 
+// 3. Rates-by-group-size table — real per-guest pricing, no fabricated discounts
+const RatesTable: React.FC<{ pricing: PropertyData['pricing'] }> = ({ pricing }) => {
+    const { t } = useLanguage();
+    const getCleaningFee = (guests: number) => {
+        const tier = pricing.cleaning.find(c => guests >= c.minGuests && guests <= c.maxGuests);
+        return tier ? tier.price : 0;
+    };
+
+    return (
+        <div className="rounded-2xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 bg-gray-50 border-b border-gray-200">
+                            <th className="px-4 py-2.5 font-semibold">{t('home_spec_guests')}</th>
+                            <th className="px-4 py-2.5 font-semibold">{t('home_rates_per_guest')}</th>
+                            <th className="px-4 py-2.5 font-semibold">{t('home_rates_total')}</th>
+                            <th className="px-4 py-2.5 font-semibold">{t('sim_cleaning')}</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {pricing.rates.map(rate => (
+                            <tr key={rate.guests}>
+                                <td className="px-4 py-2.5 font-medium text-gray-900">{rate.guests}</td>
+                                <td className="px-4 py-2.5 text-gray-700">¥{rate.price.toLocaleString()}</td>
+                                <td className="px-4 py-2.5 font-semibold text-gray-900">¥{(rate.price * rate.guests).toLocaleString()}</td>
+                                <td className="px-4 py-2.5 text-gray-500">¥{getCleaningFee(rate.guests).toLocaleString()}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {(pricing.childDiscountPercent > 0 || pricing.longStayDiscountPercent > 0) && (
+                <div className="border-t border-gray-200 bg-gray-50 px-4 py-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[12.5px] text-gray-600">
+                    {pricing.childDiscountPercent > 0 && (
+                        <span className="flex items-center gap-1.5">
+                            <Baby className="w-3.5 h-3.5 text-emerald-600" />
+                            {t('home_child_discount_note')
+                                .replace('{percent}', String(pricing.childDiscountPercent))
+                                .replace('{min}', String(pricing.childAgeMin))
+                                .replace('{max}', String(pricing.childAgeMax))}
+                        </span>
+                    )}
+                    {pricing.longStayDiscountPercent > 0 && (
+                        <span className="flex items-center gap-1.5">
+                            <CalendarDays className="w-3.5 h-3.5 text-emerald-600" />
+                            {t('home_longstay_discount_note')
+                                .replace('{percent}', String(pricing.longStayDiscountPercent))
+                                .replace('{nights}', String(pricing.longStayMinNights))}
+                        </span>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const HomePage: React.FC<HomePageProps> = ({ data }) => {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
@@ -335,6 +392,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
     const bathFacilityBaseLabel = data.bathFacilityType === 'shower_room' ? t('home_spec_shower_room') : t('home_spec_bathroom');
     const bathFacilityLabelPlural = data.bathFacilityType === 'shower_room' ? t('home_spec_shower_rooms') : t('home_spec_bathrooms');
     const bathFacilityLabel = data.baths === 1 ? bathFacilityBaseLabel : bathFacilityLabelPlural;
+    const fromPricePerGuest = data.pricing?.rates?.length ? Math.min(...data.pricing.rates.map(r => r.price)) : null;
 
   return (
     <div className="pb-4 md:pb-10">
@@ -393,13 +451,18 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                             {data.subtitle}
                         </div>
                     </div>
-                    {nearestStationDistanceInline && (
-                        <div className="mt-1.5">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {fromPricePerGuest !== null && (
+                            <span className="inline-flex items-center rounded-full bg-[var(--color-primary-50)] text-[var(--color-primary-700)] px-2.5 py-0.5 text-[13px] font-bold">
+                                ¥{fromPricePerGuest.toLocaleString()} {t('sim_per_night')}
+                            </span>
+                        )}
+                        {nearestStationDistanceInline && (
                             <span className="inline-flex items-center rounded-full bg-amber-100/80 px-2.5 py-0.5 text-[13px] font-semibold text-amber-800">
                                 {nearestStationDistanceInline}
                             </span>
-                        </div>
-                    )}
+                        )}
+                    </div>
                     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[14px] text-gray-600 leading-[1.6]">
                         <span>{data.maxGuests} {t('home_spec_guests')}</span>
                         <span>{data.bedrooms} {t('home_spec_bedrooms')}</span>
@@ -464,13 +527,18 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                  <MapPin className="w-4 h-4"/>
                  <span className="truncate">{data.address}</span>
              </div>
-             {nearestStationDistanceInline && (
-                 <div className="mt-1">
+             <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                 {fromPricePerGuest !== null && (
+                     <span className="inline-flex items-center rounded-full bg-[var(--color-primary-50)] text-[var(--color-primary-700)] px-2.5 py-0.5 text-[13px] font-bold">
+                         ¥{fromPricePerGuest.toLocaleString()} {t('sim_per_night')}
+                     </span>
+                 )}
+                 {nearestStationDistanceInline && (
                      <span className="inline-flex items-center rounded-full bg-amber-100/80 px-2.5 py-0.5 text-[13px] font-semibold text-amber-800">
                          {nearestStationDistanceInline}
                      </span>
-                 </div>
-             )}
+                 )}
+             </div>
              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[14px] text-gray-600 leading-[1.6]">
                  <span>{data.maxGuests} {t('home_spec_guests')}</span>
                  <span>{data.bedrooms} {t('home_spec_bedrooms')}</span>
@@ -543,19 +611,30 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
 
                 {/* Highlights */}
                 {(data.highlights || []).length > 0 && (
-                    <div className="py-3 md:py-6 border-b border-gray-200 space-y-3 md:space-y-4">
-                        {data.highlights.map(item => {
-                            const Icon = iconMap[item.icon] || Monitor;
-                            return (
-                                <div key={item.id} className="flex gap-4">
-                                    <Icon className="w-6 h-6 text-gray-700 mt-1" />
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900">{item.title}</h3>
-                                        <p className="text-gray-500 text-sm">{item.description}</p>
+                    <div className="py-3 md:py-6 border-b border-gray-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {data.highlights.map(item => {
+                                const Icon = iconMap[item.icon] || Monitor;
+                                return (
+                                    <div key={item.id} className="flex gap-3 rounded-xl bg-gray-50 p-4">
+                                        <Icon className="w-5 h-5 text-[var(--color-primary-600)] mt-0.5 shrink-0" />
+                                        <div>
+                                            <h3 className="font-semibold text-gray-900 text-[14px]">{item.title}</h3>
+                                            <p className="text-gray-500 text-[13px] mt-0.5">{item.description}</p>
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Rates by group size */}
+                {data.pricing?.rates?.length > 0 && (
+                    <div className="py-3 md:py-6 border-b border-gray-200">
+                        <h2 className="text-[20px] md:text-[24px] font-bold text-gray-900 leading-[1.3] mb-1">{t('home_rates_title')}</h2>
+                        <p className="text-gray-500 text-[13px] md:text-[14px] mb-3 md:mb-4">{t('home_rates_subtitle')}</p>
+                        <RatesTable pricing={data.pricing} />
                     </div>
                 )}
 
@@ -603,7 +682,8 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                             const Icon = getAmenityIcon(item);
                             return (
                                 <div key={idx} className="flex items-center gap-3 text-gray-700">
-                                    <Icon className="w-6 h-6 text-gray-500" strokeWidth={1.5} />
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    <Icon className="w-5 h-5 text-gray-400 shrink-0" strokeWidth={1.5} />
                                     <span className="text-base">{item}</span>
                                 </div>
                             );

@@ -204,9 +204,9 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                     if (isDisabled) {
                         buttonClass += "text-gray-300 decoration-slate-300 line-through cursor-not-allowed ";
                     } else if (isSelectedStart || isSelectedEnd) {
-                        buttonClass += "bg-blue-600 text-white font-bold ";
+                        buttonClass += "bg-[var(--color-primary-600)] text-white font-bold ";
                     } else if (isInRange) {
-                        buttonClass += "bg-blue-50 text-blue-900 ";
+                        buttonClass += "bg-[var(--color-primary-50)] text-[var(--color-primary-700)] ";
                     } else {
                         buttonClass += "hover:bg-gray-100 text-gray-700 font-medium hover:border-gray-900 border border-transparent ";
                     }
@@ -233,8 +233,8 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
       {/* Header Section */}
       <div className="bg-gray-50 px-8 py-6 border-b border-gray-100 rounded-t-2xl">
         <div className="flex items-center gap-2 mb-2">
-             <Calculator className="w-5 h-5 text-blue-600" />
-             <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">{t('sim_title')}</span>
+             <Calculator className="w-5 h-5 text-[var(--color-primary-600)]" />
+             <span className="text-xs font-bold text-[var(--color-primary-600)] uppercase tracking-wider">{t('sim_title')}</span>
         </div>
         <h3 className="text-xl font-bold text-gray-900 leading-tight">
             {t('sim_subtitle')}
@@ -468,9 +468,9 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                     </div>
                 </div>
 
-                <button 
+                <button
                     onClick={handleEmailInquiry}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg py-4 px-6 rounded-xl shadow-lg shadow-blue-200 transition-all duration-200 flex items-center justify-center gap-3 group transform hover:-translate-y-1"
+                    className="w-full bg-[var(--color-primary-600)] hover:opacity-90 text-white font-bold text-lg py-4 px-6 rounded-xl shadow-lg shadow-black/10 transition-all duration-200 flex items-center justify-center gap-3 group transform hover:-translate-y-1"
                 >
                     <Mail className="w-6 h-6 group-hover:scale-110 transition-transform" />
                     {t('sim_send_inquiry')}
