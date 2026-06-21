@@ -234,7 +234,14 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
               {mobileActionButton ? <div className="shrink-0">{mobileActionButton}</div> : null}
             </div>
           </nav>
-          <div className="md:hidden" style={{ height: `calc(env(safe-area-inset-top) + ${MOBILE_HEADER_HEIGHT}px)` }} />
+          <div
+            className="md:hidden bg-white transition-[height] duration-300"
+            style={{
+              height: isMobileHeaderVisible
+                ? `calc(env(safe-area-inset-top) + ${MOBILE_HEADER_HEIGHT}px)`
+                : 'env(safe-area-inset-top)',
+            }}
+          />
           {/* Pull-to-refresh indicator: fixed BELOW the header, not inside it */}
           <div
             className="md:hidden fixed left-0 w-full z-40 pointer-events-none flex items-center justify-center overflow-hidden"
