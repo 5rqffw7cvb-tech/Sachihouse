@@ -554,7 +554,7 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
       </div>
 
       {/* Desktop table */}
-      <div className="hidden lg:block w-full overflow-hidden rounded-xl border border-[#ccc9ca]">
+      <div className="hidden lg:block w-full overflow-hidden rounded-xl border border-[#8f8d8e]">
         <table className="w-full text-[11px] border-collapse font-sans table-fixed">
           <thead>
             <tr className="bg-[#f5f3f4] text-[#44474c]">
@@ -563,7 +563,7 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
                 const widthClass = COLUMN_WIDTHS[header] ?? '';
                 return (
                   <th key={i} onClick={() => handleSort(header)}
-                    className={`py-2 px-2 font-bold border border-[#ccc9ca] cursor-pointer hover:bg-[#e4e2e3] select-none group text-center ${widthClass}`}>
+                    className={`py-2 px-2 font-bold border border-[#8f8d8e] cursor-pointer hover:bg-[#e4e2e3] select-none group text-center ${widthClass}`}>
                     <div className="flex items-center justify-center gap-1">
                       <span className="truncate">{header}</span>
                       {isSorted ? (sortConfig?.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-blue-600" /> : <ArrowDown className="w-3 h-3 text-blue-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-50 text-slate-400" />}
@@ -571,7 +571,7 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
                   </th>
                 );
               })}
-              <th className="py-2 px-2 text-center w-[100px] sticky right-0 bg-[#f5f3f4] border border-[#ccc9ca] z-10 no-print">操作</th>
+              <th className="py-2 px-2 text-center w-[100px] sticky right-0 bg-[#f5f3f4] border border-[#8f8d8e] z-10 no-print">操作</th>
             </tr>
           </thead>
           <tbody className="text-[#1b1c1d]">
@@ -581,11 +581,11 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
               return (
                 <tr key={`${entry.id}-${idx}`} className={`transition-colors group hover:bg-[#f5f3f4]/35 ${rowClass}`}>
                   {displayHeaders.map((header, i) => (
-                    <td key={i} className={`py-1.5 px-2 border border-[#ccc9ca] break-words leading-tight ${isNumericColumn(header) ? 'text-right font-mono font-semibold' : 'text-left'}`}>
+                    <td key={i} className={`py-1.5 px-2 border border-[#8f8d8e] break-words leading-tight ${isNumericColumn(header) ? 'text-right font-mono font-semibold' : 'text-left'}`}>
                       {renderCellContent(header, entry.rawData[header] || "", entry)}
                     </td>
                   ))}
-                  <td className="py-1.5 px-2 text-center sticky right-0 bg-inherit border border-[#ccc9ca] z-10 no-print">
+                  <td className="py-1.5 px-2 text-center sticky right-0 bg-inherit border border-[#8f8d8e] z-10 no-print">
                     <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                       <button onClick={(e) => { e.stopPropagation(); setPreviewEntry(entry); }} className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" title="証憑確認"><FileImage className="w-3.5 h-3.5" /></button>
                       <button onClick={() => openEditModal(entry)} className="p-1.5 text-[#74777d] hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="編集"><Edit2 className="w-3.5 h-3.5" /></button>
