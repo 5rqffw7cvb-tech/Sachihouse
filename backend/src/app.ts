@@ -1814,16 +1814,38 @@ export function createApp(store: DataStore) {
 
       // 4. Background: compress + upload to GCS, then swap the record's path to the GCS reference.
       void (async () => {
+        const rawBuffer = Buffer.from(base64Data, 'base64');
+        let compressed: { buffer: Buffer; mimeType: string };
         try {
-          const rawBuffer = Buffer.from(base64Data, 'base64');
-          const compressed = await objectStorage.compressReceiptImage(rawBuffer, mimeType);
-          const upload = await objectStorage.uploadReceiptImage({
-            imageBuffer: compressed.buffer, mimeType: compressed.mimeType, propertyId,
-          });
-          await store.updatePendingTransaction(pending.id, { gcsPath: upload.evidenceUrl }, actor);
-          console.log('[upload-single] background GCS upload done:', pending.id, upload.evidenceUrl);
-        } catch (bgErr) {
-          console.error('[upload-single] background GCS upload failed for', pending.id, ':', bgErr);
+          compressed = await objectStorage.compressReceiptImage(rawBuffer, mimeType);
+        } catch (cErr) {
+          console.error('[upload-single] compress failed for', pending.id, ':', cErr);
+          return;
+        }
+
+        // Retry GCS upload a few times to absorb transient errors.
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const upload = await objectStorage.uploadReceiptImage({
+              imageBuffer: compressed.buffer, mimeType: compressed.mimeType, propertyId,
+            });
+            await store.updatePendingTransaction(pending.id, { gcsPath: upload.evidenceUrl }, actor);
+            console.log('[upload-single] background GCS upload done:', pending.id, upload.evidenceUrl);
+            return;
+          } catch (bgErr) {
+            console.error(`[upload-single] GCS upload attempt ${attempt}/3 failed for ${pending.id}:`, bgErr);
+            if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 1500));
+          }
+        }
+
+        // Permanent failure: replace the heavy raw data-URI with the small compressed
+        // one so the record stays approvable (image inlined) instead of stuck "uploading".
+        try {
+          const fallbackDataUri = `data:${compressed.mimeType};base64,${compressed.buffer.toString('base64')}`;
+          await store.updatePendingTransaction(pending.id, { gcsPath: fallbackDataUri }, actor);
+          console.warn('[upload-single] GCS upload gave up; kept inline image for', pending.id);
+        } catch (fErr) {
+          console.error('[upload-single] fallback update failed for', pending.id, ':', fErr);
         }
       })();
     } catch (err) {

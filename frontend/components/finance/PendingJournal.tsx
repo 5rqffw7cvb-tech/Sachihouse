@@ -97,13 +97,25 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
   React.useEffect(() => { setItems([]); load(); }, [loadIdsKey]);
 
   // An item whose receipt is still a data URI hasn't finished its background GCS upload yet.
-  const stillUploading = (item: { receiptUrl?: string; gcsPath?: string }) =>
+  const isInlineImage = (item: { receiptUrl?: string; gcsPath?: string }) =>
     (item.receiptUrl || item.gcsPath || '').startsWith('data:');
+
+  // After polling this long without GCS resolving, stop waiting and let the user
+  // approve anyway (the inline image is still a valid receipt). Avoids a record
+  // stuck on 「保存中」forever when the GCS upload permanently fails.
+  const [uploadGaveUp, setUploadGaveUp] = useState(false);
+  const pollStartRef = useRef<number | null>(null);
+  const POLL_TIMEOUT_MS = 45000;
+
+  const stillUploading = (item: { receiptUrl?: string; gcsPath?: string }) =>
+    !uploadGaveUp && isInlineImage(item);
 
   // While any item is still uploading to GCS (and we're not mid-OCR), poll until all resolve.
   React.useEffect(() => {
-    if (processingProgress !== null) return;
-    if (!items.some(stillUploading)) return;
+    if (processingProgress !== null) { pollStartRef.current = null; return; }
+    if (!items.some(isInlineImage)) { pollStartRef.current = null; setUploadGaveUp(false); return; }
+    if (pollStartRef.current === null) pollStartRef.current = Date.now();
+    if (Date.now() - pollStartRef.current > POLL_TIMEOUT_MS) { setUploadGaveUp(true); return; }
     const timer = setInterval(() => { load(); }, 2000);
     return () => clearInterval(timer);
   }, [items, processingProgress, load]);
@@ -112,6 +124,9 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
     if (!writeTargetId || files.length === 0) return;
 
     const fileArray = Array.from(files);
+    // Fresh upload batch → give GCS a new polling window.
+    setUploadGaveUp(false);
+    pollStartRef.current = null;
     setProcessingProgress({ done: 0, total: fileArray.length });
 
     for (let i = 0; i < fileArray.length; i++) {

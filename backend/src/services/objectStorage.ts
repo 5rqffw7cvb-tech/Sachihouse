@@ -58,21 +58,25 @@ export class ObjectStorageService {
   // Receipts may live in a dedicated bucket; fall back to the shared bucket.
   private readonly receiptBucketName = process.env.GCS_RECEIPT_BUCKET || process.env.GCS_BUCKET || '';
   private readonly projectId = process.env.GCP_PROJECT_ID;
+  private readonly receiptProjectId = process.env.GCP_RECEIPT_PROJECT_ID || process.env.GCP_PROJECT_ID;
   private readonly prefix = process.env.GCS_PREFIX ?? 'checkins';
   private readonly storage = (this.bucketName || this.receiptBucketName)
     ? new Storage({ projectId: this.projectId || undefined, ...ObjectStorageService.credentialsOption() })
     : null;
+  // Receipts can use a dedicated service account (e.g. one scoped to the receipt
+  // bucket). Falls back to the shared credentials when no receipt-specific key is set.
+  private readonly receiptStorage = this.receiptBucketName
+    ? new Storage({ projectId: this.receiptProjectId || undefined, ...ObjectStorageService.receiptCredentialsOption() })
+    : null;
 
-  private static credentialsOption(): { credentials?: object } {
-    const raw = process.env.GCP_SERVICE_ACCOUNT_JSON;
+  private static parseCredentials(raw?: string, b64?: string): { credentials?: object } {
     if (raw) {
       try {
         return { credentials: JSON.parse(raw) };
       } catch {
-        // fall through to GOOGLE_APPLICATION_CREDENTIALS / ADC
+        // fall through
       }
     }
-    const b64 = process.env.GCP_SERVICE_ACCOUNT_JSON_B64;
     if (b64) {
       try {
         return { credentials: JSON.parse(Buffer.from(b64, 'base64').toString('utf8')) };
@@ -81,6 +85,30 @@ export class ObjectStorageService {
       }
     }
     return {};
+  }
+
+  private static credentialsOption(): { credentials?: object } {
+    return ObjectStorageService.parseCredentials(
+      process.env.GCP_SERVICE_ACCOUNT_JSON,
+      process.env.GCP_SERVICE_ACCOUNT_JSON_B64,
+    );
+  }
+
+  private static receiptCredentialsOption(): { credentials?: object } {
+    const dedicated = ObjectStorageService.parseCredentials(
+      process.env.GCP_RECEIPT_SERVICE_ACCOUNT_JSON,
+      process.env.GCP_RECEIPT_SERVICE_ACCOUNT_JSON_B64,
+    );
+    return dedicated.credentials ? dedicated : ObjectStorageService.credentialsOption();
+  }
+
+  // Choose the right Storage client for a bucket: receipt objects must be
+  // signed/deleted with the receipt credentials so the resulting URL is authorized.
+  private clientForBucket(bucketName: string): Storage | null {
+    if (bucketName === this.receiptBucketName && this.receiptStorage) {
+      return this.receiptStorage;
+    }
+    return this.storage;
   }
 
   async compressImage(buffer: Buffer, mimeType: string): Promise<{ buffer: Buffer; mimeType: string }> {
@@ -134,7 +162,7 @@ export class ObjectStorageService {
     const safeProperty = toSafeSegment(params.propertyId);
     const objectName = `receipts/${safeProperty}/${Date.now()}.jpg`;
 
-    if (!this.storage || !this.receiptBucketName) {
+    if (!this.receiptStorage || !this.receiptBucketName) {
       return {
         evidenceUrl: `data:${params.mimeType};base64,${params.imageBuffer.toString('base64')}`,
         mimeType: params.mimeType,
@@ -142,7 +170,7 @@ export class ObjectStorageService {
       };
     }
 
-    const bucket = this.storage.bucket(this.receiptBucketName);
+    const bucket = this.receiptStorage.bucket(this.receiptBucketName);
     const file = bucket.file(objectName);
 
     await file.save(params.imageBuffer, {
@@ -202,11 +230,12 @@ export class ObjectStorageService {
     }
 
     const reference = parseGcsReference(evidenceUrl);
-    if (!reference || !this.storage) {
+    const client = reference ? this.clientForBucket(reference.bucketName) : null;
+    if (!reference || !client) {
       return evidenceUrl;
     }
 
-    const [signedUrl] = await this.storage
+    const [signedUrl] = await client
       .bucket(reference.bucketName)
       .file(reference.objectName)
       .getSignedUrl({
@@ -234,11 +263,12 @@ export class ObjectStorageService {
 
     // Accept both gcs:// paths and signed storage.googleapis.com URLs.
     const reference = resolveGcsTarget(evidenceUrl);
-    if (!reference || !this.storage) {
+    const client = reference ? this.clientForBucket(reference.bucketName) : null;
+    if (!reference || !client) {
       return;
     }
 
-    await this.storage
+    await client
       .bucket(reference.bucketName)
       .file(reference.objectName)
       .delete({ ignoreNotFound: true });
