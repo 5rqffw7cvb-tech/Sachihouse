@@ -370,14 +370,22 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       return;
     }
     const timeoutId = window.setTimeout(() => {
+      // Strip inline image data URIs before persisting — they are large and would blow
+      // the localStorage quota. Text fields persist; images must be re-scanned on reload.
+      const guestsWithoutImages = guests.map((guest) =>
+        guest.evidenceUrl.startsWith('data:') ? { ...guest, evidenceUrl: '' } : guest,
+      );
+      const imagelessGuestIds = new Set(
+        guestsWithoutImages.filter((guest) => !guest.evidenceUrl).map((guest) => guest.id),
+      );
       const draft: CheckInDraft = {
         savedAt: Date.now(),
         checkInDate,
         checkOutDate,
         checkInTime,
         checkOutTime,
-        guests,
-        reviewedGuestIds,
+        guests: guestsWithoutImages,
+        reviewedGuestIds: reviewedGuestIds.filter((id) => !imagelessGuestIds.has(id)),
         sameAsLeadByGuest,
       };
       if (draftHasContent(draft)) {
@@ -602,9 +610,13 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       const capitalWithCountry = getCapitalWithCountry(extracted.nationality);
       const isBlankAddress = !extracted.address || extracted.address === 'NA' || extracted.address.toUpperCase() === 'UNKNOWN';
       const addressValue = isBlankAddress ? capitalWithCountry : extracted.address;
+      // Deferred upload: keep the captured image locally as a data URI. It is sent on
+      // submit, where the backend compresses (<100KB) and uploads it to the bucket.
       // Default previous/next location to the guest's address
       const enrichedGuest: CheckInGuest = {
         ...extracted,
+        evidenceUrl: base64,
+        evidenceMimeType: 'image/jpeg',
         address: addressValue,
         previousLocation: (extracted.previousLocation && extracted.previousLocation.toUpperCase() !== 'UNKNOWN') ? extracted.previousLocation : addressValue,
         nextLocation: (extracted.nextLocation && extracted.nextLocation.toUpperCase() !== 'UNKNOWN') ? extracted.nextLocation : addressValue,

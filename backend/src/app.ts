@@ -544,7 +544,15 @@ export function createApp(store: DataStore) {
 
   app.use(cors());
   app.use(helmet());
-  app.use(express.json({ limit: '2mb' }));
+  // Most endpoints take small JSON. Check-in OCR and submit carry ID images
+  // (submit may bundle several guests' images, since upload is deferred to confirm),
+  // so those two paths get a larger body limit.
+  const standardJson = express.json({ limit: '2mb' });
+  const imageJson = express.json({ limit: '30mb' });
+  app.use((req, res, next) => {
+    const isImageRoute = req.path.endsWith('/checkins/ocr') || req.path.endsWith('/checkins/submit');
+    return (isImageRoute ? imageJson : standardJson)(req, res, next);
+  });
   app.use(morgan('dev'));
 
   app.use(async (req: Request, _res: Response, next: NextFunction) => {
@@ -1225,13 +1233,9 @@ export function createApp(store: DataStore) {
       return res.status(400).json({ error: 'Uploaded payload is not a valid readable image.' });
     }
 
-    const upload = await objectStorage.uploadEvidenceImage({
-      imageBuffer: compressed.buffer,
-      mimeType: compressed.mimeType,
-      propertyId: property.id,
-      guestId,
-    });
-
+    // Deferred upload: do NOT push to GCS here. The image stays on the client as a
+    // local data URI and is compressed + uploaded only when the guest confirms (submit).
+    // This keeps each scan fast (OCR only, no storage round-trip).
     const ai = await idProcessing.processIdDocument(compressed.buffer.toString('base64'), compressed.mimeType);
     if (!ai.isIdDocument) {
       return res.status(422).json({
@@ -1249,8 +1253,8 @@ export function createApp(store: DataStore) {
       occupation: ai.occupation,
       documentType: ai.documentType,
       documentNumber: ai.documentNumber,
-      evidenceUrl: upload.evidenceUrl,
-      evidenceMimeType: upload.mimeType,
+      evidenceUrl: '',
+      evidenceMimeType: compressed.mimeType,
       ocrText: ai.ocrText,
       estimated: {
         fullName: !ai.fullName,
@@ -1305,6 +1309,41 @@ export function createApp(store: DataStore) {
     const guests = guestsRaw.map((guest: unknown, index: number) => toNormalizedGuest(guest, index));
     if (guests.some((guest) => !guest.evidenceUrl)) {
       return res.status(400).json({ error: 'Every guest must include an ID evidence image.' });
+    }
+
+    // Deferred upload: ID images arrive inline as data URIs. Compress each to <100KB
+    // and store in the bucket now, swapping evidenceUrl to a gcs:// reference.
+    for (const guest of guests) {
+      if (!guest.evidenceUrl.startsWith('data:')) {
+        continue; // already a stored reference (e.g. re-submission)
+      }
+      const parsed = parseImageData(guest.evidenceUrl);
+      if (!/^image\/(jpeg|jpg|png|webp)$/i.test(parsed.mimeType) || !/^[a-zA-Z0-9+/=\s]+$/.test(parsed.base64)) {
+        return res.status(400).json({ error: 'Unsupported ID image format.' });
+      }
+      let rawBuffer: Buffer;
+      try {
+        rawBuffer = Buffer.from(parsed.base64, 'base64');
+      } catch {
+        return res.status(400).json({ error: 'Invalid ID image.' });
+      }
+      if (!rawBuffer.length || rawBuffer.length > CHECKIN_OCR_MAX_IMAGE_BYTES) {
+        return res.status(400).json({ error: 'ID image payload is invalid or too large.' });
+      }
+      try {
+        const compressed = await objectStorage.compressReceiptImage(rawBuffer, parsed.mimeType);
+        const upload = await objectStorage.uploadEvidenceImage({
+          imageBuffer: compressed.buffer,
+          mimeType: compressed.mimeType,
+          propertyId: property.id,
+          guestId: guest.id,
+        });
+        guest.evidenceUrl = upload.evidenceUrl;
+        guest.evidenceMimeType = upload.mimeType;
+      } catch (uploadErr) {
+        console.error('[checkin/submit] evidence upload failed for guest', guest.id, ':', uploadErr);
+        return res.status(502).json({ error: 'Failed to store ID image. Please try again.' });
+      }
     }
 
     const consentRaw = req.body?.consent as Record<string, unknown> | undefined;
