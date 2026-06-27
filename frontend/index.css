@@ -61,3 +61,86 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 16px !important;
   }
 }
+
+/* ─── Finance / Print styles ─────────────────────────────────── */
+.font-mincho {
+  font-family: 'Noto Serif JP', 'Georgia', serif;
+}
+
+.print-area {
+  display: block;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm 12mm;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Hide all navigation chrome */
+  nav, header {
+    display: none !important;
+  }
+
+  body {
+    background-color: white !important;
+    color: black !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Remove page padding / margin caused by nav spacers */
+  .print\:pt-0 {
+    padding-top: 0 !important;
+  }
+  .print\:px-0 {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  .print\:py-0 {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+  .print\:bg-white {
+    background-color: white !important;
+  }
+
+  /* Finance report print area */
+  .print-area {
+    display: block !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  /* Tables: preserve borders in print */
+  .print-area table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    page-break-inside: auto;
+  }
+  .print-area tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  .print-area th,
+  .print-area td {
+    border: 1px solid #374151 !important;
+  }
+
+  /* Tailwind print: variants — ensure they apply */
+  .print\:block {
+    display: block !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+}

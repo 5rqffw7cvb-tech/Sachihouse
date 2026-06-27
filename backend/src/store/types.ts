@@ -224,6 +224,63 @@ export interface PropertyData {
   };
 }
 
+export interface FinancialTransaction {
+  id: string;
+  propertyId: string;
+  transactionNo: string;
+  transactionDate: string; // YYYY-MM-DD
+  debitAccount: string;
+  debitAmount: number;
+  creditAccount: string;
+  creditAmount: number;
+  description: string;
+  receiptUrl?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface FinancialTransactionInput {
+  propertyId: string;
+  transactionNo: string;
+  transactionDate: string;
+  debitAccount: string;
+  debitAmount: number;
+  creditAccount: string;
+  creditAmount: number;
+  description: string;
+  receiptUrl?: string;
+}
+
+export interface PendingTransaction {
+  id: string;
+  propertyId: string;
+  gcsPath: string;          // permanent gcs:// reference
+  receiptUrl: string;       // signed URL (resolved at read time)
+  ocrProcessed: boolean;
+  transactionDate: string;
+  debitAccount: string;
+  debitAmount: number;
+  creditAccount: string;
+  creditAmount: number;
+  description: string;
+  vendor?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PendingTransactionInput {
+  propertyId: string;
+  gcsPath: string;
+  transactionDate?: string;
+  debitAccount?: string;
+  debitAmount?: number;
+  creditAccount?: string;
+  creditAmount?: number;
+  description?: string;
+  vendor?: string;
+  ocrProcessed?: boolean;
+}
+
 export interface DataStore {
   init(): Promise<void>;
   authenticate(email: string, password: string): Promise<AuthUser | null>;
@@ -269,4 +326,14 @@ export interface DataStore {
   ): Promise<CheckInSubmission | null>;
   deleteCheckInSubmission(id: string): Promise<boolean>;
   deleteExpiredCheckInSubmissions(olderThanTimestamp: number): Promise<CheckInSubmission[]>;
+  listFinancialTransactions(propertyIds: string[], year?: number): Promise<FinancialTransaction[]>;
+  createFinancialTransaction(input: FinancialTransactionInput, actor: AuthUser): Promise<FinancialTransaction>;
+  updateFinancialTransaction(id: string, input: Partial<FinancialTransactionInput>, actor: AuthUser): Promise<FinancialTransaction>;
+  deleteFinancialTransaction(id: string, actor: AuthUser): Promise<FinancialTransaction | null>;
+  bulkImportFinancialTransactions(propertyId: string, transactions: FinancialTransactionInput[], actor: AuthUser): Promise<FinancialTransaction[]>;
+  listPendingTransactions(propertyIds: string[]): Promise<PendingTransaction[]>;
+  createPendingTransaction(input: PendingTransactionInput, actor: AuthUser): Promise<PendingTransaction>;
+  updatePendingTransaction(id: string, input: Partial<PendingTransactionInput>, actor: AuthUser): Promise<PendingTransaction>;
+  approvePendingTransaction(id: string, actor: AuthUser): Promise<FinancialTransaction>;
+  deletePendingTransaction(id: string, actor: AuthUser): Promise<PendingTransaction | null>;
 }

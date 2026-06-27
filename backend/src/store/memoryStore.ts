@@ -8,6 +8,10 @@ import {
   CheckInSubmission,
   CheckInSubmissionInput,
   DataStore,
+  FinancialTransaction,
+  FinancialTransactionInput,
+  PendingTransaction,
+  PendingTransactionInput,
   PropertyData,
   SiteSettings,
   StoredUser,
@@ -21,6 +25,8 @@ interface MemoryState {
   blogPosts: BlogPost[];
   blockedDates: Record<string, string[]>;
   checkIns: CheckInSubmission[];
+  financialTransactions: FinancialTransaction[];
+  pendingTransactions: PendingTransaction[];
 }
 
 export class MemoryStore implements DataStore {
@@ -38,6 +44,8 @@ export class MemoryStore implements DataStore {
       blogPosts: structuredClone(blogPostsSeed),
       blockedDates: structuredClone(blockedDatesSeed),
       checkIns: [],
+      financialTransactions: [],
+      pendingTransactions: [],
     };
   }
 
@@ -501,5 +509,156 @@ export class MemoryStore implements DataStore {
 
     state.checkIns = state.checkIns.filter((submission) => submission.createdAt >= olderThanTimestamp);
     return structuredClone(expired);
+  }
+
+  async listFinancialTransactions(propertyIds: string[], year?: number): Promise<FinancialTransaction[]> {
+    const state = this.assertState();
+    let txns = state.financialTransactions.filter((t) => propertyIds.includes(t.propertyId));
+    if (year) {
+      txns = txns.filter((t) => new Date(t.transactionDate).getFullYear() === year);
+    }
+    return structuredClone(txns.sort((a, b) => a.transactionDate.localeCompare(b.transactionDate)));
+  }
+
+  async createFinancialTransaction(input: FinancialTransactionInput, _actor: AuthUser): Promise<FinancialTransaction> {
+    const state = this.assertState();
+    const now = Date.now();
+    const txn: FinancialTransaction = {
+      id: `txn_${now}_${Math.random().toString(36).slice(2)}`,
+      propertyId: input.propertyId,
+      transactionNo: input.transactionNo,
+      transactionDate: input.transactionDate,
+      debitAccount: input.debitAccount,
+      debitAmount: input.debitAmount,
+      creditAccount: input.creditAccount,
+      creditAmount: input.creditAmount,
+      description: input.description,
+      receiptUrl: input.receiptUrl,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.financialTransactions.push(txn);
+    return structuredClone(txn);
+  }
+
+  async updateFinancialTransaction(id: string, input: Partial<FinancialTransactionInput>, _actor: AuthUser): Promise<FinancialTransaction> {
+    const state = this.assertState();
+    const idx = state.financialTransactions.findIndex((t) => t.id === id);
+    if (idx < 0) throw new Error('Transaction not found');
+    const updated: FinancialTransaction = {
+      ...state.financialTransactions[idx],
+      ...Object.fromEntries(Object.entries({
+        transactionNo: input.transactionNo,
+        transactionDate: input.transactionDate,
+        debitAccount: input.debitAccount,
+        debitAmount: input.debitAmount,
+        creditAccount: input.creditAccount,
+        creditAmount: input.creditAmount,
+        description: input.description,
+        receiptUrl: input.receiptUrl,
+      }).filter(([, v]) => v !== undefined)),
+      updatedAt: Date.now(),
+    };
+    state.financialTransactions[idx] = updated;
+    return structuredClone(updated);
+  }
+
+  async deleteFinancialTransaction(id: string, _actor: AuthUser): Promise<FinancialTransaction | null> {
+    const state = this.assertState();
+    const found = state.financialTransactions.find((t) => t.id === id) ?? null;
+    state.financialTransactions = state.financialTransactions.filter((t) => t.id !== id);
+    return found ? structuredClone(found) : null;
+  }
+
+  async bulkImportFinancialTransactions(propertyId: string, transactions: FinancialTransactionInput[], actor: AuthUser): Promise<FinancialTransaction[]> {
+    const results: FinancialTransaction[] = [];
+    for (const input of transactions) {
+      results.push(await this.createFinancialTransaction({ ...input, propertyId }, actor));
+    }
+    return results;
+  }
+
+  async listPendingTransactions(propertyIds: string[]): Promise<PendingTransaction[]> {
+    const state = this.assertState();
+    return structuredClone(
+      state.pendingTransactions
+        .filter((t) => propertyIds.includes(t.propertyId))
+        .sort((a, b) => b.createdAt - a.createdAt),
+    );
+  }
+
+  async createPendingTransaction(input: PendingTransactionInput, _actor: AuthUser): Promise<PendingTransaction> {
+    const state = this.assertState();
+    const now = Date.now();
+    const txn: PendingTransaction = {
+      id: `pend_${now}_${Math.random().toString(36).slice(2)}`,
+      propertyId: input.propertyId,
+      gcsPath: input.gcsPath,
+      receiptUrl: input.gcsPath,
+      ocrProcessed: input.ocrProcessed ?? false,
+      transactionDate: input.transactionDate ?? '',
+      debitAccount: input.debitAccount ?? '',
+      debitAmount: input.debitAmount ?? 0,
+      creditAccount: input.creditAccount ?? '普通預金',
+      creditAmount: input.creditAmount ?? 0,
+      description: input.description ?? '',
+      vendor: input.vendor,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.pendingTransactions.push(txn);
+    return structuredClone(txn);
+  }
+
+  async updatePendingTransaction(id: string, input: Partial<PendingTransactionInput>, _actor: AuthUser): Promise<PendingTransaction> {
+    const state = this.assertState();
+    const idx = state.pendingTransactions.findIndex((t) => t.id === id);
+    if (idx < 0) throw new Error('Pending transaction not found');
+    const updated: PendingTransaction = {
+      ...state.pendingTransactions[idx],
+      ...Object.fromEntries(
+        Object.entries({
+          gcsPath: input.gcsPath,
+          receiptUrl: input.gcsPath,
+          transactionDate: input.transactionDate,
+          debitAccount: input.debitAccount,
+          debitAmount: input.debitAmount,
+          creditAccount: input.creditAccount,
+          creditAmount: input.creditAmount,
+          description: input.description,
+          vendor: input.vendor,
+          ocrProcessed: input.ocrProcessed,
+        }).filter(([, v]) => v !== undefined),
+      ),
+      updatedAt: Date.now(),
+    };
+    state.pendingTransactions[idx] = updated;
+    return structuredClone(updated);
+  }
+
+  async approvePendingTransaction(id: string, actor: AuthUser): Promise<FinancialTransaction> {
+    const state = this.assertState();
+    const pending = state.pendingTransactions.find((t) => t.id === id);
+    if (!pending) throw new Error('Pending transaction not found');
+    const txn = await this.createFinancialTransaction({
+      propertyId: pending.propertyId,
+      transactionNo: '',
+      transactionDate: pending.transactionDate,
+      debitAccount: pending.debitAccount,
+      debitAmount: pending.debitAmount,
+      creditAccount: pending.creditAccount,
+      creditAmount: pending.creditAmount,
+      description: pending.description,
+      receiptUrl: pending.gcsPath,
+    }, actor);
+    state.pendingTransactions = state.pendingTransactions.filter((t) => t.id !== id);
+    return txn;
+  }
+
+  async deletePendingTransaction(id: string, _actor: AuthUser): Promise<PendingTransaction | null> {
+    const state = this.assertState();
+    const found = state.pendingTransactions.find((t) => t.id === id) ?? null;
+    state.pendingTransactions = state.pendingTransactions.filter((t) => t.id !== id);
+    return found ? structuredClone(found) : null;
   }
 }

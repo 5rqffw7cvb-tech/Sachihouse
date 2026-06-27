@@ -21,6 +21,7 @@ import { Role } from './types/domain.js';
 import { IcalSyncService } from './services/icalSync.js';
 import { IdProcessingService } from './services/idProcessing.js';
 import { ObjectStorageService } from './services/objectStorage.js';
+import { ReceiptProcessingService } from './services/receiptProcessing.js';
 import { TranslationService } from './services/translationService.js';
 
 const ALLOWED_ROLES: Role[] = ['ADMIN', 'HOST', 'GUEST'];
@@ -247,6 +248,7 @@ export function createApp(store: DataStore) {
   });
   const idProcessing = new IdProcessingService();
   const objectStorage = new ObjectStorageService();
+  const receiptProcessing = new ReceiptProcessingService();
   const translationService = new TranslationService();
   const ocrRateMap = new Map<string, { count: number; resetAt: number }>();
   const retentionDaysRaw = Number(process.env.CHECKIN_RETENTION_DAYS ?? 7);
@@ -1685,6 +1687,412 @@ export function createApp(store: DataStore) {
     }
 
     return res.status(201).json({ imported, errors: importErrors });
+  });
+
+  // ── Finance API ─────────────────────────────────────────────────────────────
+
+  // GET /api/finance/properties — list properties accessible to current user
+  app.get('/api/finance/properties', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const allProperties = await store.listProperties(false);
+    const accessible = actor.role === 'ADMIN'
+      ? allProperties
+      : allProperties.filter((p) => actor.assignedPropertyIds.includes(p.id));
+    return res.json(accessible.map((p) => ({ id: p.id, name: p.name })));
+  });
+
+  // GET /api/finance/transactions?propertyIds=a,b&year=2025
+  app.get('/api/finance/transactions', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const raw = typeof req.query.propertyIds === 'string' ? req.query.propertyIds : '';
+    const requested = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const year = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
+
+    let propertyIds: string[];
+    if (actor.role === 'ADMIN') {
+      if (requested.length > 0) {
+        propertyIds = requested;
+      } else {
+        const all = await store.listProperties(false);
+        propertyIds = all.map((p) => p.id);
+      }
+    } else {
+      const allowed = actor.assignedPropertyIds;
+      propertyIds = requested.length > 0
+        ? requested.filter((id) => allowed.includes(id))
+        : allowed;
+    }
+
+    const transactions = await store.listFinancialTransactions(propertyIds, Number.isFinite(year) ? year : undefined);
+
+    const resolved = await Promise.all(
+      transactions.map(async (t) => {
+        if (t.receiptUrl?.startsWith('gcs://')) {
+          return { ...t, receiptUrl: await objectStorage.getEvidenceAccessUrl(t.receiptUrl) };
+        }
+        return t;
+      }),
+    );
+    return res.json(resolved);
+  });
+
+  // ── Pending transactions (未承認) ──────────────────────────────────────────
+
+  // GET /api/finance/pending
+  app.get('/api/finance/pending', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const requested = String(req.query.propertyIds ?? '').split(',').filter(Boolean);
+    let propertyIds: string[];
+    if (actor.role === 'ADMIN') {
+      const all = await store.listProperties();
+      propertyIds = requested.length > 0 ? requested : all.map((p) => p.id);
+    } else {
+      const allowed = actor.assignedPropertyIds;
+      propertyIds = requested.length > 0 ? requested.filter((id) => allowed.includes(id)) : allowed;
+    }
+    const pendings = await store.listPendingTransactions(propertyIds);
+    const resolved = await Promise.all(
+      pendings.map(async (p) => ({
+        ...p,
+        receiptUrl: p.gcsPath.startsWith('gcs://')
+          ? await objectStorage.getEvidenceAccessUrl(p.gcsPath)
+          : p.gcsPath,
+      })),
+    );
+    return res.json(resolved);
+  });
+
+  // POST /api/finance/pending/upload-single — OCR + compress + GCS + create record for one image
+  app.post('/api/finance/pending/upload-single', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const { propertyId, imageBase64 } = req.body as { propertyId?: string; imageBase64?: string };
+
+    if (!propertyId || !imageBase64) {
+      return res.status(400).json({ error: 'propertyId and imageBase64 are required.' });
+    }
+    if (actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(propertyId)) {
+      return res.status(403).json({ error: 'Access denied to this property.' });
+    }
+
+    let base64Data = imageBase64;
+    let mimeType = 'image/jpeg';
+    const m = imageBase64.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+    if (m) { mimeType = m[1]; base64Data = m[2]; }
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
+      return res.status(400).json({ error: 'Only JPEG/PNG/WebP images are supported.' });
+    }
+
+    try {
+      // 1. OCR first with raw image (better quality before compression).
+      //    This is the slow step that must run sequentially per image.
+      console.log('[upload-single] running OCR for property:', propertyId);
+      const ocr = await receiptProcessing.processReceipt(base64Data, mimeType);
+      console.log('[upload-single] OCR result:', JSON.stringify(ocr));
+
+      // 2. Create pending record immediately. Use the raw image as a temporary
+      //    data-URI receipt so it previews right away while GCS upload runs in background.
+      const tempDataUri = `data:${mimeType};base64,${base64Data}`;
+      const ocrHasData = !!(ocr.transactionDate || ocr.amount || ocr.vendor || ocr.description);
+      const pending = await store.createPendingTransaction({
+        propertyId,
+        gcsPath: tempDataUri,
+        ocrProcessed: ocrHasData,
+        transactionDate: ocr.transactionDate ?? '',
+        debitAccount: ocr.suggestedDebitAccount ?? '消耗品費',
+        debitAmount: ocr.amount ?? 0,
+        creditAccount: '普通預金',
+        creditAmount: ocr.amount ?? 0,
+        description: ocr.vendor
+          ? `${ocr.vendor}${ocr.description ? ` - ${ocr.description}` : ''}`
+          : (ocr.description ?? ''),
+        vendor: ocr.vendor,
+      }, actor);
+
+      // 3. Respond now — the frontend can move on to the next image's OCR.
+      res.status(201).json({ ...pending, receiptUrl: tempDataUri });
+
+      // 4. Background: compress + upload to GCS, then swap the record's path to the GCS reference.
+      void (async () => {
+        try {
+          const rawBuffer = Buffer.from(base64Data, 'base64');
+          const compressed = await objectStorage.compressReceiptImage(rawBuffer, mimeType);
+          const upload = await objectStorage.uploadReceiptImage({
+            imageBuffer: compressed.buffer, mimeType: compressed.mimeType, propertyId,
+          });
+          await store.updatePendingTransaction(pending.id, { gcsPath: upload.evidenceUrl }, actor);
+          console.log('[upload-single] background GCS upload done:', pending.id, upload.evidenceUrl);
+        } catch (bgErr) {
+          console.error('[upload-single] background GCS upload failed for', pending.id, ':', bgErr);
+        }
+      })();
+    } catch (err) {
+      console.error('[upload-single] error:', err);
+      if (!res.headersSent) res.status(500).json({ error: 'Failed to process image.' });
+    }
+  });
+
+  // POST /api/finance/pending/batch-upload — upload multiple images, create pending records (no OCR yet)
+  app.post('/api/finance/pending/batch-upload', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const { propertyId, images } = req.body as { propertyId?: string; images?: string[] };
+
+    if (!propertyId || !Array.isArray(images) || images.length === 0) {
+      return res.status(400).json({ error: 'propertyId and images[] are required.' });
+    }
+    if (actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(propertyId)) {
+      return res.status(403).json({ error: 'Access denied to this property.' });
+    }
+    if (images.length > 30) {
+      return res.status(400).json({ error: 'Maximum 30 images per batch.' });
+    }
+
+    const results: { id: string; gcsPath: string }[] = [];
+    for (const imageBase64 of images) {
+      let base64Data = imageBase64;
+      let mimeType = 'image/jpeg';
+      const m = imageBase64.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+      if (m) { mimeType = m[1]; base64Data = m[2]; }
+
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) continue;
+
+      try {
+        const rawBuffer = Buffer.from(base64Data, 'base64');
+        const compressed = await objectStorage.compressReceiptImage(rawBuffer, mimeType);
+        const upload = await objectStorage.uploadReceiptImage({
+          imageBuffer: compressed.buffer, mimeType: compressed.mimeType, propertyId,
+        });
+        const pending = await store.createPendingTransaction({ propertyId, gcsPath: upload.evidenceUrl }, actor);
+        results.push({ id: pending.id, gcsPath: upload.evidenceUrl });
+      } catch (err) {
+        console.error('[batch-upload] image error:', err);
+      }
+    }
+
+    return res.status(201).json({ uploaded: results.length, items: results });
+  });
+
+  // POST /api/finance/pending/process-ocr — run OCR on all unprocessed pending for a property
+  app.post('/api/finance/pending/process-ocr', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const { propertyId } = req.body as { propertyId?: string };
+
+    if (!propertyId) return res.status(400).json({ error: 'propertyId is required.' });
+    if (actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(propertyId)) {
+      return res.status(403).json({ error: 'Access denied to this property.' });
+    }
+
+    const allPending = await store.listPendingTransactions([propertyId]);
+    const unprocessed = allPending.filter((p) => !p.ocrProcessed);
+    const processed: string[] = [];
+
+    for (const pending of unprocessed) {
+      try {
+        console.log('[process-ocr] processing pending:', pending.id, 'gcsPath:', pending.gcsPath);
+        const signedUrl = await objectStorage.getEvidenceAccessUrl(pending.gcsPath);
+        console.log('[process-ocr] signedUrl prefix:', signedUrl.slice(0, 60));
+        // Fetch image from GCS signed URL for OCR
+        const imgRes = await fetch(signedUrl);
+        console.log('[process-ocr] fetch status:', imgRes.status);
+        if (!imgRes.ok) { console.error('[process-ocr] fetch failed:', imgRes.status, imgRes.statusText); continue; }
+        const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+        console.log('[process-ocr] image bytes:', imgBuffer.length);
+        const ocr = await receiptProcessing.processReceipt(imgBuffer.toString('base64'), 'image/jpeg');
+        console.log('[process-ocr] OCR result:', JSON.stringify(ocr));
+
+        // Only mark as processed if OCR returned at least one meaningful field
+        const ocrHasData = ocr.transactionDate || ocr.amount || ocr.vendor || ocr.description;
+        if (!ocrHasData) { console.warn('[process-ocr] OCR returned no data, skipping'); continue; }
+
+        await store.updatePendingTransaction(pending.id, {
+          ocrProcessed: true,
+          transactionDate: ocr.transactionDate ?? '',
+          debitAccount: ocr.suggestedDebitAccount ?? '消耗品費',
+          debitAmount: ocr.amount ?? 0,
+          creditAccount: '普通預金',
+          creditAmount: ocr.amount ?? 0,
+          description: ocr.vendor
+            ? `${ocr.vendor}${ocr.description ? ` - ${ocr.description}` : ''}`
+            : (ocr.description ?? ''),
+          vendor: ocr.vendor,
+        }, actor);
+        processed.push(pending.id);
+      } catch (err) {
+        console.error('[process-ocr] error for pending', pending.id, ':', err);
+      }
+    }
+
+    return res.json({ processed: processed.length, total: unprocessed.length });
+  });
+
+  // PUT /api/finance/pending/:id — update pending transaction
+  app.put('/api/finance/pending/:id', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const { id } = req.params as { id: string };
+    const { transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, vendor } = req.body;
+    const txn = await store.updatePendingTransaction(id, {
+      ...(transactionDate !== undefined && { transactionDate }),
+      ...(debitAccount !== undefined && { debitAccount }),
+      ...(debitAmount !== undefined && { debitAmount: Number(debitAmount) }),
+      ...(creditAccount !== undefined && { creditAccount }),
+      ...(creditAmount !== undefined && { creditAmount: Number(creditAmount) }),
+      ...(description !== undefined && { description }),
+      ...(vendor !== undefined && { vendor }),
+    }, actor);
+    return res.json(txn);
+  });
+
+  // POST /api/finance/pending/:id/approve — approve single pending → moves to journal
+  app.post('/api/finance/pending/:id/approve', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const { id } = req.params as { id: string };
+    const txn = await store.approvePendingTransaction(id, actor);
+    return res.status(201).json(txn);
+  });
+
+  // DELETE /api/finance/pending/:id
+  app.delete('/api/finance/pending/:id', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const { id } = req.params as { id: string };
+    const deleted = await store.deletePendingTransaction(id, actor);
+    // Also remove the receipt image from object storage (best-effort).
+    if (deleted?.gcsPath) {
+      objectStorage.deleteEvidenceObject(deleted.gcsPath).catch((err) => {
+        console.error('[delete-pending] failed to delete receipt object:', err);
+      });
+    }
+    return res.status(204).end();
+  });
+
+  // POST /api/finance/receipts/upload — compress, OCR, and store receipt image
+  app.post('/api/finance/receipts/upload', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const { imageBase64, propertyId } = req.body as { imageBase64?: string; propertyId?: string };
+
+    if (!imageBase64 || !propertyId) {
+      return res.status(400).json({ error: 'imageBase64 and propertyId are required.' });
+    }
+    if (actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(propertyId)) {
+      return res.status(403).json({ error: 'Access denied to this property.' });
+    }
+
+    // Parse data URI or raw base64
+    let base64Data = imageBase64;
+    let mimeType = 'image/jpeg';
+    const dataUriMatch = imageBase64.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+    if (dataUriMatch) {
+      mimeType = dataUriMatch[1];
+      base64Data = dataUriMatch[2];
+    }
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
+      return res.status(400).json({ error: 'Only JPEG/PNG/WebP images are supported.' });
+    }
+
+    let rawBuffer: Buffer;
+    try {
+      rawBuffer = Buffer.from(base64Data, 'base64');
+    } catch {
+      return res.status(400).json({ error: 'Invalid base64 image.' });
+    }
+
+    // Compress to <100KB
+    let compressed: { buffer: Buffer; mimeType: string };
+    try {
+      compressed = await objectStorage.compressReceiptImage(rawBuffer, mimeType);
+    } catch {
+      return res.status(400).json({ error: 'Could not process image.' });
+    }
+
+    // Run OCR and upload in parallel
+    const [ocr, upload] = await Promise.all([
+      receiptProcessing.processReceipt(compressed.buffer.toString('base64'), compressed.mimeType),
+      objectStorage.uploadReceiptImage({ imageBuffer: compressed.buffer, mimeType: compressed.mimeType, propertyId }),
+    ]);
+
+    // Resolve GCS path to a signed URL for immediate use
+    const receiptUrl = await objectStorage.getEvidenceAccessUrl(upload.evidenceUrl);
+
+    return res.status(201).json({
+      receiptUrl,
+      gcsPath: upload.evidenceUrl,
+      sizeBytes: upload.sizeBytes,
+      ocr,
+    });
+  });
+
+  // POST /api/finance/transactions — create single transaction
+  app.post('/api/finance/transactions', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const { propertyId, transactionNo, transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, receiptUrl } = req.body;
+
+    if (!propertyId || !transactionDate) {
+      return res.status(400).json({ error: 'propertyId and transactionDate are required.' });
+    }
+    if (actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(propertyId)) {
+      return res.status(403).json({ error: 'Access denied to this property.' });
+    }
+
+    const txn = await store.createFinancialTransaction({
+      propertyId,
+      transactionNo: transactionNo ?? '',
+      transactionDate,
+      debitAccount: debitAccount ?? '',
+      debitAmount: Number(debitAmount ?? 0),
+      creditAccount: creditAccount ?? '',
+      creditAmount: Number(creditAmount ?? 0),
+      description: description ?? '',
+      receiptUrl: objectStorage.toStorageReference(receiptUrl ?? undefined),
+    }, actor);
+    return res.status(201).json(txn);
+  });
+
+  // PUT /api/finance/transactions/:id — update transaction
+  app.put('/api/finance/transactions/:id', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const id = req.params.id as string;
+    const { transactionNo, transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, receiptUrl } = req.body;
+
+    const txn = await store.updateFinancialTransaction(id, {
+      ...(transactionNo !== undefined && { transactionNo }),
+      ...(transactionDate !== undefined && { transactionDate }),
+      ...(debitAccount !== undefined && { debitAccount }),
+      ...(debitAmount !== undefined && { debitAmount: Number(debitAmount) }),
+      ...(creditAccount !== undefined && { creditAccount }),
+      ...(creditAmount !== undefined && { creditAmount: Number(creditAmount) }),
+      ...(description !== undefined && { description }),
+      ...(receiptUrl !== undefined && { receiptUrl: objectStorage.toStorageReference(receiptUrl) }),
+    }, actor);
+    return res.json(txn);
+  });
+
+  // DELETE /api/finance/transactions/:id
+  app.delete('/api/finance/transactions/:id', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const deleted = await store.deleteFinancialTransaction(req.params.id as string, actor);
+    // Also remove the receipt image from object storage (best-effort).
+    if (deleted?.receiptUrl) {
+      objectStorage.deleteEvidenceObject(deleted.receiptUrl).catch((err) => {
+        console.error('[delete-transaction] failed to delete receipt object:', err);
+      });
+    }
+    return res.status(204).end();
+  });
+
+  // POST /api/finance/transactions/bulk-import — import CSV rows
+  app.post('/api/finance/transactions/bulk-import', requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const { propertyId, transactions } = req.body;
+
+    if (!propertyId || !Array.isArray(transactions)) {
+      return res.status(400).json({ error: 'propertyId and transactions[] are required.' });
+    }
+    if (actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(propertyId)) {
+      return res.status(403).json({ error: 'Access denied to this property.' });
+    }
+
+    const results = await store.bulkImportFinancialTransactions(propertyId, transactions, actor);
+    return res.status(201).json({ imported: results.length, transactions: results });
   });
 
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {

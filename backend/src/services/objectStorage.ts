@@ -34,6 +34,25 @@ function parseGcsReference(value: string): { bucketName: string; objectName: str
   return { bucketName, objectName };
 }
 
+// Parse a signed/public GCS URL like https://storage.googleapis.com/{bucket}/{object}?X-Goog-...
+function parseSignedGcsUrl(value: string): { bucketName: string; objectName: string } | null {
+  const m = value.match(/^https?:\/\/storage\.googleapis\.com\/([^/]+)\/(.+?)(?:\?|#|$)/i);
+  if (!m) {
+    return null;
+  }
+  const bucketName = m[1].trim();
+  const objectName = decodeURIComponent(m[2]).trim();
+  if (!bucketName || !objectName) {
+    return null;
+  }
+  return { bucketName, objectName };
+}
+
+// Resolve any stored receipt reference (gcs:// path or signed URL) to a bucket+object.
+function resolveGcsTarget(value: string): { bucketName: string; objectName: string } | null {
+  return parseGcsReference(value) ?? parseSignedGcsUrl(value);
+}
+
 export class ObjectStorageService {
   private readonly bucketName = process.env.GCS_BUCKET ?? '';
   private readonly projectId = process.env.GCP_PROJECT_ID;
@@ -81,6 +100,59 @@ export class ObjectStorageService {
     return {
       buffer: compressed,
       mimeType: 'image/jpeg',
+    };
+  }
+
+  async compressReceiptImage(buffer: Buffer, mimeType: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    if (!MIME_ALLOWLIST.has(mimeType)) {
+      throw new Error('Only JPEG/PNG/WebP images are allowed.');
+    }
+
+    const TARGET_BYTES = 100 * 1024; // 100 KB
+    let quality = 82;
+    let compressed: Buffer;
+
+    do {
+      compressed = await sharp(buffer)
+        .rotate()
+        .resize({ width: 1400, height: 1400, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality, mozjpeg: true })
+        .toBuffer();
+      quality -= 10;
+    } while (compressed.length > TARGET_BYTES && quality > 10);
+
+    return { buffer: compressed, mimeType: 'image/jpeg' };
+  }
+
+  async uploadReceiptImage(params: {
+    imageBuffer: Buffer;
+    mimeType: string;
+    propertyId: string;
+  }): Promise<UploadResult> {
+    const safeProperty = toSafeSegment(params.propertyId);
+    const objectName = `receipts/${safeProperty}/${Date.now()}.jpg`;
+
+    if (!this.storage || !this.bucketName) {
+      return {
+        evidenceUrl: `data:${params.mimeType};base64,${params.imageBuffer.toString('base64')}`,
+        mimeType: params.mimeType,
+        sizeBytes: params.imageBuffer.length,
+      };
+    }
+
+    const bucket = this.storage.bucket(this.bucketName);
+    const file = bucket.file(objectName);
+
+    await file.save(params.imageBuffer, {
+      contentType: params.mimeType,
+      resumable: false,
+      metadata: { cacheControl: 'private, max-age=0, no-store' },
+    });
+
+    return {
+      evidenceUrl: `gcs://${this.bucketName}/${objectName}`,
+      mimeType: params.mimeType,
+      sizeBytes: params.imageBuffer.length,
     };
   }
 
@@ -142,12 +214,22 @@ export class ObjectStorageService {
     return signedUrl;
   }
 
+  // Normalize a receipt reference to a canonical gcs:// path before persisting,
+  // so a (temporary) signed URL coming back from the client never overwrites storage.
+  toStorageReference(value?: string): string | undefined {
+    if (!value) return value;
+    const signed = parseSignedGcsUrl(value);
+    if (signed) return `gcs://${signed.bucketName}/${signed.objectName}`;
+    return value;
+  }
+
   async deleteEvidenceObject(evidenceUrl: string): Promise<void> {
     if (!evidenceUrl || evidenceUrl.startsWith('data:')) {
       return;
     }
 
-    const reference = parseGcsReference(evidenceUrl);
+    // Accept both gcs:// paths and signed storage.googleapis.com URLs.
+    const reference = resolveGcsTarget(evidenceUrl);
     if (!reference || !this.storage) {
       return;
     }

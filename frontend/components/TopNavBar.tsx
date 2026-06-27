@@ -319,6 +319,14 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
                         {t('common_admin_checkin')}
                       </button>
                     )}
+                    {canManageProperties && (
+                      <button
+                        onClick={() => { setIsDropdownOpen(false); navigate('/admin/finance'); }}
+                        className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
+                      >
+                        Finance
+                      </button>
+                    )}
                     {canManageBlog && (
                       <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/blog/admin'); }}

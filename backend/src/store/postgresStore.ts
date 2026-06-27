@@ -8,6 +8,8 @@ import {
   CheckInSubmission,
   CheckInSubmissionInput,
   DataStore,
+  FinancialTransaction,
+  FinancialTransactionInput,
   PropertyData,
   SiteSettings,
   StoredUser,
@@ -99,6 +101,23 @@ export class PostgresStore implements DataStore {
 
       CREATE INDEX IF NOT EXISTS idx_checkin_submissions_created_at
       ON checkin_submissions(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS financial_transactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        transaction_no TEXT NOT NULL DEFAULT '',
+        transaction_date DATE NOT NULL,
+        debit_account TEXT NOT NULL DEFAULT '',
+        debit_amount INTEGER NOT NULL DEFAULT 0,
+        credit_account TEXT NOT NULL DEFAULT '',
+        credit_amount INTEGER NOT NULL DEFAULT 0,
+        description TEXT NOT NULL DEFAULT '',
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_financial_transactions_property_date
+      ON financial_transactions(property_id, transaction_date);
     `);
 
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT');
@@ -721,5 +740,115 @@ export class PostgresStore implements DataStore {
       'INSERT INTO audit_logs (actor_user_id, action, target_type, target_id) VALUES ($1, $2, $3, $4)',
       [actorUserId, action, targetType, targetId],
     );
+  }
+
+  private mapFinancialTransaction(row: {
+    id: string;
+    property_id: string;
+    transaction_no: string;
+    transaction_date: string;
+    debit_account: string;
+    debit_amount: number;
+    credit_account: string;
+    credit_amount: number;
+    description: string;
+    created_at: number;
+    updated_at: number;
+  }): FinancialTransaction {
+    return {
+      id: row.id,
+      propertyId: row.property_id,
+      transactionNo: row.transaction_no,
+      transactionDate: typeof row.transaction_date === 'string'
+        ? row.transaction_date.slice(0, 10)
+        : new Date(row.transaction_date).toISOString().slice(0, 10),
+      debitAccount: row.debit_account,
+      debitAmount: Number(row.debit_amount),
+      creditAccount: row.credit_account,
+      creditAmount: Number(row.credit_amount),
+      description: row.description,
+      createdAt: Number(row.created_at),
+      updatedAt: Number(row.updated_at),
+    };
+  }
+
+  async listFinancialTransactions(propertyIds: string[], year?: number): Promise<FinancialTransaction[]> {
+    if (propertyIds.length === 0) return [];
+    const queryParams: (string[] | number)[] = [propertyIds];
+    let sql = `SELECT * FROM financial_transactions WHERE property_id = ANY($1::text[])`;
+    if (year) {
+      queryParams.push(year);
+      sql += ` AND EXTRACT(YEAR FROM transaction_date) = $${queryParams.length}`;
+    }
+    sql += ' ORDER BY transaction_date ASC, transaction_no ASC';
+    const result = await this.pool.query(sql, queryParams);
+    return result.rows.map((row: Parameters<typeof this.mapFinancialTransaction>[0]) => this.mapFinancialTransaction(row));
+  }
+
+  async createFinancialTransaction(input: FinancialTransactionInput, actor: AuthUser): Promise<FinancialTransaction> {
+    const now = Date.now();
+    const result = await this.pool.query(
+      `INSERT INTO financial_transactions
+        (property_id, transaction_no, transaction_date, debit_account, debit_amount, credit_account, credit_amount, description, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [input.propertyId, input.transactionNo, input.transactionDate, input.debitAccount, input.debitAmount,
+       input.creditAccount, input.creditAmount, input.description, now, now],
+    );
+    await this.writeAudit(actor.id, 'CREATE_FINANCE_TXN', 'financial_transaction', result.rows[0].id);
+    return this.mapFinancialTransaction(result.rows[0]);
+  }
+
+  async updateFinancialTransaction(id: string, input: Partial<FinancialTransactionInput>, actor: AuthUser): Promise<FinancialTransaction> {
+    const now = Date.now();
+    const sets: string[] = ['updated_at = $2'];
+    const params: (string | number)[] = [id, now];
+    const fields: [keyof FinancialTransactionInput, string][] = [
+      ['transactionNo', 'transaction_no'],
+      ['transactionDate', 'transaction_date'],
+      ['debitAccount', 'debit_account'],
+      ['debitAmount', 'debit_amount'],
+      ['creditAccount', 'credit_account'],
+      ['creditAmount', 'credit_amount'],
+      ['description', 'description'],
+    ];
+    for (const [key, col] of fields) {
+      if (input[key] !== undefined) {
+        params.push(input[key] as string | number);
+        sets.push(`${col} = $${params.length}`);
+      }
+    }
+    const result = await this.pool.query(
+      `UPDATE financial_transactions SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+      params,
+    );
+    if (result.rows.length === 0) throw new Error('Transaction not found');
+    await this.writeAudit(actor.id, 'UPDATE_FINANCE_TXN', 'financial_transaction', id);
+    return this.mapFinancialTransaction(result.rows[0]);
+  }
+
+  async deleteFinancialTransaction(id: string, actor: AuthUser): Promise<FinancialTransaction | null> {
+    const result = await this.pool.query('DELETE FROM financial_transactions WHERE id = $1 RETURNING *', [id]);
+    await this.writeAudit(actor.id, 'DELETE_FINANCE_TXN', 'financial_transaction', id);
+    return result.rows[0] ? this.mapFinancialTransaction(result.rows[0]) : null;
+  }
+
+  async bulkImportFinancialTransactions(propertyId: string, transactions: FinancialTransactionInput[], actor: AuthUser): Promise<FinancialTransaction[]> {
+    if (transactions.length === 0) return [];
+    const now = Date.now();
+    const results: FinancialTransaction[] = [];
+    for (const input of transactions) {
+      const result = await this.pool.query(
+        `INSERT INTO financial_transactions
+          (property_id, transaction_no, transaction_date, debit_account, debit_amount, credit_account, credit_amount, description, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING *`,
+        [propertyId, input.transactionNo, input.transactionDate, input.debitAccount, input.debitAmount,
+         input.creditAccount, input.creditAmount, input.description, now, now],
+      );
+      results.push(this.mapFinancialTransaction(result.rows[0]));
+    }
+    await this.writeAudit(actor.id, 'BULK_IMPORT_FINANCE', 'financial_transaction', propertyId);
+    return results;
   }
 }
