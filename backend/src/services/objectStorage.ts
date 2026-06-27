@@ -55,9 +55,11 @@ function resolveGcsTarget(value: string): { bucketName: string; objectName: stri
 
 export class ObjectStorageService {
   private readonly bucketName = process.env.GCS_BUCKET ?? '';
+  // Receipts may live in a dedicated bucket; fall back to the shared bucket.
+  private readonly receiptBucketName = process.env.GCS_RECEIPT_BUCKET || process.env.GCS_BUCKET || '';
   private readonly projectId = process.env.GCP_PROJECT_ID;
   private readonly prefix = process.env.GCS_PREFIX ?? 'checkins';
-  private readonly storage = this.bucketName
+  private readonly storage = (this.bucketName || this.receiptBucketName)
     ? new Storage({ projectId: this.projectId || undefined, ...ObjectStorageService.credentialsOption() })
     : null;
 
@@ -132,7 +134,7 @@ export class ObjectStorageService {
     const safeProperty = toSafeSegment(params.propertyId);
     const objectName = `receipts/${safeProperty}/${Date.now()}.jpg`;
 
-    if (!this.storage || !this.bucketName) {
+    if (!this.storage || !this.receiptBucketName) {
       return {
         evidenceUrl: `data:${params.mimeType};base64,${params.imageBuffer.toString('base64')}`,
         mimeType: params.mimeType,
@@ -140,7 +142,7 @@ export class ObjectStorageService {
       };
     }
 
-    const bucket = this.storage.bucket(this.bucketName);
+    const bucket = this.storage.bucket(this.receiptBucketName);
     const file = bucket.file(objectName);
 
     await file.save(params.imageBuffer, {
@@ -150,7 +152,9 @@ export class ObjectStorageService {
     });
 
     return {
-      evidenceUrl: `gcs://${this.bucketName}/${objectName}`,
+      // Bucket name is embedded in the path, so signed-URL and delete operations
+      // automatically target the receipt bucket.
+      evidenceUrl: `gcs://${this.receiptBucketName}/${objectName}`,
       mimeType: params.mimeType,
       sizeBytes: params.imageBuffer.length,
     };
