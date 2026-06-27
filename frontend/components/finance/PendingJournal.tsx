@@ -58,6 +58,11 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
   const [editDraft, setEditDraft] = useState<Partial<PendingTransaction>>({});
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
+  // Bulk selection (delete / change property)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkTargetProp, setBulkTargetProp] = useState('');
+  const [isBulkBusy, setIsBulkBusy] = useState(false);
+
   // Pending list aggregates ALL selected properties; uploads target ONE chosen property.
   const loadIds = (selectedPropertyIds?.length ? selectedPropertyIds : [propertyId]).filter(Boolean);
   const loadIdsKey = loadIds.join(',');
@@ -184,6 +189,46 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
   const formatCurrency = (v: number) =>
     new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(v);
 
+  // ── Bulk selection helpers ────────────────────────────────────────────
+  const allSelected = items.length > 0 && items.every(i => selectedIds.has(i.id));
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => setSelectedIds(allSelected ? new Set() : new Set(items.map(i => i.id)));
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!window.confirm(`${ids.length} 件を削除しますか？`)) return;
+    setIsBulkBusy(true);
+    try {
+      for (const id of ids) await financeApi.deletePendingTransaction(id);
+      setItems(prev => prev.filter(i => !selectedIds.has(i.id)));
+      clearSelection();
+    } catch { alert('一括削除に失敗しました。'); }
+    finally { setIsBulkBusy(false); }
+  };
+
+  const handleBulkChangeProperty = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0 || !bulkTargetProp) return;
+    const propName = propertyNameById[bulkTargetProp] || bulkTargetProp;
+    if (!window.confirm(`${ids.length} 件を「${propName}」に変更しますか？`)) return;
+    setIsBulkBusy(true);
+    try {
+      for (const id of ids) await financeApi.updatePendingTransaction(id, { propertyId: bulkTargetProp });
+      clearSelection();
+      setBulkTargetProp('');
+      await load();
+    } catch { alert('プロパティ変更に失敗しました。'); }
+    finally { setIsBulkBusy(false); }
+  };
+
   const isProcessing = processingProgress !== null;
   const readyToApprove = items.filter(i => i.ocrProcessed && i.debitAmount > 0 && !stillUploading(i)).length;
 
@@ -261,13 +306,53 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="hidden lg:flex items-center gap-3 mb-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl no-print">
+          <span className="text-xs font-bold text-blue-900 whitespace-nowrap">{selectedIds.size} 件選択中</span>
+          <div className="flex items-center gap-1.5">
+            <select
+              value={bulkTargetProp}
+              onChange={e => setBulkTargetProp(e.target.value)}
+              disabled={isBulkBusy}
+              className="px-2 py-1.5 bg-white border border-[#ccc9ca] rounded-lg text-xs text-[#44474c] outline-none focus:ring-1 focus:ring-blue-400"
+            >
+              <option value="">プロパティを選択...</option>
+              {allProperties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <button
+              onClick={handleBulkChangeProperty}
+              disabled={isBulkBusy || !bulkTargetProp}
+              className="flex items-center gap-1 px-3 py-1.5 bg-white border border-[#ccc9ca] text-[#44474c] rounded-lg text-xs font-bold hover:bg-[#f5f3f4] disabled:opacity-40"
+            >
+              {isBulkBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Building className="w-3.5 h-3.5" />}
+              プロパティ変更
+            </button>
+          </div>
+          <button
+            onClick={handleBulkDelete}
+            disabled={isBulkBusy}
+            className="flex items-center gap-1 px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 disabled:opacity-50"
+          >
+            <Trash2 className="w-3.5 h-3.5" />削除
+          </button>
+          <button onClick={clearSelection} disabled={isBulkBusy} className="ml-auto text-xs font-bold text-[#74777d] hover:text-[#1b1c1d] px-2 py-1.5">
+            選択解除
+          </button>
+        </div>
+      )}
+
       {/* Desktop table — table-fixed + overflow-hidden so it always fits without horizontal scroll */}
       <div className="hidden lg:block w-full overflow-hidden rounded-xl border border-[#8f8d8e]">
         <table className="w-full text-[11px] border-collapse font-sans table-fixed">
           <thead>
             <tr className="bg-[#f5f3f4] text-center text-[#44474c]">
+              <th className="py-2 px-1 text-center w-[36px] border border-[#8f8d8e] no-print">
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                  className="w-3.5 h-3.5 accent-blue-600 cursor-pointer align-middle" title="全選択" />
+              </th>
               <th className="py-2 px-2 font-bold border border-[#8f8d8e] text-center w-[72px]">状態</th>
-              {isMultiProperty && <th className="py-2 px-2 font-bold border border-[#8f8d8e] text-center w-[110px]">プロパティ名</th>}
+              <th className="py-2 px-2 font-bold border border-[#8f8d8e] text-center w-[110px]">プロパティ名</th>
               <th className="py-2 px-2 font-bold border border-[#8f8d8e] text-center w-[84px]">取引日</th>
               <th className="py-2 px-2 font-bold border border-[#8f8d8e] text-center w-[16%]">借方勘定科目</th>
               <th className="py-2 px-2 font-bold border border-[#8f8d8e] text-center w-[11%]">借方金額(円)</th>
@@ -282,7 +367,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
               {/* Empty state — drop zone inside the table */}
               {items.length === 0 && !isLoading && !isProcessing && (
                 <tr>
-                  <td colSpan={isMultiProperty ? 10 : 9} className="p-0">
+                  <td colSpan={11} className="p-0">
                     <div
                       className="py-12 flex flex-col items-center gap-4 text-center cursor-pointer hover:bg-blue-50/30 transition-colors"
                       onClick={() => fileInputRef.current?.click()}
@@ -304,7 +389,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
               {/* Loading state */}
               {items.length === 0 && isLoading && (
                 <tr>
-                  <td colSpan={isMultiProperty ? 10 : 9} className="py-16 text-center text-[#74777d]">
+                  <td colSpan={11} className="py-16 text-center text-[#74777d]">
                     <Loader2 className="w-6 h-6 animate-spin inline-block" />
                   </td>
                 </tr>
@@ -314,7 +399,12 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                 const isEditing = editingId === item.id;
                 const rowClass = idx % 2 === 0 ? 'bg-white' : 'bg-[#f5f3f4]/20';
                 return (
-                  <tr key={item.id} className={`group hover:bg-amber-50/30 transition-colors ${rowClass}`}>
+                  <tr key={item.id} className={`group transition-colors ${selectedIds.has(item.id) ? 'bg-blue-50/60' : `${rowClass} hover:bg-amber-50/30`}`}>
+                    {/* select */}
+                    <td className="py-1.5 px-1 text-center border border-[#8f8d8e] no-print">
+                      <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)}
+                        className="w-3.5 h-3.5 accent-blue-600 cursor-pointer align-middle" />
+                    </td>
                     {/* 状態 */}
                     <td className="py-1.5 px-2 border border-[#8f8d8e]">
                       {stillUploading(item) ? (
@@ -332,14 +422,12 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                       )}
                     </td>
 
-                    {/* 物件 */}
-                    {isMultiProperty && (
-                      <td className="py-1.5 px-2 border border-[#8f8d8e] break-words">
-                        <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold">
-                          {propertyNameById[item.propertyId] || item.propertyId}
-                        </span>
-                      </td>
-                    )}
+                    {/* プロパティ名 */}
+                    <td className="py-1.5 px-2 border border-[#8f8d8e] break-words">
+                      <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold">
+                        {propertyNameById[item.propertyId] || item.propertyId}
+                      </span>
+                    </td>
 
                     {/* 取引日 */}
                     <td className="py-1.5 px-2 border border-[#8f8d8e] font-mono whitespace-nowrap">
@@ -459,7 +547,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
               {/* Inline processing row */}
               {isProcessing && (
                 <tr className="bg-blue-50/30">
-                  <td colSpan={isMultiProperty ? 10 : 9} className="py-3 px-4">
+                  <td colSpan={11} className="py-3 px-4">
                     <div className="flex items-center gap-2 text-blue-600 text-xs">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       AIが読み取り中... ({processingProgress!.done + 1}/{processingProgress!.total})
@@ -541,9 +629,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                     ) : (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 text-gray-500 border border-gray-200 rounded-full text-[10px] font-bold"><Eye className="w-2.5 h-2.5" />未読取</span>
                     )}
-                    {isMultiProperty && (
-                      <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-bold truncate max-w-[80px]">{propertyNameById[item.propertyId] || item.propertyId}</span>
-                    )}
+                    <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-bold truncate max-w-[80px]">{propertyNameById[item.propertyId] || item.propertyId}</span>
                     <span className="text-[10px] font-mono text-[#74777d]">{item.transactionDate || '—'}</span>
                   </div>
                   <p className="text-xs font-bold text-[#1b1c1d] truncate">{item.vendor || item.description || '(摘要なし)'}</p>

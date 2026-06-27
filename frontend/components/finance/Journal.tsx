@@ -5,7 +5,7 @@ import {
   Search, ChevronLeft, ChevronRight, FileImage, X, ExternalLink, Plus, Edit2, Trash2, Save,
   Loader2, Image as ImageIcon, Eye, AlertCircle, Filter, TrendingUp, TrendingDown,
   ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, CalendarRange, Upload, CheckCircle2,
-  FileText
+  FileText, Building
 } from 'lucide-react';
 import { extractUrl, ACCOUNT_TYPE_MAP, processFinancials } from '../../utils/accountingUtils';
 import { financeApi, TransactionInput, ReceiptOcrResult } from '../../services/finance';
@@ -73,6 +73,11 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
   const receiptInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
   const [receiptOcr, setReceiptOcr] = useState<ReceiptOcrResult | null>(null);
+
+  // Bulk selection (delete / change property)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkTargetProp, setBulkTargetProp] = useState('');
+  const [isBulkBusy, setIsBulkBusy] = useState(false);
 
   const itemsPerPage = 50;
 
@@ -162,6 +167,52 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
     const start = (currentPage - 1) * itemsPerPage;
     return filteredEntries.slice(start, start + itemsPerPage);
   }, [filteredEntries, currentPage, itemsPerPage, showAllForPrint]);
+
+  // ── Bulk selection helpers ────────────────────────────────────────────
+  const entryDbId = (entry: JournalEntry) => entry.rawData['_id'] || '';
+  const selectableIds = filteredEntries.map(entryDbId).filter(Boolean);
+  const allSelected = selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id));
+
+  const toggleSelect = (id: string) => {
+    if (!id) return;
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(selectableIds));
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!window.confirm(`${ids.length} 件を削除しますか？この操作は元に戻せません。`)) return;
+    setIsBulkBusy(true);
+    try {
+      for (const id of ids) await financeApi.deleteTransaction(id);
+      clearSelection();
+      onRefresh?.();
+    } catch { alert('一括削除に失敗しました。'); }
+    finally { setIsBulkBusy(false); }
+  };
+
+  const handleBulkChangeProperty = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0 || !bulkTargetProp) return;
+    const propName = allProperties?.find(p => p.id === bulkTargetProp)?.name || bulkTargetProp;
+    if (!window.confirm(`${ids.length} 件を「${propName}」に変更しますか？`)) return;
+    setIsBulkBusy(true);
+    try {
+      for (const id of ids) await financeApi.updateTransaction(id, { propertyId: bulkTargetProp });
+      clearSelection();
+      setBulkTargetProp('');
+      onRefresh?.();
+    } catch { alert('プロパティ変更に失敗しました。'); }
+    finally { setIsBulkBusy(false); }
+  };
 
   const getEmbedUrl = (url: string | null) => {
     if (!url) return null;
@@ -531,7 +582,7 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
               <div onClick={() => openEditModal(entry)} className="flex-1 min-w-0 grid gap-0.5 cursor-pointer">
                 <div className="flex items-center gap-2">
                   {entry.isUnbalanced && <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />}
-                  {isMultiProperty && entry.rawData?.['プロパティ名'] && (
+                  {entry.rawData?.['プロパティ名'] && (
                     <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-bold truncate max-w-[90px] shrink-0">{entry.rawData['プロパティ名']}</span>
                   )}
                   <p className="text-xs font-bold text-[#1b1c1d] truncate">{entry.description || "(摘要なし)"}</p>
@@ -553,11 +604,51 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
         })}
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="hidden lg:flex items-center gap-3 mb-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl no-print">
+          <span className="text-xs font-bold text-blue-900 whitespace-nowrap">{selectedIds.size} 件選択中</span>
+          <div className="flex items-center gap-1.5">
+            <select
+              value={bulkTargetProp}
+              onChange={e => setBulkTargetProp(e.target.value)}
+              disabled={isBulkBusy}
+              className="px-2 py-1.5 bg-white border border-[#ccc9ca] rounded-lg text-xs text-[#44474c] outline-none focus:ring-1 focus:ring-blue-400"
+            >
+              <option value="">プロパティを選択...</option>
+              {(allProperties ?? []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <button
+              onClick={handleBulkChangeProperty}
+              disabled={isBulkBusy || !bulkTargetProp}
+              className="flex items-center gap-1 px-3 py-1.5 bg-white border border-[#ccc9ca] text-[#44474c] rounded-lg text-xs font-bold hover:bg-[#f5f3f4] disabled:opacity-40"
+            >
+              {isBulkBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Building className="w-3.5 h-3.5" />}
+              プロパティ変更
+            </button>
+          </div>
+          <button
+            onClick={handleBulkDelete}
+            disabled={isBulkBusy}
+            className="flex items-center gap-1 px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 disabled:opacity-50"
+          >
+            <Trash2 className="w-3.5 h-3.5" />削除
+          </button>
+          <button onClick={clearSelection} disabled={isBulkBusy} className="ml-auto text-xs font-bold text-[#74777d] hover:text-[#1b1c1d] px-2 py-1.5">
+            選択解除
+          </button>
+        </div>
+      )}
+
       {/* Desktop table */}
       <div className="hidden lg:block w-full overflow-hidden rounded-xl border border-[#8f8d8e]">
         <table className="w-full text-[11px] border-collapse font-sans table-fixed">
           <thead>
             <tr className="bg-[#f5f3f4] text-[#44474c]">
+              <th className="py-2 px-1 text-center w-[36px] border border-[#8f8d8e] no-print">
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                  className="w-3.5 h-3.5 accent-blue-600 cursor-pointer align-middle" title="全選択" />
+              </th>
               {displayHeaders.map((header, i) => {
                 const isSorted = sortConfig?.key === header;
                 const widthClass = COLUMN_WIDTHS[header] ?? '';
@@ -580,7 +671,11 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
               const isRevenue = ACCOUNT_TYPE_MAP[entry.creditAccount] === AccountType.Revenue;
               const rowClass = entry.isUnbalanced ? "bg-rose-50" : isRevenue ? "bg-green-50/20" : (idx % 2 === 0 ? "bg-white" : "bg-[#f5f3f4]/10");
               return (
-                <tr key={`${entry.id}-${idx}`} className={`transition-colors group hover:bg-[#f5f3f4]/35 ${rowClass}`}>
+                <tr key={`${entry.id}-${idx}`} className={`transition-colors group hover:bg-[#f5f3f4]/35 ${selectedIds.has(entryDbId(entry)) ? 'bg-blue-50/60' : rowClass}`}>
+                  <td className="py-1.5 px-1 text-center border border-[#8f8d8e] no-print">
+                    <input type="checkbox" checked={selectedIds.has(entryDbId(entry))} onChange={() => toggleSelect(entryDbId(entry))}
+                      disabled={!entryDbId(entry)} className="w-3.5 h-3.5 accent-blue-600 cursor-pointer align-middle" />
+                  </td>
                   {displayHeaders.map((header, i) => (
                     <td key={i} className={`py-1.5 px-2 border border-[#8f8d8e] break-words leading-tight ${isNumericColumn(header) ? 'text-right font-mono font-semibold' : 'text-left'}`}>
                       {renderCellContent(header, entry.rawData[header] || "", entry)}

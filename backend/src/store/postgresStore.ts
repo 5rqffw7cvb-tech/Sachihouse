@@ -830,6 +830,7 @@ export class PostgresStore implements DataStore {
     const sets: string[] = ['updated_at = $2'];
     const params: (string | number)[] = [id, now];
     const fields: [keyof FinancialTransactionInput, string][] = [
+      ['propertyId', 'property_id'],
       ['transactionNo', 'transaction_no'],
       ['transactionDate', 'transaction_date'],
       ['debitAccount', 'debit_account'],
@@ -943,6 +944,7 @@ export class PostgresStore implements DataStore {
     const sets: string[] = ['updated_at = $2'];
     const params: (string | number | boolean | null)[] = [id, now];
     const fields: [keyof PendingTransactionInput, string][] = [
+      ['propertyId', 'property_id'],
       ['gcsPath', 'gcs_path'],
       ['ocrProcessed', 'ocr_processed'],
       ['transactionDate', 'transaction_date'],

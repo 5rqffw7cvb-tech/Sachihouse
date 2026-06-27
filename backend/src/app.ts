@@ -1929,8 +1929,12 @@ export function createApp(store: DataStore) {
   app.put('/api/finance/pending/:id', requireHostOrAdmin, async (req, res) => {
     const actor = req.authUser!;
     const { id } = req.params as { id: string };
-    const { transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, vendor } = req.body;
+    const { propertyId, transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, vendor } = req.body;
+    if (propertyId !== undefined && actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(propertyId)) {
+      return res.status(403).json({ error: 'Access denied to the target property.' });
+    }
     const txn = await store.updatePendingTransaction(id, {
+      ...(propertyId !== undefined && { propertyId }),
       ...(transactionDate !== undefined && { transactionDate }),
       ...(debitAccount !== undefined && { debitAccount }),
       ...(debitAmount !== undefined && { debitAmount: Number(debitAmount) }),
@@ -2051,9 +2055,13 @@ export function createApp(store: DataStore) {
   app.put('/api/finance/transactions/:id', requireHostOrAdmin, async (req, res) => {
     const actor = req.authUser!;
     const id = req.params.id as string;
-    const { transactionNo, transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, receiptUrl } = req.body;
+    const { propertyId, transactionNo, transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, receiptUrl } = req.body;
+    if (propertyId !== undefined && actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(propertyId)) {
+      return res.status(403).json({ error: 'Access denied to the target property.' });
+    }
 
     const txn = await store.updateFinancialTransaction(id, {
+      ...(propertyId !== undefined && { propertyId }),
       ...(transactionNo !== undefined && { transactionNo }),
       ...(transactionDate !== undefined && { transactionDate }),
       ...(debitAccount !== undefined && { debitAccount }),

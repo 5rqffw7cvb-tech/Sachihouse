@@ -158,21 +158,18 @@ const FinancePage: React.FC = () => {
 
   const isMultiProperty = selectedPropertyIds.length > 1;
 
-  // When 2+ properties are selected, surface a プロパティ名 column so rows can be told apart.
-  const journalHeaders = useMemo(
-    () => (isMultiProperty ? ['プロパティ名', ...FINANCE_HEADERS] : FINANCE_HEADERS),
-    [isMultiProperty],
-  );
+  // Always surface a プロパティ名 column so rows can be told apart.
+  const journalHeaders = useMemo(() => ['プロパティ名', ...FINANCE_HEADERS], []);
 
   // Dynamically calculate the active report when selected properties change or allTransactions are re-fetched
   useEffect(() => {
     if (allProperties.length > 0) {
       const selectedTx = allTransactions.filter(t => selectedPropertyIds.includes(t.propertyId));
-      const rows = transactionsToCsvRows(selectedTx, isMultiProperty ? propertyNameById : undefined);
+      const rows = transactionsToCsvRows(selectedTx, propertyNameById);
       setRawData(rows);
       setReport(processFinancials(rows, FINANCE_HEADERS, selectedYear));
     }
-  }, [selectedPropertyIds, allTransactions, selectedYear, allProperties, isMultiProperty, propertyNameById]);
+  }, [selectedPropertyIds, allTransactions, selectedYear, allProperties, propertyNameById]);
 
   // Sort properties by revenue descending for the advanced selection list
   const sortedProperties = useMemo(() => {

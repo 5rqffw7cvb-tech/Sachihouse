@@ -548,6 +548,7 @@ export class MemoryStore implements DataStore {
     const updated: FinancialTransaction = {
       ...state.financialTransactions[idx],
       ...Object.fromEntries(Object.entries({
+        propertyId: input.propertyId,
         transactionNo: input.transactionNo,
         transactionDate: input.transactionDate,
         debitAccount: input.debitAccount,
@@ -618,6 +619,7 @@ export class MemoryStore implements DataStore {
       ...state.pendingTransactions[idx],
       ...Object.fromEntries(
         Object.entries({
+          propertyId: input.propertyId,
           gcsPath: input.gcsPath,
           receiptUrl: input.gcsPath,
           transactionDate: input.transactionDate,
