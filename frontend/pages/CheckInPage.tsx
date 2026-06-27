@@ -606,20 +606,22 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         checkinToken,
       });
 
-      // Fix address: replace NA/UNKNOWN/empty with "Capital, Country" from nationality
+      // Address must NEVER be empty. Prefer the AI value; if it is blank/NA/UNKNOWN,
+      // fall back to "Capital, Country" from nationality; as a last resort use UNKNOWN.
       const capitalWithCountry = getCapitalWithCountry(extracted.nationality);
-      const isBlankAddress = !extracted.address || extracted.address === 'NA' || extracted.address.toUpperCase() === 'UNKNOWN';
-      const addressValue = isBlankAddress ? capitalWithCountry : extracted.address;
+      const rawAddress = (extracted.address || '').trim();
+      const isBlankAddress = !rawAddress || rawAddress === 'NA' || rawAddress.toUpperCase() === 'UNKNOWN';
+      const addressValue = (isBlankAddress ? capitalWithCountry : rawAddress) || capitalWithCountry || rawAddress || 'UNKNOWN';
       // Deferred upload: keep the captured image locally as a data URI. It is sent on
       // submit, where the backend compresses (<100KB) and uploads it to the bucket.
-      // Default previous/next location to the guest's address
+      // Previous-stay / next-destination default to the guest's address.
       const enrichedGuest: CheckInGuest = {
         ...extracted,
         evidenceUrl: base64,
         evidenceMimeType: 'image/jpeg',
         address: addressValue,
-        previousLocation: (extracted.previousLocation && extracted.previousLocation.toUpperCase() !== 'UNKNOWN') ? extracted.previousLocation : addressValue,
-        nextLocation: (extracted.nextLocation && extracted.nextLocation.toUpperCase() !== 'UNKNOWN') ? extracted.nextLocation : addressValue,
+        previousLocation: addressValue,
+        nextLocation: addressValue,
       };
 
       const index = guestIndexById[guestId] ?? -1;

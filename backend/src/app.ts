@@ -437,8 +437,9 @@ export function createApp(store: DataStore) {
       estimated,
       confidence,
       contactInfo: normalizeText(row.contactInfo),
-      previousLocation: normalizeText(row.previousLocation),
-      nextLocation: normalizeText(row.nextLocation),
+      // Previous-stay / next-destination default to the resolved address (never empty).
+      previousLocation: normalizeText(row.previousLocation) || address,
+      nextLocation: normalizeText(row.nextLocation) || address,
     };
   }
 
