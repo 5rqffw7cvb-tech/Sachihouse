@@ -153,6 +153,6 @@ export function transactionsToCsvRows(
     '証憑': t.receiptUrl ?? '',
     '_id': t.id,
     '_propertyId': t.propertyId,
-    ...(propertyNameById ? { '物件': propertyNameById[t.propertyId] ?? t.propertyId } : {}),
+    ...(propertyNameById ? { 'プロパティ名': propertyNameById[t.propertyId] ?? t.propertyId } : {}),
   }));
 }

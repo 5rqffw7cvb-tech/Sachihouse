@@ -262,22 +262,22 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
       </div>
 
       {/* Desktop table — table-fixed + overflow-hidden so it always fits without horizontal scroll */}
-      <div className="hidden lg:block w-full overflow-hidden rounded-xl border border-[#e4e2e3]">
-        <table className="w-full text-[11px] border-collapse font-sans table-fixed border border-transparent">
+      <div className="hidden lg:block w-full overflow-hidden rounded-xl border border-[#ccc9ca]">
+        <table className="w-full text-[11px] border-collapse font-sans table-fixed">
           <thead>
-            <tr className="bg-[#f5f3f4] border-b border-[#ccc9ca] text-left text-[#44474c]">
-              <th className="py-2 px-2 font-bold border-r border-[#ccc9ca]/50 w-[72px]">状態</th>
-              {isMultiProperty && <th className="py-2 px-2 font-bold border-r border-[#ccc9ca]/50 w-[110px]">物件</th>}
-              <th className="py-2 px-2 font-bold border-r border-[#ccc9ca]/50 w-[84px]">取引日</th>
-              <th className="py-2 px-2 font-bold border-r border-[#ccc9ca]/50 w-[16%]">借方勘定科目</th>
-              <th className="py-2 px-2 font-bold border-r border-[#ccc9ca]/50 text-right w-[11%]">借方金額(円)</th>
-              <th className="py-2 px-2 font-bold border-r border-[#ccc9ca]/50 w-[16%]">貸方勘定科目</th>
-              <th className="py-2 px-2 font-bold border-r border-[#ccc9ca]/50 text-right w-[11%]">貸方金額(円)</th>
-              <th className="py-2 px-2 font-bold border-r border-[#ccc9ca]/50">摘要</th>
-              <th className="py-2 px-2 text-center w-[104px] sticky right-0 bg-[#f5f3f4] border-l border-[#ccc9ca] z-10 no-print">操作</th>
+            <tr className="bg-[#f5f3f4] text-center text-[#44474c]">
+              <th className="py-2 px-2 font-bold border border-[#ccc9ca] text-center w-[72px]">状態</th>
+              {isMultiProperty && <th className="py-2 px-2 font-bold border border-[#ccc9ca] text-center w-[110px]">プロパティ名</th>}
+              <th className="py-2 px-2 font-bold border border-[#ccc9ca] text-center w-[84px]">取引日</th>
+              <th className="py-2 px-2 font-bold border border-[#ccc9ca] text-center w-[16%]">借方勘定科目</th>
+              <th className="py-2 px-2 font-bold border border-[#ccc9ca] text-center w-[11%]">借方金額(円)</th>
+              <th className="py-2 px-2 font-bold border border-[#ccc9ca] text-center w-[16%]">貸方勘定科目</th>
+              <th className="py-2 px-2 font-bold border border-[#ccc9ca] text-center w-[11%]">貸方金額(円)</th>
+              <th className="py-2 px-2 font-bold border border-[#ccc9ca] text-center">摘要</th>
+              <th className="py-2 px-2 text-center w-[104px] sticky right-0 bg-[#f5f3f4] border border-[#ccc9ca] z-10 no-print">操作</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#e4e2e3]/60">
+          <tbody>
               {/* Empty state — drop zone inside the table */}
               {items.length === 0 && !isLoading && !isProcessing && (
                 <tr>
@@ -315,7 +315,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                 return (
                   <tr key={item.id} className={`group hover:bg-amber-50/30 transition-colors ${rowClass}`}>
                     {/* 状態 */}
-                    <td className="py-1.5 px-2 border-r border-[#ccc9ca]/30">
+                    <td className="py-1.5 px-2 border border-[#ccc9ca]">
                       {stillUploading(item) ? (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-full text-[10px] font-bold whitespace-nowrap">
                           <Loader2 className="w-2.5 h-2.5 animate-spin" />保存中
@@ -333,7 +333,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
 
                     {/* 物件 */}
                     {isMultiProperty && (
-                      <td className="py-1.5 px-2 border-r border-[#ccc9ca]/30 break-words">
+                      <td className="py-1.5 px-2 border border-[#ccc9ca] break-words">
                         <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold">
                           {propertyNameById[item.propertyId] || item.propertyId}
                         </span>
@@ -341,7 +341,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                     )}
 
                     {/* 取引日 */}
-                    <td className="py-1.5 px-2 border-r border-[#ccc9ca]/30 font-mono whitespace-nowrap">
+                    <td className="py-1.5 px-2 border border-[#ccc9ca] font-mono whitespace-nowrap">
                       {isEditing ? (
                         <input type="date" value={(editDraft.transactionDate || '').replace(/\//g, '-')}
                           onChange={e => setEditDraft(d => ({ ...d, transactionDate: e.target.value }))}
@@ -350,7 +350,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                     </td>
 
                     {/* 借方勘定科目 */}
-                    <td className="py-1.5 px-2 border-r border-[#ccc9ca]/30 break-words">
+                    <td className="py-1.5 px-2 border border-[#ccc9ca] break-words">
                       {isEditing ? (
                         <AccountSelect value={editDraft.debitAccount || ''}
                           onChange={v => setEditDraft(d => ({ ...d, debitAccount: v }))} />
@@ -358,7 +358,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                     </td>
 
                     {/* 借方金額(円) */}
-                    <td className="py-1.5 px-2 border-r border-[#ccc9ca]/30 text-right font-mono font-semibold">
+                    <td className="py-1.5 px-2 border border-[#ccc9ca] text-right font-mono font-semibold">
                       {isEditing ? (
                         <input type="number" value={editDraft.debitAmount || ''}
                           onChange={e => {
@@ -372,7 +372,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                     </td>
 
                     {/* 貸方勘定科目 */}
-                    <td className="py-1.5 px-2 border-r border-[#ccc9ca]/30 break-words">
+                    <td className="py-1.5 px-2 border border-[#ccc9ca] break-words">
                       {isEditing ? (
                         <AccountSelect value={editDraft.creditAccount || ''}
                           onChange={v => setEditDraft(d => ({ ...d, creditAccount: v }))} />
@@ -380,7 +380,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                     </td>
 
                     {/* 貸方金額(円) */}
-                    <td className="py-1.5 px-2 border-r border-[#ccc9ca]/30 text-right font-mono font-semibold">
+                    <td className="py-1.5 px-2 border border-[#ccc9ca] text-right font-mono font-semibold">
                       {isEditing ? (
                         <input type="number" value={editDraft.creditAmount || ''}
                           onChange={e => setEditDraft(d => ({ ...d, creditAmount: parseInt(e.target.value) || 0 }))}
@@ -391,7 +391,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                     </td>
 
                     {/* 摘要 */}
-                    <td className="py-1.5 px-2 border-r border-[#ccc9ca]/30 break-words leading-tight">
+                    <td className="py-1.5 px-2 border border-[#ccc9ca] break-words leading-tight">
                       {isEditing ? (
                         <input value={editDraft.description || ''}
                           onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))}
@@ -406,7 +406,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                     </td>
 
                     {/* 操作 */}
-                    <td className="py-1.5 px-2 text-center sticky right-0 bg-inherit border-l border-[#ccc9ca] z-10 no-print">
+                    <td className="py-1.5 px-2 text-center sticky right-0 bg-inherit border border-[#ccc9ca] z-10 no-print">
                       <div className="flex items-center justify-center gap-1">
                         {isEditing ? (
                           <>

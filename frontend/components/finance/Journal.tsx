@@ -29,7 +29,7 @@ type EditingEntry = Partial<JournalEntry> & { _dbId?: string; receiptUrl?: strin
 // Per-column width hints so the fixed-layout table distributes space sensibly
 // (摘要 takes the remaining space). Keeps the table within the container — never scrolls.
 const COLUMN_WIDTHS: Record<string, string> = {
-  '物件': 'w-[120px]',
+  'プロパティ名': 'w-[120px]',
   '取引日': 'w-[84px]',
   '借方勘定科目': 'w-[15%]',
   '借方金額(円)': 'w-[11%]',
@@ -531,8 +531,8 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
               <div onClick={() => openEditModal(entry)} className="flex-1 min-w-0 grid gap-0.5 cursor-pointer">
                 <div className="flex items-center gap-2">
                   {entry.isUnbalanced && <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />}
-                  {isMultiProperty && entry.rawData?.['物件'] && (
-                    <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-bold truncate max-w-[90px] shrink-0">{entry.rawData['物件']}</span>
+                  {isMultiProperty && entry.rawData?.['プロパティ名'] && (
+                    <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-bold truncate max-w-[90px] shrink-0">{entry.rawData['プロパティ名']}</span>
                   )}
                   <p className="text-xs font-bold text-[#1b1c1d] truncate">{entry.description || "(摘要なし)"}</p>
                 </div>
@@ -554,38 +554,38 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
       </div>
 
       {/* Desktop table */}
-      <div className="hidden lg:block w-full overflow-hidden rounded-xl border border-[#e4e2e3]">
-        <table className="w-full text-[11px] border-collapse font-sans table-fixed border border-transparent">
+      <div className="hidden lg:block w-full overflow-hidden rounded-xl border border-[#ccc9ca]">
+        <table className="w-full text-[11px] border-collapse font-sans table-fixed">
           <thead>
-            <tr className="bg-[#f5f3f4] border-b border-[#ccc9ca] text-left text-[#44474c]">
+            <tr className="bg-[#f5f3f4] text-[#44474c]">
               {displayHeaders.map((header, i) => {
                 const isSorted = sortConfig?.key === header;
                 const widthClass = COLUMN_WIDTHS[header] ?? '';
                 return (
                   <th key={i} onClick={() => handleSort(header)}
-                    className={`py-2 px-2 font-bold border-r border-[#ccc9ca]/50 cursor-pointer hover:bg-[#e4e2e3] select-none group ${widthClass} ${isNumericColumn(header) ? 'text-right' : ''}`}>
-                    <div className={`flex items-center gap-1 ${isNumericColumn(header) ? 'justify-end' : ''}`}>
+                    className={`py-2 px-2 font-bold border border-[#ccc9ca] cursor-pointer hover:bg-[#e4e2e3] select-none group text-center ${widthClass}`}>
+                    <div className="flex items-center justify-center gap-1">
                       <span className="truncate">{header}</span>
                       {isSorted ? (sortConfig?.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-blue-600" /> : <ArrowDown className="w-3 h-3 text-blue-600" />) : <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-50 text-slate-400" />}
                     </div>
                   </th>
                 );
               })}
-              <th className="py-2 px-2 text-center w-[100px] sticky right-0 bg-[#f5f3f4] border-l border-[#ccc9ca] z-10 no-print">操作</th>
+              <th className="py-2 px-2 text-center w-[100px] sticky right-0 bg-[#f5f3f4] border border-[#ccc9ca] z-10 no-print">操作</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#e4e2e3]/60 text-[#1b1c1d]">
+          <tbody className="text-[#1b1c1d]">
             {displayedEntries.map((entry, idx) => {
               const isRevenue = ACCOUNT_TYPE_MAP[entry.creditAccount] === AccountType.Revenue;
               const rowClass = entry.isUnbalanced ? "bg-rose-50" : isRevenue ? "bg-green-50/20" : (idx % 2 === 0 ? "bg-white" : "bg-[#f5f3f4]/10");
               return (
                 <tr key={`${entry.id}-${idx}`} className={`transition-colors group hover:bg-[#f5f3f4]/35 ${rowClass}`}>
                   {displayHeaders.map((header, i) => (
-                    <td key={i} className={`py-1.5 px-2 border-r border-[#ccc9ca]/30 break-words leading-tight ${isNumericColumn(header) ? 'text-right font-mono font-semibold' : 'text-left'}`}>
+                    <td key={i} className={`py-1.5 px-2 border border-[#ccc9ca] break-words leading-tight ${isNumericColumn(header) ? 'text-right font-mono font-semibold' : 'text-left'}`}>
                       {renderCellContent(header, entry.rawData[header] || "", entry)}
                     </td>
                   ))}
-                  <td className="py-1.5 px-2 text-center sticky right-0 bg-inherit border-l border-[#ccc9ca] z-10 no-print">
+                  <td className="py-1.5 px-2 text-center sticky right-0 bg-inherit border border-[#ccc9ca] z-10 no-print">
                     <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                       <button onClick={(e) => { e.stopPropagation(); setPreviewEntry(entry); }} className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" title="証憑確認"><FileImage className="w-3.5 h-3.5" /></button>
                       <button onClick={() => openEditModal(entry)} className="p-1.5 text-[#74777d] hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="編集"><Edit2 className="w-3.5 h-3.5" /></button>
@@ -635,8 +635,8 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
                     </select>
                   </div>
                 ) : (
-                  (editingEntry?.rawData?.['物件'] || propertyName) &&
-                    <p className="text-[10px] text-[#74777d] mt-0.5">{editingEntry?.rawData?.['物件'] || propertyName}</p>
+                  (editingEntry?.rawData?.['プロパティ名'] || propertyName) &&
+                    <p className="text-[10px] text-[#74777d] mt-0.5">{editingEntry?.rawData?.['プロパティ名'] || propertyName}</p>
                 )}
               </div>
               <div className="flex items-center gap-2">

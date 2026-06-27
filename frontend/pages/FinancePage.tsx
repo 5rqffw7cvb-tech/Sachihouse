@@ -158,9 +158,9 @@ const FinancePage: React.FC = () => {
 
   const isMultiProperty = selectedPropertyIds.length > 1;
 
-  // When 2+ properties are selected, surface a 物件 column so rows can be told apart.
+  // When 2+ properties are selected, surface a プロパティ名 column so rows can be told apart.
   const journalHeaders = useMemo(
-    () => (isMultiProperty ? ['物件', ...FINANCE_HEADERS] : FINANCE_HEADERS),
+    () => (isMultiProperty ? ['プロパティ名', ...FINANCE_HEADERS] : FINANCE_HEADERS),
     [isMultiProperty],
   );
 
