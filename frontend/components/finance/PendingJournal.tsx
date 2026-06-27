@@ -274,14 +274,15 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
               <th className="py-2 px-2 font-bold border border-[#8f8d8e] text-center w-[16%]">貸方勘定科目</th>
               <th className="py-2 px-2 font-bold border border-[#8f8d8e] text-center w-[11%]">貸方金額(円)</th>
               <th className="py-2 px-2 font-bold border border-[#8f8d8e] text-center">摘要</th>
-              <th className="py-2 px-2 text-center w-[104px] sticky right-0 bg-[#f5f3f4] border border-[#8f8d8e] z-10 no-print">操作</th>
+              <th className="py-2 px-2 font-bold text-center w-[52px] border border-[#8f8d8e] no-print">証憑</th>
+              <th className="py-2 px-2 text-center w-[92px] sticky right-0 bg-[#f5f3f4] border border-[#8f8d8e] z-10 no-print">操作</th>
             </tr>
           </thead>
           <tbody>
               {/* Empty state — drop zone inside the table */}
               {items.length === 0 && !isLoading && !isProcessing && (
                 <tr>
-                  <td colSpan={isMultiProperty ? 9 : 8} className="p-0">
+                  <td colSpan={isMultiProperty ? 10 : 9} className="p-0">
                     <div
                       className="py-12 flex flex-col items-center gap-4 text-center cursor-pointer hover:bg-blue-50/30 transition-colors"
                       onClick={() => fileInputRef.current?.click()}
@@ -303,7 +304,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
               {/* Loading state */}
               {items.length === 0 && isLoading && (
                 <tr>
-                  <td colSpan={isMultiProperty ? 9 : 8} className="py-16 text-center text-[#74777d]">
+                  <td colSpan={isMultiProperty ? 10 : 9} className="py-16 text-center text-[#74777d]">
                     <Loader2 className="w-6 h-6 animate-spin inline-block" />
                   </td>
                 </tr>
@@ -405,6 +406,14 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                       )}
                     </td>
 
+                    {/* 証憑 */}
+                    <td className="py-1.5 px-2 text-center border border-[#8f8d8e] no-print">
+                      <button onClick={() => setPreviewUrl(item.receiptUrl || item.gcsPath)}
+                        className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md" title="証憑確認">
+                        <FileImage className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+
                     {/* 操作 */}
                     <td className="py-1.5 px-2 text-center sticky right-0 bg-inherit border border-[#8f8d8e] z-10 no-print">
                       <div className="flex items-center justify-center gap-1">
@@ -421,10 +430,6 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                           </>
                         ) : (
                           <>
-                            <button onClick={() => setPreviewUrl(item.receiptUrl || item.gcsPath)}
-                              className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md opacity-70 group-hover:opacity-100" title="証憑確認">
-                              <FileImage className="w-3.5 h-3.5" />
-                            </button>
                             <button onClick={() => startEdit(item)}
                               className="p-1.5 text-[#74777d] hover:text-blue-600 hover:bg-blue-50 rounded-md opacity-70 group-hover:opacity-100" title="編集">
                               <Edit2 className="w-3.5 h-3.5" />
@@ -454,7 +459,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
               {/* Inline processing row */}
               {isProcessing && (
                 <tr className="bg-blue-50/30">
-                  <td colSpan={isMultiProperty ? 9 : 8} className="py-3 px-4">
+                  <td colSpan={isMultiProperty ? 10 : 9} className="py-3 px-4">
                     <div className="flex items-center gap-2 text-blue-600 text-xs">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       AIが読み取り中... ({processingProgress!.done + 1}/{processingProgress!.total})

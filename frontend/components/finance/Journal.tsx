@@ -571,7 +571,8 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
                   </th>
                 );
               })}
-              <th className="py-2 px-2 text-center w-[100px] sticky right-0 bg-[#f5f3f4] border border-[#8f8d8e] z-10 no-print">操作</th>
+              <th className="py-2 px-2 text-center w-[52px] border border-[#8f8d8e] no-print">証憑</th>
+              <th className="py-2 px-2 text-center w-[88px] sticky right-0 bg-[#f5f3f4] border border-[#8f8d8e] z-10 no-print">操作</th>
             </tr>
           </thead>
           <tbody className="text-[#1b1c1d]">
@@ -585,9 +586,11 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
                       {renderCellContent(header, entry.rawData[header] || "", entry)}
                     </td>
                   ))}
+                  <td className="py-1.5 px-2 text-center border border-[#8f8d8e] no-print">
+                    <button onClick={(e) => { e.stopPropagation(); setPreviewEntry(entry); }} className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" title="証憑確認"><FileImage className="w-3.5 h-3.5" /></button>
+                  </td>
                   <td className="py-1.5 px-2 text-center sticky right-0 bg-inherit border border-[#8f8d8e] z-10 no-print">
                     <div className="flex items-center justify-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                      <button onClick={(e) => { e.stopPropagation(); setPreviewEntry(entry); }} className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" title="証憑確認"><FileImage className="w-3.5 h-3.5" /></button>
                       <button onClick={() => openEditModal(entry)} className="p-1.5 text-[#74777d] hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="編集"><Edit2 className="w-3.5 h-3.5" /></button>
                       <button onClick={() => handleDelete({ ...entry, _dbId: entry.rawData['_id'] })} className="p-1.5 text-[#74777d] hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors" title="削除"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
