@@ -10,6 +10,8 @@ import {
   DataStore,
   FinancialTransaction,
   FinancialTransactionInput,
+  PendingTransaction,
+  PendingTransactionInput,
   PropertyData,
   SiteSettings,
   StoredUser,
@@ -134,6 +136,28 @@ export class PostgresStore implements DataStore {
 
     // Add translations column to properties table if it doesn't exist
     await this.pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS translations JSONB DEFAULT NULL');
+
+    // Finance: receipt image reference on transactions + pending (未承認) journal table
+    await this.pool.query('ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS receipt_url TEXT');
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS pending_transactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        gcs_path TEXT NOT NULL DEFAULT '',
+        ocr_processed BOOLEAN NOT NULL DEFAULT FALSE,
+        transaction_date TEXT NOT NULL DEFAULT '',
+        debit_account TEXT NOT NULL DEFAULT '',
+        debit_amount INTEGER NOT NULL DEFAULT 0,
+        credit_account TEXT NOT NULL DEFAULT '普通預金',
+        credit_amount INTEGER NOT NULL DEFAULT 0,
+        description TEXT NOT NULL DEFAULT '',
+        vendor TEXT,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_pending_transactions_property
+      ON pending_transactions(property_id, created_at DESC);
+    `);
 
     const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
     if (existing.rows[0]?.count !== '0') {
@@ -752,6 +776,7 @@ export class PostgresStore implements DataStore {
     credit_account: string;
     credit_amount: number;
     description: string;
+    receipt_url?: string | null;
     created_at: number;
     updated_at: number;
   }): FinancialTransaction {
@@ -767,6 +792,7 @@ export class PostgresStore implements DataStore {
       creditAccount: row.credit_account,
       creditAmount: Number(row.credit_amount),
       description: row.description,
+      receiptUrl: row.receipt_url ?? undefined,
       createdAt: Number(row.created_at),
       updatedAt: Number(row.updated_at),
     };
@@ -789,11 +815,11 @@ export class PostgresStore implements DataStore {
     const now = Date.now();
     const result = await this.pool.query(
       `INSERT INTO financial_transactions
-        (property_id, transaction_no, transaction_date, debit_account, debit_amount, credit_account, credit_amount, description, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        (property_id, transaction_no, transaction_date, debit_account, debit_amount, credit_account, credit_amount, description, receipt_url, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [input.propertyId, input.transactionNo, input.transactionDate, input.debitAccount, input.debitAmount,
-       input.creditAccount, input.creditAmount, input.description, now, now],
+       input.creditAccount, input.creditAmount, input.description, input.receiptUrl ?? null, now, now],
     );
     await this.writeAudit(actor.id, 'CREATE_FINANCE_TXN', 'financial_transaction', result.rows[0].id);
     return this.mapFinancialTransaction(result.rows[0]);
@@ -811,6 +837,7 @@ export class PostgresStore implements DataStore {
       ['creditAccount', 'credit_account'],
       ['creditAmount', 'credit_amount'],
       ['description', 'description'],
+      ['receiptUrl', 'receipt_url'],
     ];
     for (const [key, col] of fields) {
       if (input[key] !== undefined) {
@@ -840,15 +867,127 @@ export class PostgresStore implements DataStore {
     for (const input of transactions) {
       const result = await this.pool.query(
         `INSERT INTO financial_transactions
-          (property_id, transaction_no, transaction_date, debit_account, debit_amount, credit_account, credit_amount, description, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          (property_id, transaction_no, transaction_date, debit_account, debit_amount, credit_account, credit_amount, description, receipt_url, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING *`,
         [propertyId, input.transactionNo, input.transactionDate, input.debitAccount, input.debitAmount,
-         input.creditAccount, input.creditAmount, input.description, now, now],
+         input.creditAccount, input.creditAmount, input.description, input.receiptUrl ?? null, now, now],
       );
       results.push(this.mapFinancialTransaction(result.rows[0]));
     }
     await this.writeAudit(actor.id, 'BULK_IMPORT_FINANCE', 'financial_transaction', propertyId);
     return results;
+  }
+
+  private mapPendingTransaction(row: {
+    id: string;
+    property_id: string;
+    gcs_path: string;
+    ocr_processed: boolean;
+    transaction_date: string;
+    debit_account: string;
+    debit_amount: number;
+    credit_account: string;
+    credit_amount: number;
+    description: string;
+    vendor?: string | null;
+    created_at: number;
+    updated_at: number;
+  }): PendingTransaction {
+    return {
+      id: row.id,
+      propertyId: row.property_id,
+      gcsPath: row.gcs_path,
+      receiptUrl: row.gcs_path,
+      ocrProcessed: row.ocr_processed,
+      transactionDate: row.transaction_date,
+      debitAccount: row.debit_account,
+      debitAmount: Number(row.debit_amount),
+      creditAccount: row.credit_account,
+      creditAmount: Number(row.credit_amount),
+      description: row.description,
+      vendor: row.vendor ?? undefined,
+      createdAt: Number(row.created_at),
+      updatedAt: Number(row.updated_at),
+    };
+  }
+
+  async listPendingTransactions(propertyIds: string[]): Promise<PendingTransaction[]> {
+    if (propertyIds.length === 0) return [];
+    const result = await this.pool.query(
+      'SELECT * FROM pending_transactions WHERE property_id = ANY($1::text[]) ORDER BY created_at DESC',
+      [propertyIds],
+    );
+    return result.rows.map((row: Parameters<typeof this.mapPendingTransaction>[0]) => this.mapPendingTransaction(row));
+  }
+
+  async createPendingTransaction(input: PendingTransactionInput, _actor: AuthUser): Promise<PendingTransaction> {
+    const now = Date.now();
+    const result = await this.pool.query(
+      `INSERT INTO pending_transactions
+        (property_id, gcs_path, ocr_processed, transaction_date, debit_account, debit_amount, credit_account, credit_amount, description, vendor, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING *`,
+      [
+        input.propertyId, input.gcsPath, input.ocrProcessed ?? false,
+        input.transactionDate ?? '', input.debitAccount ?? '', input.debitAmount ?? 0,
+        input.creditAccount ?? '普通預金', input.creditAmount ?? 0, input.description ?? '',
+        input.vendor ?? null, now, now,
+      ],
+    );
+    return this.mapPendingTransaction(result.rows[0]);
+  }
+
+  async updatePendingTransaction(id: string, input: Partial<PendingTransactionInput>, _actor: AuthUser): Promise<PendingTransaction> {
+    const now = Date.now();
+    const sets: string[] = ['updated_at = $2'];
+    const params: (string | number | boolean | null)[] = [id, now];
+    const fields: [keyof PendingTransactionInput, string][] = [
+      ['gcsPath', 'gcs_path'],
+      ['ocrProcessed', 'ocr_processed'],
+      ['transactionDate', 'transaction_date'],
+      ['debitAccount', 'debit_account'],
+      ['debitAmount', 'debit_amount'],
+      ['creditAccount', 'credit_account'],
+      ['creditAmount', 'credit_amount'],
+      ['description', 'description'],
+      ['vendor', 'vendor'],
+    ];
+    for (const [key, col] of fields) {
+      if (input[key] !== undefined) {
+        params.push(input[key] as string | number | boolean | null);
+        sets.push(`${col} = $${params.length}`);
+      }
+    }
+    const result = await this.pool.query(
+      `UPDATE pending_transactions SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+      params,
+    );
+    if (result.rows.length === 0) throw new Error('Pending transaction not found');
+    return this.mapPendingTransaction(result.rows[0]);
+  }
+
+  async approvePendingTransaction(id: string, actor: AuthUser): Promise<FinancialTransaction> {
+    const pendingRes = await this.pool.query('SELECT * FROM pending_transactions WHERE id = $1', [id]);
+    if (pendingRes.rows.length === 0) throw new Error('Pending transaction not found');
+    const pending = this.mapPendingTransaction(pendingRes.rows[0]);
+    const txn = await this.createFinancialTransaction({
+      propertyId: pending.propertyId,
+      transactionNo: '',
+      transactionDate: pending.transactionDate,
+      debitAccount: pending.debitAccount,
+      debitAmount: pending.debitAmount,
+      creditAccount: pending.creditAccount,
+      creditAmount: pending.creditAmount,
+      description: pending.description,
+      receiptUrl: pending.gcsPath,
+    }, actor);
+    await this.pool.query('DELETE FROM pending_transactions WHERE id = $1', [id]);
+    return txn;
+  }
+
+  async deletePendingTransaction(id: string, _actor: AuthUser): Promise<PendingTransaction | null> {
+    const result = await this.pool.query('DELETE FROM pending_transactions WHERE id = $1 RETURNING *', [id]);
+    return result.rows[0] ? this.mapPendingTransaction(result.rows[0]) : null;
   }
 }
