@@ -2085,19 +2085,19 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                  <button onClick={() => removeManualItem(item.id)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10"><X className="w-4 h-4"/></button>
 
                                  {/* Square thumbnail + upload */}
-                                 <div className="shrink-0 w-28 flex flex-col gap-2">
-                                     <div className="w-28 h-28 rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+                                 <div className="shrink-0 w-[168px] flex flex-col gap-2">
+                                     <div className="w-[168px] h-[168px] rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
                                          {item.imageUrl ? (
                                              <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
                                          ) : (
-                                             <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon className="w-7 h-7" /></div>
+                                             <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon className="w-8 h-8" /></div>
                                          )}
                                      </div>
                                      <UploadButton
                                          propertyId={formData.id || ''}
                                          onUploaded={(url) => updateManualItem(item.id, 'imageUrl', url)}
                                          label="Upload"
-                                         className="w-28 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
+                                         className="w-[168px] inline-flex items-center justify-center gap-1.5 px-2 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
                                      />
                                  </div>
 
