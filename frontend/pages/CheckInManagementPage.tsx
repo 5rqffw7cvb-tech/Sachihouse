@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronRight, Download, FileText, Loader2, MoreHorizontal, Pencil, Save, Trash2, Upload, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronRight, Download, Eye, EyeOff, FileText, Loader2, MoreHorizontal, Pencil, Save, Trash2, Upload, X } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -133,6 +133,7 @@ const CheckInManagementPage: React.FC = () => {
   const [isSavingRow, setIsSavingRow] = useState(false);
   const [isDeletingRow, setIsDeletingRow] = useState(false);
   const [editForm, setEditForm] = useState<EditRecordForm | null>(null);
+  const [showEvidence, setShowEvidence] = useState(false);
 
   // Active (applied) filters
   const [propertyId, setPropertyId] = useState('');
@@ -412,9 +413,11 @@ const CheckInManagementPage: React.FC = () => {
     if (!selectedRow) {
       setIsEditingRow(false);
       setEditForm(null);
+      setShowEvidence(false);
       return;
     }
     setIsEditingRow(false);
+    setShowEvidence(false);
     setEditForm(createEditRecordForm(selectedRow.submission, selectedRow.guest));
   }, [selectedRow]);
 
@@ -423,6 +426,7 @@ const CheckInManagementPage: React.FC = () => {
     setEditForm(null);
     setIsSavingRow(false);
     setIsDeletingRow(false);
+    setShowEvidence(false);
     setSelectedRow(null);
   };
 
@@ -1044,14 +1048,14 @@ const CheckInManagementPage: React.FC = () => {
           { label: 'Next Location', value: guest.nextLocation },
         ];
         return (
-          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-0 md:p-4 backdrop-blur-sm" onClick={handleCloseDetail}>
-            <div className="w-full max-w-lg rounded-t-2xl md:rounded-2xl bg-white shadow-xl border border-[#e4e2e3] max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-4 border-b border-[#e4e2e3]">
-                <div>
-                  <h2 className="font-['Plus_Jakarta_Sans'] font-bold text-[16px] text-[#1b1c1d]">{guest.fullName || 'Guest Detail'}</h2>
-                  <p className="text-[12px] text-[#74777d] mt-0.5">{propName} · {submission.checkInDate} → {submission.checkOutDate}</p>
+          <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" onClick={handleCloseDetail}>
+            <aside className="h-full w-full md:w-1/3 md:min-w-[440px] max-w-[560px] bg-white shadow-2xl border-l border-[#e4e2e3] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[#e4e2e3] shrink-0">
+                <div className="min-w-0">
+                  <h2 className="font-['Plus_Jakarta_Sans'] font-bold text-[16px] text-[#1b1c1d] truncate">{guest.fullName || 'Guest Detail'}</h2>
+                  <p className="text-[12px] text-[#74777d] mt-0.5 truncate">{propName} · {submission.checkInDate} → {submission.checkOutDate}</p>
                 </div>
-                <button onClick={handleCloseDetail} className="text-[#74777d] hover:text-[#1b1c1d]"><X className="w-5 h-5" /></button>
+                <button onClick={handleCloseDetail} className="text-[#74777d] hover:text-[#1b1c1d] shrink-0 ml-2"><X className="w-5 h-5" /></button>
               </div>
               <div className="overflow-y-auto flex-1 px-5 py-4">
                 {isEditingRow && editForm ? (
@@ -1118,7 +1122,7 @@ const CheckInManagementPage: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5">
                       {fields.map(f => f.value != null && String(f.value).trim() !== '' && (
                         <div key={f.label} className={['Address', 'Submission ID', 'Contact (Phone/Email)', 'Previous Location', 'Next Location'].includes(f.label) ? 'col-span-2' : ''}>
                           <dt className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">{f.label}</dt>
@@ -1127,15 +1131,31 @@ const CheckInManagementPage: React.FC = () => {
                       ))}
                     </dl>
                     {guest.evidenceUrl && (
-                      <div className="mt-4">
-                        <dt className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Evidence</dt>
-                        <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-sm text-[#003580] underline">View document</a>
+                      <div className="mt-5 border-t border-[#eeecec] pt-4">
+                        <button
+                          type="button"
+                          onClick={() => setShowEvidence((v) => !v)}
+                          className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-[#041627] text-white font-semibold py-2.5 text-sm hover:bg-[#0a2238] transition-colors"
+                        >
+                          {showEvidence ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          {showEvidence ? 'Hide evidence · ID画像を隠す' : 'View evidence · ID画像を表示'}
+                        </button>
+                        {showEvidence && (
+                          <div className="mt-3">
+                            <img
+                              src={guest.evidenceUrl}
+                              alt="ID evidence"
+                              className="w-full rounded-xl border border-[#e4e2e3] bg-[#f5f3f4] object-contain"
+                            />
+                            <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[12px] text-[#003580] underline">Open in new tab</a>
+                          </div>
+                        )}
                       </div>
                     )}
                   </>
                 )}
               </div>
-              <div className="px-5 pb-5 pt-3 border-t border-[#e4e2e3] flex flex-col gap-2">
+              <div className="px-5 pb-5 pt-3 border-t border-[#e4e2e3] flex flex-col gap-2 shrink-0">
                 {isEditingRow ? (
                   <div className="flex gap-2">
                     <button onClick={() => setIsEditingRow(false)} disabled={isSavingRow} className="flex-1 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold py-2.5 text-sm hover:bg-[#efedef] disabled:opacity-60">Cancel</button>
@@ -1157,7 +1177,7 @@ const CheckInManagementPage: React.FC = () => {
                   </>
                 )}
               </div>
-            </div>
+            </aside>
           </div>
         );
       })()}
