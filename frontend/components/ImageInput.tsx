@@ -32,7 +32,7 @@ export const ImageInput: React.FC<ImageInputProps> = ({
   allowUrlPaste,
   label,
   placeholder = 'https://...',
-  previewClassName = 'w-28 h-20',
+  previewClassName = 'w-full h-40',
   onRemove,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,23 +60,24 @@ export const ImageInput: React.FC<ImageInputProps> = ({
   };
 
   return (
-    <div>
+    <div className="w-full">
       {label && <label className="block text-xs font-bold text-gray-500 mb-1">{label}</label>}
-      <div className="flex gap-3 items-start">
+      {/* Vertical stack: preview on top, controls below — robust in narrow columns. */}
+      <div className="flex flex-col gap-2 w-full max-w-sm">
         {/* Preview */}
-        <div className={`${previewClassName} bg-gray-200 rounded-lg overflow-hidden shrink-0 border border-gray-200 relative`}>
+        <div className={`${previewClassName} bg-gray-100 rounded-lg overflow-hidden border border-gray-200 relative`}>
           {value ? (
             <img src={value} alt="" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-400">
-              <ImageIcon className="w-6 h-6" />
+              <ImageIcon className="w-7 h-7" />
             </div>
           )}
           {onRemove && (
             <button
               type="button"
               onClick={onRemove}
-              className="absolute top-1 right-1 bg-white/80 rounded-full p-0.5 text-gray-500 hover:text-red-500"
+              className="absolute top-1.5 right-1.5 bg-white/90 rounded-full p-1 text-gray-500 hover:text-red-500 shadow-sm"
             >
               <X className="w-4 h-4" />
             </button>
@@ -84,39 +85,37 @@ export const ImageInput: React.FC<ImageInputProps> = ({
         </div>
 
         {/* Controls */}
-        <div className="flex-grow space-y-2 min-w-0">
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={(e) => handleFile(e.target.files?.[0])}
-          />
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-            className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm disabled:opacity-60"
-          >
-            {uploading ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
-            ) : (
-              <><Upload className="w-4 h-4" /> Upload Image</>
-            )}
-          </button>
-
-          {allowUrlPaste && (
-            <input
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm"
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder={placeholder}
-            />
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(e) => handleFile(e.target.files?.[0])}
+        />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm disabled:opacity-60"
+        >
+          {uploading ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
+          ) : (
+            <><Upload className="w-4 h-4" /> Upload</>
           )}
+        </button>
 
-          {error && <p className="text-xs text-red-500">{error}</p>}
-        </div>
+        {allowUrlPaste && (
+          <input
+            type="text"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+          />
+        )}
+
+        {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
     </div>
   );
