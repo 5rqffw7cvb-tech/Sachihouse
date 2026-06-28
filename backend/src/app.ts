@@ -959,7 +959,8 @@ export function createApp(store: DataStore) {
       return res.status(201).json({ url: upload.url });
     } catch (err) {
       console.error('[properties/images] upload failed:', err);
-      return res.status(500).json({ error: 'Failed to process image.' });
+      const detail = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ error: `Failed to process image: ${detail}` });
     }
   });
 
