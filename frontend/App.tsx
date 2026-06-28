@@ -25,6 +25,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const CheckInPage = lazy(() => import('./pages/CheckInPage'));
 const CheckInManagementPage = lazy(() => import('./pages/CheckInManagementPage'));
 const FinancePage = lazy(() => import('./pages/FinancePage'));
+const UploadReceiptPage = lazy(() => import('./pages/UploadReceiptPage'));
 
 // ScrollToTop component to fix scroll position on route change in HashRouter
 const ScrollToTop = () => {
@@ -569,6 +570,7 @@ const App: React.FC = () => {
                         <Route path="/admin/properties" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><PropertyAdminListPage /></Suspense>} />
                         <Route path="/admin/checkin-management" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><CheckInManagementPage /></Suspense>} />
                         <Route path="/admin/finance" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><FinancePage /></Suspense>} />
+                        <Route path="/admin/upload-receipt" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><UploadReceiptPage /></Suspense>} />
                         <Route path="/blog/:id" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BlogPostPage /></Suspense>} />
                         <Route path="/:id/*" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><PropertyRoutes /></Suspense>} />
           </Routes>
