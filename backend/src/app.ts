@@ -553,6 +553,9 @@ export function createApp(store: DataStore) {
   app.use((req, res, next) => {
     const isImageRoute = req.path.endsWith('/checkins/ocr')
       || req.path.endsWith('/checkins/submit')
+      || req.path.endsWith('/finance/pending/upload-single')
+      || req.path.endsWith('/finance/pending/batch-upload')
+      || req.path.endsWith('/finance/receipts/upload')
       || /\/properties\/[^/]+\/images$/.test(req.path);
     return (isImageRoute ? imageJson : standardJson)(req, res, next);
   });

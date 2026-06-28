@@ -24,7 +24,7 @@ const UploadReceiptPage: React.FC = () => {
   const [isLoadingProps, setIsLoadingProps] = useState(true);
   const [selectedPropertyId, setSelectedPropertyId] = useState('');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [result, setResult] = useState<{ success: number; failed: number } | null>(null);
+  const [result, setResult] = useState<{ success: number; failed: number; errorMsg?: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -68,6 +68,7 @@ const UploadReceiptPage: React.FC = () => {
 
     let success = 0;
     let failed = 0;
+    let errorMsg: string | undefined;
     for (let i = 0; i < fileArray.length; i++) {
       try {
         const base64 = await fileToBase64(fileArray[i]);
@@ -77,12 +78,13 @@ const UploadReceiptPage: React.FC = () => {
       } catch (err) {
         console.error('Receipt upload failed:', err);
         failed++;
+        if (!errorMsg) errorMsg = err instanceof Error ? err.message : String(err);
       }
       setProgress({ done: i + 1, total: fileArray.length });
     }
 
     setProgress(null);
-    setResult({ success, failed });
+    setResult({ success, failed, errorMsg });
   };
 
   const handleLogin = () => navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
@@ -237,6 +239,9 @@ const UploadReceiptPage: React.FC = () => {
                 {result.success} 件の領収書を処理しました。
                 {result.failed > 0 && (
                   <span className="block text-red-600 font-bold mt-1">{result.failed} 件は失敗しました。</span>
+                )}
+                {result.errorMsg && (
+                  <span className="block text-xs text-red-500 mt-2 break-words">{result.errorMsg}</span>
                 )}
               </p>
             </div>
