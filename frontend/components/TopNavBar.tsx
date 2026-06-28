@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Settings, User, LogOut, Loader2 } from 'lucide-react';
+import { Settings, User, LogOut, Loader2, Building2, ClipboardCheck, Wallet, Newspaper, Users, Home } from 'lucide-react';
 import { getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { getSiteSettings } from '../services/storage';
 import { CheckInLinkPicker } from './CheckInLinkPicker';
@@ -306,55 +306,55 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
                     {canManageProperties && (
                       <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/admin/properties'); }}
-                        className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
+                        className="w-full text-left px-4 py-2.5 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors flex items-center gap-2.5"
                       >
-                        {t('common_admin_property')}
+                        <Building2 className="w-4 h-4 text-[#74777d]" /> {t('common_admin_property')}
                       </button>
                     )}
                     {canManageProperties && (
                       <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/admin/checkin-management'); }}
-                        className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
+                        className="w-full text-left px-4 py-2.5 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors flex items-center gap-2.5"
                       >
-                        {t('common_admin_checkin')}
+                        <ClipboardCheck className="w-4 h-4 text-[#74777d]" /> {t('common_admin_checkin')}
                       </button>
                     )}
                     {canManageProperties && (
                       <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/admin/finance'); }}
-                        className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
+                        className="w-full text-left px-4 py-2.5 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors flex items-center gap-2.5"
                       >
-                        Finance
+                        <Wallet className="w-4 h-4 text-[#74777d]" /> {t('common_admin_finance')}
                       </button>
                     )}
                     {canManageBlog && (
                       <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/blog/admin'); }}
-                        className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
+                        className="w-full text-left px-4 py-2.5 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors flex items-center gap-2.5"
                       >
-                        {t('common_admin_blog')}
+                        <Newspaper className="w-4 h-4 text-[#74777d]" /> {t('common_admin_blog')}
                       </button>
                     )}
                     {canManageUsers && (
                       <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/admin/users'); }}
-                        className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
+                        className="w-full text-left px-4 py-2.5 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors flex items-center gap-2.5"
                       >
-                        {t('common_admin_users')}
+                        <Users className="w-4 h-4 text-[#74777d]" /> {t('common_admin_users')}
                       </button>
                     )}
                     {canUseMyProperties && (
                       <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/?scope=mine'); }}
-                        className="w-full text-left px-4 py-2 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors"
+                        className="w-full text-left px-4 py-2.5 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors flex items-center gap-2.5"
                       >
-                        {t('common_my_properties')}
+                        <Home className="w-4 h-4 text-[#74777d]" /> {t('common_my_properties')}
                       </button>
                     )}
                     <div className="border-t border-[#e4e2e3] my-1"></div>
                     <button
                       onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-[#ba1a1a] hover:bg-[#f5f3f4] transition-colors flex items-center gap-2"
+                      className="w-full text-left px-4 py-2.5 text-sm text-[#ba1a1a] hover:bg-[#f5f3f4] transition-colors flex items-center gap-2.5"
                     >
                       <LogOut className="w-4 h-4" /> {t('common_sign_out')}
                     </button>
