@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PropertyData, PricingConfig, ICalFeed, HouseRule, ManualItem, SleepingArrangement, HighlightItem, AccessInfo, PricingTier, CleaningTier, SocialInfo, PropertyTitles, GalleryItem, GalleryCategoryDef } from '../types';
-import { savePropertyData, translateAndSavePropertyContent } from '../services/storage';
+import { savePropertyData, translateAndSavePropertyContent, getAllProperties } from '../services/storage';
 import { ImageInput } from '../components/ImageInput';
 import { checkAuth, getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { TopNavBar } from '../components/TopNavBar';
@@ -209,6 +209,43 @@ const HIGHLIGHT_ICON_OPTIONS = [
     { value: 'CheckCircle', label: 'Check' },
 ];
 
+const renderHighlightIcon = (iconName: string) => {
+    switch (iconName) {
+        case 'Monitor': return <Monitor className="w-5 h-5 text-blue-700" />;
+        case 'Wind': return <Wind className="w-5 h-5 text-blue-700" />;
+        case 'Wifi': return <Wifi className="w-5 h-5 text-blue-700" />;
+        case 'Coffee': return <Coffee className="w-5 h-5 text-blue-700" />;
+        case 'CheckCircle': return <CheckCircle className="w-5 h-5 text-blue-700" />;
+        default: return <Star className="w-5 h-5 text-blue-700" />;
+    }
+};
+
+const renderRuleIcon = (iconName: string, type: 'allowed' | 'forbidden') => {
+    const colorClass = type === 'forbidden' ? 'text-red-500 bg-red-50 border-red-200' : 'text-green-600 bg-green-50 border-green-200';
+    const iconProps = { className: "w-5 h-5" };
+    let iconElement = <Star {...iconProps} />;
+    
+    switch (iconName) {
+        case 'CigaretteOff': iconElement = <CigaretteOff {...iconProps} />; break;
+        case 'PartyPopper': iconElement = <PartyPopper {...iconProps} />; break;
+        case 'Moon': iconElement = <Moon {...iconProps} />; break;
+        case 'Footprints': iconElement = <Footprints {...iconProps} />; break;
+        case 'Wifi': iconElement = <Wifi {...iconProps} />; break;
+        case 'Dog': iconElement = <Dog {...iconProps} />; break;
+        case 'Music': iconElement = <Music {...iconProps} />; break;
+        case 'Utensils': iconElement = <Utensils {...iconProps} />; break;
+        case 'CheckCircle': iconElement = <CheckCircle {...iconProps} />; break;
+        case 'AlertCircle': iconElement = <AlertCircle {...iconProps} />; break;
+    }
+    
+    return (
+        <div className={`p-2 rounded-xl border ${colorClass} shrink-0 flex items-center justify-center`}>
+            {iconElement}
+        </div>
+    );
+};
+
+
 const AMENITY_CATEGORIES = [
   {
     title: 'Essentials',
@@ -282,6 +319,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   const [formData, setFormData] = useState<PropertyData>(data);
   const [activeTab, setActiveTab] = useState<'general' | 'pricing' | 'ical' | 'amenities' | 'rules' | 'manual' | 'gallery' | 'rooms' | 'highlights' | 'access' | 'labels'>('general');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Properties this user may edit, shown as a switcher in the sidebar.
+  const [managedProperties, setManagedProperties] = useState<(PropertyData & { id: string })[]>([]);
+  // Snapshot of the last-loaded/saved form, used to detect unsaved changes.
+  const [savedSnapshot, setSavedSnapshot] = useState<string>('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
@@ -292,6 +333,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   const [newCategoryLabel, setNewCategoryLabel] = useState('');
     const canAutoTranslate = currentUser?.role === 'ADMIN';
     const isAdmin = currentUser?.role === 'ADMIN';
+    // Unsaved-changes flag: form differs from the last loaded/saved snapshot.
+    const isDirty = savedSnapshot !== '' && JSON.stringify(formData) !== savedSnapshot;
 
         useEffect(() => {
                 let unsubscribe = () => {};
@@ -306,11 +349,33 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
     useEffect(() => {
                 const inferredLocation = data.location ?? inferLocationFromAddress(data.address || '');
-                setFormData({
+                const initial = {
                     ...data,
                     location: inferredLocation,
-                });
+                };
+                setFormData(initial);
+                setSavedSnapshot(JSON.stringify(initial));
     }, [data]);
+
+    // Load the properties this user is allowed to edit (admin: all; host: assigned),
+    // so the sidebar can offer a property switcher.
+    useEffect(() => {
+        if (!isAuthenticated || !currentUser) {
+            setManagedProperties([]);
+            return;
+        }
+        let cancelled = false;
+        getAllProperties({ includeArchived: true })
+            .then((props) => {
+                if (cancelled) return;
+                const filtered = currentUser.role === 'ADMIN'
+                    ? props
+                    : props.filter((p) => (currentUser.assignedPropertyIds ?? []).includes(p.id));
+                setManagedProperties(filtered);
+            })
+            .catch(() => { /* sidebar switcher is non-critical; ignore load errors */ });
+        return () => { cancelled = true; };
+    }, [isAuthenticated, currentUser]);
 
     const handleLogin = () => {
     setErrorMsg('');
@@ -352,6 +417,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
     try {
       await savePropertyData(dataToSave, propertyId);
       onUpdate(dataToSave);
+      setSavedSnapshot(JSON.stringify(dataToSave));
       setSaveStatus('saved');
             setSaveMessage('Saved successfully.');
             if (dataToSave.id && dataToSave.id !== propertyId) {
@@ -376,6 +442,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             const translated = await translateAndSavePropertyContent(propertyId);
             setFormData(translated);
             onUpdate(translated);
+            setSavedSnapshot(JSON.stringify(translated));
             setSaveStatus('saved');
             setSaveMessage('Auto-translated and saved for vi, ja, zh, ko.');
         } catch (error) {
@@ -860,9 +927,34 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             <Home className="w-3.5 h-3.5 text-blue-700" />
             <span>物件情報 (Property)</span>
           </p>
-          <div className="w-full text-xs font-bold text-gray-900 bg-white border border-[#ccc9ca] rounded-xl px-3 py-2.5 shadow-sm truncate">
-            {formData.name || propertyId}
-          </div>
+          {managedProperties.length > 0 ? (
+            <select
+              value={propertyId}
+              onChange={(e) => {
+                const target = managedProperties.find((p) => p.id === e.target.value);
+                if (target && target.id !== propertyId) {
+                  if (isDirty && !window.confirm('変更が保存されていません。保存せずに他の物件へ切り替えますか？\n\nYou have unsaved changes. Switch to another property without saving?')) {
+                    return;
+                  }
+                  navigate(`/${target.metalink || target.id}/admin`);
+                }
+              }}
+              className="w-full text-xs font-bold text-gray-900 bg-white border border-[#ccc9ca] rounded-xl px-3 py-2.5 shadow-sm outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              {!managedProperties.some((p) => p.id === propertyId) && (
+                <option value={propertyId}>{formData.name || propertyId}</option>
+              )}
+              {managedProperties.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {(p.name || p.id) + (p.archivedAt ? ' (archived)' : '')}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="w-full text-xs font-bold text-gray-900 bg-white border border-[#ccc9ca] rounded-xl px-3 py-2.5 shadow-sm truncate">
+              {formData.name || propertyId}
+            </div>
+          )}
         </div>
 
         {/* Navigation items (High-Contrast matching Finance tab style) */}
@@ -965,229 +1057,197 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                 ? 'bg-red-50 text-red-800 border-red-200'
                 : 'bg-green-50 text-green-800 border-green-200'
             }`}>
-              {saveMessage}
+{ saveMessage }
             </div>
           )}
 
           {/* Form Content container card */}
           <div className="bg-white border border-[#ccc9ca] rounded-2xl shadow-sm p-4 md:p-8">
             {activeTab === 'general' && (
-                <div className="space-y-6">
-                    {/* ... (Existing General Content) ... */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                         <div className="md:col-span-2">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Property Name</label>
-                            <input 
-                                type="text" 
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                value={formData.name}
-                                onChange={(e) => handleChange('name', e.target.value)}
-                            />
-                        </div>
-
-                        <div className="md:col-span-2 rounded-xl border border-gray-200 bg-gray-50 p-4">
-                            <h4 className="mb-3 text-sm font-bold text-gray-700 uppercase tracking-wide">Property Capacity</h4>
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Guests</label>
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                        value={formData.maxGuests}
-                                        onChange={(e) => handleChange('maxGuests', parseInt(e.target.value, 10) || 1)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Bedrooms</label>
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                        value={formData.bedrooms}
-                                        onChange={(e) => handleChange('bedrooms', parseInt(e.target.value, 10) || 1)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Beds</label>
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                        value={formData.beds}
-                                        onChange={(e) => handleChange('beds', parseInt(e.target.value, 10) || 1)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Bath/Shower Count</label>
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                        value={formData.baths}
-                                        onChange={(e) => handleChange('baths', parseInt(e.target.value, 10) || 1)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Bath/Shower Type</label>
-                                    <select
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                        value={formData.bathFacilityType || 'bathroom'}
-                                        onChange={(e) => handleChange('bathFacilityType', e.target.value as 'bathroom' | 'shower_room')}
-                                    >
-                                        <option value="bathroom">Bathroom</option>
-                                        <option value="shower_room">Shower room</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Toilets</label>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                        value={formData.toilets}
-                                        onChange={(e) => handleChange('toilets', parseInt(e.target.value, 10) || 0)}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Property ID</label>
-                            <input
-                                type="text"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                value={formData.id || ''}
-                                onChange={(e) => handleChange('id', e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
-                                placeholder={propertyId}
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Technical primary key. Admin can change this value.</p>
-                        </div>
-
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Custom URL (Metalink)</label>
-                            <div className="flex bg-gray-50 border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
-                                <span className="px-4 py-2 bg-gray-100 text-gray-500 border-r border-gray-300 text-sm whitespace-nowrap">
-                                    {(window.location.origin + window.location.pathname).replace(/\/$/, '')}/#/
-                                </span>
+                <div className="space-y-8">
+                    {/* Card 1: General Settings */}
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                            <Info className="w-5 h-5 text-blue-700" />
+                            基本情報 (Basic Information)
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Property Name (物件名)</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2 outline-none bg-white text-gray-900 text-sm"
-                                    value={formData.metalink || ''}
-                                    onChange={(e) => handleChange('metalink', e.target.value)}
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    value={formData.name}
+                                    onChange={(e) => handleChange('name', e.target.value)}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Property ID (物件ID)</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    value={formData.id || ''}
+                                    onChange={(e) => handleChange('id', e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
                                     placeholder={propertyId}
                                 />
+                                <p className="text-[10px] text-gray-500 mt-1.5 ml-1">Technical primary key. Admin can change this value.</p>
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">Leave empty to use the system default ID. Use lowercase letters and hyphens only.</p>
-                        </div>
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Subtitle / Tagline</label>
-                            <input 
-                                type="text" 
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                value={formData.subtitle || ''}
-                                onChange={(e) => handleChange('subtitle', e.target.value)}
-                                placeholder="e.g. Superhost • Tokyo, Japan"
-                            />
-                        </div>
 
-                        {/* Browser title is still per-property; favicon is now global in Edit Page Content */}
-                        <div className="md:col-span-2 bg-blue-50 p-4 rounded-xl border border-blue-100">
-                            <h4 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
-                                <Globe className="w-4 h-4"/> Browser Title
-                            </h4>
                             <div>
-                                <label className="block text-xs font-bold text-blue-700 mb-1">Website Browser Title</label>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Custom URL / Metalink (カスタムURL)</label>
+                                <div className="flex bg-gray-50 border border-gray-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent shadow-sm">
+                                    <span className="px-3.5 py-2.5 bg-gray-100 text-gray-500 border-r border-gray-300 text-xs font-bold whitespace-nowrap flex items-center">
+                                        {(window.location.origin + window.location.pathname).replace(/\/$/, '')}/#/
+                                    </span>
+                                    <input 
+                                        type="text" 
+                                        className="w-full px-4 py-2.5 outline-none bg-white text-gray-900 text-sm font-medium"
+                                        value={formData.metalink || ''}
+                                        onChange={(e) => handleChange('metalink', e.target.value)}
+                                        placeholder={propertyId}
+                                    />
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-1.5 ml-1">Leave empty to use default ID. Use lowercase letters and hyphens only.</p>
+                            </div>
+
+                            <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Subtitle / Tagline (サブタイトル)</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                    value={formData.metaTitle || ''}
-                                    onChange={(e) => handleChange('metaTitle', e.target.value)}
-                                    placeholder="e.g. Sachi House | Tokyo Stay"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    value={formData.subtitle || ''}
+                                    onChange={(e) => handleChange('subtitle', e.target.value)}
+                                    placeholder="e.g. Superhost • Tokyo, Japan"
                                 />
-                                <p className="text-[10px] text-blue-500 mt-1">Shows on the browser tab for this property page.</p>
                             </div>
-                        </div>
-                        
-                         {/* THEME SELECTOR */}
-                         <div className="md:col-span-2 bg-gray-50 p-4 rounded-xl border border-gray-200">
-                             <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                                 <Palette className="w-4 h-4"/> Color Theme
-                             </label>
-                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                {[
-                                    { id: 'blue', name: 'Facebook Blue', color: '#2563EB' },
-                                    { id: 'airbnb', name: 'Airbnb Red', color: '#FF385C' },
-                                    { id: 'booking', name: 'Booking Navy', color: '#003580' },
-                                    { id: 'agoda', name: 'Agoda Teal', color: '#32a081' }
-                                ].map(theme => (
-                                    <button
-                                        key={theme.id}
-                                        onClick={() => handleChange('themeColor', theme.id)}
-                                        className={`
-                                            flex items-center gap-2 p-3 rounded-lg border transition-all
-                                            ${formData.themeColor === theme.id 
-                                                ? 'bg-white border-blue-500 ring-2 ring-blue-500 ring-offset-1' 
-                                                : 'bg-white border-gray-200 hover:bg-gray-50'}
-                                        `}
-                                    >
-                                        <div className="w-6 h-6 rounded-full shrink-0" style={{ backgroundColor: theme.color }}></div>
-                                        <span className="text-sm font-medium text-gray-700">{theme.name}</span>
-                                    </button>
-                                ))}
-                             </div>
-                             <p className="text-xs text-gray-500 mt-2 ml-1">Changes the primary color of buttons, links, and icons across the site.</p>
-                         </div>
 
-                         <div className="md:col-span-2">
-                            <label className="block text-sm font-bold text-gray-700 mb-2">Description</label>
-                            <textarea 
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-48 bg-white text-gray-900"
-                                value={formData.description}
-                                onChange={(e) => handleChange('description', e.target.value)}
-                            />
+                            <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Description (説明文)</label>
+                                <textarea 
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-48"
+                                    value={formData.description}
+                                    onChange={(e) => handleChange('description', e.target.value)}
+                                />
+                            </div>
                         </div>
                     </div>
-                    
-                    <div className="border-t border-gray-200 pt-6 mt-6">
-                        <h3 className="font-bold text-gray-900 mb-4">Host Information</h3>
+
+                    {/* Card 2: Property Capacity & Facilities */}
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                            <BedDouble className="w-5 h-5 text-blue-700" />
+                            収容人数・設備 (Capacity & Facilities)
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-2">Guests (定員)</label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm font-bold text-center"
+                                    value={formData.maxGuests}
+                                    onChange={(e) => handleChange('maxGuests', parseInt(e.target.value, 10) || 1)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-2">Bedrooms (寝室数)</label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm font-bold text-center"
+                                    value={formData.bedrooms}
+                                    onChange={(e) => handleChange('bedrooms', parseInt(e.target.value, 10) || 1)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-2">Beds (ベッド数)</label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm font-bold text-center"
+                                    value={formData.beds}
+                                    onChange={(e) => handleChange('beds', parseInt(e.target.value, 10) || 1)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-2">Baths (お風呂数)</label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm font-bold text-center"
+                                    value={formData.baths}
+                                    onChange={(e) => handleChange('baths', parseInt(e.target.value, 10) || 1)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-2">Bath Type (タイプ)</label>
+                                <select
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-xs font-bold"
+                                    value={formData.bathFacilityType || 'bathroom'}
+                                    onChange={(e) => handleChange('bathFacilityType', e.target.value as 'bathroom' | 'shower_room')}
+                                >
+                                    <option value="bathroom">Bathroom</option>
+                                    <option value="shower_room">Shower room</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-2">Toilets (トイレ数)</label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm font-bold text-center"
+                                    value={formData.toilets}
+                                    onChange={(e) => handleChange('toilets', parseInt(e.target.value, 10) || 0)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Card 3: Host Profile */}
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                            <Settings className="w-5 h-5 text-blue-700" />
+                            ホスト情報 (Host Profile)
+                        </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Host Name</label>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Host Name (ホスト名)</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
                                     value={formData.hostName || ''}
                                     onChange={(e) => handleChange('hostName', e.target.value)}
                                 />
                             </div>
+
                             <ImageInput
-                                label="Host Image"
+                                label="Host Profile Picture (ホスト画像)"
                                 value={formData.hostImageUrl || ''}
                                 onChange={(url) => handleChange('hostImageUrl', url)}
                                 propertyId={formData.id || ''}
                                 allowUrlPaste={isAdmin}
                             />
-                            
-                            {/* NEW: Superhost Controls */}
-                            <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+
+                            <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-sm">
                                 <input 
                                     type="checkbox"
                                     id="isSuperhost"
-                                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                     checked={!!formData.isSuperhost}
                                     onChange={(e) => handleChange('isSuperhost', e.target.checked)}
                                 />
-                                <label htmlFor="isSuperhost" className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                                    <Medal className="w-4 h-4 text-rose-500" />
-                                    Is Superhost?
+                                <label htmlFor="isSuperhost" className="text-sm font-extrabold text-gray-700 flex items-center gap-2 cursor-pointer">
+                                    <Medal className="w-4.5 h-4.5 text-rose-500" />
+                                    Is Superhost? (スーパーホスト)
                                 </label>
                             </div>
+
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Superhost Since (Year)</label>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Superhost Since (Year)</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium disabled:bg-gray-100 disabled:text-gray-400"
                                     value={formData.superhostSince || ''}
                                     onChange={(e) => handleChange('superhostSince', e.target.value)}
                                     placeholder="e.g. 2023"
@@ -1195,13 +1255,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                 />
                             </div>
 
-                             <div className="md:col-span-2">
-                                <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-                                    <Mail className="w-4 h-4" /> Admin Email (display only)
+                            <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                    <Mail className="w-4 h-4 text-gray-400" /> Admin Email (display only)
                                 </label>
                                 <input 
                                     type="email" 
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
                                     value={formData.adminEmail || ''}
                                     onChange={(e) => handleChange('adminEmail', e.target.value)}
                                     placeholder="your-email@example.com"
@@ -1210,9 +1270,11 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         </div>
                     </div>
 
-                    <div className="border-t border-gray-200 pt-6 mt-6">
-                        <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <Share2 className="w-5 h-5 text-gray-600" /> Social & Platforms
+                    {/* Card 5: Social & Platforms */}
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                            <Share2 className="w-5 h-5 text-blue-700" />
+                            ソーシャル・他サイト連携 (Social & Platforms)
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="md:col-span-2">
@@ -1223,43 +1285,43 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                     propertyId={formData.id || ''}
                                     allowUrlPaste={isAdmin}
                                 />
-                                <p className="text-xs text-gray-500 mt-1">This image appears in the large footer card.</p>
+                                <p className="text-[10px] text-gray-500 mt-1.5 ml-1">This image appears in the large footer card.</p>
                             </div>
                             <div className="md:col-span-2">
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Facebook Page URL</label>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Facebook Page URL</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
                                     value={formData.social.facebookUrl}
                                     onChange={(e) => handleSocialChange('facebookUrl', e.target.value)}
                                     placeholder="https://facebook.com/..."
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Airbnb URL</label>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Airbnb URL</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
                                     value={formData.social.airbnbUrl || ''}
                                     onChange={(e) => handleSocialChange('airbnbUrl', e.target.value)}
                                     placeholder="Leave empty to hide"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Booking.com URL</label>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Booking.com URL</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
                                     value={formData.social.bookingUrl || ''}
                                     onChange={(e) => handleSocialChange('bookingUrl', e.target.value)}
                                     placeholder="Leave empty to hide"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Agoda URL</label>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Agoda URL</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
                                     value={formData.social.agodaUrl || ''}
                                     onChange={(e) => handleSocialChange('agodaUrl', e.target.value)}
                                     placeholder="Leave empty to hide"
@@ -1269,42 +1331,44 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
                 </div>
             )}
-            
-            {/* ... other tabs ... */}
+
             {activeTab === 'amenities' && (
                 <div className="space-y-8">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-bold text-gray-900 text-lg">Property Amenities</h3>
+                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <List className="w-5 h-5 text-blue-700" />
+                            アメニティ・設備 (Amenities)
+                        </h3>
                     </div>
 
                     {/* Predefined Categories */}
                     {AMENITY_CATEGORIES.map((category, idx) => (
-                        <div key={idx} className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                            <h4 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
+                        <div key={idx} className="bg-slate-50/50 p-5 md:p-6 rounded-2xl border border-[#ccc9ca] space-y-4">
+                            <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2 border-b border-gray-200/50 pb-2">
+                                <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                                 {category.title}
                             </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {category.items.map((item) => {
                                     const isSelected = (formData.amenities || []).includes(item.name);
                                     return (
-                                        <label key={item.name} className="flex items-center gap-3 cursor-pointer group p-2 hover:bg-white rounded-lg transition-colors">
-                                            <div className={`
-                                                w-5 h-5 rounded border flex items-center justify-center transition-colors
-                                                ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}
-                                            `}>
-                                                {isSelected && <CheckCircle className="w-3.5 h-3.5 text-white" />}
-                                                <input 
-                                                    type="checkbox" 
-                                                    className="hidden"
-                                                    checked={isSelected}
-                                                    onChange={() => toggleAmenity(item.name)}
-                                                />
+                                        <button
+                                            type="button"
+                                            key={item.name}
+                                            onClick={() => toggleAmenity(item.name)}
+                                            className={`
+                                                flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all text-left shadow-sm cursor-pointer
+                                                ${isSelected 
+                                                    ? 'border-blue-600 bg-blue-50/50 ring-1 ring-blue-600 font-extrabold' 
+                                                    : 'border-[#ccc9ca] bg-white hover:bg-slate-50 text-gray-700 font-medium'}
+                                            `}
+                                        >
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <item.icon className={`w-4.5 h-4.5 shrink-0 ${isSelected ? 'text-blue-700' : 'text-gray-500'}`} />
+                                                <span className="text-xs truncate">{item.name}</span>
                                             </div>
-                                            <div className="flex items-center gap-2 text-gray-700">
-                                                <item.icon className="w-4 h-4 text-gray-400" />
-                                                <span className={isSelected ? 'font-medium text-gray-900' : ''}>{item.name}</span>
-                                            </div>
-                                        </label>
+                                            {isSelected && <CheckCircle className="w-4.5 h-4.5 text-blue-700 shrink-0" />}
+                                        </button>
                                     );
                                 })}
                             </div>
@@ -1312,12 +1376,15 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     ))}
 
                     {/* Custom Amenities */}
-                    <div className="border-t border-gray-200 pt-6">
-                        <h4 className="font-bold text-gray-900 mb-4">Custom Amenities</h4>
-                        <div className="flex gap-2 mb-4">
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
+                        <h4 className="font-extrabold text-gray-900 text-sm uppercase tracking-wider flex items-center gap-2 border-b border-gray-100 pb-3">
+                            <Plus className="w-4.5 h-4.5 text-blue-700" />
+                            カスタムアメニティ (Custom Amenities)
+                        </h4>
+                        <div className="flex gap-3 max-w-md">
                             <input 
                                 type="text" 
-                                className="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                className="flex-grow px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
                                 placeholder="Add another amenity..."
                                 value={customAmenity}
                                 onChange={(e) => setCustomAmenity(e.target.value)}
@@ -1325,21 +1392,21 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             />
                             <button 
                                 onClick={addCustomAmenity}
-                                className="bg-gray-900 text-white px-4 py-2 rounded-lg font-bold hover:bg-gray-800"
+                                className="bg-gray-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-gray-800 transition-all text-xs"
                             >
                                 Add
                             </button>
                         </div>
                         
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 pt-2">
                             {formData.amenities.filter(a => 
                                 !AMENITY_CATEGORIES.some(c => c.items.some(i => i.name === a))
                             ).map((amenity, idx) => (
-                                <div key={idx} className="bg-white border border-gray-200 px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
-                                    <span className="text-sm font-medium text-gray-700">{amenity}</span>
+                                <div key={idx} className="bg-slate-50 border border-[#ccc9ca] px-3.5 py-2 rounded-xl flex items-center gap-2 shadow-sm">
+                                    <span className="text-xs font-bold text-gray-800">{amenity}</span>
                                     <button 
                                         onClick={() => removeAmenityByName(amenity)}
-                                        className="text-gray-400 hover:text-red-500"
+                                        className="text-gray-400 hover:text-red-500 transition-colors p-0.5"
                                     >
                                         <X className="w-3.5 h-3.5" />
                                     </button>
@@ -1349,7 +1416,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             {formData.amenities.filter(a => 
                                 !AMENITY_CATEGORIES.some(c => c.items.some(i => i.name === a))
                             ).length === 0 && (
-                                <p className="text-gray-400 text-sm italic">No custom amenities added.</p>
+                                <p className="text-gray-400 text-sm italic ml-1">No custom amenities added.</p>
                             )}
                         </div>
                     </div>
@@ -1359,32 +1426,34 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             {activeTab === 'gallery' && (
                 <div className="space-y-8">
                     {/* Category Management */}
-                    <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                                <FolderOpen className="w-5 h-5" /> Image Categories
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
+                        <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <FolderOpen className="w-5 h-5 text-blue-700" />
+                                画像カテゴリー (Image Categories)
                             </h3>
                             <button 
                                 onClick={() => setIsManagingCategories(!isManagingCategories)}
-                                className="text-sm text-blue-600 font-bold hover:underline"
+                                className="text-xs text-blue-600 font-extrabold hover:underline"
                             >
                                 {isManagingCategories ? 'Done' : 'Manage Categories'}
                             </button>
                         </div>
                         
                         {isManagingCategories && (
-                            <div className="space-y-4 mb-4 pb-4 border-b border-gray-200">
-                                <div className="flex gap-2">
+                            <div className="bg-slate-50 p-4 rounded-xl border border-[#ccc9ca] space-y-3">
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider">Add New Category</label>
+                                <div className="flex gap-3">
                                     <input 
                                         type="text" 
-                                        className="flex-grow px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                                        className="flex-grow px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
                                         placeholder="New category name..."
                                         value={newCategoryLabel}
                                         onChange={(e) => setNewCategoryLabel(e.target.value)}
                                     />
                                     <button 
                                         onClick={addCategory}
-                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-sm"
+                                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm"
                                     >
                                         Add
                                     </button>
@@ -1394,12 +1463,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         
                         <div className="flex flex-wrap gap-2">
                             {formData.galleryCategories.map(cat => (
-                                <div key={cat.id} className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-700 shadow-sm">
+                                <div key={cat.id} className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-50 border border-[#ccc9ca] rounded-xl text-xs font-bold text-gray-700 shadow-sm">
                                     {cat.label}
                                     {isManagingCategories && (
                                         <button 
                                             onClick={() => removeCategory(cat.id)}
-                                            className="text-gray-400 hover:text-red-500 ml-1 p-0.5 rounded-full hover:bg-red-50"
+                                            className="text-gray-400 hover:text-red-500 ml-1 p-0.5 rounded-full hover:bg-red-50 transition-colors"
                                         >
                                             <X className="w-3.5 h-3.5" />
                                         </button>
@@ -1409,71 +1478,87 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         </div>
                     </div>
 
-                    <div className="border-t border-gray-200 pt-6">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-bold text-gray-900">Photo List</h3>
-                            <button onClick={addImage} className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1">
+                    {/* Photo List */}
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
+                        <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <ImageIcon className="w-5 h-5 text-blue-700" />
+                                写真リスト (Photo List)
+                            </h3>
+                            <button onClick={addImage} className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1">
                                 <Plus className="w-4 h-4"/> Add Image
                             </button>
                         </div>
                         <div className="space-y-6">
-                            {(formData.galleryImages || []).map((img, idx) => (
-                                <div key={idx} className="flex flex-col md:flex-row gap-6 items-start p-4 border border-gray-200 rounded-xl bg-gray-50 relative">
-                                    <button onClick={() => removeImage(idx)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500 z-10">
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
-                                    
-                                    {/* Image: preview + upload (+ URL paste for admin) */}
-                                    <div className="w-full md:w-72 shrink-0">
-                                        <ImageInput
-                                            value={img.url}
-                                            onChange={(url) => updateImage(idx, 'url', url)}
-                                            propertyId={formData.id || ''}
-                                            allowUrlPaste={isAdmin}
-                                            previewClassName="w-full h-32"
-                                        />
-                                    </div>
-
-                                    {/* Fields */}
-                                    <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1">Caption</label>
-                                            <input 
-                                                type="text" 
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                                value={img.caption || ''}
-                                                onChange={(e) => updateImage(idx, 'caption', e.target.value)}
-                                                placeholder="e.g. Master Bedroom"
+                            {(formData.galleryImages || []).map((img, idx) => {
+                                const isFeatured = !!img.showOnHome;
+                                return (
+                                    <div key={idx} className={`
+                                        flex flex-col md:flex-row gap-6 items-start p-5 border rounded-2xl relative transition-all shadow-sm
+                                        ${isFeatured 
+                                            ? 'border-blue-300 bg-blue-50/20 ring-1 ring-blue-300/30' 
+                                            : 'border-[#ccc9ca] bg-slate-50/50 hover:bg-white'}
+                                    `}>
+                                        <button onClick={() => removeImage(idx)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10">
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                        
+                                        {/* Image: preview + upload (+ URL paste for admin) */}
+                                        <div className="w-full md:w-72 shrink-0">
+                                            <ImageInput
+                                                value={img.url}
+                                                onChange={(url) => updateImage(idx, 'url', url)}
+                                                propertyId={formData.id || ''}
+                                                allowUrlPaste={isAdmin}
+                                                previewClassName="w-full h-36 rounded-xl overflow-hidden border border-gray-200 shadow-sm"
                                             />
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1">Category</label>
-                                            <select
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                                value={img.category || 'other'}
-                                                onChange={(e) => updateImage(idx, 'category', e.target.value)}
-                                            >
-                                                {formData.galleryCategories.map(cat => (
-                                                    <option key={cat.id} value={cat.id}>{cat.label}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="md:col-span-2 mt-2">
-                                            <label className="flex items-center gap-2 cursor-pointer group">
+
+                                        {/* Fields */}
+                                        <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4 w-full pt-2">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Caption (画像説明)</label>
                                                 <input 
-                                                    type="checkbox"
-                                                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                    checked={!!img.showOnHome}
-                                                    onChange={(e) => updateImage(idx, 'showOnHome', e.target.checked)}
+                                                    type="text" 
+                                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                                    value={img.caption || ''}
+                                                    onChange={(e) => updateImage(idx, 'caption', e.target.value)}
+                                                    placeholder="e.g. Master Bedroom"
                                                 />
-                                                <span className={`text-sm font-bold flex items-center gap-1.5 ${img.showOnHome ? 'text-blue-600' : 'text-gray-500 group-hover:text-gray-700'}`}>
-                                                    <Home className="w-4 h-4" /> Feature on Home Page
-                                                </span>
-                                            </label>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Category (カテゴリー)</label>
+                                                <select
+                                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
+                                                    value={img.category || 'other'}
+                                                    onChange={(e) => updateImage(idx, 'category', e.target.value)}
+                                                >
+                                                    {formData.galleryCategories.map(cat => (
+                                                        <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="md:col-span-2 pt-2">
+                                                <label className={`
+                                                    flex items-center gap-2.5 cursor-pointer group px-4 py-2.5 rounded-xl border transition-all text-xs w-max shadow-sm
+                                                    ${isFeatured 
+                                                        ? 'bg-blue-600 text-white border-blue-600 font-extrabold' 
+                                                        : 'bg-white text-gray-500 border-gray-300 hover:bg-slate-50 font-bold'}
+                                                `}>
+                                                    <input 
+                                                        type="checkbox"
+                                                        className="hidden"
+                                                        checked={isFeatured}
+                                                        onChange={(e) => updateImage(idx, 'showOnHome', e.target.checked)}
+                                                    />
+                                                    <Home className={`w-4 h-4 ${isFeatured ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'}`} /> 
+                                                    Feature on Home Page (トップページに掲載)
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
@@ -1482,37 +1567,42 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             {activeTab === 'pricing' && (
                 <div className="space-y-8">
                     {/* Rates Section */}
-                    <div>
-                        <div className="flex justify-between items-center mb-4">
-                             <h3 className="font-bold text-gray-900">Standard Rates</h3>
-                             <button onClick={addRateTier} className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1">
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-4">
+                        <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                             <h3 className="text-base font-extrabold text-gray-900 flex items-center gap-2">
+                                 <DollarSign className="w-5 h-5 text-blue-700" />
+                                 標準宿泊料金 (Standard Rates)
+                             </h3>
+                             <button onClick={addRateTier} className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1">
                                 <Plus className="w-4 h-4"/> Add Tier
                             </button>
                         </div>
                         <div className="space-y-3">
                             {formData.pricing.rates.map((rate, idx) => (
-                                <div key={idx} className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-200 relative group">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-bold text-gray-500 w-16">Guests:</span>
+                                <div key={idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 bg-slate-50/50 p-4 rounded-xl border border-[#ccc9ca] relative group shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs font-bold text-gray-500 w-16 uppercase tracking-wider flex items-center gap-1"><Home className="w-4 h-4 text-gray-400"/> Guests:</span>
                                         <input 
                                             type="number" 
-                                            className="w-20 p-2 border border-gray-300 rounded-lg text-center font-bold" 
+                                            className="w-24 px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-center font-bold text-sm shadow-sm"
                                             value={rate.guests} 
                                             onChange={e => updateRateTier(idx, 'guests', parseInt(e.target.value) || 0)} 
                                         />
                                     </div>
-                                    <div className="flex items-center gap-2 flex-grow">
-                                        <span className="text-sm font-bold text-gray-500">Price:</span>
-                                        <input 
-                                            type="number" 
-                                            className="flex-grow p-2 border border-gray-300 rounded-lg text-right font-bold" 
-                                            value={rate.price} 
-                                            onChange={e => updateRateTier(idx, 'price', parseInt(e.target.value) || 0)} 
-                                        />
-                                        <span className="text-gray-400 font-medium">JPY</span>
+                                    <div className="flex items-center gap-3 flex-grow">
+                                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1"><DollarSign className="w-4 h-4 text-gray-400"/> Price:</span>
+                                        <div className="relative flex-grow flex items-center">
+                                            <input 
+                                                type="number" 
+                                                className="w-full pl-4 pr-12 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-right font-extrabold text-sm shadow-sm"
+                                                value={rate.price} 
+                                                onChange={e => updateRateTier(idx, 'price', parseInt(e.target.value) || 0)} 
+                                            />
+                                            <span className="absolute right-4 text-xs font-bold text-gray-400 uppercase">JPY</span>
+                                        </div>
                                     </div>
-                                    <button onClick={() => removeRateTier(idx)} className="p-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Trash2 className="w-4 h-4" />
+                                    <button onClick={() => removeRateTier(idx)} className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 absolute top-2 right-2 sm:static">
+                                        <Trash2 className="w-4.5 h-4.5" />
                                     </button>
                                 </div>
                             ))}
@@ -1520,44 +1610,52 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
 
                     {/* Cleaning Fee Section */}
-                    <div className="border-t border-gray-200 pt-6">
-                        <div className="flex justify-between items-center mb-4">
-                             <h3 className="font-bold text-gray-900">Cleaning Fees</h3>
-                             <button onClick={addCleaningTier} className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1">
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-4">
+                        <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                             <h3 className="text-base font-extrabold text-gray-900 flex items-center gap-2">
+                                 <Plus className="w-4.5 h-4.5 text-blue-700" />
+                                 清掃料金設定 (Cleaning Fees)
+                             </h3>
+                             <button onClick={addCleaningTier} className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1">
                                 <Plus className="w-4 h-4"/> Add Tier
                             </button>
                         </div>
                         <div className="space-y-3">
                             {formData.pricing.cleaning.map((tier, idx) => (
-                                <div key={idx} className="flex flex-col md:flex-row items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-200 relative group">
-                                    <div className="flex items-center gap-2">
-                                        <input 
-                                            type="number" 
-                                            className="w-16 p-2 border border-gray-300 rounded-lg text-center font-bold" 
-                                            value={tier.minGuests} 
-                                            onChange={e => updateCleaningTier(idx, 'minGuests', parseInt(e.target.value) || 0)} 
-                                        />
-                                        <span className="text-gray-400">-</span>
-                                        <input 
-                                            type="number" 
-                                            className="w-16 p-2 border border-gray-300 rounded-lg text-center font-bold" 
-                                            value={tier.maxGuests} 
-                                            onChange={e => updateCleaningTier(idx, 'maxGuests', parseInt(e.target.value) || 0)} 
-                                        />
-                                        <span className="text-sm font-bold text-gray-500 ml-1">Guests</span>
+                                <div key={idx} className="flex flex-col md:flex-row items-stretch md:items-center gap-4 bg-slate-50/50 p-4 rounded-xl border border-[#ccc9ca] relative group shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs font-bold text-gray-500 w-16 uppercase tracking-wider flex items-center gap-1">Guests:</span>
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="number" 
+                                                className="w-16 px-2 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold text-xs shadow-sm"
+                                                value={tier.minGuests} 
+                                                onChange={e => updateCleaningTier(idx, 'minGuests', parseInt(e.target.value) || 0)} 
+                                            />
+                                            <span className="text-gray-400 font-bold">-</span>
+                                            <input 
+                                                type="number" 
+                                                className="w-16 px-2 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold text-xs shadow-sm"
+                                                value={tier.maxGuests} 
+                                                onChange={e => updateCleaningTier(idx, 'maxGuests', parseInt(e.target.value) || 0)} 
+                                            />
+                                            <span className="text-xs font-bold text-gray-500 ml-1">名</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 flex-grow w-full md:w-auto">
-                                        <span className="text-sm font-bold text-gray-500">Fee:</span>
-                                        <input 
-                                            type="number" 
-                                            className="flex-grow p-2 border border-gray-300 rounded-lg text-right font-bold" 
-                                            value={tier.price} 
-                                            onChange={e => updateCleaningTier(idx, 'price', parseInt(e.target.value) || 0)} 
-                                        />
-                                        <span className="text-gray-400 font-medium">JPY</span>
+                                    <div className="flex items-center gap-3 flex-grow">
+                                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">Fee:</span>
+                                        <div className="relative flex-grow flex items-center">
+                                            <input 
+                                                type="number" 
+                                                className="w-full pl-4 pr-12 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-right font-extrabold text-sm shadow-sm"
+                                                value={tier.price} 
+                                                onChange={e => updateCleaningTier(idx, 'price', parseInt(e.target.value) || 0)} 
+                                            />
+                                            <span className="absolute right-4 text-xs font-bold text-gray-400 uppercase">JPY</span>
+                                        </div>
                                     </div>
-                                    <button onClick={() => removeCleaningTier(idx)} className="p-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 md:static">
-                                        <Trash2 className="w-4 h-4" />
+                                    <button onClick={() => removeCleaningTier(idx)} className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 absolute top-2 right-2 md:static">
+                                        <Trash2 className="w-4.5 h-4.5" />
                                     </button>
                                 </div>
                             ))}
@@ -1565,26 +1663,32 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
 
                     {/* Discounts Section */}
-                    <div className="border-t border-gray-200 pt-6">
-                        <h3 className="font-bold text-gray-900 mb-4">Discounts & Policies</h3>
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
+                        <h3 className="text-base font-extrabold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                            <Palette className="w-5 h-5 text-blue-700" />
+                            割引＆ポリシー設定 (Discounts & Policies)
+                        </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase">Long Stay Discount</h4>
-                                <div className="space-y-3">
+                            <div className="bg-slate-50/50 p-5 rounded-2xl border border-[#ccc9ca] space-y-4 shadow-sm">
+                                <h4 className="font-extrabold text-gray-800 text-xs uppercase tracking-wider border-b border-gray-200 pb-2 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
+                                    Long Stay Discount (長期滞在割引)
+                                </h4>
+                                <div className="space-y-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Discount Percentage (%)</label>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Discount Percentage (%)</label>
                                         <input 
                                             type="number" 
-                                            className="w-full p-2 border border-gray-300 rounded-lg" 
+                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
                                             value={formData.pricing.longStayDiscountPercent} 
                                             onChange={e => updateDiscount('longStayDiscountPercent', parseInt(e.target.value) || 0)} 
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Minimum Nights</label>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Minimum Nights</label>
                                         <input 
                                             type="number" 
-                                            className="w-full p-2 border border-gray-300 rounded-lg" 
+                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
                                             value={formData.pricing.longStayMinNights} 
                                             onChange={e => updateDiscount('longStayMinNights', parseInt(e.target.value) || 0)} 
                                         />
@@ -1592,33 +1696,36 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                 </div>
                             </div>
 
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase">Child Discount</h4>
-                                <div className="space-y-3">
+                            <div className="bg-slate-50/50 p-5 rounded-2xl border border-[#ccc9ca] space-y-4 shadow-sm">
+                                <h4 className="font-extrabold text-gray-800 text-xs uppercase tracking-wider border-b border-gray-200 pb-2 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
+                                    Child Discount (子ども割引)
+                                </h4>
+                                <div className="space-y-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Discount Percentage (%)</label>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Discount Percentage (%)</label>
                                         <input 
                                             type="number" 
-                                            className="w-full p-2 border border-gray-300 rounded-lg" 
+                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
                                             value={formData.pricing.childDiscountPercent} 
                                             onChange={e => updateDiscount('childDiscountPercent', parseInt(e.target.value) || 0)} 
                                         />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1">Min Age</label>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Min Age</label>
                                             <input 
                                                 type="number" 
-                                                className="w-full p-2 border border-gray-300 rounded-lg" 
+                                                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
                                                 value={formData.pricing.childAgeMin} 
                                                 onChange={e => updateDiscount('childAgeMin', parseInt(e.target.value) || 0)} 
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1">Max Age</label>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Max Age</label>
                                             <input 
                                                 type="number" 
-                                                className="w-full p-2 border border-gray-300 rounded-lg" 
+                                                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
                                                 value={formData.pricing.childAgeMax} 
                                                 onChange={e => updateDiscount('childAgeMax', parseInt(e.target.value) || 0)} 
                                             />
@@ -1633,158 +1740,194 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
             {/* ... other existing tabs ... */}
             {activeTab === 'ical' && (
-                <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <h3 className="font-bold text-gray-900">iCal Feeds</h3>
-                        <button onClick={addIcal} className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1">
+                <div className="space-y-8">
+                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-blue-700" />
+                            カレンダー同期 (iCal Feeds)
+                        </h3>
+                        <button onClick={addIcal} className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1">
                             <Plus className="w-4 h-4"/> Add Calendar
                         </button>
                     </div>
-                    {formData.icalFeeds.map(feed => (
-                        <div key={feed.id} className="p-4 border border-gray-200 rounded-lg bg-gray-50 relative">
-                            <button onClick={() => removeIcal(feed.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500">
-                                <X className="w-4 h-4" />
-                            </button>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Name</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full px-3 py-2 border border-gray-300 rounded bg-white"
-                                        value={feed.name}
-                                        onChange={(e) => updateIcal(feed.id, 'name', e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">iCal URL</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-xs font-mono"
-                                        value={feed.url}
-                                        onChange={(e) => updateIcal(feed.id, 'url', e.target.value)}
-                                    />
+                    <div className="grid grid-cols-1 gap-4">
+                        {formData.icalFeeds.map(feed => (
+                            <div key={feed.id} className="p-5 border border-[#ccc9ca] rounded-2xl bg-white relative shadow-sm flex flex-col md:flex-row gap-4 items-stretch group">
+                                <button onClick={() => removeIcal(feed.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50">
+                                    <X className="w-4.5 h-4.5" />
+                                </button>
+                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Feed Name (名前)</label>
+                                        <input 
+                                            type="text" 
+                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
+                                            value={feed.name}
+                                            onChange={(e) => updateIcal(feed.id, 'name', e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">iCal URL</label>
+                                        <input 
+                                            type="text" 
+                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-500 shadow-sm transition-all text-xs font-mono"
+                                            value={feed.url}
+                                            onChange={(e) => updateIcal(feed.id, 'url', e.target.value)}
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             )}
             
              {activeTab === 'labels' && (
                 <div className="space-y-8">
-                     <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                         <h3 className="font-bold text-gray-900 mb-4 text-lg">Page Titles & Subtitles</h3>
+                     <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
+                         <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2">
+                             <Type className="w-5 h-5 text-blue-700" />
+                             サイト内テキスト & ラベル (Titles & Subtitles)
+                         </h3>
                          <div className="grid grid-cols-1 gap-6">
 
                              {/* Navigation Menu Section */}
-                             <div className="space-y-4 border-b border-gray-200 pb-6">
-                                <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">Navigation Menu</h4>
-                                <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-4 border-b border-gray-200/50 pb-6">
+                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                                    <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
+                                    Navigation Menu (ナビゲーションメニュー)
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Home Label</label>
-                                        <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Home Label</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.menuHome} onChange={(e) => handleTitleChange('menuHome', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Access Label</label>
-                                        <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Access Label</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.menuAccess} onChange={(e) => handleTitleChange('menuAccess', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Pricing Label</label>
-                                        <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Pricing Label</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.menuPricing} onChange={(e) => handleTitleChange('menuPricing', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Rules Label</label>
-                                        <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Rules Label</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.menuRules} onChange={(e) => handleTitleChange('menuRules', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Manual Label</label>
-                                        <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Manual Label</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.menuManual} onChange={(e) => handleTitleChange('menuManual', e.target.value)} />
                                     </div>
                                 </div>
                              </div>
                              
                              {/* Home Page Section */}
-                             <div className="space-y-4 border-b border-gray-200 pb-6">
-                                <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">Home Page Sections</h4>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">About Title</label>
-                                    <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
-                                        value={formData.titles.about} onChange={(e) => handleTitleChange('about', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Sleeping Arrangements Title</label>
-                                    <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
-                                        value={formData.titles.sleeping} onChange={(e) => handleTitleChange('sleeping', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Amenities Title</label>
-                                    <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
-                                        value={formData.titles.amenities} onChange={(e) => handleTitleChange('amenities', e.target.value)} />
+                             <div className="space-y-4 border-b border-gray-200/50 pb-6">
+                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                                    <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
+                                    Home Page Sections (トップページセクション)
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">About Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                            value={formData.titles.about} onChange={(e) => handleTitleChange('about', e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Sleeping Arrangements Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                            value={formData.titles.sleeping} onChange={(e) => handleTitleChange('sleeping', e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Amenities Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                            value={formData.titles.amenities} onChange={(e) => handleTitleChange('amenities', e.target.value)} />
+                                    </div>
                                 </div>
                              </div>
 
                              {/* Access Page Section */}
-                             <div className="space-y-4 border-b border-gray-200 pb-6">
-                                <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">Access Page</h4>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Page Title</label>
-                                    <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
-                                        value={formData.titles.access} onChange={(e) => handleTitleChange('access', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Page Subtitle</label>
-                                    <textarea className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white h-20" 
-                                        value={formData.titles.accessSubtitle} onChange={(e) => handleTitleChange('accessSubtitle', e.target.value)} />
+                             <div className="space-y-4 border-b border-gray-200/50 pb-6">
+                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                                    <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
+                                    Access Page (アクセス・周辺情報ページ)
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                            value={formData.titles.access} onChange={(e) => handleTitleChange('access', e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Subtitle</label>
+                                        <textarea className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-20" 
+                                            value={formData.titles.accessSubtitle} onChange={(e) => handleTitleChange('accessSubtitle', e.target.value)} />
+                                    </div>
                                 </div>
                              </div>
 
                              {/* Pricing Page Section */}
-                             <div className="space-y-4 border-b border-gray-200 pb-6">
-                                <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">Pricing Page</h4>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Page Title</label>
-                                    <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
-                                        value={formData.titles.pricing} onChange={(e) => handleTitleChange('pricing', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Page Subtitle</label>
-                                    <textarea className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white h-20" 
-                                        value={formData.titles.pricingSubtitle} onChange={(e) => handleTitleChange('pricingSubtitle', e.target.value)} />
+                             <div className="space-y-4 border-b border-gray-200/50 pb-6">
+                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                                    <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
+                                    Pricing Page (料金ページ)
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                            value={formData.titles.pricing} onChange={(e) => handleTitleChange('pricing', e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Subtitle</label>
+                                        <textarea className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-20" 
+                                            value={formData.titles.pricingSubtitle} onChange={(e) => handleTitleChange('pricingSubtitle', e.target.value)} />
+                                    </div>
                                 </div>
                              </div>
 
                              {/* Rules Page Section */}
-                             <div className="space-y-4 border-b border-gray-200 pb-6">
-                                <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">Rules Page</h4>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Page Title</label>
-                                    <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
-                                        value={formData.titles.rules} onChange={(e) => handleTitleChange('rules', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Page Subtitle</label>
-                                    <textarea className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white h-20" 
-                                        value={formData.titles.rulesSubtitle} onChange={(e) => handleTitleChange('rulesSubtitle', e.target.value)} />
+                             <div className="space-y-4 border-b border-gray-200/50 pb-6">
+                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                                    <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
+                                    Rules Page (ハウスルールページ)
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                            value={formData.titles.rules} onChange={(e) => handleTitleChange('rules', e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Subtitle</label>
+                                        <textarea className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-20" 
+                                            value={formData.titles.rulesSubtitle} onChange={(e) => handleTitleChange('rulesSubtitle', e.target.value)} />
+                                    </div>
                                 </div>
                              </div>
 
                              {/* Manual Page Section */}
                              <div className="space-y-4">
-                                <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wide">Manual Page</h4>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Page Title</label>
-                                    <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" 
-                                        value={formData.titles.manual} onChange={(e) => handleTitleChange('manual', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Page Subtitle</label>
-                                    <textarea className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white h-20" 
-                                        value={formData.titles.manualSubtitle} onChange={(e) => handleTitleChange('manualSubtitle', e.target.value)} />
+                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                                    <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
+                                    Manual Page (ハウスマニュアルページ)
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                            value={formData.titles.manual} onChange={(e) => handleTitleChange('manual', e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Subtitle</label>
+                                        <textarea className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-20" 
+                                            value={formData.titles.manualSubtitle} onChange={(e) => handleTitleChange('manualSubtitle', e.target.value)} />
+                                    </div>
                                 </div>
                              </div>
                          </div>
@@ -1793,328 +1936,407 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             )}
             
             {activeTab === 'rules' && (
-                <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <h3 className="font-bold text-gray-900">House Rules</h3>
-                        <button onClick={addRule} className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1">
+                <div className="space-y-8">
+                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <List className="w-5 h-5 text-blue-700" />
+                            ハウスルール (House Rules)
+                        </h3>
+                        <button onClick={addRule} className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1">
                             <Plus className="w-4 h-4"/> Add Rule
                         </button>
                     </div>
-                    {formData.rules.map(rule => (
-                        <div key={rule.id} className="p-4 border border-gray-200 rounded-lg bg-gray-50 flex flex-col md:flex-row gap-4 items-start relative">
-                             <div className="flex-1 space-y-3 w-full">
-                                 <input 
-                                     type="text" 
-                                     className="w-full px-3 py-2 border border-gray-300 rounded bg-white"
-                                     value={rule.text}
-                                     onChange={(e) => updateRule(rule.id, 'text', e.target.value)}
-                                     placeholder="Rule text..."
-                                 />
-                                 <div className="flex gap-4">
-                                     <select 
-                                         className="flex-1 px-3 py-2 border border-gray-300 rounded bg-white text-sm"
-                                         value={rule.icon}
-                                         onChange={(e) => updateRule(rule.id, 'icon', e.target.value)}
-                                     >
-                                         {ICON_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                                     </select>
-                                     <select 
-                                         className="flex-1 px-3 py-2 border border-gray-300 rounded bg-white text-sm"
-                                         value={rule.type}
-                                         onChange={(e) => updateRule(rule.id, 'type', e.target.value)}
-                                     >
-                                         <option value="allowed">Allowed</option>
-                                         <option value="forbidden">Forbidden</option>
-                                     </select>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {formData.rules.map(rule => (
+                            <div key={rule.id} className="p-5 border border-[#ccc9ca] rounded-2xl bg-white flex gap-4 items-start relative shadow-sm hover:shadow-md transition-all">
+                                 {renderRuleIcon(rule.icon, rule.type)}
+                                 <div className="flex-1 space-y-3 w-full pr-6 pt-1">
+                                     <input 
+                                         type="text" 
+                                         className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
+                                         value={rule.text}
+                                         onChange={(e) => updateRule(rule.id, 'text', e.target.value)}
+                                         placeholder="Rule text..."
+                                     />
+                                     <div className="flex gap-3">
+                                         <select 
+                                             className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-xs font-bold shadow-sm"
+                                             value={rule.icon}
+                                             onChange={(e) => updateRule(rule.id, 'icon', e.target.value)}
+                                         >
+                                             {ICON_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                         </select>
+                                         <select 
+                                             className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-xs font-bold shadow-sm"
+                                             value={rule.type}
+                                             onChange={(e) => updateRule(rule.id, 'type', e.target.value)}
+                                         >
+                                             <option value="allowed">Allowed</option>
+                                             <option value="forbidden">Forbidden</option>
+                                         </select>
+                                     </div>
                                  </div>
-                             </div>
-                             <button onClick={() => removeRule(rule.id)} className="text-gray-400 hover:text-red-500 p-2 md:static absolute top-2 right-2"><Trash2 className="w-5 h-5"/></button>
-                        </div>
-                    ))}
-                    <div>
-                        <h3 className="font-bold text-gray-900 mb-2 mt-6">Additional Notes</h3>
+                                 <button onClick={() => removeRule(rule.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10"><Trash2 className="w-5 h-5"/></button>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-4 shadow-sm">
+                        <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-100 pb-2">
+                            <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
+                            追加ルール・ポリシー (Additional Notes)
+                        </h3>
                          <textarea 
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-32 bg-white text-gray-900"
+                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-32"
                             value={formData.additionalRules}
                             onChange={(e) => handleChange('additionalRules', e.target.value)}
+                            placeholder="Rules in detail..."
                         />
                     </div>
                 </div>
             )}
 
             {activeTab === 'manual' && (
-                 <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <h3 className="font-bold text-gray-900">House Manual</h3>
-                        <button onClick={addManualItem} className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1">
+                 <div className="space-y-8">
+                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <BookOpen className="w-5 h-5 text-blue-700" />
+                            ハウスマニュアル (House Manual)
+                        </h3>
+                        <button onClick={addManualItem} className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1">
                             <Plus className="w-4 h-4"/> Add Guide
                         </button>
                     </div>
-                    {formData.manual.map(item => (
-                        <div key={item.id} className="p-4 border border-gray-200 rounded-lg bg-gray-50 relative">
-                             <button onClick={() => removeManualItem(item.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500"><X className="w-5 h-5"/></button>
-                             <div className="space-y-4 pt-4 md:pt-0">
-                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Title</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full px-3 py-2 border border-gray-300 rounded bg-white font-bold"
-                                        value={item.title}
-                                        onChange={(e) => updateManualItem(item.id, 'title', e.target.value)}
-                                    />
+                    <div className="space-y-6">
+                        {formData.manual.map(item => (
+                            <div key={item.id} className="p-5 md:p-6 border border-[#ccc9ca] rounded-2xl bg-white relative shadow-sm space-y-4">
+                                 <button onClick={() => removeManualItem(item.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10"><X className="w-5 h-5"/></button>
+                                 <div className="space-y-4 pt-4 md:pt-0">
+                                     <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Guide Title (タイトル)</label>
+                                        <input 
+                                            type="text" 
+                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
+                                            value={item.title}
+                                            onChange={(e) => updateManualItem(item.id, 'title', e.target.value)}
+                                        />
+                                     </div>
+                                     <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Content (内容)</label>
+                                        <textarea 
+                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-32"
+                                            value={item.content}
+                                            onChange={(e) => updateManualItem(item.id, 'content', e.target.value)}
+                                        />
+                                     </div>
+                                     <div className="pt-2">
+                                        <ImageInput
+                                            label="Guide Image (説明用画像)"
+                                            value={item.imageUrl || ''}
+                                            onChange={(url) => updateManualItem(item.id, 'imageUrl', url)}
+                                            propertyId={formData.id || ''}
+                                            allowUrlPaste={isAdmin}
+                                        />
+                                     </div>
                                  </div>
-                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Content</label>
-                                    <textarea 
-                                        className="w-full px-3 py-2 border border-gray-300 rounded bg-white h-24"
-                                        value={item.content}
-                                        onChange={(e) => updateManualItem(item.id, 'content', e.target.value)}
-                                    />
-                                 </div>
-                                 <div>
-                                    <ImageInput
-                                        label="Image (Optional)"
-                                        value={item.imageUrl || ''}
-                                        onChange={(url) => updateManualItem(item.id, 'imageUrl', url)}
-                                        propertyId={formData.id || ''}
-                                        allowUrlPaste={isAdmin}
-                                    />
-                                 </div>
-                             </div>
-                        </div>
-                    ))}
+                            </div>
+                        ))}
+                    </div>
                  </div>
             )}
 
             {activeTab === 'rooms' && (
-                <div className="space-y-6">
-                     <div className="flex justify-between items-center">
-                        <h3 className="font-bold text-gray-900">Bedrooms & Sleeping</h3>
-                        <button onClick={addRoom} className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1">
+                <div className="space-y-8">
+                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <BedDouble className="w-5 h-5 text-blue-700" />
+                            寝室・ベッド (Bedrooms & Sleeping)
+                        </h3>
+                        <button onClick={addRoom} className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1">
                             <Plus className="w-4 h-4"/> Add Room
                         </button>
                     </div>
                     {formData.sleepingArrangements?.map(room => (
-                        <div key={room.id} className="p-6 border border-gray-200 rounded-xl bg-gray-50 relative">
-                             <button onClick={() => removeRoom(room.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500"><X className="w-5 h-5"/></button>
-                             <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 md:pt-0">
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Room Name</label>
-                                        <input 
-                                            type="text" className="w-full px-3 py-2 border border-gray-300 rounded bg-white font-bold"
-                                            value={room.title} onChange={(e) => updateRoom(room.id, 'title', e.target.value)}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Bed Description</label>
-                                        <input 
-                                            type="text" className="w-full px-3 py-2 border border-gray-300 rounded bg-white"
-                                            value={room.description} onChange={(e) => updateRoom(room.id, 'description', e.target.value)}
-                                        />
-                                    </div>
+                        <div key={room.id} className="p-5 md:p-6 border border-[#ccc9ca] rounded-2xl bg-white relative shadow-sm space-y-6">
+                            <button onClick={() => removeRoom(room.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10">
+                                <X className="w-5 h-5"/>
+                            </button>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 md:pt-0">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Room Name (寝室名)</label>
+                                    <input 
+                                        type="text" 
+                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
+                                        value={room.title} 
+                                        onChange={(e) => updateRoom(room.id, 'title', e.target.value)}
+                                    />
                                 </div>
-                                <ImageInput
-                                    label="Cover Image"
-                                    value={room.imageUrl}
-                                    onChange={(url) => updateRoom(room.id, 'imageUrl', url)}
-                                    propertyId={formData.id || ''}
-                                    allowUrlPaste={isAdmin}
-                                />
-                                
-                                <div className="pt-2">
-                                    <label className="block text-xs font-bold text-gray-500 mb-2">Additional Photos</label>
-                                    <div className="space-y-2 pl-4 border-l-2 border-gray-200">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Bed Description (ベッド説明)</label>
+                                    <input 
+                                        type="text" 
+                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                        value={room.description} 
+                                        onChange={(e) => updateRoom(room.id, 'description', e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <ImageInput
+                                label="Cover Image (カバー画像)"
+                                value={room.imageUrl}
+                                onChange={(url) => updateRoom(room.id, 'imageUrl', url)}
+                                propertyId={formData.id || ''}
+                                allowUrlPaste={isAdmin}
+                            />
+                            
+                            <div className="pt-2 border-t border-gray-100">
+                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">Additional Photos (追加写真)</label>
+                                <div className="space-y-4 pl-4 border-l-2 border-slate-200">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {(room.photos || []).map((photo, pIdx) => (
-                                            <ImageInput
-                                                key={pIdx}
-                                                value={photo}
-                                                onChange={(url) => updateRoomPhoto(room.id, pIdx, url)}
-                                                propertyId={formData.id || ''}
-                                                allowUrlPaste={isAdmin}
-                                                previewClassName="w-20 h-16"
-                                                placeholder="Photo URL..."
-                                                onRemove={() => removeRoomPhoto(room.id, pIdx)}
-                                            />
+                                            <div key={pIdx} className="relative bg-slate-50 p-3 rounded-xl border border-gray-200 shadow-sm">
+                                                <ImageInput
+                                                    value={photo}
+                                                    onChange={(url) => updateRoomPhoto(room.id, pIdx, url)}
+                                                    propertyId={formData.id || ''}
+                                                    allowUrlPaste={isAdmin}
+                                                    previewClassName="w-full h-24 rounded-lg overflow-hidden"
+                                                    placeholder="Photo URL..."
+                                                    onRemove={() => removeRoomPhoto(room.id, pIdx)}
+                                                />
+                                            </div>
                                         ))}
-                                        <button onClick={() => addRoomPhoto(room.id)} className="text-xs text-blue-600 font-bold hover:underline">+ Add Photo</button>
                                     </div>
+                                    <button 
+                                        onClick={() => addRoomPhoto(room.id)} 
+                                        className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1 mt-2"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" /> Add Photo
+                                    </button>
                                 </div>
-                             </div>
+                            </div>
                         </div>
                     ))}
                 </div>
             )}
 
             {activeTab === 'highlights' && (
-                <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <h3 className="font-bold text-gray-900">Highlights</h3>
-                        <button onClick={addHighlight} className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1">
+                <div className="space-y-8">
+                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <Star className="w-5 h-5 text-blue-700" />
+                            特徴・ハイライト (Highlights)
+                        </h3>
+                        <button onClick={addHighlight} className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1">
                             <Plus className="w-4 h-4"/> Add Item
                         </button>
                     </div>
-                    {formData.highlights?.map(item => (
-                        <div key={item.id} className="p-4 border border-gray-200 rounded-lg bg-gray-50 flex flex-col md:flex-row gap-4 items-start relative">
-                             <div className="flex-1 space-y-3 w-full">
-                                 <div className="flex gap-4">
-                                     <div className="flex-1">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Title</label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {formData.highlights?.map(item => (
+                            <div key={item.id} className="p-5 border border-[#ccc9ca] rounded-2xl bg-white flex gap-4 items-start relative shadow-sm hover:shadow-md transition-all">
+                                <button onClick={() => removeHighlight(item.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10">
+                                    <Trash2 className="w-5 h-5"/>
+                                </button>
+                                
+                                <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-blue-700 shrink-0 mt-4 md:mt-2">
+                                    {renderHighlightIcon(item.icon)}
+                                </div>
+
+                                <div className="flex-1 space-y-3 w-full pr-6 pt-2">
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        <div className="flex-1">
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Title (タイトル)</label>
+                                            <input 
+                                                type="text" 
+                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-xs font-bold"
+                                                value={item.title} 
+                                                onChange={(e) => updateHighlight(item.id, 'title', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="w-full sm:w-1/3">
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Icon (アイコン)</label>
+                                            <select 
+                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-xs font-bold"
+                                                value={item.icon} 
+                                                onChange={(e) => updateHighlight(item.id, 'icon', e.target.value)}
+                                            >
+                                                {HIGHLIGHT_ICON_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Description (説明)</label>
                                         <input 
-                                            type="text" className="w-full px-3 py-2 border border-gray-300 rounded bg-white font-bold"
-                                            value={item.title} onChange={(e) => updateHighlight(item.id, 'title', e.target.value)}
+                                            type="text" 
+                                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-xs font-medium"
+                                            value={item.description} 
+                                            onChange={(e) => updateHighlight(item.id, 'description', e.target.value)}
                                         />
-                                     </div>
-                                     <div className="w-1/3">
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">Icon</label>
-                                        <select 
-                                            className="w-full px-3 py-2 border border-gray-300 rounded bg-white"
-                                            value={item.icon} onChange={(e) => updateHighlight(item.id, 'icon', e.target.value)}
-                                        >
-                                            {HIGHLIGHT_ICON_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                                        </select>
-                                     </div>
-                                 </div>
-                                 <div>
-                                     <label className="block text-xs font-bold text-gray-500 mb-1">Description</label>
-                                     <input 
-                                        type="text" className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-sm"
-                                        value={item.description} onChange={(e) => updateHighlight(item.id, 'description', e.target.value)}
-                                     />
-                                 </div>
-                             </div>
-                             <button onClick={() => removeHighlight(item.id)} className="text-gray-400 hover:text-red-500 md:mt-6 absolute top-2 right-2 md:static"><Trash2 className="w-5 h-5"/></button>
-                        </div>
-                    ))}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
 
             {activeTab === 'access' && (
-                <div className="space-y-6">
-                    <h3 className="font-bold text-gray-900">Access Information</h3>
-                    <div>
-                                                <label className="block text-sm font-bold text-gray-700 mb-2">Address *</label>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-gray-500 mb-1">Country *</label>
-                                                        <select
-                                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                                            value={selectedCountryCode || ''}
-                                                            onChange={(e) => handleCountrySelect(e.target.value)}
-                                                        >
-                                                            <option value="">Select country</option>
-                                                            {COUNTRY_OPTIONS.map((country) => (
-                                                                <option key={country.code} value={country.code}>{country.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-gray-500 mb-1">Province *</label>
-                                                        <select
-                                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 disabled:bg-gray-100"
-                                                            value={selectedProvinceCode}
-                                                            onChange={(e) => handleProvinceSelect(e.target.value)}
-                                                            disabled={!selectedCountryCode}
-                                                        >
-                                                            <option value="">Select province</option>
-                                                            {provinceOptions.map((province) => (
-                                                                <option key={province.code} value={province.code}>{province.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div className="mt-3">
-                                                    <label className="block text-xs font-bold text-gray-500 mb-1">Address detail (optional)</label>
-                                                    <input
-                                                        type="text"
-                                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                                        value={formData.location?.cityName || ''}
-                                                        onChange={(e) => handleAddressDetailChange(e.target.value)}
-                                                        placeholder="Street, ward, district, building..."
-                                                    />
-                                                </div>
-                                                <p className="mt-2 text-xs text-gray-500">
-                                                    Address preview: {formData.address || 'Please select Country and Province'}
-                                                </p>
+                <div className="space-y-8">
+                    {/* Card 1: Address & Location Map */}
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6 shadow-sm">
+                        <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2">
+                            <Map className="w-5 h-5 text-blue-700" />
+                            住所と地図 (Address & Map)
+                        </h3>
+                        
+                        <div className="space-y-4">
+                            <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Address (住所)</label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Country (国) *</label>
+                                    <select
+                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                        value={selectedCountryCode || ''}
+                                        onChange={(e) => handleCountrySelect(e.target.value)}
+                                    >
+                                        <option value="">Select country</option>
+                                        {COUNTRY_OPTIONS.map((country) => (
+                                            <option key={country.code} value={country.code}>{country.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Province (都道府県/省) *</label>
+                                    <select
+                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                        value={selectedProvinceCode}
+                                        onChange={(e) => handleProvinceSelect(e.target.value)}
+                                        disabled={!selectedCountryCode}
+                                    >
+                                        <option value="">Select province</option>
+                                        {provinceOptions.map((province) => (
+                                            <option key={province.code} value={province.code}>{province.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Address detail (市区町村・番地・アパート名)</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    value={formData.location?.cityName || ''}
+                                    onChange={(e) => handleAddressDetailChange(e.target.value)}
+                                    placeholder="Street, ward, district, building..."
+                                />
+                            </div>
+                            
+                            <div className="bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3.5 rounded-xl flex items-start gap-2.5 shadow-sm">
+                                <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                                <div className="text-xs">
+                                    <span className="font-bold block mb-1">Generated Address Preview (自動生成された住所のプレビュー):</span>
+                                    <span className="font-medium text-blue-955">{formData.address || 'Please select Country and Province'}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="pt-2">
+                            <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Google Maps Embed URL (Googleマップ埋め込みURL)</label>
+                            <input 
+                                type="text" 
+                                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-xs font-mono text-gray-500 shadow-sm"
+                                value={formData.mapEmbedUrl}
+                                onChange={(e) => handleChange('mapEmbedUrl', e.target.value)}
+                                placeholder="Paste Google Maps iframe src URL here..."
+                            />
+                        </div>
                     </div>
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Google Maps Embed URL</label>
-                        <input 
-                            type="text" 
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm font-mono text-gray-500 bg-white"
-                            value={formData.mapEmbedUrl}
-                            onChange={(e) => handleChange('mapEmbedUrl', e.target.value)}
-                        />
-                    </div>
-                                        {selectedCountryCode === 'JP' && (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-sm font-bold text-gray-700 mb-2">Nearest train station (Japan only)</label>
-                                                    <input
-                                                        type="text"
-                                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                                        value={formData.accessInfo.nearestStationName || ''}
-                                                        onChange={(e) => handleAccessChange('nearestStationName', e.target.value)}
-                                                        placeholder="Example: Ojima Station"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-bold text-gray-700 mb-2">Distance to station (Japan only)</label>
-                                                    <input
-                                                        type="text"
-                                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                                        value={formData.accessInfo.nearestStationDistance || ''}
-                                                        onChange={(e) => handleAccessChange('nearestStationDistance', e.target.value)}
-                                                        placeholder="Example: 8 minutes walk"
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-                                        {selectedCountryCode === 'VN' && (
-                                            <div>
-                                                <label className="block text-sm font-bold text-gray-700 mb-2">Drive time to nearest airport (Vietnam only)</label>
-                                                <input
-                                                    type="text"
-                                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                                    value={formData.accessInfo.nearestAirportDriveTime || ''}
-                                                    onChange={(e) => handleAccessChange('nearestAirportDriveTime', e.target.value)}
-                                                    placeholder="Example: 35 minutes by car"
-                                                />
-                                            </div>
-                                        )}
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Train Access</label>
-                        <textarea 
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-24 bg-white text-gray-900"
-                            value={formData.accessInfo.train}
-                            onChange={(e) => handleAccessChange('train', e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Airport Access</label>
-                        <textarea 
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-24 bg-white text-gray-900"
-                            value={formData.accessInfo.airport}
-                            onChange={(e) => handleAccessChange('airport', e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Check-in Instructions</label>
-                        <textarea 
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none h-24 bg-white text-gray-900"
-                            value={formData.accessInfo.checkIn}
-                            onChange={(e) => handleAccessChange('checkIn', e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">YouTube Guide URL</label>
-                        <input 
-                            type="text" 
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                            value={formData.accessInfo.youtubeGuideUrl || ''}
-                            onChange={(e) => handleAccessChange('youtubeGuideUrl', e.target.value)}
-                            placeholder="https://youtu.be/..."
-                        />
+
+                    {/* Card 2: Transport & Access */}
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6 shadow-sm">
+                        <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2">
+                            <Car className="w-5 h-5 text-blue-700" />
+                            交通アクセス詳細 (Transport & Access)
+                        </h3>
+
+                        {selectedCountryCode === 'JP' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Nearest train station (最寄り駅) (Japan only)</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                        value={formData.accessInfo.nearestStationName || ''}
+                                        onChange={(e) => handleAccessChange('nearestStationName', e.target.value)}
+                                        placeholder="Example: Ojima Station"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Distance to station (最寄り駅からの距離) (Japan only)</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                        value={formData.accessInfo.nearestStationDistance || ''}
+                                        onChange={(e) => handleAccessChange('nearestStationDistance', e.target.value)}
+                                        placeholder="Example: 8 minutes walk"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        {selectedCountryCode === 'VN' && (
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Drive time to airport (空港までの時間) (Vietnam only)</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                    value={formData.accessInfo.nearestAirportDriveTime || ''}
+                                    onChange={(e) => handleAccessChange('nearestAirportDriveTime', e.target.value)}
+                                    placeholder="Example: 35 minutes by car"
+                                />
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 gap-6 pt-2">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Train Access (電車でのアクセス)</label>
+                                <textarea 
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm h-24"
+                                    value={formData.accessInfo.train}
+                                    onChange={(e) => handleAccessChange('train', e.target.value)}
+                                    placeholder="Train directions details..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Airport Access (空港からのアクセス)</label>
+                                <textarea 
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm h-24"
+                                    value={formData.accessInfo.airport}
+                                    onChange={(e) => handleAccessChange('airport', e.target.value)}
+                                    placeholder="Airport transit details..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Check-in Instructions (チェックイン方法)</label>
+                                <textarea 
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm h-24"
+                                    value={formData.accessInfo.checkIn}
+                                    onChange={(e) => handleAccessChange('checkIn', e.target.value)}
+                                    placeholder="Steps to check-in at property..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">YouTube Guide URL (チェックイン動画URL)</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    value={formData.accessInfo.youtubeGuideUrl || ''}
+                                    onChange={(e) => handleAccessChange('youtubeGuideUrl', e.target.value)}
+                                    placeholder="https://youtu.be/..."
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
