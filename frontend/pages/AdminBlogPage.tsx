@@ -4,6 +4,7 @@ import { Plus, Edit2, Archive, Lock, Loader2, ArrowLeft, Save, ImageIcon, Check,
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { TopNavBar } from '../components/TopNavBar';
+import { Footer } from '../components/Footer';
 import { ApiUser } from '../services/api';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { DEFAULT_SITE_SETTINGS, getSiteSettings } from '../services/storage';
@@ -476,13 +477,7 @@ const AdminBlogPage: React.FC = () => {
           </div>
         </main>
 
-        <footer className="bg-[#f5f3f4] text-[#1b1c1d] text-[12px] md:text-[14px] font-['Plus_Jakarta_Sans'] border-t border-[#e4e2e3] w-full py-6 md:py-8 px-4 md:px-6 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6 pb-20 md:pb-8 mt-8">
-          <div className="text-[16px] md:text-[18px] font-bold text-[#1b1c1d]">{siteSettings.footerTitle}</div>
-          <div className="flex flex-wrap justify-center gap-3 md:gap-6">
-            <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Editorial Policy</a>
-          </div>
-          <div className="text-[#44474c]">{siteSettings.footerCopyright}</div>
-        </footer>
+        <Footer />
         <MobileBottomNav />
       </div>
     );
@@ -658,13 +653,7 @@ const AdminBlogPage: React.FC = () => {
         )}
       </main>
 
-      <footer className="bg-[#f5f3f4] text-[#1b1c1d] text-[12px] md:text-[14px] font-['Plus_Jakarta_Sans'] border-t border-[#e4e2e3] w-full py-6 md:py-8 px-4 md:px-6 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6 pb-20 md:pb-8 mt-8">
-        <div className="text-[16px] md:text-[18px] font-bold text-[#1b1c1d]">{siteSettings.footerTitle}</div>
-        <div className="flex flex-wrap justify-center gap-3 md:gap-6">
-          <a className="text-[#44474c] hover:text-[#1b1c1d] underline" href="#">Editorial Policy</a>
-        </div>
-        <div className="text-[#44474c]">{siteSettings.footerCopyright}</div>
-      </footer>
+      <Footer />
 
       <MobileBottomNav />
     </div>

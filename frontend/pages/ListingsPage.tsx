@@ -8,6 +8,7 @@ import { saveSiteSettings, setPropertyArchived } from '../services/storage';
 import { TopNavBar } from '../components/TopNavBar';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { MobileBottomNav } from '../components/MobileBottomNav';
+import { Footer } from '../components/Footer';
 import { ApiUser } from '../services/api';
 
 export interface ListingsPageProps {
@@ -802,11 +803,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
       <MobileBottomNav />
 
       {/* Footer */}
-      <footer className="hidden md:flex bg-[#f5f3f4] text-[#1b1c1d] text-[12px] md:text-[14px] font-['Plus_Jakarta_Sans'] border-t border-[#e4e2e3] w-full py-6 md:py-8 px-4 md:px-6 items-center justify-center pb-20 md:pb-8 mt-auto">
-        <div className="text-[#44474c] text-center">
-          {settings.footerCopyright}
-        </div>
-      </footer>
+      <Footer />
 
       {/* Settings Modal */}
       {isSettingsModalOpen && (

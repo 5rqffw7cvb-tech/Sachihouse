@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { TopNavBar } from './TopNavBar';
 import { MobileBottomNav } from './MobileBottomNav';
+import { Footer } from './Footer';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { getSiteSettings } from '../services/storage';
 import { SiteSettings } from '../types';
@@ -74,14 +75,7 @@ export const GlobalLayout: React.FC<{ children: React.ReactNode }> = ({ children
       <MobileBottomNav />
 
       {/* Footer */}
-      <footer className="bg-[#f5f3f4] text-[#1b1c1d] text-[12px] md:text-[14px] font-['Plus_Jakarta_Sans'] border-t border-[#e4e2e3] w-full py-6 md:py-8 px-4 md:px-6 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6 pb-20 md:pb-8 mt-8">
-        <div className="text-[16px] md:text-[18px] font-bold text-[#1b1c1d]">
-          {siteSettings.footerTitle || ''}
-        </div>
-        <div className="text-[#44474c]">
-          {siteSettings.footerCopyright || ''}
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 };
