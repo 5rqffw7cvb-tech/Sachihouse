@@ -741,6 +741,19 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
     setFormData(prev => ({ ...prev, galleryImages: newImages }));
   };
 
+  // Add a freshly uploaded image as a new gallery item at the top.
+  const addUploadedImage = (url: string) => {
+    if (!url) return;
+    const newItem: GalleryItem = {
+        id: Date.now().toString(),
+        url,
+        caption: "",
+        category: 'other',
+        showOnHome: false
+    };
+    setFormData(prev => ({ ...prev, galleryImages: [newItem, ...(prev.galleryImages || [])] }));
+  };
+
   const updateImage = (index: number, field: keyof GalleryItem, value: any) => {
      const newImages = [...(formData.galleryImages || [])];
      newImages[index] = { ...newImages[index], [field]: value };
@@ -1530,51 +1543,59 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                 <ImageIcon className="w-5 h-5 text-blue-700" />
                                 写真リスト (Photo List)
                             </h3>
-                            <button onClick={addImage} className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1">
-                                <Plus className="w-4 h-4"/> Add Image
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <UploadButton
+                                    propertyId={formData.id || ''}
+                                    onUploaded={addUploadedImage}
+                                    label="Upload"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
+                                />
+                                {isAdmin && (
+                                    <button onClick={addImage} className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50">
+                                        <Plus className="w-3.5 h-3.5"/> URL
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                        <div className="space-y-6">
+                        <div className="space-y-3">
                             {(formData.galleryImages || []).map((img, idx) => {
                                 const isFeatured = !!img.showOnHome;
                                 return (
                                     <div key={idx} className={`
-                                        flex flex-col md:flex-row gap-6 items-start p-5 border rounded-2xl relative transition-all shadow-sm
-                                        ${isFeatured 
-                                            ? 'border-blue-300 bg-blue-50/20 ring-1 ring-blue-300/30' 
+                                        flex items-start gap-4 p-3 border rounded-2xl relative transition-all shadow-sm
+                                        ${isFeatured
+                                            ? 'border-blue-300 bg-blue-50/30 ring-1 ring-blue-300/30'
                                             : 'border-[#ccc9ca] bg-slate-50/50 hover:bg-white'}
                                     `}>
-                                        <button onClick={() => removeImage(idx)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10">
-                                            <Trash2 className="w-5 h-5" />
-                                        </button>
-                                        
-                                        {/* Image: preview + upload (+ URL paste for admin) */}
-                                        <div className="w-full md:w-72 shrink-0">
-                                            <ImageInput
-                                                value={img.url}
-                                                onChange={(url) => updateImage(idx, 'url', url)}
+                                        {/* Square thumbnail + upload */}
+                                        <div className="shrink-0 w-28 flex flex-col gap-2">
+                                            <div className="w-28 h-28 rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+                                                {img.url ? (
+                                                    <img src={img.url} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon className="w-7 h-7" /></div>
+                                                )}
+                                            </div>
+                                            <UploadButton
                                                 propertyId={formData.id || ''}
-                                                allowUrlPaste={isAdmin}
-                                                previewClassName="w-full h-36 rounded-xl overflow-hidden border border-gray-200 shadow-sm"
+                                                onUploaded={(url) => updateImage(idx, 'url', url)}
+                                                label="Upload"
+                                                className="w-28 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
                                             />
                                         </div>
 
-                                        {/* Fields */}
-                                        <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4 w-full pt-2">
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Caption (画像説明)</label>
-                                                <input 
-                                                    type="text" 
-                                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
-                                                    value={img.caption || ''}
-                                                    onChange={(e) => updateImage(idx, 'caption', e.target.value)}
-                                                    placeholder="e.g. Master Bedroom"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Category (カテゴリー)</label>
+                                        {/* Info */}
+                                        <div className="flex-grow min-w-0 space-y-2.5 pr-8">
+                                            <input
+                                                type="text"
+                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                                value={img.caption || ''}
+                                                onChange={(e) => updateImage(idx, 'caption', e.target.value)}
+                                                placeholder="Caption / 画像説明 (e.g. Master Bedroom)"
+                                            />
+                                            <div className="flex flex-wrap items-center gap-2">
                                                 <select
-                                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
+                                                    className="px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm text-sm font-bold"
                                                     value={img.category || 'other'}
                                                     onChange={(e) => updateImage(idx, 'category', e.target.value)}
                                                 >
@@ -1582,25 +1603,32 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                                         <option key={cat.id} value={cat.id}>{cat.label}</option>
                                                     ))}
                                                 </select>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => updateImage(idx, 'showOnHome', !isFeatured)}
+                                                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-all text-xs shadow-sm ${
+                                                        isFeatured
+                                                            ? 'bg-blue-600 text-white border-blue-600 font-extrabold'
+                                                            : 'bg-white text-gray-500 border-gray-300 hover:bg-slate-50 font-bold'}`}
+                                                >
+                                                    <Home className={`w-4 h-4 ${isFeatured ? 'text-white' : 'text-gray-400'}`} />
+                                                    {isFeatured ? 'Featured on Home' : 'Feature on Home'}
+                                                </button>
                                             </div>
-                                            <div className="md:col-span-2 pt-2">
-                                                <label className={`
-                                                    flex items-center gap-2.5 cursor-pointer group px-4 py-2.5 rounded-xl border transition-all text-xs w-max shadow-sm
-                                                    ${isFeatured 
-                                                        ? 'bg-blue-600 text-white border-blue-600 font-extrabold' 
-                                                        : 'bg-white text-gray-500 border-gray-300 hover:bg-slate-50 font-bold'}
-                                                `}>
-                                                    <input 
-                                                        type="checkbox"
-                                                        className="hidden"
-                                                        checked={isFeatured}
-                                                        onChange={(e) => updateImage(idx, 'showOnHome', e.target.checked)}
-                                                    />
-                                                    <Home className={`w-4 h-4 ${isFeatured ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'}`} /> 
-                                                    Feature on Home Page (トップページに掲載)
-                                                </label>
-                                            </div>
+                                            {isAdmin && (
+                                                <input
+                                                    type="text"
+                                                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-700 bg-white"
+                                                    value={img.url}
+                                                    onChange={(e) => updateImage(idx, 'url', e.target.value)}
+                                                    placeholder="https://..."
+                                                />
+                                            )}
                                         </div>
+
+                                        <button onClick={() => removeImage(idx)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10">
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
                                     </div>
                                 );
                             })}
@@ -2053,35 +2081,50 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
                     <div className="space-y-6">
                         {formData.manual.map(item => (
-                            <div key={item.id} className="p-5 md:p-6 border border-[#ccc9ca] rounded-2xl bg-white relative shadow-sm space-y-4">
-                                 <button onClick={() => removeManualItem(item.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10"><X className="w-5 h-5"/></button>
-                                 <div className="space-y-4 pt-4 md:pt-0">
-                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Guide Title (タイトル)</label>
-                                        <input 
-                                            type="text" 
-                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
-                                            value={item.title}
-                                            onChange={(e) => updateManualItem(item.id, 'title', e.target.value)}
-                                        />
+                            <div key={item.id} className="flex items-start gap-4 p-4 md:p-5 border border-[#ccc9ca] rounded-2xl bg-white relative shadow-sm">
+                                 <button onClick={() => removeManualItem(item.id)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10"><X className="w-4 h-4"/></button>
+
+                                 {/* Square thumbnail + upload */}
+                                 <div className="shrink-0 w-28 flex flex-col gap-2">
+                                     <div className="w-28 h-28 rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+                                         {item.imageUrl ? (
+                                             <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
+                                         ) : (
+                                             <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon className="w-7 h-7" /></div>
+                                         )}
                                      </div>
-                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Content (内容)</label>
-                                        <textarea 
-                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-32"
-                                            value={item.content}
-                                            onChange={(e) => updateManualItem(item.id, 'content', e.target.value)}
-                                        />
-                                     </div>
-                                     <div className="pt-2">
-                                        <ImageInput
-                                            label="Guide Image (説明用画像)"
-                                            value={item.imageUrl || ''}
-                                            onChange={(url) => updateManualItem(item.id, 'imageUrl', url)}
-                                            propertyId={formData.id || ''}
-                                            allowUrlPaste={isAdmin}
-                                        />
-                                     </div>
+                                     <UploadButton
+                                         propertyId={formData.id || ''}
+                                         onUploaded={(url) => updateManualItem(item.id, 'imageUrl', url)}
+                                         label="Upload"
+                                         className="w-28 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
+                                     />
+                                 </div>
+
+                                 {/* Info */}
+                                 <div className="flex-grow min-w-0 space-y-2.5 pr-8">
+                                     <input
+                                         type="text"
+                                         className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
+                                         value={item.title}
+                                         onChange={(e) => updateManualItem(item.id, 'title', e.target.value)}
+                                         placeholder="Guide Title / タイトル"
+                                     />
+                                     <textarea
+                                         className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-24"
+                                         value={item.content}
+                                         onChange={(e) => updateManualItem(item.id, 'content', e.target.value)}
+                                         placeholder="Content / 内容"
+                                     />
+                                     {isAdmin && (
+                                         <input
+                                             type="text"
+                                             className="w-full px-3 py-1.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-700 bg-white"
+                                             value={item.imageUrl || ''}
+                                             onChange={(e) => updateManualItem(item.id, 'imageUrl', e.target.value)}
+                                             placeholder="Image URL https://..."
+                                         />
+                                     )}
                                  </div>
                             </div>
                         ))}
