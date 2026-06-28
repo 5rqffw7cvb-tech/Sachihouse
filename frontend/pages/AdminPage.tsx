@@ -957,7 +957,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
         className="pt-[72px] pb-12 transition-[margin] duration-300 ease-in-out min-h-[calc(100vh-72px)]"
         style={{ marginLeft: sidebarOpen ? SIDEBAR_W : 0 }}
       >
-        <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="w-full px-4 md:px-6 py-6">
           {/* Error & Success Message Display */}
           {saveMessage && (
             <div className={`mb-6 p-4 rounded-xl text-sm font-bold shadow-sm transition-all border ${
