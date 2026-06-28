@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PropertyData, PricingConfig, ICalFeed, HouseRule, ManualItem, SleepingArrangement, HighlightItem, AccessInfo, PricingTier, CleaningTier, SocialInfo, PropertyTitles, GalleryItem, GalleryCategoryDef } from '../types';
 import { savePropertyData, translateAndSavePropertyContent, getAllProperties } from '../services/storage';
 import { ImageInput } from '../components/ImageInput';
+import { UploadButton } from '../components/UploadButton';
 import { checkAuth, getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { TopNavBar } from '../components/TopNavBar';
 import { 
@@ -832,6 +833,50 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   const removeRoom = (id: string) => {
       const currentRooms = formData.sleepingArrangements || [];
       setFormData(prev => ({ ...prev, sleepingArrangements: currentRooms.filter(r => r.id !== id) }));
+  };
+
+  // Unified room photo list helpers. The cover (`imageUrl`) is the "main" photo;
+  // `photos` holds the rest. HomePage renders [imageUrl, ...photos].
+  // Append an uploaded/added image: becomes main if there is none yet, else a photo.
+  const addRoomImage = (roomId: string, url: string) => {
+      if (!url) return;
+      setFormData(prev => ({
+          ...prev,
+          sleepingArrangements: (prev.sleepingArrangements || []).map(room => {
+              if (room.id !== roomId) return room;
+              if (!room.imageUrl) return { ...room, imageUrl: url };
+              return { ...room, photos: [...(room.photos || []), url] };
+          })
+      }));
+  };
+
+  // Promote a photo to main; demote the old main into the photo list.
+  const setRoomMainPhoto = (roomId: string, photoIndex: number) => {
+      setFormData(prev => ({
+          ...prev,
+          sleepingArrangements: (prev.sleepingArrangements || []).map(room => {
+              if (room.id !== roomId) return room;
+              const photos = [...(room.photos || [])];
+              const newMain = photos[photoIndex];
+              if (newMain === undefined) return room;
+              photos.splice(photoIndex, 1);
+              if (room.imageUrl) photos.unshift(room.imageUrl);
+              return { ...room, imageUrl: newMain, photos };
+          })
+      }));
+  };
+
+  // Remove the main photo; the first remaining photo (if any) becomes main.
+  const removeRoomMain = (roomId: string) => {
+      setFormData(prev => ({
+          ...prev,
+          sleepingArrangements: (prev.sleepingArrangements || []).map(room => {
+              if (room.id !== roomId) return room;
+              const photos = [...(room.photos || [])];
+              const newMain = photos.shift() || '';
+              return { ...room, imageUrl: newMain, photos };
+          })
+      }));
   };
 
   const NAV_ITEMS = [
@@ -2082,39 +2127,91 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                 </div>
                             </div>
 
-                            <ImageInput
-                                label="Cover Image (カバー画像)"
-                                value={room.imageUrl}
-                                onChange={(url) => updateRoom(room.id, 'imageUrl', url)}
-                                propertyId={formData.id || ''}
-                                allowUrlPaste={isAdmin}
-                            />
-                            
+                            {/* Unified photo list: square thumbnail left + info right; pick a main photo */}
                             <div className="pt-2 border-t border-gray-100">
-                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">Additional Photos (追加写真)</label>
-                                <div className="space-y-4 pl-4 border-l-2 border-slate-200">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {(room.photos || []).map((photo, pIdx) => (
-                                            <div key={pIdx} className="relative bg-slate-50 p-3 rounded-xl border border-gray-200 shadow-sm">
-                                                <ImageInput
-                                                    value={photo}
-                                                    onChange={(url) => updateRoomPhoto(room.id, pIdx, url)}
-                                                    propertyId={formData.id || ''}
-                                                    allowUrlPaste={isAdmin}
-                                                    previewClassName="w-full h-24 rounded-lg overflow-hidden"
-                                                    placeholder="Photo URL..."
-                                                    onRemove={() => removeRoomPhoto(room.id, pIdx)}
-                                                />
-                                            </div>
-                                        ))}
+                                <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Photos (写真)</label>
+                                    <div className="flex items-center gap-2">
+                                        <UploadButton
+                                            propertyId={formData.id || ''}
+                                            onUploaded={(url) => addRoomImage(room.id, url)}
+                                            label="Upload"
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
+                                        />
+                                        {isAdmin && (
+                                            <button
+                                                onClick={() => addRoomPhoto(room.id)}
+                                                className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50"
+                                            >
+                                                <Plus className="w-3.5 h-3.5" /> URL
+                                            </button>
+                                        )}
                                     </div>
-                                    <button 
-                                        onClick={() => addRoomPhoto(room.id)} 
-                                        className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1 mt-2"
-                                    >
-                                        <Plus className="w-3.5 h-3.5" /> Add Photo
-                                    </button>
                                 </div>
+
+                                {(() => {
+                                    const items = [
+                                        ...(room.imageUrl ? [{ url: room.imageUrl, isMain: true, pIdx: -1 }] : []),
+                                        ...(room.photos || []).map((url, pIdx) => ({ url, isMain: false, pIdx })),
+                                    ];
+                                    if (items.length === 0) {
+                                        return <p className="text-xs text-gray-400 italic">No photos yet. Use Upload to add.</p>;
+                                    }
+                                    return (
+                                        <div className="space-y-2">
+                                            {items.map((it) => (
+                                                <div
+                                                    key={it.isMain ? 'main' : `p-${it.pIdx}`}
+                                                    className={`flex items-start gap-3 p-2.5 rounded-xl border ${it.isMain ? 'border-blue-300 bg-blue-50/40' : 'border-gray-200 bg-slate-50'}`}
+                                                >
+                                                    {/* Square thumbnail */}
+                                                    <div className="w-20 h-20 shrink-0 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                                                        {it.url ? (
+                                                            <img src={it.url} alt="" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon className="w-6 h-6" /></div>
+                                                        )}
+                                                    </div>
+                                                    {/* Info */}
+                                                    <div className="flex-grow min-w-0 space-y-2">
+                                                        <div className="flex items-center gap-2">
+                                                            {it.isMain ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-600 text-white text-[11px] font-bold">
+                                                                    <Star className="w-3 h-3 fill-current" /> メイン (Main)
+                                                                </span>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => setRoomMainPhoto(room.id, it.pIdx)}
+                                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-gray-300 text-gray-600 text-[11px] font-bold hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                                                                >
+                                                                    <Star className="w-3 h-3" /> Set as Main
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => it.isMain ? removeRoomMain(room.id) : removeRoomPhoto(room.id, it.pIdx)}
+                                                                className="ml-auto text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50"
+                                                                title="Remove"
+                                                            >
+                                                                <X className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                        {isAdmin ? (
+                                                            <input
+                                                                type="text"
+                                                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-700 bg-white"
+                                                                value={it.url}
+                                                                onChange={(e) => it.isMain ? updateRoom(room.id, 'imageUrl', e.target.value) : updateRoomPhoto(room.id, it.pIdx, e.target.value)}
+                                                                placeholder="https://..."
+                                                            />
+                                                        ) : (
+                                                            it.url && <p className="text-[11px] text-gray-400 truncate">{it.url}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     ))}
