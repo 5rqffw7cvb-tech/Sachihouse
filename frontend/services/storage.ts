@@ -223,6 +223,19 @@ export const translateAndSavePropertyContent = async (
   return response.property;
 };
 
+// Upload a property media image (gallery/room/host/manual). The backend compresses
+// + converts to AVIF and returns a stable public URL to store on the property.
+export const uploadPropertyImage = async (
+  propertyId: string,
+  imageBase64: string,
+): Promise<string> => {
+  const response = await apiRequest<{ url: string }>(`/properties/${propertyId}/images`, {
+    method: 'POST',
+    body: JSON.stringify({ imageBase64 }),
+  });
+  return response.url;
+};
+
 export const deletePropertyData = async (propertyId: string): Promise<void> => {
   await apiRequest(`/properties/${propertyId}`, {
     method: 'DELETE',

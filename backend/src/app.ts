@@ -551,7 +551,9 @@ export function createApp(store: DataStore) {
   const standardJson = express.json({ limit: '2mb' });
   const imageJson = express.json({ limit: '30mb' });
   app.use((req, res, next) => {
-    const isImageRoute = req.path.endsWith('/checkins/ocr') || req.path.endsWith('/checkins/submit');
+    const isImageRoute = req.path.endsWith('/checkins/ocr')
+      || req.path.endsWith('/checkins/submit')
+      || /\/properties\/[^/]+\/images$/.test(req.path);
     return (isImageRoute ? imageJson : standardJson)(req, res, next);
   });
   app.use(morgan('dev'));
@@ -916,6 +918,46 @@ export function createApp(store: DataStore) {
 
     const property = await store.saveProperty(current.id, payload, req.authUser!);
     res.json({ property });
+  });
+
+  // Upload a property media image (gallery/room/host/manual). Compresses + converts
+  // to AVIF and stores it in the public bucket, returning a stable public URL.
+  app.post('/api/properties/:id/images', requireAuth, async (req, res) => {
+    const propertyId = getParam(req.params.id);
+    const current = await store.getProperty(propertyId);
+    if (!current) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (!canPerformAction(req.authUser!, 'property.write', current.id)) {
+      return res.status(403).json({ error: 'Property write not allowed.' });
+    }
+
+    const { imageBase64 } = req.body as { imageBase64?: string };
+    if (!imageBase64) {
+      return res.status(400).json({ error: 'imageBase64 is required.' });
+    }
+
+    let base64Data = imageBase64;
+    let mimeType = 'image/jpeg';
+    const m = imageBase64.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+    if (m) { mimeType = m[1]; base64Data = m[2]; }
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
+      return res.status(400).json({ error: 'Only JPEG/PNG/WebP images are supported.' });
+    }
+
+    try {
+      const rawBuffer = Buffer.from(base64Data, 'base64');
+      const upload = await objectStorage.uploadPropertyImage({
+        imageBuffer: rawBuffer,
+        mimeType,
+        propertyId: current.id,
+      });
+      return res.status(201).json({ url: upload.url });
+    } catch (err) {
+      console.error('[properties/images] upload failed:', err);
+      return res.status(500).json({ error: 'Failed to process image.' });
+    }
   });
 
   app.delete('/api/properties/:id', requireAuth, async (req, res) => {

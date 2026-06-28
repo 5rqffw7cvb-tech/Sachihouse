@@ -60,6 +60,11 @@ export class ObjectStorageService {
   private readonly projectId = process.env.GCP_PROJECT_ID;
   private readonly receiptProjectId = process.env.GCP_RECEIPT_PROJECT_ID || process.env.GCP_PROJECT_ID;
   private readonly prefix = process.env.GCS_PREFIX ?? 'checkins';
+  // Public bucket for property media (gallery/room/host images). Unlike receipts,
+  // these are shown on the public website, so they need stable public URLs (no
+  // signed-URL expiry). The bucket must be world-readable via IAM allUsers.
+  private readonly publicBucketName = process.env.GCS_PUBLIC_BUCKET ?? '';
+  private readonly publicProjectId = process.env.GCP_PUBLIC_PROJECT_ID || process.env.GCP_PROJECT_ID;
   private readonly storage = (this.bucketName || this.receiptBucketName)
     ? new Storage({ projectId: this.projectId || undefined, ...ObjectStorageService.credentialsOption() })
     : null;
@@ -67,6 +72,10 @@ export class ObjectStorageService {
   // bucket). Falls back to the shared credentials when no receipt-specific key is set.
   private readonly receiptStorage = this.receiptBucketName
     ? new Storage({ projectId: this.receiptProjectId || undefined, ...ObjectStorageService.receiptCredentialsOption() })
+    : null;
+  // Public media can use a dedicated SA; falls back to the shared credentials.
+  private readonly publicStorage = this.publicBucketName
+    ? new Storage({ projectId: this.publicProjectId || undefined, ...ObjectStorageService.publicCredentialsOption() })
     : null;
 
   private static parseCredentials(raw?: string, b64?: string): { credentials?: object } {
@@ -98,6 +107,14 @@ export class ObjectStorageService {
     const dedicated = ObjectStorageService.parseCredentials(
       process.env.GCP_RECEIPT_SERVICE_ACCOUNT_JSON,
       process.env.GCP_RECEIPT_SERVICE_ACCOUNT_JSON_B64,
+    );
+    return dedicated.credentials ? dedicated : ObjectStorageService.credentialsOption();
+  }
+
+  private static publicCredentialsOption(): { credentials?: object } {
+    const dedicated = ObjectStorageService.parseCredentials(
+      process.env.GCP_PUBLIC_SERVICE_ACCOUNT_JSON,
+      process.env.GCP_PUBLIC_SERVICE_ACCOUNT_JSON_B64,
     );
     return dedicated.credentials ? dedicated : ObjectStorageService.credentialsOption();
   }
@@ -152,6 +169,67 @@ export class ObjectStorageService {
     } while (compressed.length > TARGET_BYTES && quality > 10);
 
     return { buffer: compressed, mimeType: 'image/jpeg' };
+  }
+
+  // Compress + convert property media to AVIF. AVIF gives ~50% smaller files than
+  // JPEG at similar quality (the approach Airbnb uses for its listing photos),
+  // which keeps the public site fast. Input must be JPEG/PNG/WebP; output is AVIF.
+  async compressToAvif(buffer: Buffer, mimeType: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    if (!MIME_ALLOWLIST.has(mimeType)) {
+      throw new Error('Only JPEG/PNG/WebP images are allowed.');
+    }
+
+    const compressed = await sharp(buffer)
+      .rotate()
+      .resize({
+        width: 2000,
+        height: 2000,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .avif({ quality: 50, effort: 4 })
+      .toBuffer();
+
+    return { buffer: compressed, mimeType: 'image/avif' };
+  }
+
+  // Upload a property gallery/room/host image to the public bucket and return a
+  // stable public URL. Falls back to an inline AVIF data URI when no public bucket
+  // is configured (local dev) so the feature still works end-to-end.
+  async uploadPropertyImage(params: {
+    imageBuffer: Buffer;
+    mimeType: string;
+    propertyId: string;
+  }): Promise<{ url: string; mimeType: string; sizeBytes: number }> {
+    const avif = await this.compressToAvif(params.imageBuffer, params.mimeType);
+    const safeProperty = toSafeSegment(params.propertyId);
+    const rand = Math.random().toString(36).slice(2, 8);
+    const objectName = `properties/${safeProperty}/${Date.now()}_${rand}.avif`;
+
+    if (!this.publicStorage || !this.publicBucketName) {
+      return {
+        url: `data:${avif.mimeType};base64,${avif.buffer.toString('base64')}`,
+        mimeType: avif.mimeType,
+        sizeBytes: avif.buffer.length,
+      };
+    }
+
+    const bucket = this.publicStorage.bucket(this.publicBucketName);
+    const file = bucket.file(objectName);
+
+    // The bucket is world-readable via IAM (allUsers:objectViewer), so we do NOT
+    // set a per-object ACL — that would fail on uniform bucket-level access.
+    await file.save(avif.buffer, {
+      contentType: avif.mimeType,
+      resumable: false,
+      metadata: { cacheControl: 'public, max-age=31536000, immutable' },
+    });
+
+    return {
+      url: `https://storage.googleapis.com/${this.publicBucketName}/${objectName}`,
+      mimeType: avif.mimeType,
+      sizeBytes: avif.buffer.length,
+    };
   }
 
   async uploadReceiptImage(params: {

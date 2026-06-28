@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { PropertyData, PricingConfig, ICalFeed, HouseRule, ManualItem, SleepingArrangement, HighlightItem, AccessInfo, PricingTier, CleaningTier, SocialInfo, PropertyTitles, GalleryItem, GalleryCategoryDef } from '../types';
 import { savePropertyData, translateAndSavePropertyContent } from '../services/storage';
+import { ImageInput } from '../components/ImageInput';
 import { checkAuth, getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { 
   Save, Plus, Trash2, Lock, LayoutDashboard, DollarSign, Calendar, 
@@ -288,6 +289,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   const [isManagingCategories, setIsManagingCategories] = useState(false);
   const [newCategoryLabel, setNewCategoryLabel] = useState('');
     const canAutoTranslate = currentUser?.role === 'ADMIN';
+    const isAdmin = currentUser?.role === 'ADMIN';
 
         useEffect(() => {
                 let unsubscribe = () => {};
@@ -1102,15 +1104,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                     onChange={(e) => handleChange('hostName', e.target.value)}
                                 />
                             </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Host Image URL</label>
-                                <input 
-                                    type="text" 
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                    value={formData.hostImageUrl || ''}
-                                    onChange={(e) => handleChange('hostImageUrl', e.target.value)}
-                                />
-                            </div>
+                            <ImageInput
+                                label="Host Image"
+                                value={formData.hostImageUrl || ''}
+                                onChange={(url) => handleChange('hostImageUrl', url)}
+                                propertyId={formData.id || ''}
+                                allowUrlPaste={isAdmin}
+                            />
                             
                             {/* NEW: Superhost Controls */}
                             <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
@@ -1159,13 +1159,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="md:col-span-2">
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Footer/Brand Image URL</label>
-                                <input 
-                                    type="text" 
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
+                                <ImageInput
+                                    label="Footer/Brand Image"
                                     value={formData.social.footerImageUrl}
-                                    onChange={(e) => handleSocialChange('footerImageUrl', e.target.value)}
-                                    placeholder="https://..."
+                                    onChange={(url) => handleSocialChange('footerImageUrl', url)}
+                                    propertyId={formData.id || ''}
+                                    allowUrlPaste={isAdmin}
                                 />
                                 <p className="text-xs text-gray-500 mt-1">This image appears in the large footer card.</p>
                             </div>
@@ -1367,27 +1366,19 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                         <Trash2 className="w-5 h-5" />
                                     </button>
                                     
-                                    {/* Image Preview */}
-                                    <div className="w-full md:w-48 h-32 bg-gray-200 rounded-lg overflow-hidden shrink-0 border border-gray-200">
-                                        {img.url ? (
-                                            <img src={img.url} alt="" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-gray-400">No Image</div>
-                                        )}
+                                    {/* Image: preview + upload (+ URL paste for admin) */}
+                                    <div className="w-full md:w-72 shrink-0">
+                                        <ImageInput
+                                            value={img.url}
+                                            onChange={(url) => updateImage(idx, 'url', url)}
+                                            propertyId={formData.id || ''}
+                                            allowUrlPaste={isAdmin}
+                                            previewClassName="w-full h-32"
+                                        />
                                     </div>
-                                    
+
                                     {/* Fields */}
                                     <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-bold text-gray-500 mb-1">Image URL</label>
-                                            <input 
-                                                type="text" 
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900"
-                                                value={img.url}
-                                                onChange={(e) => updateImage(idx, 'url', e.target.value)}
-                                                placeholder="https://..."
-                                            />
-                                        </div>
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 mb-1">Caption</label>
                                             <input 
@@ -1824,12 +1815,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                     />
                                  </div>
                                  <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Image URL (Optional)</label>
-                                    <input 
-                                        type="text" 
-                                        className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-sm text-gray-600"
+                                    <ImageInput
+                                        label="Image (Optional)"
                                         value={item.imageUrl || ''}
-                                        onChange={(e) => updateManualItem(item.id, 'imageUrl', e.target.value)}
+                                        onChange={(url) => updateManualItem(item.id, 'imageUrl', url)}
+                                        propertyId={formData.id || ''}
+                                        allowUrlPaste={isAdmin}
                                     />
                                  </div>
                              </div>
@@ -1866,31 +1857,28 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                         />
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Cover Image URL</label>
-                                    <div className="flex flex-col md:flex-row gap-4">
-                                        <div className="w-full md:w-16 h-32 md:h-12 bg-gray-200 rounded shrink-0 overflow-hidden">
-                                            {room.imageUrl && <img src={room.imageUrl} className="w-full h-full object-cover" alt="" />}
-                                        </div>
-                                        <input 
-                                            type="text" className="flex-grow px-3 py-2 border border-gray-300 rounded bg-white text-sm"
-                                            value={room.imageUrl} onChange={(e) => updateRoom(room.id, 'imageUrl', e.target.value)}
-                                        />
-                                    </div>
-                                </div>
+                                <ImageInput
+                                    label="Cover Image"
+                                    value={room.imageUrl}
+                                    onChange={(url) => updateRoom(room.id, 'imageUrl', url)}
+                                    propertyId={formData.id || ''}
+                                    allowUrlPaste={isAdmin}
+                                />
                                 
                                 <div className="pt-2">
                                     <label className="block text-xs font-bold text-gray-500 mb-2">Additional Photos</label>
                                     <div className="space-y-2 pl-4 border-l-2 border-gray-200">
                                         {(room.photos || []).map((photo, pIdx) => (
-                                            <div key={pIdx} className="flex gap-2">
-                                                 <input 
-                                                    type="text" className="flex-grow px-3 py-1 border border-gray-300 rounded bg-white text-sm"
-                                                    value={photo} onChange={(e) => updateRoomPhoto(room.id, pIdx, e.target.value)}
-                                                    placeholder="Photo URL..."
-                                                />
-                                                <button onClick={() => removeRoomPhoto(room.id, pIdx)} className="text-red-400 hover:text-red-600"><X className="w-4 h-4"/></button>
-                                            </div>
+                                            <ImageInput
+                                                key={pIdx}
+                                                value={photo}
+                                                onChange={(url) => updateRoomPhoto(room.id, pIdx, url)}
+                                                propertyId={formData.id || ''}
+                                                allowUrlPaste={isAdmin}
+                                                previewClassName="w-20 h-16"
+                                                placeholder="Photo URL..."
+                                                onRemove={() => removeRoomPhoto(room.id, pIdx)}
+                                            />
                                         ))}
                                         <button onClick={() => addRoomPhoto(room.id)} className="text-xs text-blue-600 font-bold hover:underline">+ Add Photo</button>
                                     </div>
