@@ -1,10 +1,10 @@
 # Che link ảnh GCS bằng custom domain (Cloudflare)
 
-Mục tiêu: ảnh nhà hiển thị qua domain riêng (vd `https://cdn.sachihouse.com/...`) thay vì lộ link gốc `https://storage.googleapis.com/sachihouse-public/...`.
+Mục tiêu: ảnh nhà hiển thị qua domain riêng (vd `https://cdn.sachi-house.net/...`) thay vì lộ link gốc `https://storage.googleapis.com/sachihouse-public/...`.
 
 > ⚠️ Lưu ý: cách này **che nguồn GCS**, không phải cấm tải ảnh. Người dùng vẫn mở/tải được ảnh, nhưng link hiển thị là domain của bạn (kèm CDN cache nhanh hơn). Không có cách nào cấm tải ảnh hoàn toàn trên web.
 
-Yêu cầu: bạn có 1 domain đang quản lý DNS trên **Cloudflare** (vd `sachihouse.com`). Ta sẽ tạo subdomain `cdn.sachihouse.com`.
+Yêu cầu: bạn có 1 domain đang quản lý DNS trên **Cloudflare** (vd `sachi-house.net`). Ta sẽ tạo subdomain `cdn.sachi-house.net`.
 
 Bucket public hiện tại: `sachihouse-public` (giữ nguyên).
 
@@ -12,7 +12,7 @@ Bucket public hiện tại: `sachihouse-public` (giữ nguyên).
 
 ## Phần 1 — Tạo Cloudflare Worker proxy tới bucket
 
-Worker nhận request `cdn.sachihouse.com/<path>` và lấy nội dung từ `storage.googleapis.com/sachihouse-public/<path>`, có cache CDN. Cách này **không cần đổi tên bucket**.
+Worker nhận request `cdn.sachi-house.net/<path>` và lấy nội dung từ `storage.googleapis.com/sachihouse-public/<path>`, có cache CDN. Cách này **không cần đổi tên bucket**.
 
 ### Bước 1. Tạo Worker
 1. Vào https://dash.cloudflare.com → chọn account → **Workers & Pages** → **Create application** → **Create Worker**.
@@ -65,12 +65,12 @@ export default {
 
 ### Bước 2. Gắn domain cho Worker
 1. Trong Worker vừa tạo → tab **Settings** → **Domains & Routes** (hoặc **Triggers → Custom Domains**).
-2. **Add Custom Domain** → nhập `cdn.sachihouse.com` → **Add**.
+2. **Add Custom Domain** → nhập `cdn.sachi-house.net` → **Add**.
    - Cloudflare tự tạo DNS record + cấp chứng chỉ HTTPS cho subdomain này.
 3. Đợi vài phút tới khi domain **Active**.
 
 ### Bước 3. Kiểm tra
-Mở thử: `https://cdn.sachihouse.com/properties/<một-path-ảnh-có-thật>.avif`
+Mở thử: `https://cdn.sachi-house.net/properties/<một-path-ảnh-có-thật>.avif`
 → phải thấy ảnh. (Lấy `<path>` từ một URL ảnh hiện tại: phần sau `sachihouse-public/`.)
 
 ---
@@ -81,11 +81,11 @@ Thêm biến môi trường trên **Railway** (service backend):
 
 | Name | Value |
 |------|-------|
-| `GCS_PUBLIC_BASE_URL` | `https://cdn.sachihouse.com` |
+| `GCS_PUBLIC_BASE_URL` | `https://cdn.sachi-house.net` |
 
 Rồi **redeploy backend**.
 
-Từ giờ, **ảnh upload mới** sẽ được lưu link dạng `https://cdn.sachihouse.com/properties/...` thay vì storage.googleapis.com.
+Từ giờ, **ảnh upload mới** sẽ được lưu link dạng `https://cdn.sachi-house.net/properties/...` thay vì storage.googleapis.com.
 
 > Code: backend đọc `GCS_PUBLIC_BASE_URL` trong [objectStorage.ts](../backend/src/services/objectStorage.ts) (`uploadPropertyImage`). Nếu không set → vẫn dùng link storage.googleapis.com như cũ.
 
@@ -100,4 +100,4 @@ Từ giờ, **ảnh upload mới** sẽ được lưu link dạng `https://cdn.s
 
 ## (Tùy chọn) Khoá truy cập trực tiếp tới bucket gốc
 
-Muốn người dùng **chỉ** truy cập được qua `cdn.sachihouse.com` (không qua storage.googleapis.com trực tiếp) thì phức tạp hơn: phải bỏ public của bucket và cho Worker dùng signed URL / service account để đọc. Thường **không cần thiết** — che link qua CDN là đủ cho mục đích thẩm mỹ/branding. Nếu cần mức này, báo mình.
+Muốn người dùng **chỉ** truy cập được qua `cdn.sachi-house.net` (không qua storage.googleapis.com trực tiếp) thì phức tạp hơn: phải bỏ public của bucket và cho Worker dùng signed URL / service account để đọc. Thường **không cần thiết** — che link qua CDN là đủ cho mục đích thẩm mỹ/branding. Nếu cần mức này, báo mình.
