@@ -228,7 +228,7 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
     };
     if (url.startsWith('data:image/')) return { url, type: 'image' as const };
     // Allow query string / fragment after the extension (e.g. GCS signed URLs ending in ?X-Goog-...)
-    if (/\.(jpeg|jpg|gif|png|webp|bmp|svg)(\?|#|$)/i.test(url)) return { url, type: 'image' as const };
+    if (/\.(jpeg|jpg|gif|png|webp|bmp|svg|avif)(\?|#|$)/i.test(url)) return { url, type: 'image' as const };
     // GCS signed URLs are always images uploaded by our pipeline
     if (/storage\.googleapis\.com\//i.test(url)) return { url, type: 'image' as const };
     return { url, type: 'other' as const };

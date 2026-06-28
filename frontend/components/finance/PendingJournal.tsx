@@ -692,7 +692,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
               {previewUrl.startsWith('data:') ? (
                 <img src={previewUrl} alt="Receipt" className="max-w-full max-h-[60vh] object-contain rounded-xl shadow-lg" />
               ) : (() => {
-                const isImage = /\.(jpg|jpeg|png|webp)(\?|$)/i.test(previewUrl);
+                const isImage = /\.(jpg|jpeg|png|webp|avif)(\?|$)/i.test(previewUrl);
                 return isImage
                   ? <img src={previewUrl} alt="Receipt" className="max-w-full max-h-[60vh] object-contain rounded-xl shadow-lg" />
                   : <iframe src={previewUrl} className="w-full h-[60vh] border-none rounded-xl bg-white shadow-lg" title="Receipt Preview" />;

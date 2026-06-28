@@ -1902,7 +1902,7 @@ export function createApp(store: DataStore) {
         const rawBuffer = Buffer.from(base64Data, 'base64');
         let compressed: { buffer: Buffer; mimeType: string };
         try {
-          compressed = await objectStorage.compressReceiptImage(rawBuffer, mimeType);
+          compressed = await objectStorage.compressReceiptToAvif(rawBuffer, mimeType);
         } catch (cErr) {
           console.error('[upload-single] compress failed for', pending.id, ':', cErr);
           return;
@@ -1965,7 +1965,7 @@ export function createApp(store: DataStore) {
 
       try {
         const rawBuffer = Buffer.from(base64Data, 'base64');
-        const compressed = await objectStorage.compressReceiptImage(rawBuffer, mimeType);
+        const compressed = await objectStorage.compressReceiptToAvif(rawBuffer, mimeType);
         const upload = await objectStorage.uploadReceiptImage({
           imageBuffer: compressed.buffer, mimeType: compressed.mimeType, propertyId,
         });
@@ -2004,7 +2004,9 @@ export function createApp(store: DataStore) {
         if (!imgRes.ok) { console.error('[process-ocr] fetch failed:', imgRes.status, imgRes.statusText); continue; }
         const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
         console.log('[process-ocr] image bytes:', imgBuffer.length);
-        const ocr = await receiptProcessing.processReceipt(imgBuffer.toString('base64'), 'image/jpeg');
+        // Stored receipts are AVIF, which Gemini cannot read — decode to JPEG first.
+        const jpegBuffer = await objectStorage.decodeToJpeg(imgBuffer);
+        const ocr = await receiptProcessing.processReceipt(jpegBuffer.toString('base64'), 'image/jpeg');
         console.log('[process-ocr] OCR result:', JSON.stringify(ocr));
 
         // Only mark as processed if OCR returned at least one meaningful field
@@ -2107,17 +2109,17 @@ export function createApp(store: DataStore) {
       return res.status(400).json({ error: 'Invalid base64 image.' });
     }
 
-    // Compress to <100KB
+    // Compress to a small AVIF for storage.
     let compressed: { buffer: Buffer; mimeType: string };
     try {
-      compressed = await objectStorage.compressReceiptImage(rawBuffer, mimeType);
+      compressed = await objectStorage.compressReceiptToAvif(rawBuffer, mimeType);
     } catch {
       return res.status(400).json({ error: 'Could not process image.' });
     }
 
-    // Run OCR and upload in parallel
+    // Run OCR (on the raw image, since Gemini cannot read AVIF) and upload in parallel.
     const [ocr, upload] = await Promise.all([
-      receiptProcessing.processReceipt(compressed.buffer.toString('base64'), compressed.mimeType),
+      receiptProcessing.processReceipt(base64Data, mimeType),
       objectStorage.uploadReceiptImage({ imageBuffer: compressed.buffer, mimeType: compressed.mimeType, propertyId }),
     ]);
 

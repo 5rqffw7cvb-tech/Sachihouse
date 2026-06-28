@@ -171,6 +171,36 @@ export class ObjectStorageService {
     return { buffer: compressed, mimeType: 'image/jpeg' };
   }
 
+  // Aggressively compress a receipt to a small AVIF — just legible enough to confirm
+  // the amount/vendor, not archival quality. OCR runs on the raw image upstream, so
+  // this only affects the stored copy a human reviews.
+  async compressReceiptToAvif(buffer: Buffer, mimeType: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    if (!MIME_ALLOWLIST.has(mimeType)) {
+      throw new Error('Only JPEG/PNG/WebP images are allowed.');
+    }
+
+    const TARGET_BYTES = 40 * 1024; // ~40 KB
+    let quality = 42;
+    let compressed: Buffer;
+
+    do {
+      compressed = await sharp(buffer)
+        .rotate()
+        .resize({ width: 1100, height: 1100, fit: 'inside', withoutEnlargement: true })
+        .avif({ quality, effort: 4 })
+        .toBuffer();
+      quality -= 8;
+    } while (compressed.length > TARGET_BYTES && quality >= 18);
+
+    return { buffer: compressed, mimeType: 'image/avif' };
+  }
+
+  // Decode any stored image (e.g. AVIF) into JPEG bytes for OCR, since Gemini does
+  // not accept AVIF input.
+  async decodeToJpeg(buffer: Buffer): Promise<Buffer> {
+    return sharp(buffer).rotate().jpeg({ quality: 90 }).toBuffer();
+  }
+
   // Compress + convert property media to AVIF. AVIF gives ~50% smaller files than
   // JPEG at similar quality (the approach Airbnb uses for its listing photos),
   // which keeps the public site fast. Input must be JPEG/PNG/WebP; output is AVIF.
@@ -238,7 +268,11 @@ export class ObjectStorageService {
     propertyId: string;
   }): Promise<UploadResult> {
     const safeProperty = toSafeSegment(params.propertyId);
-    const objectName = `receipts/${safeProperty}/${Date.now()}.jpg`;
+    const ext = params.mimeType === 'image/avif' ? 'avif'
+      : params.mimeType === 'image/png' ? 'png'
+      : params.mimeType === 'image/webp' ? 'webp'
+      : 'jpg';
+    const objectName = `receipts/${safeProperty}/${Date.now()}.${ext}`;
 
     if (!this.receiptStorage || !this.receiptBucketName) {
       return {
