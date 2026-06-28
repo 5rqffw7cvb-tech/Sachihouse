@@ -5,6 +5,7 @@ import { PropertyData, PricingConfig, ICalFeed, HouseRule, ManualItem, SleepingA
 import { savePropertyData, translateAndSavePropertyContent } from '../services/storage';
 import { ImageInput } from '../components/ImageInput';
 import { checkAuth, getCurrentUser, logout, subscribeToAuth } from '../services/auth';
+import { TopNavBar } from '../components/TopNavBar';
 import { 
   Save, Plus, Trash2, Lock, LayoutDashboard, DollarSign, Calendar, 
   FileText, BookOpen, List, Map, CigaretteOff, PartyPopper, Moon, 
@@ -13,7 +14,7 @@ import {
   Tv, Car, Waves, Dumbbell, Flame, Sun, Bath, Thermometer, 
   ShieldCheck, Key, Shirt, Briefcase, Lock as LockIcon, Mail, LogOut, Loader2, Shield,
   Eye, EyeOff, Type, Globe, Refrigerator, Microwave, ShowerHead, Zap, Medal, Palette,
-  Settings, FolderOpen, Home, Github, Cloud, CloudRain, LockKeyhole, Share2
+  Settings, FolderOpen, Home, Github, Cloud, CloudRain, LockKeyhole, Share2, Menu
 } from 'lucide-react';
 
 interface AdminPageProps {
@@ -280,6 +281,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   
   const [formData, setFormData] = useState<PropertyData>(data);
   const [activeTab, setActiveTab] = useState<'general' | 'pricing' | 'ical' | 'amenities' | 'rules' | 'manual' | 'gallery' | 'rooms' | 'highlights' | 'access' | 'labels'>('general');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
@@ -804,117 +806,171 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
     );
   }
 
+  const toggleSidebar = () => setSidebarOpen(v => !v);
+
+  const financeToolbar = (
+    <div className="hidden md:flex items-center no-print">
+      <button
+        onClick={toggleSidebar}
+        className="flex items-center gap-2 px-3 py-1.5 bg-white text-[#1b1c1d] rounded-lg text-sm font-semibold border border-[#ccc9ca] hover:bg-[#f5f3f4] active:scale-[.97] transition-all shadow-sm"
+      >
+        <Menu className="w-4 h-4 text-[#1b1c1d]" />
+        <span className="text-[#1b1c1d] font-bold">Menu</span>
+      </button>
+    </div>
+  );
+
+  const mobileToolbar = (
+    <div className="flex items-center no-print">
+      <button
+        onClick={toggleSidebar}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-[#1b1c1d] rounded-lg text-sm font-semibold border border-[#ccc9ca] hover:bg-[#f5f3f4]"
+      >
+        <Menu className="w-4 h-4 text-[#1b1c1d]" />
+      </button>
+    </div>
+  );
+
+  const SIDEBAR_W = 272;
+
   return (
-    <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-6 md:py-12">
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Content Manager</h1>
-        <div className="flex gap-2 w-full md:w-auto">
-            <button 
-            onClick={handleLogout}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all"
+    <div className="min-h-screen bg-[#e8e5e6] relative font-sans text-gray-900">
+      <TopNavBar
+        navTitleOverride="Content Manager"
+        actionButton={financeToolbar}
+        mobileActionButton={mobileToolbar}
+      />
+
+      {/* Sidebar (fixed, slides from left, High-Contrast Styles matching Finance Page) */}
+      <aside
+        className="no-print fixed top-[72px] left-0 z-40 h-[calc(100vh-72px)] bg-white border-r border-[#ccc9ca] shadow-md flex flex-col transition-transform duration-300 ease-in-out overflow-hidden"
+        style={{ width: SIDEBAR_W, transform: sidebarOpen ? 'translateX(0)' : `translateX(-${SIDEBAR_W}px)` }}
+      >
+        {/* Sidebar Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#ccc9ca] bg-[#f5f3f4]/30 shrink-0">
+          <span className="font-extrabold text-[#1b1c1d] text-sm uppercase tracking-wide">メニュー</span>
+          <button onClick={() => setSidebarOpen(false)} className="p-1 text-gray-500 hover:text-black rounded-md hover:bg-slate-100 transition-colors">
+            <X className="w-4 h-4 text-[#1b1c1d]" />
+          </button>
+        </div>
+
+        {/* Current Property Info */}
+        <div className="px-4 py-3.5 border-b border-[#ccc9ca] shrink-0 bg-slate-50/50">
+          <p className="text-[11px] font-bold text-gray-800 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+            <Home className="w-3.5 h-3.5 text-blue-700" />
+            <span>物件情報 (Property)</span>
+          </p>
+          <div className="w-full text-xs font-bold text-gray-900 bg-white border border-[#ccc9ca] rounded-xl px-3 py-2.5 shadow-sm truncate">
+            {formData.name || propertyId}
+          </div>
+        </div>
+
+        {/* Navigation items (High-Contrast matching Finance tab style) */}
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto bg-white">
+          <p className="text-[11px] font-bold text-gray-800 uppercase tracking-widest px-3 pt-1.5 pb-2">コンテンツ</p>
+          {NAV_ITEMS.map(item => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id as typeof activeTab)}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                activeTab === item.id
+                  ? 'bg-[#1b1c1d] text-white shadow-sm'
+                  : 'text-gray-900 hover:bg-[#f5f3f4] hover:text-black'
+              }`}
             >
-            <LogOut className="w-4 h-4" />
-            Logout
+              <item.icon className={`w-4 h-4 shrink-0 ${activeTab === item.id ? 'text-white' : 'text-gray-700'}`} />
+              {item.label}
             </button>
-                        {canAutoTranslate && (
-                            <button
-                            onClick={handleAutoTranslate}
-                            disabled={isTranslating || saveStatus === 'saving'}
-                            className="flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex disabled:opacity-60"
-                            >
-                            {isTranslating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
-                            {isTranslating ? 'Translating...' : 'Auto Translate'}
-                            </button>
-                        )}
-            <button 
+          ))}
+        </nav>
+
+        {/* Sidebar Footer Actions */}
+        <div className="p-3 border-t border-[#ccc9ca] flex flex-col gap-2 shrink-0 bg-[#f5f3f4]/10">
+          <button
             onClick={handleSave}
             disabled={saveStatus !== 'idle' || isTranslating}
-            className={`
-                flex-1 md:flex-none items-center justify-center gap-2 px-6 py-2.5 rounded-lg font-bold text-white transition-all flex
-                ${saveStatus === 'saved' ? 'bg-green-500' : saveStatus === 'error' ? 'bg-red-500' : 'bg-gray-900 hover:bg-gray-800'}
-            `}
-            >
-            {saveStatus === 'saving' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4" />}
+            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm ${
+              saveStatus === 'saved'
+                ? 'bg-green-600'
+                : saveStatus === 'error'
+                  ? 'bg-red-600'
+                  : 'bg-gray-900 hover:bg-gray-800'
+            }`}
+          >
+            {saveStatus === 'saving' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
             {saveStatus === 'idle' ? 'Save Changes' : saveStatus === 'saving' ? 'Saving...' : saveStatus === 'error' ? 'Error' : 'Saved!'}
-            </button>
-            
+          </button>
+
+          <div className="flex gap-2">
+            {canAutoTranslate && (
+              <button
+                onClick={handleAutoTranslate}
+                disabled={isTranslating || saveStatus === 'saving'}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-[#ccc9ca] rounded-lg text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40 transition-colors shadow-sm bg-white"
+              >
+                {isTranslating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
+                Auto Translate
+              </button>
+            )}
+
             {propertyId !== 'main' && (
-              <button 
+              <button
                 onClick={async () => {
                   if (window.confirm('Are you sure you want to delete this listing? This will redirect you to the home page.')) {
                     try {
-                                            const { setPropertyArchived } = await import('../services/storage');
-                                            await setPropertyArchived(propertyId, true);
+                      const { setPropertyArchived } = await import('../services/storage');
+                      await setPropertyArchived(propertyId, true);
                       window.location.href = '/#/';
                     } catch (e) {
-                                            alert('Failed to archive listing.');
+                      alert('Failed to archive listing.');
                     }
                   }
                 }}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-all"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-red-200 rounded-lg text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors shadow-sm"
               >
-                <Trash2 className="w-4 h-4" />
-                                Archive
+                <Trash2 className="w-3.5 h-3.5" />
+                Archive
               </button>
             )}
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-1.5 py-2 border border-[#ccc9ca] rounded-lg text-xs font-bold text-gray-900 hover:bg-slate-100 transition-colors shadow-sm bg-white"
+          >
+            <LogOut className="w-3.5 h-3.5 text-gray-700" />
+            Logout
+          </button>
         </div>
-      </div>
-      
-      {/* Error Message Display */}
-      {saveMessage && (
-          <div className={`mb-6 p-4 rounded-lg text-sm font-medium ${saveStatus === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+      </aside>
+
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/40 z-30 no-print"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Main Content Area — shifts right on desktop when sidebar open */}
+      <div
+        className="pt-[72px] pb-12 transition-[margin] duration-300 ease-in-out min-h-[calc(100vh-72px)]"
+        style={{ marginLeft: sidebarOpen ? SIDEBAR_W : 0 }}
+      >
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          {/* Error & Success Message Display */}
+          {saveMessage && (
+            <div className={`mb-6 p-4 rounded-xl text-sm font-bold shadow-sm transition-all border ${
+              saveStatus === 'error'
+                ? 'bg-red-50 text-red-800 border-red-200'
+                : 'bg-green-50 text-green-800 border-green-200'
+            }`}>
               {saveMessage}
-          </div>
-      )}
+            </div>
+          )}
 
-      {/* Warning for Missing Session Password during Cloud Sync */}
-      {formData.github?.enabled && !sessionPassword && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3">
-              <LockKeyhole className="w-5 h-5 text-yellow-600 mt-0.5" />
-              <div>
-                  <h4 className="font-bold text-yellow-800 text-sm">Security Session Expired</h4>
-                  <p className="text-yellow-700 text-sm">
-                      You refreshed the page. To securely encrypt/decrypt the cloud token, please <button onClick={handleLogout} className="underline font-bold">logout and login again</button>.
-                  </p>
-              </div>
-          </div>
-      )}
-
-      {/* Mobile Navigation (Horizontal Scroll) */}
-      <div className="lg:hidden mb-6 -mx-4 px-4 overflow-x-auto no-scrollbar flex gap-2 snap-x">
-          {NAV_ITEMS.map((item) => (
-              <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id as typeof activeTab)}
-                  className={`
-                      flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold border snap-start transition-colors
-                      ${activeTab === item.id 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : 'bg-white text-gray-600 border-gray-200'}
-                  `}
-              >
-                  <item.icon className="w-4 h-4" />
-                  {item.label}
-              </button>
-          ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Desktop Sidebar Navigation */}
-        <div className="hidden lg:block lg:col-span-1 space-y-2 sticky top-24 h-fit">
-            {NAV_ITEMS.map(item => (
-                <button 
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id as typeof activeTab)}
-                  className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 font-medium transition-colors ${activeTab === item.id ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50'}`}
-                >
-                  <item.icon className="w-5 h-5" /> {item.label}
-                </button>
-            ))}
-        </div>
-
-        {/* Form Content */}
-        <div className="lg:col-span-3 bg-white border border-gray-200 rounded-xl shadow-sm p-4 md:p-8">
+          {/* Form Content container card */}
+          <div className="bg-white border border-[#ccc9ca] rounded-2xl shadow-sm p-4 md:p-8">
             {activeTab === 'general' && (
                 <div className="space-y-6">
                     {/* ... (Existing General Content) ... */}
@@ -2065,6 +2121,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
         </div>
       </div>
+    </div>
     </div>
   );
 };

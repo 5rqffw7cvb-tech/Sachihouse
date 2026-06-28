@@ -428,8 +428,8 @@ const PropertyRoutes = () => {
                         <Route path="pricing" element={<PricingPage data={localizedData} />} />
                         <Route path="rules" element={<RulesPage data={localizedData} />} />
                         <Route path="manual" element={<ManualPage data={localizedData} />} />
-                        <Route path="admin" element={<AdminPage data={data} onUpdate={handleDataUpdate} />} />
                     </Route>
+                    <Route path="admin" element={<AdminPage data={data} onUpdate={handleDataUpdate} />} />
                     <Route path="photos" element={<PhotoTourPage data={localizedData} />} />
                     <Route path="checkin" element={<CheckInPage data={localizedData} propertyId={propertyId} />} />
                 </Routes>
