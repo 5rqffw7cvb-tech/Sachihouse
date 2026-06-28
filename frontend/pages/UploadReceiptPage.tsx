@@ -244,6 +244,15 @@ const UploadReceiptPage: React.FC = () => {
                   <span className="block text-xs text-red-500 mt-2 break-words">{result.errorMsg}</span>
                 )}
               </p>
+              {result.success > 0 && (
+                <div className="mt-4 text-left bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    内容の確認と承認は、<span className="font-bold">パソコン版の「仕訳帳（未承認）」</span>で行ってください。<br />
+                    Please review and approve the content in the <span className="font-bold">仕訳帳（未承認）</span> list on the desktop version.
+                  </p>
+                </div>
+              )}
             </div>
             <button
               onClick={() => setResult(null)}
