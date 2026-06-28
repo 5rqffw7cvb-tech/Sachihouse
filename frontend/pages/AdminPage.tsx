@@ -666,7 +666,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
         category: 'other',
         showOnHome: false
     };
-    const newImages = formData.galleryImages ? [...formData.galleryImages, newItem] : [newItem];
+    // Prepend so the new image appears at the top (no scrolling to the bottom).
+    const newImages = formData.galleryImages ? [newItem, ...formData.galleryImages] : [newItem];
     setFormData(prev => ({ ...prev, galleryImages: newImages }));
   };
 
