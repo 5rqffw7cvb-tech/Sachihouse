@@ -65,6 +65,9 @@ export class ObjectStorageService {
   // signed-URL expiry). The bucket must be world-readable via IAM allUsers.
   private readonly publicBucketName = process.env.GCS_PUBLIC_BUCKET ?? '';
   private readonly publicProjectId = process.env.GCP_PUBLIC_PROJECT_ID || process.env.GCP_PROJECT_ID;
+  // Optional custom domain / CDN (e.g. https://cdn.sachihouse.com) put in front of the
+  // public bucket so served URLs hide the raw storage.googleapis.com origin.
+  private readonly publicBaseUrl = (process.env.GCS_PUBLIC_BASE_URL ?? '').replace(/\/+$/, '');
   private readonly storage = (this.bucketName || this.receiptBucketName)
     ? new Storage({ projectId: this.projectId || undefined, ...ObjectStorageService.credentialsOption() })
     : null;
@@ -256,7 +259,10 @@ export class ObjectStorageService {
     });
 
     return {
-      url: `https://storage.googleapis.com/${this.publicBucketName}/${objectName}`,
+      // Prefer the custom domain / CDN when configured; otherwise the raw GCS URL.
+      url: this.publicBaseUrl
+        ? `${this.publicBaseUrl}/${objectName}`
+        : `https://storage.googleapis.com/${this.publicBucketName}/${objectName}`,
       mimeType: avif.mimeType,
       sizeBytes: avif.buffer.length,
     };
