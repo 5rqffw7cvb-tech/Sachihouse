@@ -28,8 +28,9 @@ const FROM = arg('from', 'https://storage.googleapis.com/sachihouse-public/');
 const TO = arg('to', 'https://cdn.sachi-house.net/');
 const APPLY = process.argv.includes('--apply');
 
-if (!process.env.DATABASE_URL) {
-  console.error('ERROR: DATABASE_URL is not set.');
+const CONNECTION_STRING = process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL;
+if (!CONNECTION_STRING) {
+  console.error('ERROR: set DATABASE_URL (or DATABASE_PUBLIC_URL) to your Postgres connection string.');
   process.exit(1);
 }
 
@@ -40,7 +41,7 @@ async function main() {
   console.log(`To:   ${TO}`);
   console.log(APPLY ? 'Mode: APPLY (will write changes)\n' : 'Mode: DRY-RUN (no changes written)\n');
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({ connectionString: CONNECTION_STRING });
   let totalProps = 0;
   let changedProps = 0;
   let totalReplacements = 0;
