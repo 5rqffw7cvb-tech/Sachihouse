@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertCircle, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
-import { checkAuth, login } from '../services/auth';
+import { checkAuth, login, register } from '../services/auth';
 import { GlobalLayout } from '../components/GlobalLayout';
 
 // Cloudflare's published always-pass test site key, used only as a local-dev
@@ -66,6 +66,7 @@ const LoginPage: React.FC = () => {
   // straight to the DOM without firing onChange, so a controlled value bound
   // to React state would go stale and get wiped on the next unrelated
   // re-render. Read values from refs instead.
+  const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
@@ -83,6 +84,9 @@ const LoginPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [mode, setMode] = useState<'signin' | 'register'>('signin');
+
+  const isRegister = mode === 'register';
 
   useEffect(() => {
     if (checkAuth()) {
@@ -155,15 +159,20 @@ const LoginPage: React.FC = () => {
 
     setIsSubmitting(true);
 
+    const name = nameRef.current?.value.trim() ?? '';
     const email = emailRef.current?.value.trim() ?? '';
     const password = passwordRef.current?.value ?? '';
-    const result = await login(email, password, turnstileToken);
+    const result = isRegister
+      ? await register(name, email, password, turnstileToken)
+      : await login(email, password, turnstileToken);
     if (result.success) {
       navigate(redirectTarget, { replace: true });
       return;
     }
 
-    setErrorMsg(result.error || 'Email or password is incorrect. Please try again.');
+    setErrorMsg(result.error || (isRegister
+      ? 'Could not create your account. Please try again.'
+      : 'Email or password is incorrect. Please try again.'));
     setTurnstileToken('');
     if (window.turnstile && turnstileWidgetIdRef.current) {
       window.turnstile.reset(turnstileWidgetIdRef.current);
@@ -180,11 +189,30 @@ const LoginPage: React.FC = () => {
               <div className="w-11 h-11 rounded-full bg-[#1b1c1d] flex items-center justify-center mb-4">
                 <ShieldCheck className="w-5 h-5 text-white" strokeWidth={2} />
               </div>
-              <h1 className="font-['Plus_Jakarta_Sans'] text-[22px] font-bold text-[#1b1c1d] tracking-tight">Sign in</h1>
-              <p className="text-[13px] text-[#74777d] mt-1">Staff and host access only</p>
+              <h1 className="font-['Plus_Jakarta_Sans'] text-[22px] font-bold text-[#1b1c1d] tracking-tight">
+                {isRegister ? 'Create host account' : 'Sign in'}
+              </h1>
+              <p className="text-[13px] text-[#74777d] mt-1">
+                {isRegister ? 'Start hosting at host level 1' : 'Staff and host access only'}
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+              {isRegister && (
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#44474c] uppercase tracking-[0.04em] mb-1.5">Name</label>
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    required
+                    ref={nameRef}
+                    defaultValue=""
+                    className="w-full rounded-xl border border-[#d8d6d8] bg-[#fbfafa] px-3.5 py-2.5 text-[15px] text-[#1b1c1d] placeholder:text-[#9ea3ab] focus:outline-none focus:border-[#1b1c1d] focus:ring-2 focus:ring-[#1b1c1d]/10 focus:bg-white transition-colors"
+                    placeholder="Your name"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="block text-[12px] font-semibold text-[#44474c] uppercase tracking-[0.04em] mb-1.5">Email</label>
                 <input
@@ -248,9 +276,23 @@ const LoginPage: React.FC = () => {
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#1b1c1d] text-white font-semibold text-[14px] px-4 py-2.5 hover:bg-[#041627] active:scale-[0.99] disabled:opacity-40 disabled:active:scale-100 transition-all"
               >
                 {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Sign in
+                {isRegister ? 'Create account' : 'Sign in'}
               </button>
             </form>
+
+            <p className="mt-5 text-[13px] text-[#74777d] text-center">
+              {isRegister ? 'Already have an account?' : 'No account yet?'}{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMsg(null);
+                  setMode((prev) => (prev === 'register' ? 'signin' : 'register'));
+                }}
+                className="text-[#1b1c1d] font-semibold hover:underline"
+              >
+                {isRegister ? 'Sign in' : 'Create a host account'}
+              </button>
+            </p>
           </div>
 
           <p className="mt-6 text-[13px] text-[#74777d] text-center">

@@ -192,6 +192,39 @@ describe('API integration', () => {
     expect(hostToken).toBeTruthy();
   });
 
+  it('lets anyone self-register a host account at level 1 and logs them in', async () => {
+    const response = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Self Host',
+        email: 'selfhost@example.com',
+        password: 'secret123',
+      })
+      .expect(201);
+
+    expect(response.body.user.role).toBe('HOST');
+    expect(response.body.user.hostLevel).toBe(1);
+    expect(response.body.user.canEditBlog).toBe(false);
+    expect(response.body.token).toBeTruthy();
+
+    const loginToken = await login('selfhost@example.com', 'secret123');
+    expect(loginToken).toBeTruthy();
+  });
+
+  it('rejects self-registration with an email already in use', async () => {
+    await request(app)
+      .post('/api/auth/register')
+      .send({ name: 'Dup', email: 'admin@sachihouse.com', password: 'secret123' })
+      .expect(409);
+  });
+
+  it('rejects self-registration with a short password', async () => {
+    await request(app)
+      .post('/api/auth/register')
+      .send({ name: 'Shorty', email: 'shorty@example.com', password: '123' })
+      .expect(400);
+  });
+
   it('updates user role and blocks self demotion of admin', async () => {
     const adminToken = await login('admin@sachihouse.com', 'admin123');
 

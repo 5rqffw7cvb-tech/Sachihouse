@@ -69,6 +69,37 @@ export const login = async (
   }
 };
 
+export const register = async (
+  name: string,
+  email: string,
+  password: string,
+  turnstileToken: string,
+): Promise<LoginResult> => {
+  if (!name || !email || !password) {
+    return { success: false, error: 'Name, email and password are required.' };
+  }
+
+  try {
+    const response = await apiRequest<{ token: string; user: ApiUser }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        email,
+        password,
+        turnstileToken,
+      }),
+    });
+    storeSession(response.token, response.user);
+    currentUser = response.user;
+    emit();
+    return { success: true };
+  } catch (error) {
+    console.error('Auth Error:', error);
+    const message = error instanceof Error ? error.message : 'Registration failed.';
+    return { success: false, error: message };
+  }
+};
+
 export const logout = async (): Promise<void> => {
   currentUser = null;
   clearSession();

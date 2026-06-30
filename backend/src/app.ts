@@ -700,6 +700,41 @@ export function createApp(store: DataStore) {
     return res.json({ token: signToken(user), user });
   });
 
+  // Public self-registration: anyone can create their own HOST account at
+  // host level 1. Higher levels and finance access stay admin-granted only.
+  app.post('/api/auth/register', async (req, res) => {
+    const { name, email, password, turnstileToken } = req.body ?? {};
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required.' });
+    }
+    if (typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ error: 'Valid email is required.' });
+    }
+    if (typeof password !== 'string' || password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    }
+
+    if (process.env.NODE_ENV !== 'test') {
+      const turnstileOk = await verifyTurnstileToken(turnstileToken, getClientIp(req));
+      if (!turnstileOk) {
+        return res.status(400).json({ error: 'Anti-bot verification failed. Please try again.' });
+      }
+    }
+
+    let user: AuthUser;
+    try {
+      user = await store.registerHost(name, email, password);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not create account.';
+      if (message === 'Email is already in use.') {
+        return res.status(409).json({ error: message });
+      }
+      throw err;
+    }
+
+    return res.status(201).json({ token: signToken(user), user });
+  });
+
   app.get('/api/auth/me', requireAuth, async (req, res) => {
     res.json({ user: req.authUser });
   });

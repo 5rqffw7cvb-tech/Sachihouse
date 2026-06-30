@@ -124,6 +124,34 @@ export class MemoryStore implements DataStore {
     return this.toAuthUser(nextUser);
   }
 
+  async registerHost(name: string, email: string, password: string): Promise<AuthUser> {
+    const state = this.assertState();
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedName) {
+      throw new Error('Name is required.');
+    }
+    if (state.users.some((candidate) => candidate.email.toLowerCase() === normalizedEmail)) {
+      throw new Error('Email is already in use.');
+    }
+
+    const nextId = state.users.length ? Math.max(...state.users.map((user) => user.id)) + 1 : 1;
+    const passwordHash = await bcrypt.hash(password, 10);
+    const nextUser: StoredUser = {
+      id: nextId,
+      name: normalizedName,
+      email: normalizedEmail,
+      role: 'HOST',
+      canEditBlog: false,
+      passwordHash,
+      archivedAt: null,
+      assignedPropertyIds: [],
+      hostLevel: 1,
+    };
+    state.users.push(nextUser);
+    return this.toAuthUser(nextUser);
+  }
+
   async updateUserName(userId: number, name: string, _actor: AuthUser): Promise<AuthUser> {
     const state = this.assertState();
     const normalizedName = name.trim();

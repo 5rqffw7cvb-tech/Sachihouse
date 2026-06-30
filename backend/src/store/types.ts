@@ -289,6 +289,7 @@ export interface DataStore {
   listUsers(): Promise<AuthUser[]>;
   touchUserLastSeen(userId: number, timestamp: number): Promise<void>;
   createUser(name: string, email: string, password: string, role: Role, canEditBlog: boolean, actor: AuthUser): Promise<AuthUser>;
+  registerHost(name: string, email: string, password: string): Promise<AuthUser>;
   updateUserName(userId: number, name: string, actor: AuthUser): Promise<AuthUser>;
   updateUserEmail(userId: number, email: string, actor: AuthUser): Promise<AuthUser>;
   updateUserRole(userId: number, role: Role, actor: AuthUser): Promise<AuthUser>;

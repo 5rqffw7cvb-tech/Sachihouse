@@ -298,6 +298,32 @@ export class PostgresStore implements DataStore {
     return created;
   }
 
+  async registerHost(name: string, email: string, password: string): Promise<AuthUser> {
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedName) {
+      throw new Error('Name is required.');
+    }
+    const existing = await this.pool.query<{ id: number }>('SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1', [normalizedEmail]);
+    if (existing.rowCount) {
+      throw new Error('Email is already in use.');
+    }
+
+    const idResult = await this.pool.query<{ next_id: number }>('SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM users');
+    const nextId = idResult.rows[0]?.next_id ?? 1;
+
+    const bcrypt = await import('bcryptjs');
+    const passwordHash = await bcrypt.default.hash(password, 10);
+    const insertResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>(
+      'INSERT INTO users (id, name, email, role, password_hash, can_edit_blog, host_level, archived_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NULL) RETURNING id, name, email, role, can_edit_blog, archived_at, host_level',
+      [nextId, normalizedName, normalizedEmail, 'HOST', passwordHash, false, 1],
+    );
+    const created = await this.mapUser(insertResult.rows[0]);
+    // Self-registration has no acting admin; the new user is the actor of record.
+    await this.writeAudit(created.id, 'CREATE', 'user', String(created.id));
+    return created;
+  }
+
   async updateUserName(userId: number, name: string, actor: AuthUser): Promise<AuthUser> {
     const normalizedName = name.trim();
     if (!normalizedName) {
