@@ -1,14 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bot,
-  Camera,
+  BookOpen,
+  CalendarSync,
   Check,
   CheckCircle2,
   ChevronDown,
-  KeyRound,
+  FileText,
+  Globe,
   Loader2,
   Minus,
+  Receipt,
+  ScanLine,
+  ShieldCheck,
+  Wallet,
   X,
 } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
@@ -27,81 +32,86 @@ interface PlanMeta {
   features: Array<{ text: string; included: boolean }>;
 }
 
+// Every feature listed here maps to a capability that already exists in the
+// product. Marketing-only items (AI chatbot, smart locks, photo services) were
+// intentionally removed.
 const PLAN_META: PlanMeta[] = [
   {
     code: 'basic',
     name: 'Basic',
-    tagline: 'Set up a professional website and showcase your property.',
+    tagline: 'Publish a professional landing page for each of your properties.',
     level: 2,
     features: [
       { text: 'Dedicated landing page per property', included: true },
-      { text: 'High-quality photo & info display', included: true },
+      { text: 'Photo gallery & photo tour', included: true },
+      { text: 'House manual & guidebook', included: true },
+      { text: 'Access & directions page', included: true },
       { text: 'Google SEO optimization', included: true },
       { text: 'Automated Minpaku check-in', included: false },
-      { text: 'Finance dashboard & AI receipt scan', included: false },
-      { text: 'Ao-iro (blue) tax export', included: false },
+      { text: 'Finance dashboard & tax export', included: false },
     ],
   },
   {
     code: 'plus',
     name: 'Plus',
-    tagline: 'Automate 90% of guest reception and legal lodging records.',
+    tagline: 'Automate guest reception and keep legally-compliant lodging records.',
     level: 3,
     recommended: true,
     features: [
       { text: 'Everything in Basic', included: true },
-      { text: 'Automated Minpaku check-in (passport capture, e-signature ledger)', included: true },
-      { text: 'Smart Guidebook & in-home guidance', included: true },
-      { text: 'Multi-channel calendar sync (iCal)', included: true },
-      { text: 'Finance dashboard & AI receipt scan', included: false },
-      { text: 'Ao-iro (blue) tax export', included: false },
+      { text: 'Automated Minpaku check-in (passport OCR + guest ledger)', included: true },
+      { text: 'Multi-platform calendar sync (iCal)', included: true },
+      { text: 'Finance dashboard', included: false },
+      { text: 'AI receipt scanning', included: false },
+      { text: 'Ao-iro blue tax export', included: false },
     ],
   },
   {
     code: 'pro',
     name: 'Pro',
-    tagline: 'A complete cash-flow and year-end Minpaku tax solution.',
+    tagline: 'A complete cash-flow and year-end Minpaku tax workflow.',
     level: 4,
     features: [
       { text: 'Everything in Plus', included: true },
-      { text: 'Finance dashboard: revenue & profit reports', included: true },
-      { text: 'AI OCR receipt upload & auto-categorization', included: true },
+      { text: 'Finance dashboard: revenue & profit', included: true },
+      { text: 'AI receipt OCR & auto-categorization', included: true },
       { text: 'Ao-iro Tax Manager export (Japan blue tax)', included: true },
-      { text: '24/7 AI Assistant for your guests', included: true },
     ],
   },
 ];
 
-const COMPARISON_ROWS: Array<{ feature: string; desc: string; basic: boolean; plus: boolean; pro: boolean }> = [
-  { feature: 'Listing & landing page website', desc: 'Your own site showing rooms, amenities and photos.', basic: true, plus: true, pro: true },
-  { feature: 'Google SEO support', desc: 'Search optimization so your property surfaces better.', basic: true, plus: true, pro: true },
-  { feature: 'Multi-platform calendar sync', desc: 'iCal sync to avoid double bookings (Airbnb, Booking.com…).', basic: false, plus: true, pro: true },
-  { feature: 'Smart Guidebook & directions', desc: 'Device instructions, key pickup and the way to the house.', basic: false, plus: true, pro: true },
-  { feature: 'Automated Minpaku check-in ledger', desc: 'Passport capture & signature per Japan lodging law.', basic: false, plus: true, pro: true },
-  { feature: 'Finance dashboard', desc: 'Track real revenue, operating costs and profit charts.', basic: false, plus: false, pro: true },
-  { feature: 'AI receipt scanning (OCR)', desc: 'Photograph receipts; the system reads amount & category.', basic: false, plus: false, pro: true },
-  { feature: 'Ao-iro blue tax report', desc: 'Auto-export books in the Japanese blue tax filing format.', basic: false, plus: false, pro: true },
-  { feature: '24/7 AI chatbot assistant', desc: 'Auto-answers guests from your house guidance, multilingual.', basic: false, plus: false, pro: true },
-];
+interface ComparisonRow {
+  icon: React.ComponentType<{ className?: string }>;
+  feature: string;
+  desc: string;
+  basic: boolean;
+  plus: boolean;
+  pro: boolean;
+}
 
-const ADDONS = [
-  { icon: Camera, name: 'Professional photography & 360° virtual tour', desc: 'A pro photographer shoots your unit and sets up a vivid 360° photo tour for guests.', price: '¥25,000 / one-time setup' },
-  { icon: KeyRound, name: 'Smart lock integration & setup', desc: 'We configure and connect your smart-lock API so codes sync with bookings.', price: '¥5,000 / unit' },
-  { icon: Bot, name: 'Standalone AI Assistant (for Plus)', desc: 'Enable the smart AI assistant to auto-answer guests on your messaging channels.', price: '¥1,000 / unit / month' },
+const COMPARISON_ROWS: ComparisonRow[] = [
+  { icon: Globe, feature: 'Landing page & website per property', desc: 'Your own site showing rooms, amenities and photos.', basic: true, plus: true, pro: true },
+  { icon: BookOpen, feature: 'House manual & guidebook', desc: 'Device instructions, house rules and key pickup for guests.', basic: true, plus: true, pro: true },
+  { icon: Globe, feature: 'Google SEO support', desc: 'Search optimization so your property surfaces better.', basic: true, plus: true, pro: true },
+  { icon: CalendarSync, feature: 'Multi-platform calendar sync', desc: 'iCal sync to avoid double bookings (Airbnb, Booking.com…).', basic: false, plus: true, pro: true },
+  { icon: ScanLine, feature: 'Automated Minpaku check-in', desc: 'Passport OCR capture & digital guest ledger per Japan lodging law.', basic: false, plus: true, pro: true },
+  { icon: Wallet, feature: 'Finance dashboard', desc: 'Track real revenue, operating costs and profit.', basic: false, plus: false, pro: true },
+  { icon: Receipt, feature: 'AI receipt scanning (OCR)', desc: 'Photograph receipts; the system reads amount & category.', basic: false, plus: false, pro: true },
+  { icon: FileText, feature: 'Ao-iro blue tax export', desc: 'Auto-export books in the Japanese blue tax filing format.', basic: false, plus: false, pro: true },
 ];
 
 const FAQS = [
   {
-    q: 'How does the Ao-iro (blue) tax feature work?',
-    a: 'The system aggregates all incoming cash flow (revenue from platforms) and outgoing cash flow (receipts you scan via OCR) to auto-export the blue tax filing template. You just download it to submit to the tax office — no manual bookkeeping. Note: this is a bookkeeping support tool, not tax filing or advisory (which is reserved for licensed zeirishi).',
+    q: 'How does self check-in stay compliant with Japan’s Minpaku law?',
+    a: 'Under Japan’s lodging regulations, hosts must capture foreign guests’ passport pages and keep a guest ledger with signatures. The Plus and Pro plans store this digitally and securely, ready for government inspection.',
   },
   {
-    q: 'Does the check-in fully comply with Japan’s Minpaku law?',
-    a: 'Yes. Under Japan’s lodging regulations, hosts must capture foreign guests’ passport pages and keep the guest ledger and signatures. Sachi House check-in stores this digitally and securely for government inspection.',
+    q: 'What does the Ao-iro (blue tax) export do?',
+    a: 'It aggregates your revenue and the expenses you scan via receipt OCR, then exports books in the blue-tax filing format so you can submit them to the tax office. Note: this is a bookkeeping support tool, not tax filing or advisory (reserved for licensed zeirishi).',
   },
   {
-    q: 'Can I get a discount for multiple properties?',
-    a: 'Yes. We offer tiered discounts for hosts with several units. Contact our team for a dedicated chain/agency code.',
+    q: 'How do I upgrade, and when does my plan activate?',
+    a: 'Pick a plan and submit a request — an admin reviews it and activates your host level. New hosts start at level 1 (free) and can request an upgrade at any time.',
   },
 ];
 
@@ -194,33 +204,39 @@ const BecomeHostPage: React.FC = () => {
 
       <main className="flex-1 w-full pt-[90px] md:pt-[96px] pb-16">
         {/* Hero */}
-        <section className="text-center px-4 max-w-3xl mx-auto pt-6 pb-8">
-          <h1 className="text-[32px] md:text-[44px] font-extrabold text-[#0f172a] leading-tight tracking-tight">
-            Become a Host — <span className="text-blue-600">grow your homestay revenue</span>
-          </h1>
-          <p className="text-[15px] md:text-[18px] text-[#64748b] mt-4">
-            End-to-end support from listing, legally-compliant Minpaku auto check-in, to deep blue-tax (Ao-iro) accounting in Japan.
-          </p>
+        <section className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-blue-50/80 to-transparent pointer-events-none" />
+          <div className="relative text-center px-4 max-w-3xl mx-auto pt-8 pb-10">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-3 py-1 rounded-full mb-5">
+              <Globe className="w-3.5 h-3.5" /> Built for Minpaku hosts in Japan
+            </span>
+            <h1 className="text-[32px] md:text-[44px] font-extrabold text-[#0f172a] leading-tight tracking-tight">
+              Become a Host — <span className="text-blue-600">grow your homestay revenue</span>
+            </h1>
+            <p className="text-[15px] md:text-[18px] text-[#64748b] mt-4">
+              From listing and legally-compliant Minpaku check-in to blue-tax (Ao-iro) accounting — one platform for your whole operation.
+            </p>
 
-          {/* Billing toggle */}
-          <div className="inline-flex items-center bg-white p-1.5 rounded-full border border-slate-200 shadow-sm mt-8">
-            <button
-              onClick={() => setBilling('monthly')}
-              className={`px-5 py-2 text-sm font-semibold rounded-full transition-colors ${billing === 'monthly' ? 'bg-blue-600 text-white' : 'text-[#64748b] hover:text-[#0f172a]'}`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setBilling('yearly')}
-              className={`px-5 py-2 text-sm font-semibold rounded-full transition-colors flex items-center gap-2 ${billing === 'yearly' ? 'bg-blue-600 text-white' : 'text-[#64748b] hover:text-[#0f172a]'}`}
-            >
-              Yearly
-              {discount > 0 && (
-                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${billing === 'yearly' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-600'}`}>
-                  Save {discount}%
-                </span>
-              )}
-            </button>
+            {/* Billing toggle */}
+            <div className="inline-flex items-center bg-white p-1.5 rounded-full border border-slate-200 shadow-sm mt-8">
+              <button
+                onClick={() => setBilling('monthly')}
+                className={`px-5 py-2 text-sm font-semibold rounded-full transition-colors ${billing === 'monthly' ? 'bg-blue-600 text-white' : 'text-[#64748b] hover:text-[#0f172a]'}`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBilling('yearly')}
+                className={`px-5 py-2 text-sm font-semibold rounded-full transition-colors flex items-center gap-2 ${billing === 'yearly' ? 'bg-blue-600 text-white' : 'text-[#64748b] hover:text-[#0f172a]'}`}
+              >
+                Yearly
+                {discount > 0 && (
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${billing === 'yearly' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-600'}`}>
+                    Save {discount}%
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </section>
 
@@ -246,7 +262,7 @@ const BecomeHostPage: React.FC = () => {
               return (
                 <div
                   key={plan.code}
-                  className={`relative bg-white rounded-2xl border p-7 flex flex-col transition-all hover:-translate-y-1 hover:shadow-lg ${plan.recommended ? 'border-blue-600 shadow-md' : 'border-slate-200 shadow-sm'}`}
+                  className={`relative bg-white rounded-2xl border p-7 flex flex-col transition-all hover:-translate-y-1 hover:shadow-lg ${plan.recommended ? 'border-blue-600 shadow-md ring-1 ring-blue-600/10' : 'border-slate-200 shadow-sm'}`}
                 >
                   {plan.recommended && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[11px] font-bold uppercase tracking-wide px-3 py-1 rounded-full">
@@ -288,7 +304,7 @@ const BecomeHostPage: React.FC = () => {
                       <li key={i} className={`flex items-start gap-3 text-sm ${feature.included ? 'text-[#334155]' : 'text-[#94a3b8] line-through'}`}>
                         {feature.included
                           ? <Check className="w-[18px] h-[18px] text-emerald-500 shrink-0 mt-0.5" />
-                          : <X className="w-[18px] h-[18px] text-red-400 shrink-0 mt-0.5" />}
+                          : <X className="w-[18px] h-[18px] text-slate-300 shrink-0 mt-0.5" />}
                         <span>{feature.text}</span>
                       </li>
                     ))}
@@ -302,59 +318,72 @@ const BecomeHostPage: React.FC = () => {
         {/* Comparison table */}
         <section className="max-w-6xl mx-auto px-4 mt-16">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-10">
-            <h2 className="text-2xl md:text-3xl font-extrabold text-[#0f172a] text-center mb-8">Detailed feature comparison</h2>
+            <h2 className="text-2xl md:text-3xl font-extrabold text-[#0f172a] text-center mb-2">What’s included</h2>
+            <p className="text-center text-[#64748b] mb-8">Every feature below is live in the platform today.</p>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr>
                     <th className="p-4 bg-slate-50 font-bold text-[#0f172a] rounded-tl-xl">Feature</th>
-                    <th className="p-4 bg-slate-50 font-bold text-[#0f172a] text-center w-[15%]">Basic</th>
-                    <th className="p-4 bg-slate-50 font-bold text-[#0f172a] text-center w-[15%]">Plus</th>
-                    <th className="p-4 bg-slate-50 font-bold text-[#0f172a] text-center w-[15%] rounded-tr-xl">Pro</th>
+                    <th className="p-4 bg-slate-50 font-bold text-[#0f172a] text-center w-[14%]">Basic</th>
+                    <th className="p-4 bg-blue-50 font-bold text-blue-700 text-center w-[14%]">Plus</th>
+                    <th className="p-4 bg-slate-50 font-bold text-[#0f172a] text-center w-[14%] rounded-tr-xl">Pro</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {COMPARISON_ROWS.map((row, i) => (
-                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/60">
-                      <td className="p-4 align-top">
-                        <span className="font-semibold text-[#0f172a]">{row.feature}</span>
-                        <span className="block text-xs text-[#64748b] mt-1">{row.desc}</span>
-                      </td>
-                      {(['basic', 'plus', 'pro'] as const).map((key) => (
-                        <td key={key} className="p-4 text-center align-middle">
-                          {row[key]
-                            ? <Check className="w-5 h-5 text-emerald-500 inline" />
-                            : <Minus className="w-5 h-5 text-slate-300 inline" />}
+                  {COMPARISON_ROWS.map((row, i) => {
+                    const Icon = row.icon;
+                    return (
+                      <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/60">
+                        <td className="p-4 align-top">
+                          <div className="flex items-start gap-3">
+                            <Icon className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-semibold text-[#0f172a]">{row.feature}</span>
+                              <span className="block text-xs text-[#64748b] mt-1">{row.desc}</span>
+                            </div>
+                          </div>
                         </td>
-                      ))}
-                    </tr>
-                  ))}
+                        {(['basic', 'plus', 'pro'] as const).map((key) => (
+                          <td key={key} className={`p-4 text-center align-middle ${key === 'plus' ? 'bg-blue-50/40' : ''}`}>
+                            {row[key]
+                              ? <Check className="w-5 h-5 text-emerald-500 inline" />
+                              : <Minus className="w-5 h-5 text-slate-300 inline" />}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         </section>
 
-        {/* Add-ons */}
-        <section className="max-w-6xl mx-auto px-4 mt-16">
-          <h2 className="text-2xl md:text-3xl font-extrabold text-[#0f172a] text-center mb-2">Add-on services</h2>
-          <p className="text-center text-[#64748b] max-w-xl mx-auto mb-8">Buy à la carte to boost your operation without changing your fixed plan.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {ADDONS.map((addon, i) => {
-              const Icon = addon.icon;
-              return (
-                <div key={i} className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex items-start gap-4 hover:shadow-md transition-shadow">
-                  <div className="bg-blue-50 text-blue-600 p-3 rounded-lg shrink-0">
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-[#0f172a]">{addon.name}</h4>
-                    <p className="text-sm text-[#64748b] mt-1 mb-2">{addon.desc}</p>
-                    <span className="text-sm font-bold text-blue-600">{addon.price}</span>
-                  </div>
-                </div>
-              );
-            })}
+        {/* Compliance / trust strip */}
+        <section className="max-w-6xl mx-auto px-4 mt-12">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-5 flex items-start gap-3">
+              <ShieldCheck className="w-6 h-6 text-blue-600 shrink-0" />
+              <div>
+                <h4 className="font-bold text-[#0f172a] text-sm">Minpaku-compliant records</h4>
+                <p className="text-xs text-[#64748b] mt-1">Passport capture & guest ledger kept per Japan lodging law.</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-5 flex items-start gap-3">
+              <ScanLine className="w-6 h-6 text-blue-600 shrink-0" />
+              <div>
+                <h4 className="font-bold text-[#0f172a] text-sm">AI-assisted operations</h4>
+                <p className="text-xs text-[#64748b] mt-1">Passport & receipt OCR cut manual data entry.</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-5 flex items-start gap-3">
+              <FileText className="w-6 h-6 text-blue-600 shrink-0" />
+              <div>
+                <h4 className="font-bold text-[#0f172a] text-sm">Blue-tax ready</h4>
+                <p className="text-xs text-[#64748b] mt-1">Export books in the Ao-iro filing format at year end.</p>
+              </div>
+            </div>
           </div>
         </section>
 
