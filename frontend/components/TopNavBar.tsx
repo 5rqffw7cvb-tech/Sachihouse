@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Settings, User, LogOut, Loader2, Building2, ClipboardCheck, Wallet, Newspaper, Users, Home } from 'lucide-react';
+import { Settings, User, LogOut, Loader2, Building2, ClipboardCheck, Wallet, Newspaper, Users, Home, Tag } from 'lucide-react';
 import { getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { getSiteSettings } from '../services/storage';
 import { CheckInLinkPicker } from './CheckInLinkPicker';
@@ -59,6 +59,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
   const canUseFinance = authUser?.role === 'ADMIN' || (authUser?.role === 'HOST' && (authUser?.hostLevel ?? 0) >= 4);
   const isHome = pathname === '/' || pathname === '/index.html';
   const isBlog = pathname.startsWith('/blog');
+  const isBecomeHost = pathname.startsWith('/become-host');
   const isBlogPost = /^\/blog\/[^/]+$/.test(pathname);
   const mobilePageTitle = navTitle || NAV_TITLE_FALLBACK;
 
@@ -278,6 +279,14 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
               >
                 {t('common_blog')}
               </Link>
+              <Link
+                to="/become-host"
+                className={isBecomeHost
+                  ? "text-[#1b1c1d] border-b-2 border-[#1b1c1d] pb-1 font-semibold hover:text-[#1b1c1d] transition-colors duration-150 active:scale-95"
+                  : "text-[#44474c] font-medium hover:text-[#1b1c1d] transition-colors duration-150 active:scale-95"}
+              >
+                Become Host
+              </Link>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -343,6 +352,14 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
                         className="w-full text-left px-4 py-2.5 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors flex items-center gap-2.5"
                       >
                         <Users className="w-4 h-4 text-[#74777d]" /> {t('common_admin_users')}
+                      </button>
+                    )}
+                    {canManageUsers && (
+                      <button
+                        onClick={() => { setIsDropdownOpen(false); navigate('/admin/services'); }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors flex items-center gap-2.5"
+                      >
+                        <Tag className="w-4 h-4 text-[#74777d]" /> Services
                       </button>
                     )}
                     {canUseMyProperties && (

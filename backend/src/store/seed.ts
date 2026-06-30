@@ -148,6 +148,15 @@ export const siteSettingsSeed: SiteSettings = {
       },
     ],
   },
+  hostPlans: {
+    currency: 'JPY',
+    yearlyDiscountPercent: 20,
+    plans: {
+      basic: { monthlyPrice: 1500 },
+      plus: { monthlyPrice: 3980 },
+      pro: { monthlyPrice: 7980 },
+    },
+  },
 };
 
 export const propertiesSeed = [

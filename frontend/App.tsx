@@ -26,6 +26,8 @@ const CheckInPage = lazy(() => import('./pages/CheckInPage'));
 const CheckInManagementPage = lazy(() => import('./pages/CheckInManagementPage'));
 const FinancePage = lazy(() => import('./pages/FinancePage'));
 const UploadReceiptPage = lazy(() => import('./pages/UploadReceiptPage'));
+const BecomeHostPage = lazy(() => import('./pages/BecomeHostPage'));
+const ServicesAdminPage = lazy(() => import('./pages/ServicesAdminPage'));
 
 // ScrollToTop component to fix scroll position on route change in HashRouter
 const ScrollToTop = () => {
@@ -564,6 +566,8 @@ const App: React.FC = () => {
           <Routes>
                         <Route path="/" element={<ListingsRoute />} />
                                                 <Route path="/login" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><LoginPage /></Suspense>} />
+                        <Route path="/become-host" element={<Suspense fallback={<div className="min-h-screen bg-[#f8fafc] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BecomeHostPage /></Suspense>} />
+                        <Route path="/admin/services" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><ServicesAdminPage /></Suspense>} />
                         <Route path="/blog" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BlogPage /></Suspense>} />
                         <Route path="/blog/admin" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><AdminBlogPage /></Suspense>} />
                         <Route path="/admin/users" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><AdminUsersPage /></Suspense>} />

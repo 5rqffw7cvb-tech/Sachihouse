@@ -102,6 +102,15 @@ describe('API integration', () => {
   });
 
   it('allows host to update an assigned property', async () => {
+    // Editing a property requires host level >= 2; the seeded host starts at
+    // level 1, so an admin promotes them first.
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+    await request(app)
+      .put('/api/users/2/host-level')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ level: 2 })
+      .expect(200);
+
     const token = await login('host@sachihouse.com', 'host123');
 
     const before = await request(app).get('/api/properties/main').expect(200);
@@ -157,6 +166,13 @@ describe('API integration', () => {
       .post('/api/properties/list_shin/hosts/2')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(204);
+
+    // Property writes require host level >= 2.
+    await request(app)
+      .put('/api/users/2/host-level')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ level: 2 })
+      .expect(200);
 
     const hostToken = await login('host@sachihouse.com', 'host123');
     await request(app)
@@ -222,6 +238,60 @@ describe('API integration', () => {
     await request(app)
       .post('/api/auth/register')
       .send({ name: 'Shorty', email: 'shorty@example.com', password: '123' })
+      .expect(400);
+  });
+
+  it('lets a host request an upgrade and an admin approve it to set host level', async () => {
+    // Seeded host@sachihouse.com starts as a HOST. Self-register a fresh host instead.
+    const reg = await request(app)
+      .post('/api/auth/register')
+      .send({ name: 'Upgrader', email: 'upgrader@example.com', password: 'secret123' })
+      .expect(201);
+    const hostToken = reg.body.token as string;
+    expect(reg.body.user.hostLevel).toBe(1);
+
+    const created = await request(app)
+      .post('/api/subscription-requests')
+      .set('Authorization', `Bearer ${hostToken}`)
+      .send({ planCode: 'plus', billingCycle: 'yearly' })
+      .expect(201);
+    expect(created.body.request.status).toBe('pending');
+    const requestId = created.body.request.id as string;
+
+    // Host can see their own request.
+    const mine = await request(app)
+      .get('/api/subscription-requests/mine')
+      .set('Authorization', `Bearer ${hostToken}`)
+      .expect(200);
+    expect(mine.body.requests).toHaveLength(1);
+
+    // Non-admins cannot list all requests.
+    await request(app)
+      .get('/api/subscription-requests')
+      .set('Authorization', `Bearer ${hostToken}`)
+      .expect(403);
+
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+    const approved = await request(app)
+      .post(`/api/subscription-requests/${requestId}/approve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(approved.body.request.status).toBe('approved');
+
+    // Plus maps to host level 3.
+    const me = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${hostToken}`)
+      .expect(200);
+    expect(me.body.user.hostLevel).toBe(3);
+  });
+
+  it('rejects subscription requests with an invalid plan code', async () => {
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+    await request(app)
+      .post('/api/subscription-requests')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ planCode: 'enterprise', billingCycle: 'monthly' })
       .expect(400);
   });
 

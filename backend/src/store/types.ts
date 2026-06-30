@@ -47,6 +47,42 @@ export interface SiteSettings {
       provinceName: string;
     }>;
   };
+  hostPlans?: HostPlansConfig;
+}
+
+export type HostPlanCode = 'basic' | 'plus' | 'pro';
+export type BillingCycle = 'monthly' | 'yearly';
+
+// Editable from the admin "Services" page. Prices are the monthly price per
+// unit in the configured currency; the yearly price is derived by applying
+// yearlyDiscountPercent to 12 months.
+export interface HostPlansConfig {
+  currency: string;               // e.g. 'JPY'
+  yearlyDiscountPercent: number;  // e.g. 20
+  plans: Record<HostPlanCode, { monthlyPrice: number }>;
+}
+
+// Maps a purchasable plan to the host level it grants once an admin approves
+// the request. Basic = level 2, Plus = level 3, Pro = level 4.
+export const PLAN_TO_HOST_LEVEL: Record<HostPlanCode, 2 | 3 | 4> = {
+  basic: 2,
+  plus: 3,
+  pro: 4,
+};
+
+export type SubscriptionRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface SubscriptionRequest {
+  id: string;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  planCode: HostPlanCode;
+  billingCycle: BillingCycle;
+  status: SubscriptionRequestStatus;
+  createdAt: number;
+  updatedAt: number;
+  decidedByUserId?: number | null;
 }
 
 export type IdDocumentType = 'passport' | 'driver_license' | 'residence_card' | 'national_id' | 'unknown';
@@ -307,6 +343,10 @@ export interface DataStore {
   deleteProperty(propertyId: string, actor: AuthUser): Promise<void>;
   getSiteSettings(): Promise<SiteSettings>;
   saveSiteSettings(settings: SiteSettings, actor: AuthUser): Promise<SiteSettings>;
+  createSubscriptionRequest(userId: number, planCode: HostPlanCode, billingCycle: BillingCycle): Promise<SubscriptionRequest>;
+  listSubscriptionRequests(filters?: { status?: SubscriptionRequestStatus; userId?: number }): Promise<SubscriptionRequest[]>;
+  getSubscriptionRequest(id: string): Promise<SubscriptionRequest | null>;
+  updateSubscriptionRequestStatus(id: string, status: SubscriptionRequestStatus, actor: AuthUser): Promise<SubscriptionRequest>;
   listBlockedDates(propertyId: string): Promise<string[]>;
   listBlogPosts(includeArchived?: boolean): Promise<BlogPost[]>;
   getBlogPost(id: string): Promise<BlogPost | null>;

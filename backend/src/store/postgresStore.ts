@@ -15,6 +15,10 @@ import {
   PropertyData,
   SiteSettings,
   StoredUser,
+  SubscriptionRequest,
+  SubscriptionRequestStatus,
+  HostPlanCode,
+  BillingCycle,
 } from './types.js';
 import { Role } from '../types/domain.js';
 
@@ -158,6 +162,24 @@ export class PostgresStore implements DataStore {
       );
       CREATE INDEX IF NOT EXISTS idx_pending_transactions_property
       ON pending_transactions(property_id, created_at DESC);
+    `);
+
+    // Host subscription upgrade requests (admin-approved, no payment gateway yet).
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS subscription_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        plan_code TEXT NOT NULL,
+        billing_cycle TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        decided_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_subscription_requests_status
+      ON subscription_requests(status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_subscription_requests_user
+      ON subscription_requests(user_id, created_at DESC);
     `);
 
     const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
@@ -578,6 +600,85 @@ export class PostgresStore implements DataStore {
     );
     await this.writeAudit(actor.id, 'UPDATE', 'site_settings', '1');
     return next;
+  }
+
+  private mapSubscriptionRequest(row: {
+    id: string;
+    user_id: number;
+    user_name: string | null;
+    user_email: string | null;
+    plan_code: string;
+    billing_cycle: string;
+    status: string;
+    decided_by_user_id: number | null;
+    created_at: string | number;
+    updated_at: string | number;
+  }): SubscriptionRequest {
+    return {
+      id: row.id,
+      userId: row.user_id,
+      userName: row.user_name ?? '',
+      userEmail: row.user_email ?? '',
+      planCode: row.plan_code as HostPlanCode,
+      billingCycle: row.billing_cycle as BillingCycle,
+      status: row.status as SubscriptionRequestStatus,
+      decidedByUserId: row.decided_by_user_id,
+      createdAt: Number(row.created_at),
+      updatedAt: Number(row.updated_at),
+    };
+  }
+
+  private readonly subscriptionRequestSelect = `
+    SELECT sr.id, sr.user_id, u.name AS user_name, u.email AS user_email,
+           sr.plan_code, sr.billing_cycle, sr.status, sr.decided_by_user_id,
+           sr.created_at, sr.updated_at
+    FROM subscription_requests sr
+    LEFT JOIN users u ON u.id = sr.user_id`;
+
+  async createSubscriptionRequest(userId: number, planCode: HostPlanCode, billingCycle: BillingCycle): Promise<SubscriptionRequest> {
+    const now = Date.now();
+    const inserted = await this.pool.query<{ id: string }>(
+      `INSERT INTO subscription_requests (user_id, plan_code, billing_cycle, status, created_at, updated_at)
+       VALUES ($1, $2, $3, 'pending', $4, $4) RETURNING id`,
+      [userId, planCode, billingCycle, now],
+    );
+    const id = inserted.rows[0].id;
+    const result = await this.pool.query(`${this.subscriptionRequestSelect} WHERE sr.id = $1`, [id]);
+    return this.mapSubscriptionRequest(result.rows[0]);
+  }
+
+  async listSubscriptionRequests(filters?: { status?: SubscriptionRequestStatus; userId?: number }): Promise<SubscriptionRequest[]> {
+    const conditions: string[] = [];
+    const params: Array<string | number> = [];
+    if (filters?.status) {
+      params.push(filters.status);
+      conditions.push(`sr.status = $${params.length}`);
+    }
+    if (filters?.userId) {
+      params.push(filters.userId);
+      conditions.push(`sr.user_id = $${params.length}`);
+    }
+    const where = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '';
+    const result = await this.pool.query(`${this.subscriptionRequestSelect}${where} ORDER BY sr.created_at DESC`, params);
+    return result.rows.map((row) => this.mapSubscriptionRequest(row));
+  }
+
+  async getSubscriptionRequest(id: string): Promise<SubscriptionRequest | null> {
+    const result = await this.pool.query(`${this.subscriptionRequestSelect} WHERE sr.id = $1`, [id]);
+    return result.rows[0] ? this.mapSubscriptionRequest(result.rows[0]) : null;
+  }
+
+  async updateSubscriptionRequestStatus(id: string, status: SubscriptionRequestStatus, actor: AuthUser): Promise<SubscriptionRequest> {
+    const updated = await this.pool.query<{ id: string }>(
+      'UPDATE subscription_requests SET status = $2, decided_by_user_id = $3, updated_at = $4 WHERE id = $1 RETURNING id',
+      [id, status, actor.id, Date.now()],
+    );
+    if (!updated.rows[0]) {
+      throw new Error('Subscription request not found.');
+    }
+    await this.writeAudit(actor.id, 'UPDATE', 'subscription_request', id);
+    const result = await this.pool.query(`${this.subscriptionRequestSelect} WHERE sr.id = $1`, [id]);
+    return this.mapSubscriptionRequest(result.rows[0]);
   }
 
   async listBlockedDates(propertyId: string): Promise<string[]> {

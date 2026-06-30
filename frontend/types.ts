@@ -118,7 +118,39 @@ export interface SiteSettings {
       provinceName: string;
     }>;
   };
+  hostPlans?: HostPlansConfig;
 }
+
+export type HostPlanCode = 'basic' | 'plus' | 'pro';
+export type BillingCycle = 'monthly' | 'yearly';
+
+export interface HostPlansConfig {
+  currency: string;
+  yearlyDiscountPercent: number;
+  plans: Record<HostPlanCode, { monthlyPrice: number }>;
+}
+
+export type SubscriptionRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface SubscriptionRequest {
+  id: string;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  planCode: HostPlanCode;
+  billingCycle: BillingCycle;
+  status: SubscriptionRequestStatus;
+  createdAt: number;
+  updatedAt: number;
+  decidedByUserId?: number | null;
+}
+
+// Basic = host level 2, Plus = level 3, Pro = level 4.
+export const PLAN_TO_HOST_LEVEL: Record<HostPlanCode, 2 | 3 | 4> = {
+  basic: 2,
+  plus: 3,
+  pro: 4,
+};
 
 export interface GalleryCategoryDef {
     id: string;

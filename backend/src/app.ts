@@ -15,6 +15,9 @@ import {
   DataStore,
   PropertyData,
   SiteSettings,
+  HostPlanCode,
+  BillingCycle,
+  PLAN_TO_HOST_LEVEL,
 } from './store/types.js';
 import { getParam } from './types/params.js';
 import { Role } from './types/domain.js';
@@ -29,6 +32,17 @@ const CHECKIN_OCR_MAX_IMAGE_BYTES = Number(process.env.CHECKIN_OCR_MAX_IMAGE_MB 
 
 function isRole(value: unknown): value is Role {
   return typeof value === 'string' && ALLOWED_ROLES.includes(value as Role);
+}
+
+const HOST_PLAN_CODES: HostPlanCode[] = ['basic', 'plus', 'pro'];
+const BILLING_CYCLES: BillingCycle[] = ['monthly', 'yearly'];
+
+function isHostPlanCode(value: unknown): value is HostPlanCode {
+  return typeof value === 'string' && HOST_PLAN_CODES.includes(value as HostPlanCode);
+}
+
+function isBillingCycle(value: unknown): value is BillingCycle {
+  return typeof value === 'string' && BILLING_CYCLES.includes(value as BillingCycle);
 }
 
 function getBearerToken(header?: string): string | null {
@@ -1239,6 +1253,66 @@ export function createApp(store: DataStore) {
   app.put('/api/site-settings', requireAdmin, async (req, res) => {
     const settings = await store.saveSiteSettings(req.body as SiteSettings, req.authUser!);
     res.json({ settings });
+  });
+
+  // --- Host subscription (Become Host) -------------------------------------
+  // A signed-in user requests an upgrade plan; an admin approves it from the
+  // Services page, which sets the user's host level. No payment gateway yet.
+
+  app.post('/api/subscription-requests', requireAuth, async (req, res) => {
+    const { planCode, billingCycle } = req.body ?? {};
+    if (!isHostPlanCode(planCode)) {
+      return res.status(400).json({ error: 'Valid plan code is required (basic, plus, pro).' });
+    }
+    if (!isBillingCycle(billingCycle)) {
+      return res.status(400).json({ error: 'Valid billing cycle is required (monthly, yearly).' });
+    }
+    const request = await store.createSubscriptionRequest(req.authUser!.id, planCode, billingCycle);
+    return res.status(201).json({ request });
+  });
+
+  app.get('/api/subscription-requests/mine', requireAuth, async (req, res) => {
+    const requests = await store.listSubscriptionRequests({ userId: req.authUser!.id });
+    return res.json({ requests });
+  });
+
+  app.get('/api/subscription-requests', requireAdmin, async (req, res) => {
+    const statusRaw = req.query.status;
+    const status = statusRaw === 'pending' || statusRaw === 'approved' || statusRaw === 'rejected' ? statusRaw : undefined;
+    const requests = await store.listSubscriptionRequests(status ? { status } : undefined);
+    return res.json({ requests });
+  });
+
+  app.post('/api/subscription-requests/:id/approve', requireAdmin, async (req, res) => {
+    const id = getParam(req.params.id);
+    const request = await store.getSubscriptionRequest(id);
+    if (!request) {
+      return res.status(404).json({ error: 'Subscription request not found.' });
+    }
+    // Approval grants the mapped host level. Promote a non-HOST user to HOST so
+    // the level actually takes effect.
+    const targetUser = await store.getUserById(request.userId);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Requesting user no longer exists.' });
+    }
+    if (targetUser.role !== 'HOST' && targetUser.role !== 'ADMIN') {
+      await store.updateUserRole(request.userId, 'HOST', req.authUser!);
+    }
+    if (targetUser.role !== 'ADMIN') {
+      await store.updateUserHostLevel(request.userId, PLAN_TO_HOST_LEVEL[request.planCode], req.authUser!);
+    }
+    const updated = await store.updateSubscriptionRequestStatus(id, 'approved', req.authUser!);
+    return res.json({ request: updated });
+  });
+
+  app.post('/api/subscription-requests/:id/reject', requireAdmin, async (req, res) => {
+    const id = getParam(req.params.id);
+    const request = await store.getSubscriptionRequest(id);
+    if (!request) {
+      return res.status(404).json({ error: 'Subscription request not found.' });
+    }
+    const updated = await store.updateSubscriptionRequestStatus(id, 'rejected', req.authUser!);
+    return res.json({ request: updated });
   });
 
   app.get('/api/blog-posts', async (req, res) => {

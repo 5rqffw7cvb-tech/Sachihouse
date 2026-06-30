@@ -15,6 +15,10 @@ import {
   PropertyData,
   SiteSettings,
   StoredUser,
+  SubscriptionRequest,
+  SubscriptionRequestStatus,
+  HostPlanCode,
+  BillingCycle,
 } from './types.js';
 import { Role } from '../types/domain.js';
 
@@ -27,6 +31,7 @@ interface MemoryState {
   checkIns: CheckInSubmission[];
   financialTransactions: FinancialTransaction[];
   pendingTransactions: PendingTransaction[];
+  subscriptionRequests: SubscriptionRequest[];
 }
 
 export class MemoryStore implements DataStore {
@@ -46,6 +51,7 @@ export class MemoryStore implements DataStore {
       checkIns: [],
       financialTransactions: [],
       pendingTransactions: [],
+      subscriptionRequests: [],
     };
   }
 
@@ -364,6 +370,52 @@ export class MemoryStore implements DataStore {
     const next = { ...siteSettingsSeed, ...structuredClone(settings) };
     this.assertState().siteSettings = next;
     return structuredClone(next);
+  }
+
+  async createSubscriptionRequest(userId: number, planCode: HostPlanCode, billingCycle: BillingCycle): Promise<SubscriptionRequest> {
+    const state = this.assertState();
+    const user = state.users.find((candidate) => candidate.id === userId && !candidate.archivedAt);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+    const now = Date.now();
+    const request: SubscriptionRequest = {
+      id: `sub_${now}_${Math.random().toString(36).slice(2, 8)}`,
+      userId,
+      userName: user.name,
+      userEmail: user.email,
+      planCode,
+      billingCycle,
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
+      decidedByUserId: null,
+    };
+    state.subscriptionRequests.push(request);
+    return structuredClone(request);
+  }
+
+  async listSubscriptionRequests(filters?: { status?: SubscriptionRequestStatus; userId?: number }): Promise<SubscriptionRequest[]> {
+    return structuredClone(this.assertState().subscriptionRequests)
+      .filter((request) => (filters?.status ? request.status === filters.status : true))
+      .filter((request) => (filters?.userId ? request.userId === filters.userId : true))
+      .sort((left, right) => right.createdAt - left.createdAt);
+  }
+
+  async getSubscriptionRequest(id: string): Promise<SubscriptionRequest | null> {
+    const request = this.assertState().subscriptionRequests.find((candidate) => candidate.id === id);
+    return request ? structuredClone(request) : null;
+  }
+
+  async updateSubscriptionRequestStatus(id: string, status: SubscriptionRequestStatus, actor: AuthUser): Promise<SubscriptionRequest> {
+    const request = this.assertState().subscriptionRequests.find((candidate) => candidate.id === id);
+    if (!request) {
+      throw new Error('Subscription request not found.');
+    }
+    request.status = status;
+    request.decidedByUserId = actor.id;
+    request.updatedAt = Date.now();
+    return structuredClone(request);
   }
 
   async listBlockedDates(propertyId: string): Promise<string[]> {
