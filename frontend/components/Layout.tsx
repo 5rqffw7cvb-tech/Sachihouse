@@ -51,7 +51,11 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
     return () => unsub();
   }, []);
 
-  const canAccessAdmin = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
+  // Hosts may only reach the admin editor for properties assigned to them;
+  // admins can edit any property. This hides the gear from other hosts.
+  const currentPropertyId = data.id || id || 'main';
+  const canAccessAdmin = authUser?.role === 'ADMIN'
+    || (authUser?.role === 'HOST' && (authUser?.assignedPropertyIds ?? []).includes(currentPropertyId));
 
   const navItems = [
     { path: baseUrl, label: data.titles.menuHome && language === 'en' ? data.titles.menuHome : t('nav_home'), icon: Home, end: true },

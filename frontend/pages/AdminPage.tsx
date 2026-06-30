@@ -931,6 +931,32 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
     );
   }
 
+  // Hosts may only manage properties assigned to them. Block everyone else who
+  // is not an admin so another host's data is never exposed through this editor.
+  const canEditThisProperty = currentUser?.role === 'ADMIN'
+    || (currentUser?.role === 'HOST' && (currentUser?.assignedPropertyIds ?? []).includes(propertyId));
+  if (!canEditThisProperty) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center px-4">
+        <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 w-full max-w-md text-center">
+          <div className="flex justify-center mb-6">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600">
+              <Lock className="w-6 h-6" />
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access denied</h2>
+          <p className="text-sm text-gray-500 mb-6">You don't have permission to manage this property. It is assigned to another host.</p>
+          <button
+            onClick={() => navigate('/admin/properties')}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+          >
+            Back to my properties
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const toggleSidebar = () => setSidebarOpen(v => !v);
 
   const financeToolbar = (

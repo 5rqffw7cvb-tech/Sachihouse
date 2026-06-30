@@ -3,7 +3,7 @@ import express, { NextFunction, Request, RequestHandler, Response } from 'expres
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { addDays, format, isValid, parseISO } from 'date-fns';
-import { canPerformAction } from './domain/authorization.js';
+import { canAccessProperty, canPerformAction } from './domain/authorization.js';
 import { calculateQuote } from './domain/pricing.js';
 import { signCheckInToken, verifyCheckInToken, verifyToken, signToken } from './auth/jwt.js';
 import {
@@ -149,6 +149,24 @@ function applyPropertyLocalization(property: PropertyData & { id: string }, lang
     id: property.id,
     translations: property.translations,
   };
+}
+
+// Strips internal/admin-only fields (iCal sync URLs, EmailJS credentials) from a
+// property before sending it to anyone who is not its owner (admin or assigned
+// host). Public pages never use these fields, so this prevents one host's
+// configuration from leaking to other hosts or anonymous visitors via the API.
+function redactPropertyForViewer(
+  property: PropertyData & { id: string },
+  actor: AuthUser | null | undefined,
+): PropertyData & { id: string } {
+  if (actor && canAccessProperty(actor, property.id)) {
+    return property;
+  }
+  // icalFeeds is typed; emailJs is stored in the JSON payload but not modelled
+  // on the backend type, so remove it via a runtime delete.
+  const clone = { ...property, icalFeeds: [] } as PropertyData & { id: string };
+  delete (clone as unknown as Record<string, unknown>).emailJs;
+  return clone;
 }
 
 function setPathValue(target: Record<string, unknown>, path: string, value: string): void {
@@ -887,7 +905,7 @@ export function createApp(store: DataStore) {
       return true;
     });
 
-    res.json({ properties: filtered.map((property) => applyPropertyLocalization(property, lang)) });
+    res.json({ properties: filtered.map((property) => redactPropertyForViewer(applyPropertyLocalization(property, lang), req.authUser)) });
   });
 
   // Returns the properties that are fully free for the requested date range,
@@ -953,7 +971,7 @@ export function createApp(store: DataStore) {
     if (!property || (property.archivedAt && !canReadArchived) || (property.reviewStatus === 'pending_review' && !canReadPending)) {
       return res.status(404).json({ error: 'Property not found.' });
     }
-    res.json({ property: applyPropertyLocalization(property, lang) });
+    res.json({ property: redactPropertyForViewer(applyPropertyLocalization(property, lang), req.authUser) });
   });
 
   app.get('/api/properties/:id/blocked-dates', async (req, res) => {
