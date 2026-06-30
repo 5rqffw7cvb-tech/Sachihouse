@@ -117,6 +117,9 @@ const FAQS = [
 
 const formatPrice = (amount: number): string => amount.toLocaleString('en-US');
 
+// Host level -> plan label. Level 1 is the free, self-registered tier.
+const LEVEL_LABEL: Record<number, string> = { 1: 'Free', 2: 'Basic', 3: 'Plus', 4: 'Pro' };
+
 const BecomeHostPage: React.FC = () => {
   const navigate = useNavigate();
   const [billing, setBilling] = useState<BillingCycle>('monthly');
@@ -170,10 +173,8 @@ const BecomeHostPage: React.FC = () => {
     return map;
   }, [myRequests]);
 
-  const approvedPlans = useMemo(
-    () => new Set(myRequests.filter((r) => r.status === 'approved').map((r) => r.planCode)),
-    [myRequests],
-  );
+  const isHost = authUser?.role === 'HOST';
+  const currentLevel = isHost ? (authUser?.hostLevel ?? 1) : 0;
 
   const handleSubscribe = async (code: HostPlanCode) => {
     setFeedback(null);
@@ -203,22 +204,10 @@ const BecomeHostPage: React.FC = () => {
       <TopNavBar />
 
       <main className="flex-1 w-full pt-[90px] md:pt-[96px] pb-16">
-        {/* Hero */}
-        <section className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-b from-blue-50/80 to-transparent pointer-events-none" />
-          <div className="relative text-center px-4 max-w-3xl mx-auto pt-8 pb-10">
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-3 py-1 rounded-full mb-5">
-              <Globe className="w-3.5 h-3.5" /> Built for Minpaku hosts in Japan
-            </span>
-            <h1 className="text-[32px] md:text-[44px] font-extrabold text-[#0f172a] leading-tight tracking-tight">
-              Become a Host — <span className="text-blue-600">grow your homestay revenue</span>
-            </h1>
-            <p className="text-[15px] md:text-[18px] text-[#64748b] mt-4">
-              From listing and legally-compliant Minpaku check-in to blue-tax (Ao-iro) accounting — one platform for your whole operation.
-            </p>
-
-            {/* Billing toggle */}
-            <div className="inline-flex items-center bg-white p-1.5 rounded-full border border-slate-200 shadow-sm mt-8">
+        {/* Billing toggle */}
+        <section>
+          <div className="text-center px-4 max-w-3xl mx-auto pt-4 pb-8">
+            <div className="inline-flex items-center bg-white p-1.5 rounded-full border border-slate-200 shadow-sm">
               <button
                 onClick={() => setBilling('monthly')}
                 className={`px-5 py-2 text-sm font-semibold rounded-full transition-colors ${billing === 'monthly' ? 'bg-blue-600 text-white' : 'text-[#64748b] hover:text-[#0f172a]'}`}
@@ -250,21 +239,59 @@ const BecomeHostPage: React.FC = () => {
           </div>
         )}
 
+        {/* Current plan status (logged-in hosts) */}
+        {isHost && (
+          <div className="max-w-6xl mx-auto px-4 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-white border border-slate-200 rounded-2xl px-5 py-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-50 text-blue-600 font-extrabold">
+                  {currentLevel}
+                </span>
+                <div>
+                  <p className="text-sm text-[#64748b]">Your current plan</p>
+                  <p className="font-bold text-[#0f172a]">
+                    {LEVEL_LABEL[currentLevel] ?? `Level ${currentLevel}`}
+                    <span className="text-[#94a3b8] font-medium"> · Host level {currentLevel}</span>
+                  </p>
+                </div>
+              </div>
+              <p className="sm:ml-auto text-sm text-[#64748b]">
+                {currentLevel >= 4
+                  ? 'You’re on the top plan — nothing more to upgrade.'
+                  : 'Pick a higher plan below to upgrade.'}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Pricing cards */}
         <section className="max-w-6xl mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
             {PLAN_META.map((plan) => {
               const price = priceFor(plan.code);
               const isPending = pendingByPlan.has(plan.code);
-              const isApproved = approvedPlans.has(plan.code);
-              const currentLevel = authUser?.role === 'HOST' ? authUser.hostLevel ?? 1 : authUser?.role === 'ADMIN' ? 99 : 0;
-              const isCurrent = currentLevel >= plan.level && authUser?.role === 'HOST';
+              const isExactCurrent = isHost && currentLevel === plan.level;
+              const isBelowCurrent = isHost && currentLevel > plan.level;
+              const isDisabledCta = pendingPlan === plan.code || isPending || isExactCurrent || isBelowCurrent;
+              const ctaLabel = isExactCurrent
+                ? 'Current plan'
+                : isBelowCurrent
+                  ? 'Included'
+                  : isPending
+                    ? 'Pending approval'
+                    : isHost
+                      ? `Upgrade to ${plan.name}`
+                      : 'Get started';
               return (
                 <div
                   key={plan.code}
-                  className={`relative bg-white rounded-2xl border p-7 flex flex-col transition-all hover:-translate-y-1 hover:shadow-lg ${plan.recommended ? 'border-blue-600 shadow-md ring-1 ring-blue-600/10' : 'border-slate-200 shadow-sm'}`}
+                  className={`relative bg-white rounded-2xl border p-7 flex flex-col transition-all hover:-translate-y-1 hover:shadow-lg ${isExactCurrent ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500/20' : plan.recommended ? 'border-blue-600 shadow-md ring-1 ring-blue-600/10' : 'border-slate-200 shadow-sm'}`}
                 >
-                  {plan.recommended && (
+                  {isExactCurrent ? (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[11px] font-bold uppercase tracking-wide px-3 py-1 rounded-full">
+                      Your plan
+                    </div>
+                  ) : plan.recommended && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[11px] font-bold uppercase tracking-wide px-3 py-1 rounded-full">
                       Recommended
                     </div>
@@ -292,11 +319,11 @@ const BecomeHostPage: React.FC = () => {
 
                   <button
                     onClick={() => handleSubscribe(plan.code)}
-                    disabled={pendingPlan === plan.code || isPending || isCurrent}
+                    disabled={isDisabledCta}
                     className={`w-full text-center py-3 rounded-xl font-bold transition-colors mb-6 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${plan.recommended ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-white text-blue-600 border-2 border-blue-600 hover:bg-blue-600 hover:text-white'}`}
                   >
                     {pendingPlan === plan.code && <Loader2 className="w-4 h-4 animate-spin" />}
-                    {isCurrent ? 'Current plan' : isPending ? 'Pending approval' : isApproved ? 'Request again' : 'Get started'}
+                    {ctaLabel}
                   </button>
 
                   <ul className="flex flex-col gap-3 mt-auto">

@@ -60,6 +60,12 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
   const isHome = pathname === '/' || pathname === '/index.html';
   const isBlog = pathname.startsWith('/blog');
   const isBecomeHost = pathname.startsWith('/become-host');
+  // Guests see "Become Host"; hosts below the top level see "Upgrade".
+  // Top-level hosts (level 4) and admins don't need the entry.
+  const showUpgradeNav = authUser?.role === 'HOST' && (authUser?.hostLevel ?? 1) < 4;
+  const showJoinNav = !authUser || authUser.role === 'GUEST';
+  const becomeHostNavVisible = showJoinNav || showUpgradeNav;
+  const becomeHostNavLabel = showUpgradeNav ? 'Upgrade' : 'Become Host';
   const isBlogPost = /^\/blog\/[^/]+$/.test(pathname);
   const mobilePageTitle = navTitle || NAV_TITLE_FALLBACK;
 
@@ -279,14 +285,16 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
               >
                 {t('common_blog')}
               </Link>
-              <Link
-                to="/become-host"
-                className={isBecomeHost
-                  ? "text-[#1b1c1d] border-b-2 border-[#1b1c1d] pb-1 font-semibold hover:text-[#1b1c1d] transition-colors duration-150 active:scale-95"
-                  : "text-[#44474c] font-medium hover:text-[#1b1c1d] transition-colors duration-150 active:scale-95"}
-              >
-                Become Host
-              </Link>
+              {becomeHostNavVisible && (
+                <Link
+                  to="/become-host"
+                  className={isBecomeHost
+                    ? "text-[#1b1c1d] border-b-2 border-[#1b1c1d] pb-1 font-semibold hover:text-[#1b1c1d] transition-colors duration-150 active:scale-95"
+                    : "text-[#44474c] font-medium hover:text-[#1b1c1d] transition-colors duration-150 active:scale-95"}
+                >
+                  {becomeHostNavLabel}
+                </Link>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-4">
