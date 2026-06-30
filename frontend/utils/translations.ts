@@ -227,6 +227,14 @@ export const translations = {
     listing_bathroom: "bathroom",
     listing_bathrooms: "bathrooms",
     listing_nearby: "Nearby",
+    listing_checkin: "Check-in",
+    listing_checkout: "Check-out",
+    listing_select_dates: "Select dates",
+    listing_checking_availability: "Checking availability…",
+    listing_no_availability: "No stays are available for the selected dates.",
+    listing_price_from: "From",
+    listing_per_night: "/ night",
+    listing_clear_dates: "Clear dates",
 
     // Home Page (extra)
     home_see_photos: "See Photos",
@@ -541,6 +549,14 @@ export const translations = {
     listing_bathroom: "phòng tắm",
     listing_bathrooms: "phòng tắm",
     listing_nearby: "Gần đây",
+    listing_checkin: "Nhận phòng",
+    listing_checkout: "Trả phòng",
+    listing_select_dates: "Chọn ngày",
+    listing_checking_availability: "Đang kiểm tra phòng trống…",
+    listing_no_availability: "Không có chỗ ở nào trống cho khoảng ngày đã chọn.",
+    listing_price_from: "Từ",
+    listing_per_night: "/ đêm",
+    listing_clear_dates: "Xóa ngày",
 
     // Home Page (extra)
     home_see_photos: "Xem ảnh",
@@ -855,6 +871,14 @@ export const translations = {
     listing_bathroom: "バスルーム",
     listing_bathrooms: "バスルーム",
     listing_nearby: "近隣",
+    listing_checkin: "チェックイン",
+    listing_checkout: "チェックアウト",
+    listing_select_dates: "日付を選択",
+    listing_checking_availability: "空室を確認しています…",
+    listing_no_availability: "選択した日付に空いている宿泊先はありません。",
+    listing_price_from: "最安",
+    listing_per_night: "/ 泊",
+    listing_clear_dates: "日付をクリア",
 
     // Home Page (extra)
     home_see_photos: "写真を見る",
@@ -1169,6 +1193,14 @@ export const translations = {
     listing_bathroom: "浴室",
     listing_bathrooms: "浴室",
     listing_nearby: "附近",
+    listing_checkin: "入住",
+    listing_checkout: "退房",
+    listing_select_dates: "选择日期",
+    listing_checking_availability: "正在查询空房…",
+    listing_no_availability: "所选日期没有可预订的房源。",
+    listing_price_from: "最低",
+    listing_per_night: "/ 晚",
+    listing_clear_dates: "清除日期",
 
     // Home Page (extra)
     home_see_photos: "查看照片",
@@ -1483,6 +1515,14 @@ export const translations = {
     listing_bathroom: "욕실",
     listing_bathrooms: "욕실",
     listing_nearby: "인근",
+    listing_checkin: "체크인",
+    listing_checkout: "체크아웃",
+    listing_select_dates: "날짜 선택",
+    listing_checking_availability: "예약 가능 여부 확인 중…",
+    listing_no_availability: "선택한 날짜에 예약 가능한 숙소가 없습니다.",
+    listing_price_from: "최저",
+    listing_per_night: "/ 박",
+    listing_clear_dates: "날짜 지우기",
 
     // Home Page (extra)
     home_see_photos: "사진 보기",

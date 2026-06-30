@@ -4,7 +4,7 @@ import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
-import { saveSiteSettings, setPropertyArchived } from '../services/storage';
+import { saveSiteSettings, setPropertyArchived, getAvailableProperties } from '../services/storage';
 import { TopNavBar } from '../components/TopNavBar';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { MobileBottomNav } from '../components/MobileBottomNav';
@@ -39,7 +39,14 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const [draftProvinceCode, setDraftProvinceCode] = useState('');
   const [draftMinBedrooms, setDraftMinBedrooms] = useState('');
   const [draftMinGuests, setDraftMinGuests] = useState('');
-  
+  const [draftCheckIn, setDraftCheckIn] = useState('');
+  const [draftCheckOut, setDraftCheckOut] = useState('');
+
+  // Availability lookup for the selected date range (null = no dates applied)
+  const [availability, setAvailability] = useState<{ ids: Set<string>; priceById: Map<string, number> } | null>(null);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+
   // Settings Modal State
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [editingSettings, setEditingSettings] = useState<SiteSettings>(settings);
@@ -52,6 +59,10 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const selectedProvinceCode = (searchParams.get('provinceCode') || '').toUpperCase();
   const minBedrooms = Number(searchParams.get('minBedrooms') || 0);
   const minGuests = Number(searchParams.get('minGuests') || 0);
+  const selectedCheckIn = searchParams.get('checkIn') || '';
+  const selectedCheckOut = searchParams.get('checkOut') || '';
+  const datesActive = !!(selectedCheckIn && selectedCheckOut && selectedCheckIn < selectedCheckOut);
+  const todayYmd = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD in local time
 
   useEffect(() => {
     setProperties(initialProperties);
@@ -66,7 +77,48 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     setDraftProvinceCode(selectedProvinceCode);
     setDraftMinBedrooms(minBedrooms > 0 ? String(minBedrooms) : '');
     setDraftMinGuests(minGuests > 0 ? String(minGuests) : '');
-  }, [selectedCountryCode, selectedProvinceCode, minBedrooms, minGuests]);
+    setDraftCheckIn(selectedCheckIn);
+    setDraftCheckOut(selectedCheckOut);
+  }, [selectedCountryCode, selectedProvinceCode, minBedrooms, minGuests, selectedCheckIn, selectedCheckOut]);
+
+  // Look up which properties are free for the applied date range.
+  useEffect(() => {
+    if (!datesActive) {
+      setAvailability(null);
+      setAvailabilityError(null);
+      setIsCheckingAvailability(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsCheckingAvailability(true);
+    setAvailabilityError(null);
+
+    getAvailableProperties(selectedCheckIn, selectedCheckOut)
+      .then((response) => {
+        if (cancelled) return;
+        const priceById = new Map<string, number>();
+        response.available.forEach((item) => {
+          if (typeof item.minNightlyPrice === 'number') {
+            priceById.set(item.id, item.minNightlyPrice);
+          }
+        });
+        setAvailability({ ids: new Set(response.available.map((item) => item.id)), priceById });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('Availability check failed', error);
+        setAvailability(null);
+        setAvailabilityError(t('listing_no_availability'));
+      })
+      .finally(() => {
+        if (!cancelled) setIsCheckingAvailability(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [datesActive, selectedCheckIn, selectedCheckOut, t]);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -308,11 +360,19 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     return true;
   });
 
+  // When a date range is applied, keep only properties the backend reports as free.
+  // While the check is still loading we show nothing rather than stale (possibly
+  // unavailable) listings.
+  const displayedProperties = datesActive
+    ? (availability ? filteredProperties.filter((property) => availability.ids.has(property.id)) : [])
+    : filteredProperties;
+
   const activeFilterCount = [
     selectedCountryCode,
     selectedProvinceCode,
     minBedrooms > 0 ? String(minBedrooms) : '',
     minGuests > 0 ? String(minGuests) : '',
+    datesActive ? 'dates' : '',
   ].filter(Boolean).length;
 
   const applyDraftFilters = () => {
@@ -321,6 +381,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
       provinceCode: draftProvinceCode || null,
       minBedrooms: draftMinBedrooms || null,
       minGuests: draftMinGuests || null,
+      checkIn: draftCheckIn && draftCheckOut && draftCheckIn < draftCheckOut ? draftCheckIn : null,
+      checkOut: draftCheckIn && draftCheckOut && draftCheckIn < draftCheckOut ? draftCheckOut : null,
     });
     setIsMobileFiltersOpen(false);
   };
@@ -330,15 +392,17 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     setDraftProvinceCode('');
     setDraftMinBedrooms('');
     setDraftMinGuests('');
-    updateQueryParams({ countryCode: null, provinceCode: null, minBedrooms: null, minGuests: null });
+    setDraftCheckIn('');
+    setDraftCheckOut('');
+    updateQueryParams({ countryCode: null, provinceCode: null, minBedrooms: null, minGuests: null, checkIn: null, checkOut: null });
     setIsMobileFiltersOpen(false);
   };
 
   useEffect(() => {
-    const initialCount = Math.min(3, filteredProperties.length);
+    const initialCount = Math.min(3, displayedProperties.length);
     setVisibleCardCount(initialCount);
 
-    const revealAll = () => setVisibleCardCount(filteredProperties.length);
+    const revealAll = () => setVisibleCardCount(displayedProperties.length);
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
       const idleId = (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback(revealAll, { timeout: 600 });
       return () => {
@@ -350,9 +414,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
     const timer = window.setTimeout(revealAll, 180);
     return () => window.clearTimeout(timer);
-  }, [filteredProperties.length]);
+  }, [displayedProperties.length]);
 
-  const visibleProperties = filteredProperties.slice(0, visibleCardCount);
+  const visibleProperties = displayedProperties.slice(0, visibleCardCount);
 
   return (
     <div className="bg-[#e8e5e6] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
@@ -478,6 +542,35 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                   ))}
                 </select>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="mobile-listing-checkin" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_checkin')}</label>
+                  <input
+                    id="mobile-listing-checkin"
+                    type="date"
+                    value={draftCheckIn}
+                    min={todayYmd}
+                    onChange={(event) => {
+                      setDraftCheckIn(event.target.value);
+                      if (draftCheckOut && event.target.value && draftCheckOut <= event.target.value) {
+                        setDraftCheckOut('');
+                      }
+                    }}
+                    className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="mobile-listing-checkout" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_checkout')}</label>
+                  <input
+                    id="mobile-listing-checkout"
+                    type="date"
+                    value={draftCheckOut}
+                    min={draftCheckIn || todayYmd}
+                    onChange={(event) => setDraftCheckOut(event.target.value)}
+                    className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                  />
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={applyDraftFilters}
@@ -552,6 +645,33 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 ))}
               </select>
             </div>
+            <div className="w-[160px]">
+              <label htmlFor="desktop-listing-checkin" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_checkin')}</label>
+              <input
+                id="desktop-listing-checkin"
+                type="date"
+                value={draftCheckIn}
+                min={todayYmd}
+                onChange={(event) => {
+                  setDraftCheckIn(event.target.value);
+                  if (draftCheckOut && event.target.value && draftCheckOut <= event.target.value) {
+                    setDraftCheckOut('');
+                  }
+                }}
+                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+              />
+            </div>
+            <div className="w-[160px]">
+              <label htmlFor="desktop-listing-checkout" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_checkout')}</label>
+              <input
+                id="desktop-listing-checkout"
+                type="date"
+                value={draftCheckOut}
+                min={draftCheckIn || todayYmd}
+                onChange={(event) => setDraftCheckOut(event.target.value)}
+                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+              />
+            </div>
             <button
               type="button"
               onClick={applyDraftFilters}
@@ -590,12 +710,44 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
           </div>
         )}
 
+        {/* Active date range summary */}
+        {datesActive && (
+          <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14px] text-[#44474c]">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-[#1b1c1d]">
+              <Calendar className="h-4 w-4 text-[#041627]" />
+              {selectedCheckIn} → {selectedCheckOut}
+            </span>
+            {isCheckingAvailability ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {t('listing_checking_availability')}
+              </span>
+            ) : availability ? (
+              <span>· {displayedProperties.length}</span>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => updateQueryParams({ checkIn: null, checkOut: null })}
+              className="text-[13px] font-semibold text-[#041627] underline underline-offset-2 hover:text-[#041627]/80"
+            >
+              {t('listing_clear_dates')}
+            </button>
+          </div>
+        )}
+
         {/* Property Grid */}
-        {filteredProperties.length === 0 ? (
+        {datesActive && isCheckingAvailability ? (
           <div className="bg-white border border-[#e4e2e3] rounded-xl px-6 py-10 text-center text-[#44474c]">
-            {isHost && activeScope === 'mine'
-              ? t('listing_empty_mine')
-              : t('listing_empty_all')}
+            <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#041627]" />
+            {t('listing_checking_availability')}
+          </div>
+        ) : displayedProperties.length === 0 ? (
+          <div className="bg-white border border-[#e4e2e3] rounded-xl px-6 py-10 text-center text-[#44474c]">
+            {datesActive
+              ? (availabilityError || t('listing_no_availability'))
+              : isHost && activeScope === 'mine'
+                ? t('listing_empty_mine')
+                : t('listing_empty_all')}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -609,6 +761,11 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             const bathLabel = `${property.baths} ${property.bathFacilityType === 'shower_room'
               ? property.baths === 1 ? t('listing_shower_room') : t('listing_shower_rooms')
               : property.baths === 1 ? t('listing_bathroom') : t('listing_bathrooms')}`;
+            const rates = property.pricing?.rates ?? [];
+            const fromPrice = datesActive
+              ? (availability?.priceById.get(property.id)
+                ?? (rates.length ? Math.min(...rates.map((rate) => rate.price)) : null))
+              : null;
 
             return (
               <div key={property.id} className="bg-[#ffffff] rounded-2xl md:rounded-xl border border-[#ecebea] md:border-[#e4e2e3] shadow-[0_2px_10px_rgba(15,23,42,0.05)] md:shadow-[0_4px_20px_rgba(0,0,0,0.05)] md:hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] active:scale-[0.99] md:active:scale-100 overflow-hidden transition-all duration-300 flex flex-col h-full relative group">
@@ -666,6 +823,15 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                           {` ${t('listing_from')} `}
                           {property.accessInfo?.nearestStationName || t('listing_nearest_station')}
                         </span>
+                      </div>
+                    )}
+
+                    {/* From price for the selected date range */}
+                    {fromPrice !== null && (
+                      <div className="mt-2 flex items-baseline gap-1">
+                        <span className="text-[10.5px] md:text-[11px] font-semibold uppercase tracking-[0.06em] text-[#74777d]">{t('listing_price_from')}</span>
+                        <span className="text-[15px] md:text-[18px] font-bold text-[#041627]">¥{fromPrice.toLocaleString()}</span>
+                        <span className="text-[10.5px] md:text-[11px] text-[#74777d]">{t('listing_per_night')}</span>
                       </div>
                     )}
 

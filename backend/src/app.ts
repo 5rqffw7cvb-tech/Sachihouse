@@ -877,6 +877,61 @@ export function createApp(store: DataStore) {
     res.json({ properties: filtered.map((property) => applyPropertyLocalization(property, lang)) });
   });
 
+  // Returns the properties that are fully free for the requested date range,
+  // together with the cheapest nightly rate ("from" price) for each. Registered
+  // before the `/:id` route so "availability" is not captured as a property id.
+  app.get('/api/properties/availability', async (req, res) => {
+    const checkInRaw = req.query.checkIn;
+    const checkOutRaw = req.query.checkOut;
+
+    if (typeof checkInRaw !== 'string' || typeof checkOutRaw !== 'string') {
+      return res.status(400).json({ error: 'checkIn and checkOut are required.' });
+    }
+    if (!isIsoDate(checkInRaw) || !isIsoDate(checkOutRaw)) {
+      return res.status(400).json({ error: 'checkIn and checkOut must be YYYY-MM-DD dates.' });
+    }
+
+    let requestedDates: string[];
+    try {
+      requestedDates = getRequestedDates(checkInRaw, checkOutRaw);
+    } catch {
+      return res.status(400).json({ error: 'Check-out must be after check-in.' });
+    }
+
+    const properties = await store.listProperties(false);
+    const visible = properties.filter((property) => {
+      if (property.archivedAt) {
+        return false;
+      }
+      if (property.reviewStatus === 'pending_review' && !canViewPendingProperty(req.authUser, property.id)) {
+        return false;
+      }
+      return true;
+    });
+
+    const results = await Promise.all(
+      visible.map(async (property) => {
+        const blocked = new Set(await getEffectiveBlockedDates(property, 'stale-ok'));
+        const isFree = requestedDates.every((date) => !blocked.has(date));
+        if (!isFree) {
+          return null;
+        }
+        const rates = property.pricing?.rates ?? [];
+        const minNightlyPrice = rates.length ? Math.min(...rates.map((rate) => rate.price)) : null;
+        return { id: property.id, minNightlyPrice };
+      }),
+    );
+
+    const available = results.filter((item): item is { id: string; minNightlyPrice: number | null } => item !== null);
+
+    res.json({
+      checkIn: checkInRaw,
+      checkOut: checkOutRaw,
+      nights: requestedDates.length,
+      available,
+    });
+  });
+
   app.get('/api/properties/:id', async (req, res) => {
     const lang = toLanguageCode(req.query.lang);
     const property = await store.getProperty(req.params.id);

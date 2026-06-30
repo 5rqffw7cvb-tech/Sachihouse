@@ -183,6 +183,28 @@ export const getAllProperties = async (filters?: PropertyListFilters, lang?: str
   return response.properties;
 };
 
+export interface PropertyAvailability {
+  id: string;
+  minNightlyPrice: number | null;
+}
+
+export interface AvailabilityResponse {
+  checkIn: string;
+  checkOut: string;
+  nights: number;
+  available: PropertyAvailability[];
+}
+
+// Returns the properties that are fully free for the given date range (YYYY-MM-DD),
+// each with its cheapest nightly rate. Dates must be valid and checkOut > checkIn.
+export const getAvailableProperties = async (
+  checkIn: string,
+  checkOut: string,
+): Promise<AvailabilityResponse> => {
+  const query = new URLSearchParams({ checkIn, checkOut });
+  return apiRequest<AvailabilityResponse>(`/properties/availability?${query.toString()}`);
+};
+
 export const getPropertyData = async (propertyId: string = 'main', lang?: string): Promise<PropertyData> => {
   const suffix = lang?.trim() ? `?lang=${encodeURIComponent(lang.trim().toLowerCase())}` : '';
   const response = await apiRequest<{ property: PropertyData & { id: string } }>(`/properties/${propertyId}${suffix}`);
