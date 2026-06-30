@@ -96,7 +96,9 @@ const FinancePage: React.FC = () => {
   }, [authUser, navigate]);
 
   useEffect(() => {
-    if (!authUser || authUser.role === 'GUEST') return;
+    if (!authUser) return;
+    const canUseFinance = authUser.role === 'ADMIN' || (authUser.role === 'HOST' && (authUser.hostLevel ?? 0) >= 4);
+    if (!canUseFinance) return;
     financeApi.listProperties().then(props => {
       setAllProperties(props);
       if (props.length > 0) setSelectedPropertyIds([props[0].id]);
@@ -195,7 +197,9 @@ const FinancePage: React.FC = () => {
   };
 
   if (!authUser) return null;
-  if (authUser.role === 'GUEST') {
+  // Finance is reserved for admins and host level 4 only.
+  const hasFinanceAccess = authUser.role === 'ADMIN' || (authUser.role === 'HOST' && (authUser.hostLevel ?? 0) >= 4);
+  if (!hasFinanceAccess) {
     return (
       <>
         <TopNavBar />

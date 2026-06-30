@@ -6,7 +6,7 @@ export interface ApiUser {
   canEditBlog: boolean;
   archivedAt?: number | null;
   assignedPropertyIds: string[];
-  hostLevel: 1 | 2 | 3 | null;
+  hostLevel: 1 | 2 | 3 | 4 | null;
   lastSeenAt?: number | null;
 }
 
@@ -43,7 +43,7 @@ export function getStoredUser(): ApiUser | null {
       canEditBlog: Boolean(parsed.canEditBlog),
       archivedAt: typeof parsed.archivedAt === 'number' ? parsed.archivedAt : null,
       assignedPropertyIds: Array.isArray(parsed.assignedPropertyIds) ? parsed.assignedPropertyIds : [],
-      hostLevel: ([1, 2, 3] as (number | null)[]).includes(parsed.hostLevel as number) ? (parsed.hostLevel as 1 | 2 | 3) : null,
+      hostLevel: ([1, 2, 3, 4] as (number | null)[]).includes(parsed.hostLevel as number) ? (parsed.hostLevel as 1 | 2 | 3 | 4) : null,
     };
   } catch {
     return null;

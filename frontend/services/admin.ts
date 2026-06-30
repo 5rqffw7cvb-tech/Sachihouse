@@ -76,7 +76,7 @@ export async function deleteUser(userId: number): Promise<void> {
   });
 }
 
-export async function setHostLevel(userId: number, level: 1 | 2 | 3 | null): Promise<ApiUser> {
+export async function setHostLevel(userId: number, level: 1 | 2 | 3 | 4 | null): Promise<ApiUser> {
   const response = await apiRequest<{ user: ApiUser }>(`/users/${userId}/host-level`, {
     method: 'PUT',
     body: JSON.stringify({ level }),

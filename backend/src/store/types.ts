@@ -8,7 +8,7 @@ export interface AuthUser {
   canEditBlog: boolean;
   archivedAt?: number | null;
   assignedPropertyIds: string[];
-  hostLevel: 1 | 2 | 3 | null;
+  hostLevel: 1 | 2 | 3 | 4 | null;
   lastSeenAt?: number | null;
 }
 
@@ -293,7 +293,7 @@ export interface DataStore {
   updateUserEmail(userId: number, email: string, actor: AuthUser): Promise<AuthUser>;
   updateUserRole(userId: number, role: Role, actor: AuthUser): Promise<AuthUser>;
   updateUserCanEditBlog(userId: number, canEditBlog: boolean, actor: AuthUser): Promise<AuthUser>;
-  updateUserHostLevel(userId: number, level: 1 | 2 | 3 | null, actor: AuthUser): Promise<AuthUser>;
+  updateUserHostLevel(userId: number, level: 1 | 2 | 3 | 4 | null, actor: AuthUser): Promise<AuthUser>;
   setUserArchived(userId: number, archived: boolean, actor: AuthUser): Promise<AuthUser>;
   updateUserPassword(userId: number, password: string, actor: AuthUser): Promise<void>;
   deleteUser(userId: number, actor: AuthUser): Promise<void>;

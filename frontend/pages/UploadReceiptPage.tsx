@@ -28,7 +28,8 @@ const UploadReceiptPage: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
+  // Receipt upload feeds the finance module — admins and host level 4 only.
+  const canAccess = authUser?.role === 'ADMIN' || (authUser?.role === 'HOST' && (authUser?.hostLevel ?? 0) >= 4);
 
   useEffect(() => {
     let unsubscribe = () => {};

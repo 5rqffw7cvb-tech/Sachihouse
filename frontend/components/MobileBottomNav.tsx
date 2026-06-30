@@ -21,6 +21,8 @@ export const MobileBottomNav: React.FC = () => {
   const canManageUsers = authUser?.role === 'ADMIN';
   const canManageProperties = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
   const canUseMyProperties = authUser?.role === 'HOST';
+  // Finance (incl. receipt upload) is reserved for admins and host level 4 only.
+  const canUseFinance = authUser?.role === 'ADMIN' || (authUser?.role === 'HOST' && (authUser?.hostLevel ?? 0) >= 4);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -149,7 +151,7 @@ export const MobileBottomNav: React.FC = () => {
                    <ClipboardCheck className="w-4 h-4 text-[#74777d]" /> {t('common_admin_checkin')}
                  </button>
                )}
-               {canManageProperties && (
+               {canUseFinance && (
                  <button
                    onClick={() => { setIsDropdownOpen(false); navigate('/admin/upload-receipt'); }}
                    className="w-full text-left px-4 py-3 text-sm text-[#44474c] hover:bg-[#f5f3f4] active:bg-gray-100 transition-colors flex items-center gap-2.5"

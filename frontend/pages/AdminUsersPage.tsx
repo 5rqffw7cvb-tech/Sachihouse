@@ -365,7 +365,7 @@ const AdminUsersPage: React.FC = () => {
     }
   };
 
-  const handleSetHostLevel = async (user: ApiUser, level: 1 | 2 | 3 | null) => {
+  const handleSetHostLevel = async (user: ApiUser, level: 1 | 2 | 3 | 4 | null) => {
     setErrorMsg(null);
     setInfoMsg(null);
     setPendingHostLevelUserId(user.id);
@@ -710,7 +710,7 @@ const AdminUsersPage: React.FC = () => {
                         {user.role === 'HOST' && (() => {
                           const lvl = user.hostLevel;
                           if (!lvl) return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#74777d]">No Level</span>;
-                          const levelColors: Record<number, string> = { 1: 'bg-slate-100 text-slate-600', 2: 'bg-orange-100 text-orange-700', 3: 'bg-[#e6f5ec] text-[#0f7a44]' };
+                          const levelColors: Record<number, string> = { 1: 'bg-slate-100 text-slate-600', 2: 'bg-orange-100 text-orange-700', 3: 'bg-[#e6f5ec] text-[#0f7a44]', 4: 'bg-indigo-100 text-indigo-700' };
                           return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${levelColors[lvl]}`}>Level {lvl}</span>;
                         })()}
                         {isSelf && <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">You</span>}
@@ -812,14 +812,15 @@ const AdminUsersPage: React.FC = () => {
                           {user.role === 'HOST' && (
                             <div className="mt-5 pt-5 border-t border-[#e4e2e3]">
                               <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1">Host Level</label>
-                              <p className="text-xs text-[#74777d] mb-3">Level 1: view properties · Level 2: view + edit properties · Level 3: view + edit + check-in management</p>
+                              <p className="text-xs text-[#74777d] mb-3">Level 1: view properties · Level 2: view + edit properties · Level 3: view + edit + check-in management · Level 4: Level 3 + finance</p>
                               <div className="flex flex-col gap-2">
-                                {([null, 1, 2, 3] as (1 | 2 | 3 | null)[]).map((lvl) => {
+                                {([null, 1, 2, 3, 4] as (1 | 2 | 3 | 4 | null)[]).map((lvl) => {
                                   const labels: Record<string, string> = {
                                     'null': 'No level (view only, no edit)',
                                     '1': 'Level 1 — View properties only',
                                     '2': 'Level 2 — View + edit assigned properties',
                                     '3': 'Level 3 — View + edit + check-in management',
+                                    '4': 'Level 4 — Level 3 + finance access',
                                   };
                                   const key = String(lvl);
                                   const isActive = user.hostLevel === lvl;

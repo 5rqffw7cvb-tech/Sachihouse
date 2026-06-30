@@ -236,7 +236,7 @@ export class PostgresStore implements DataStore {
       canEditBlog: row.can_edit_blog,
       archivedAt: row.archived_at,
       assignedPropertyIds: row.role === 'HOST' ? await this.getAssignedPropertyIds(row.id) : [],
-      hostLevel: (row.host_level as 1 | 2 | 3 | null) ?? null,
+      hostLevel: (row.host_level as 1 | 2 | 3 | 4 | null) ?? null,
       lastSeenAt: row.last_seen_at ?? null,
     };
   }
@@ -369,7 +369,7 @@ export class PostgresStore implements DataStore {
     return this.mapUser(row);
   }
 
-  async updateUserHostLevel(userId: number, level: 1 | 2 | 3 | null, actor: AuthUser): Promise<AuthUser> {
+  async updateUserHostLevel(userId: number, level: 1 | 2 | 3 | 4 | null, actor: AuthUser): Promise<AuthUser> {
     const updateResult = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>(
       'UPDATE users SET host_level = $2 WHERE id = $1 RETURNING id, name, email, role, can_edit_blog, archived_at, host_level',
       [userId, level],

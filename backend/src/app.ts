@@ -617,6 +617,19 @@ export function createApp(store: DataStore) {
     return next();
   };
 
+  // Finance is reserved for admins and host level 4 only. Lower host levels
+  // (1–3) are blocked even though they may host properties.
+  const requireFinanceAccess: RequestHandler = (req, res, next) => {
+    const actor = req.authUser;
+    if (!actor || (actor.role !== 'ADMIN' && actor.role !== 'HOST')) {
+      return res.status(403).json({ error: 'Host or admin role required.' });
+    }
+    if (actor.role === 'HOST' && (actor.hostLevel ?? 0) < 4) {
+      return res.status(403).json({ error: 'Finance access requires host level 4.' });
+    }
+    return next();
+  };
+
   const canViewPendingProperty = (actor: AuthUser | null | undefined, propertyId: string): boolean => {
     if (!actor) {
       return false;
@@ -751,11 +764,11 @@ export function createApp(store: DataStore) {
       return res.status(400).json({ error: 'Valid user id is required.' });
     }
     const { level } = req.body ?? {};
-    // level = 1 | 2 | 3 | null (null = revoke)
-    if (level !== null && level !== undefined && ![1, 2, 3].includes(Number(level))) {
-      return res.status(400).json({ error: 'level must be 1, 2, 3, or null.' });
+    // level = 1 | 2 | 3 | 4 | null (null = revoke)
+    if (level !== null && level !== undefined && ![1, 2, 3, 4].includes(Number(level))) {
+      return res.status(400).json({ error: 'level must be 1, 2, 3, 4, or null.' });
     }
-    const resolvedLevel = level != null ? (Number(level) as 1 | 2 | 3) : null;
+    const resolvedLevel = level != null ? (Number(level) as 1 | 2 | 3 | 4) : null;
     const user = await store.updateUserHostLevel(userId, resolvedLevel, req.authUser!);
     return res.json({ user });
   });
@@ -1851,7 +1864,7 @@ export function createApp(store: DataStore) {
   // ── Finance API ─────────────────────────────────────────────────────────────
 
   // GET /api/finance/properties — list properties accessible to current user
-  app.get('/api/finance/properties', requireHostOrAdmin, async (req, res) => {
+  app.get('/api/finance/properties', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const allProperties = await store.listProperties(false);
     const accessible = actor.role === 'ADMIN'
@@ -1861,7 +1874,7 @@ export function createApp(store: DataStore) {
   });
 
   // GET /api/finance/transactions?propertyIds=a,b&year=2025
-  app.get('/api/finance/transactions', requireHostOrAdmin, async (req, res) => {
+  app.get('/api/finance/transactions', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const raw = typeof req.query.propertyIds === 'string' ? req.query.propertyIds : '';
     const requested = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : [];
@@ -1898,7 +1911,7 @@ export function createApp(store: DataStore) {
   // ── Pending transactions (未承認) ──────────────────────────────────────────
 
   // GET /api/finance/pending
-  app.get('/api/finance/pending', requireHostOrAdmin, async (req, res) => {
+  app.get('/api/finance/pending', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const requested = String(req.query.propertyIds ?? '').split(',').filter(Boolean);
     let propertyIds: string[];
@@ -1922,7 +1935,7 @@ export function createApp(store: DataStore) {
   });
 
   // POST /api/finance/pending/upload-single — OCR + compress + GCS + create record for one image
-  app.post('/api/finance/pending/upload-single', requireHostOrAdmin, async (req, res) => {
+  app.post('/api/finance/pending/upload-single', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const { propertyId, imageBase64 } = req.body as { propertyId?: string; imageBase64?: string };
 
@@ -2014,7 +2027,7 @@ export function createApp(store: DataStore) {
   });
 
   // POST /api/finance/pending/batch-upload — upload multiple images, create pending records (no OCR yet)
-  app.post('/api/finance/pending/batch-upload', requireHostOrAdmin, async (req, res) => {
+  app.post('/api/finance/pending/batch-upload', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const { propertyId, images } = req.body as { propertyId?: string; images?: string[] };
 
@@ -2054,7 +2067,7 @@ export function createApp(store: DataStore) {
   });
 
   // POST /api/finance/pending/process-ocr — run OCR on all unprocessed pending for a property
-  app.post('/api/finance/pending/process-ocr', requireHostOrAdmin, async (req, res) => {
+  app.post('/api/finance/pending/process-ocr', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const { propertyId } = req.body as { propertyId?: string };
 
@@ -2109,7 +2122,7 @@ export function createApp(store: DataStore) {
   });
 
   // PUT /api/finance/pending/:id — update pending transaction
-  app.put('/api/finance/pending/:id', requireHostOrAdmin, async (req, res) => {
+  app.put('/api/finance/pending/:id', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const { id } = req.params as { id: string };
     const { propertyId, transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, vendor } = req.body;
@@ -2130,7 +2143,7 @@ export function createApp(store: DataStore) {
   });
 
   // POST /api/finance/pending/:id/approve — approve single pending → moves to journal
-  app.post('/api/finance/pending/:id/approve', requireHostOrAdmin, async (req, res) => {
+  app.post('/api/finance/pending/:id/approve', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const { id } = req.params as { id: string };
     const txn = await store.approvePendingTransaction(id, actor);
@@ -2138,7 +2151,7 @@ export function createApp(store: DataStore) {
   });
 
   // DELETE /api/finance/pending/:id
-  app.delete('/api/finance/pending/:id', requireHostOrAdmin, async (req, res) => {
+  app.delete('/api/finance/pending/:id', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const { id } = req.params as { id: string };
     const deleted = await store.deletePendingTransaction(id, actor);
@@ -2152,7 +2165,7 @@ export function createApp(store: DataStore) {
   });
 
   // POST /api/finance/receipts/upload — compress, OCR, and store receipt image
-  app.post('/api/finance/receipts/upload', requireHostOrAdmin, async (req, res) => {
+  app.post('/api/finance/receipts/upload', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const { imageBase64, propertyId } = req.body as { imageBase64?: string; propertyId?: string };
 
@@ -2209,7 +2222,7 @@ export function createApp(store: DataStore) {
   });
 
   // POST /api/finance/transactions — create single transaction
-  app.post('/api/finance/transactions', requireHostOrAdmin, async (req, res) => {
+  app.post('/api/finance/transactions', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const { propertyId, transactionNo, transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, receiptUrl } = req.body;
 
@@ -2235,7 +2248,7 @@ export function createApp(store: DataStore) {
   });
 
   // PUT /api/finance/transactions/:id — update transaction
-  app.put('/api/finance/transactions/:id', requireHostOrAdmin, async (req, res) => {
+  app.put('/api/finance/transactions/:id', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const id = req.params.id as string;
     const { propertyId, transactionNo, transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, receiptUrl } = req.body;
@@ -2258,7 +2271,7 @@ export function createApp(store: DataStore) {
   });
 
   // DELETE /api/finance/transactions/:id
-  app.delete('/api/finance/transactions/:id', requireHostOrAdmin, async (req, res) => {
+  app.delete('/api/finance/transactions/:id', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const deleted = await store.deleteFinancialTransaction(req.params.id as string, actor);
     // Also remove the receipt image from object storage (best-effort).
@@ -2271,7 +2284,7 @@ export function createApp(store: DataStore) {
   });
 
   // POST /api/finance/transactions/bulk-import — import CSV rows
-  app.post('/api/finance/transactions/bulk-import', requireHostOrAdmin, async (req, res) => {
+  app.post('/api/finance/transactions/bulk-import', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const { propertyId, transactions } = req.body;
 

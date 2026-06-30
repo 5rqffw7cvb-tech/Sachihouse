@@ -4,7 +4,7 @@ export interface PermissionContext {
   role: Role;
   canEditBlog?: boolean;
   assignedPropertyIds?: string[];
-  hostLevel?: 1 | 2 | 3 | null;
+  hostLevel?: 1 | 2 | 3 | 4 | null;
 }
 
 export type PermissionAction =

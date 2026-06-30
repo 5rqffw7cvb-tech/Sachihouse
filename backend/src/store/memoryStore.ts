@@ -182,7 +182,7 @@ export class MemoryStore implements DataStore {
     return this.toAuthUser(user);
   }
 
-  async updateUserHostLevel(userId: number, level: 1 | 2 | 3 | null, _actor: AuthUser): Promise<AuthUser> {
+  async updateUserHostLevel(userId: number, level: 1 | 2 | 3 | 4 | null, _actor: AuthUser): Promise<AuthUser> {
     const state = this.assertState();
     const user = state.users.find((candidate) => candidate.id === userId);
     if (!user) {

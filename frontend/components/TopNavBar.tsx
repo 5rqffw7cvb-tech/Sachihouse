@@ -55,6 +55,8 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
   const canUseMyProperties = authUser?.role === 'HOST';
   const canManageBlog = authUser?.role === 'ADMIN' || authUser?.canEditBlog;
   const canManageProperties = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
+  // Finance is reserved for admins and host level 4 only.
+  const canUseFinance = authUser?.role === 'ADMIN' || (authUser?.role === 'HOST' && (authUser?.hostLevel ?? 0) >= 4);
   const isHome = pathname === '/' || pathname === '/index.html';
   const isBlog = pathname.startsWith('/blog');
   const isBlogPost = /^\/blog\/[^/]+$/.test(pathname);
@@ -319,7 +321,7 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
                         <ClipboardCheck className="w-4 h-4 text-[#74777d]" /> {t('common_admin_checkin')}
                       </button>
                     )}
-                    {canManageProperties && (
+                    {canUseFinance && (
                       <button
                         onClick={() => { setIsDropdownOpen(false); navigate('/admin/finance'); }}
                         className="w-full text-left px-4 py-2.5 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors flex items-center gap-2.5"
