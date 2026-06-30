@@ -41,6 +41,24 @@ const AVATAR_COLOR: Record<UserRole, string> = {
   GUEST: 'bg-[#efedef] text-[#44474c]',
 };
 
+// A user counts as "online" if they made an authenticated request within this window.
+const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+
+const isUserOnline = (user: ApiUser, now: number): boolean =>
+  !user.archivedAt && !!user.lastSeenAt && now - Number(user.lastSeenAt) < ONLINE_THRESHOLD_MS;
+
+const formatLastSeen = (lastSeenAt: number | null | undefined, now: number): string => {
+  if (!lastSeenAt) return 'Never signed in';
+  const diff = now - Number(lastSeenAt);
+  if (diff < 60 * 1000) return 'Active just now';
+  const minutes = Math.floor(diff / (60 * 1000));
+  if (minutes < 60) return `Active ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Active ${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `Active ${days}d ago`;
+};
+
 const AdminUsersPage: React.FC = () => {
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
@@ -49,6 +67,9 @@ const AdminUsersPage: React.FC = () => {
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [properties, setProperties] = useState<(PropertyData & { id: string })[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+
+  // Ticks forward periodically so "online" status and relative "last seen" labels stay fresh.
+  const [now, setNow] = useState(() => Date.now());
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -92,10 +113,11 @@ const AdminUsersPage: React.FC = () => {
 
   const stats = useMemo(() => ({
     total: users.length,
+    online: users.filter(u => isUserOnline(u, now)).length,
     admins: users.filter(u => u.role === 'ADMIN').length,
     hosts: users.filter(u => u.role === 'HOST').length,
     archived: users.filter(u => u.archivedAt).length,
-  }), [users]);
+  }), [users, now]);
 
   const propertyNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -157,6 +179,21 @@ const AdminUsersPage: React.FC = () => {
   useEffect(() => {
     void loadData();
     getSiteSettings().then(setSiteSettings).catch(() => {});
+  }, [isAdmin]);
+
+  // Keep presence live: tick the clock and quietly re-fetch users so the
+  // online dots reflect recent activity without disrupting the page state.
+  useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      setNow(Date.now());
+      listUsers()
+        .then((freshUsers) => setUsers(freshUsers))
+        .catch(() => {});
+    }, 30_000);
+    return () => window.clearInterval(interval);
   }, [isAdmin]);
 
   const handleLogin = () => {
@@ -527,10 +564,17 @@ const AdminUsersPage: React.FC = () => {
 
         {/* Stats */}
         {!isLoading && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
             <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
               <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#041627]">{stats.total}</div>
               <div className="text-xs font-medium text-[#74777d] mt-0.5">Total Users</div>
+            </div>
+            <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
+              <div className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${stats.online > 0 ? 'bg-[#0f7a44]' : 'bg-[#c4c6cd]'}`} />
+                <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#0f7a44]">{stats.online}</div>
+              </div>
+              <div className="text-xs font-medium text-[#74777d] mt-0.5">Online Now</div>
             </div>
             <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
               <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#041627]">{stats.admins}</div>
@@ -631,6 +675,7 @@ const AdminUsersPage: React.FC = () => {
               const isSelf = user.id === authUser?.id;
               const avatarColor = user.archivedAt ? 'bg-[#efedef] text-[#74777d]' : (AVATAR_COLOR[user.role] ?? 'bg-[#efedef] text-[#44474c]');
               const avatarInitial = (user.name || user.email).charAt(0).toUpperCase();
+              const online = isUserOnline(user, now);
 
               return (
                 <div key={user.id} className={`overflow-hidden transition-colors ${user.archivedAt ? 'opacity-80' : ''}`}>
@@ -640,8 +685,16 @@ const AdminUsersPage: React.FC = () => {
                     className={`flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors hover:bg-[#faf9f9]`}
                     onClick={() => toggleUserCard(user)}
                   >
-                    <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center font-['Plus_Jakarta_Sans'] font-bold text-base ${avatarColor}`}>
-                      {avatarInitial}
+                    <div className="relative flex-shrink-0">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-['Plus_Jakarta_Sans'] font-bold text-base ${avatarColor}`}>
+                        {avatarInitial}
+                      </div>
+                      {!user.archivedAt && (
+                        <span
+                          title={online ? 'Online' : formatLastSeen(user.lastSeenAt, now)}
+                          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${online ? 'bg-[#0f7a44]' : 'bg-[#c4c6cd]'}`}
+                        />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -649,7 +702,9 @@ const AdminUsersPage: React.FC = () => {
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${user.archivedAt ? 'bg-[#efedef] text-[#74777d]' : (ROLE_BADGE[user.role] ?? 'bg-[#efedef] text-[#44474c]')}`}>{user.role}</span>
                         {user.archivedAt
                           ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Archived</span>
-                          : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#e6f5ec] text-[#0f7a44]">Active</span>
+                          : online
+                            ? <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#e6f5ec] text-[#0f7a44]"><span className="w-1.5 h-1.5 rounded-full bg-[#0f7a44]" />Online</span>
+                            : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#74777d]">Offline</span>
                         }
                         {user.canEditBlog && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#44474c]">Blog Editor</span>}
                         {user.role === 'HOST' && (() => {
@@ -663,6 +718,7 @@ const AdminUsersPage: React.FC = () => {
                       <div className="text-xs text-slate-400 mt-0.5 truncate">
                         {user.email} · ID: {user.id}
                         {user.role === 'HOST' && user.assignedPropertyIds.length > 0 && ` · ${user.assignedPropertyIds.length} ${user.assignedPropertyIds.length === 1 ? 'property' : 'properties'}`}
+                        {!user.archivedAt && !online && ` · ${formatLastSeen(user.lastSeenAt, now)}`}
                       </div>
                     </div>
                     <ChevronDown className={`w-4 h-4 flex-shrink-0 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />

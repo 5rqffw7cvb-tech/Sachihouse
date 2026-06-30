@@ -66,7 +66,15 @@ export class MemoryStore implements DataStore {
       archivedAt: user.archivedAt ?? null,
       assignedPropertyIds: [...user.assignedPropertyIds],
       hostLevel: user.hostLevel ?? null,
+      lastSeenAt: user.lastSeenAt ?? null,
     };
+  }
+
+  async touchUserLastSeen(userId: number, timestamp: number): Promise<void> {
+    const user = this.assertState().users.find((candidate) => candidate.id === userId);
+    if (user) {
+      user.lastSeenAt = timestamp;
+    }
   }
 
   async authenticate(email: string, password: string): Promise<AuthUser | null> {

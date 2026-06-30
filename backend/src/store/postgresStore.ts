@@ -127,6 +127,7 @@ export class PostgresStore implements DataStore {
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS archived_at BIGINT');
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS checkin_permission_from DATE');
     await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS host_level INT');
+    await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at BIGINT');
     await this.pool.query("UPDATE users SET name = split_part(email, '@', 1) WHERE name IS NULL OR trim(name) = ''");
     await this.pool.query(`
       UPDATE checkin_submissions
@@ -226,7 +227,7 @@ export class PostgresStore implements DataStore {
     return result.rows.map((row: { property_id: string }) => row.property_id);
   }
 
-  private async mapUser(row: { id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }): Promise<AuthUser> {
+  private async mapUser(row: { id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null; last_seen_at?: number | null }): Promise<AuthUser> {
     return {
       id: row.id,
       name: row.name,
@@ -236,7 +237,12 @@ export class PostgresStore implements DataStore {
       archivedAt: row.archived_at,
       assignedPropertyIds: row.role === 'HOST' ? await this.getAssignedPropertyIds(row.id) : [],
       hostLevel: (row.host_level as 1 | 2 | 3 | null) ?? null,
+      lastSeenAt: row.last_seen_at ?? null,
     };
+  }
+
+  async touchUserLastSeen(userId: number, timestamp: number): Promise<void> {
+    await this.pool.query('UPDATE users SET last_seen_at = $2 WHERE id = $1', [userId, timestamp]);
   }
 
   async authenticate(email: string, password: string): Promise<AuthUser | null> {
@@ -263,7 +269,7 @@ export class PostgresStore implements DataStore {
   }
 
   async listUsers(): Promise<AuthUser[]> {
-    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null }>('SELECT id, name, email, role, can_edit_blog, archived_at, host_level FROM users ORDER BY id');
+    const result = await this.pool.query<{ id: number; name: string; email: string; role: AuthUser['role']; can_edit_blog: boolean; archived_at: number | null; host_level?: number | null; last_seen_at?: number | null }>('SELECT id, name, email, role, can_edit_blog, archived_at, host_level, last_seen_at FROM users ORDER BY id');
     return Promise.all(result.rows.map((row) => this.mapUser(row)));
   }
 

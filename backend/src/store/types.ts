@@ -9,6 +9,7 @@ export interface AuthUser {
   archivedAt?: number | null;
   assignedPropertyIds: string[];
   hostLevel: 1 | 2 | 3 | null;
+  lastSeenAt?: number | null;
 }
 
 export interface StoredUser extends AuthUser {
@@ -286,6 +287,7 @@ export interface DataStore {
   authenticate(email: string, password: string): Promise<AuthUser | null>;
   getUserById(id: number): Promise<AuthUser | null>;
   listUsers(): Promise<AuthUser[]>;
+  touchUserLastSeen(userId: number, timestamp: number): Promise<void>;
   createUser(name: string, email: string, password: string, role: Role, canEditBlog: boolean, actor: AuthUser): Promise<AuthUser>;
   updateUserName(userId: number, name: string, actor: AuthUser): Promise<AuthUser>;
   updateUserEmail(userId: number, email: string, actor: AuthUser): Promise<AuthUser>;

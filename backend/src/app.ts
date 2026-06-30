@@ -561,6 +561,10 @@ export function createApp(store: DataStore) {
   });
   app.use(morgan('dev'));
 
+  // Throttle "last seen" writes: at most one DB update per user per interval.
+  const LAST_SEEN_WRITE_INTERVAL_MS = 30_000;
+  const lastSeenWriteAt = new Map<number, number>();
+
   app.use(async (req: Request, _res: Response, next: NextFunction) => {
     const token = getBearerToken(req.headers.authorization);
     if (!token) {
@@ -571,6 +575,20 @@ export function createApp(store: DataStore) {
     try {
       const payload = verifyToken(token);
       req.authUser = await store.getUserById(payload.sub);
+
+      if (req.authUser) {
+        const now = Date.now();
+        const lastWrite = lastSeenWriteAt.get(req.authUser.id) ?? 0;
+        if (now - lastWrite >= LAST_SEEN_WRITE_INTERVAL_MS) {
+          lastSeenWriteAt.set(req.authUser.id, now);
+          // Fire-and-forget so presence tracking never delays the request.
+          void store.touchUserLastSeen(req.authUser.id, now).catch(() => {
+            lastSeenWriteAt.delete(req.authUser!.id);
+          });
+        }
+        req.authUser.lastSeenAt = now;
+      }
+
       next();
     } catch {
       req.authUser = null;

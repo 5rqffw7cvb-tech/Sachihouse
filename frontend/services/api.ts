@@ -7,6 +7,7 @@ export interface ApiUser {
   archivedAt?: number | null;
   assignedPropertyIds: string[];
   hostLevel: 1 | 2 | 3 | null;
+  lastSeenAt?: number | null;
 }
 
 export class ApiError extends Error {
