@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, Archive, Loader2, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
+import { AlertCircle, Archive, Loader2, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { getCurrentUser, checkAuth, subscribeToAuth } from '../services/auth';
@@ -88,6 +88,11 @@ const PropertyAdminListPage: React.FC = () => {
 
   const handleEdit = (property: PropertyData & { id: string }) => {
     navigate(`/${property.metalink || property.id}/admin`);
+  };
+
+  const handleCreateNew = () => {
+    const newId = `list_${Math.random().toString(36).substring(2, 5)}`;
+    navigate(`/${newId}/admin`);
   };
 
   const handleArchiveToggle = async (property: PropertyData & { id: string }, archived: boolean) => {
@@ -199,14 +204,25 @@ const PropertyAdminListPage: React.FC = () => {
             <h1 className="font-['Plus_Jakarta_Sans'] text-[28px] font-bold leading-tight">Property Administration</h1>
             <p className="text-[#44474c]">Manage properties you currently host.</p>
           </div>
-          <button
-            onClick={() => loadProperties(true)}
-            disabled={isRefreshing}
-            className="self-start md:self-auto inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] disabled:opacity-60 transition-colors"
-          >
-            {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            Refresh
-          </button>
+          <div className="flex items-center gap-2 self-start md:self-auto">
+            {authUser?.role === 'ADMIN' && (
+              <button
+                onClick={handleCreateNew}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#041627] text-white font-semibold hover:bg-[#041627]/90 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                New Property
+              </button>
+            )}
+            <button
+              onClick={() => loadProperties(true)}
+              disabled={isRefreshing}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] disabled:opacity-60 transition-colors"
+            >
+              {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Refresh
+            </button>
+          </div>
         </div>
 
         {errorMsg && (

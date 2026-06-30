@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PropertyData, SiteSettings } from '../types';
-import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Plus, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train, Globe } from 'lucide-react';
+import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train, Globe } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -188,11 +188,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
   const handleRemoveLocationRow = (index: number) => {
     upsertAllowedLocations(allowedLocationRows.filter((_, rowIndex) => rowIndex !== index));
-  };
-
-  const handleCreateNew = () => {
-    const newId = `list_${Math.random().toString(36).substring(2, 5)}`;
-    navigate(`/${newId}/admin`);
   };
 
   const handleDelete = async (e: React.MouseEvent, propertyId: string) => {
@@ -431,12 +426,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                   className="hidden md:flex bg-[#ffffff] border border-[#c4c6cd] text-[#1b1c1d] px-4 py-2 rounded-full font-semibold text-[14px]/[1.4] hover:bg-[#e4e2e3] transition-colors items-center gap-1.5 shadow-sm"
                 >
                   <Settings className="w-4 h-4" /> Edit Page Content
-                </button>
-                <button
-                  onClick={handleCreateNew}
-                  className="hidden md:flex bg-[#041627] text-white px-4 py-2 rounded-full font-semibold text-[14px]/[1.4] hover:bg-[#041627]/90 transition-colors items-center gap-1.5 shadow-sm"
-                >
-                  <Plus className="w-4 h-4" /> New Property
                 </button>
               </>
             )}
