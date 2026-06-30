@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, Archive, ChevronDown, Eye, EyeOff, Loader2, Lock, Plus, RefreshCw, RotateCcw, Save, Trash2, X } from 'lucide-react';
+import { AlertCircle, Archive, Bell, Check, ChevronDown, Eye, EyeOff, Loader2, Lock, Plus, RefreshCw, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { ApiUser } from '../services/api';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
 import { TopNavBar } from '../components/TopNavBar';
@@ -22,10 +22,13 @@ import {
   UserRole,
 } from '../services/admin';
 import { DEFAULT_SITE_SETTINGS, getAllProperties, getSiteSettings } from '../services/storage';
-import { PropertyData, SiteSettings } from '../types';
+import { approveSubscriptionRequest, listSubscriptionRequests, rejectSubscriptionRequest } from '../services/subscriptions';
+import { HostPlanCode, PLAN_TO_HOST_LEVEL, PropertyData, SiteSettings, SubscriptionRequest } from '../types';
 
 
 const ROLE_OPTIONS: UserRole[] = ['ADMIN', 'HOST', 'GUEST'];
+
+const PLAN_LABELS: Record<HostPlanCode, string> = { basic: 'Basic', plus: 'Plus', pro: 'Pro' };
 
 type UserTab = 'profile' | 'access' | 'properties' | 'security' | 'danger';
 
@@ -67,6 +70,8 @@ const AdminUsersPage: React.FC = () => {
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [properties, setProperties] = useState<(PropertyData & { id: string })[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  const [upgradeRequests, setUpgradeRequests] = useState<SubscriptionRequest[]>([]);
+  const [pendingRequestId, setPendingRequestId] = useState<string | null>(null);
 
   // Ticks forward periodically so "online" status and relative "last seen" labels stay fresh.
   const [now, setNow] = useState(() => Date.now());
@@ -163,9 +168,14 @@ const AdminUsersPage: React.FC = () => {
     setErrorMsg(null);
     setInfoMsg(null);
     try {
-      const [fetchedUsers, fetchedProperties] = await Promise.all([listUsers(), getAllProperties()]);
+      const [fetchedUsers, fetchedProperties, fetchedRequests] = await Promise.all([
+        listUsers(),
+        getAllProperties(),
+        listSubscriptionRequests('pending'),
+      ]);
       setUsers(fetchedUsers);
       setProperties(fetchedProperties);
+      setUpgradeRequests(fetchedRequests);
       setAssignmentDrafts(buildAssignmentDrafts(fetchedUsers));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load user admin data.';
@@ -191,6 +201,9 @@ const AdminUsersPage: React.FC = () => {
       setNow(Date.now());
       listUsers()
         .then((freshUsers) => setUsers(freshUsers))
+        .catch(() => {});
+      listSubscriptionRequests('pending')
+        .then((freshRequests) => setUpgradeRequests(freshRequests))
         .catch(() => {});
     }, 30_000);
     return () => window.clearInterval(interval);
@@ -474,6 +487,29 @@ const AdminUsersPage: React.FC = () => {
     }
   };
 
+  const handleUpgradeDecision = async (request: SubscriptionRequest, approve: boolean) => {
+    setErrorMsg(null);
+    setInfoMsg(null);
+    setPendingRequestId(request.id);
+    try {
+      if (approve) {
+        await approveSubscriptionRequest(request.id);
+      } else {
+        await rejectSubscriptionRequest(request.id);
+      }
+      // Refresh users (host levels change on approval) and the pending list.
+      await loadData(true);
+      setInfoMsg(approve
+        ? `Approved — ${request.userEmail} is now host level ${PLAN_TO_HOST_LEVEL[request.planCode]}.`
+        : `Rejected upgrade request from ${request.userEmail}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update the upgrade request.';
+      setErrorMsg(message);
+    } finally {
+      setPendingRequestId(null);
+    }
+  };
+
   // Reusable class helpers
   const inputCls = 'w-full px-3.5 py-2.5 bg-[#f5f3f4] border border-[#e4e2e3] rounded-xl text-sm text-[#1b1c1d] focus:outline-none focus:ring-2 focus:ring-[#041627]/20 focus:border-[#041627] transition-colors disabled:opacity-60';
   const selectCls = inputCls + ' appearance-none';
@@ -559,6 +595,48 @@ const AdminUsersPage: React.FC = () => {
           <div className="mb-5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-2xl px-4 py-3 text-sm flex items-center justify-between gap-3">
             <span>{infoMsg}</span>
             <button onClick={() => setInfoMsg(null)} className="flex-shrink-0 text-emerald-400 hover:text-emerald-600"><X className="w-4 h-4" /></button>
+          </div>
+        )}
+
+        {/* Pending upgrade requests */}
+        {upgradeRequests.length > 0 && (
+          <div className="mb-6 bg-white border border-amber-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="flex items-center gap-2 px-5 py-3 bg-amber-50 border-b border-amber-200">
+              <Bell className="w-4 h-4 text-amber-600" />
+              <span className="font-semibold text-amber-800 text-sm">
+                {upgradeRequests.length} pending upgrade {upgradeRequests.length === 1 ? 'request' : 'requests'}
+              </span>
+            </div>
+            <div className="divide-y divide-[#e4e2e3]">
+              {upgradeRequests.map((request) => (
+                <div key={request.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-[#1b1c1d] truncate">{request.userName || request.userEmail}</p>
+                    <p className="text-xs text-[#74777d] truncate">{request.userEmail}</p>
+                    <p className="text-sm text-[#44474c] mt-1">
+                      Wants <span className="font-semibold">{PLAN_LABELS[request.planCode]}</span> · {request.billingCycle}
+                      <span className="text-[#74777d]"> → host level {PLAN_TO_HOST_LEVEL[request.planCode]}</span>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => handleUpgradeDecision(request, true)}
+                      disabled={pendingRequestId === request.id}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-emerald-600 text-white font-semibold text-xs hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                    >
+                      {pendingRequestId === request.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Approve
+                    </button>
+                    <button
+                      onClick={() => handleUpgradeDecision(request, false)}
+                      disabled={pendingRequestId === request.id}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold text-xs hover:bg-[#efedef] disabled:opacity-50 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" /> Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
