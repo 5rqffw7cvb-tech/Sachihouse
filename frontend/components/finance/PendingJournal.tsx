@@ -193,11 +193,16 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
     });
   };
 
+  const closeEditModal = () => {
+    setEditingId(null);
+    setEditDraft({});
+  };
+
   const saveEdit = async (id: string) => {
     try {
       const updated = await financeApi.updatePendingTransaction(id, editDraft);
       setItems(prev => prev.map(i => i.id === id ? { ...i, ...updated } : i));
-      setEditingId(null);
+      closeEditModal();
     } catch { alert('保存に失敗しました。'); }
   };
 
@@ -411,7 +416,6 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
               )}
 
               {items.map((item, idx) => {
-                const isEditing = editingId === item.id;
                 const rowClass = idx % 2 === 0 ? 'bg-white' : 'bg-[#f5f3f4]/20';
                 return (
                   <tr key={item.id} className={`group transition-colors ${selectedIds.has(item.id) ? 'bg-blue-50/60' : `${rowClass} hover:bg-amber-50/30`}`}>
@@ -446,67 +450,40 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
 
                     {/* 取引日 */}
                     <td className="py-1.5 px-2 border border-[#8f8d8e] font-mono whitespace-nowrap">
-                      {isEditing ? (
-                        <input type="date" value={(editDraft.transactionDate || '').replace(/\//g, '-')}
-                          onChange={e => setEditDraft(d => ({ ...d, transactionDate: e.target.value }))}
-                          className="w-full px-1 py-1 border border-blue-300 rounded text-[11px] outline-none" />
-                      ) : item.transactionDate || <span className="text-gray-300">—</span>}
+                      {item.transactionDate || <span className="text-gray-300">—</span>}
                     </td>
 
                     {/* 借方勘定科目 */}
                     <td className="py-1.5 px-2 border border-[#8f8d8e] break-words">
-                      {isEditing ? (
-                        <AccountSelect value={editDraft.debitAccount || ''}
-                          onChange={v => setEditDraft(d => ({ ...d, debitAccount: v }))} />
-                      ) : item.debitAccount || <span className="text-gray-300">—</span>}
+                      {item.debitAccount || <span className="text-gray-300">—</span>}
                     </td>
 
                     {/* 借方金額(円) */}
                     <td className="py-1.5 px-2 border border-[#8f8d8e] text-right font-mono font-semibold">
-                      {isEditing ? (
-                        <input type="number" value={editDraft.debitAmount || ''}
-                          onChange={e => {
-                            const v = parseInt(e.target.value) || 0;
-                            setEditDraft(d => ({ ...d, debitAmount: v, creditAmount: v }));
-                          }}
-                          className="w-full px-1 py-1 border border-blue-300 rounded text-[11px] text-right outline-none" />
-                      ) : item.debitAmount > 0
+                      {item.debitAmount > 0
                         ? formatCurrency(item.debitAmount)
                         : <span className="text-gray-300">—</span>}
                     </td>
 
                     {/* 貸方勘定科目 */}
                     <td className="py-1.5 px-2 border border-[#8f8d8e] break-words">
-                      {isEditing ? (
-                        <AccountSelect value={editDraft.creditAccount || ''}
-                          onChange={v => setEditDraft(d => ({ ...d, creditAccount: v }))} />
-                      ) : item.creditAccount || <span className="text-gray-300">—</span>}
+                      {item.creditAccount || <span className="text-gray-300">—</span>}
                     </td>
 
                     {/* 貸方金額(円) */}
                     <td className="py-1.5 px-2 border border-[#8f8d8e] text-right font-mono font-semibold">
-                      {isEditing ? (
-                        <input type="number" value={editDraft.creditAmount || ''}
-                          onChange={e => setEditDraft(d => ({ ...d, creditAmount: parseInt(e.target.value) || 0 }))}
-                          className="w-full px-1 py-1 border border-blue-300 rounded text-[11px] text-right outline-none" />
-                      ) : item.creditAmount > 0
+                      {item.creditAmount > 0
                         ? formatCurrency(item.creditAmount)
                         : <span className="text-gray-300">—</span>}
                     </td>
 
                     {/* 摘要 */}
                     <td className="py-1.5 px-2 border border-[#8f8d8e] break-words leading-tight">
-                      {isEditing ? (
-                        <input value={editDraft.description || ''}
-                          onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))}
-                          className="w-full px-1 py-1 border border-blue-300 rounded text-[11px] outline-none" />
-                      ) : (
-                        <div>
-                          {item.vendor && <p className="font-semibold text-[#1b1c1d] truncate">{item.vendor}</p>}
-                          {item.description && <p className="text-[#74777d] truncate">{item.description}</p>}
-                          {!item.vendor && !item.description && <span className="text-gray-300">—</span>}
-                        </div>
-                      )}
+                      <div>
+                        {item.vendor && <p className="font-semibold text-[#1b1c1d] truncate">{item.vendor}</p>}
+                        {item.description && <p className="text-[#74777d] truncate">{item.description}</p>}
+                        {!item.vendor && !item.description && <span className="text-gray-300">—</span>}
+                      </div>
                     </td>
 
                     {/* 証憑 */}
@@ -520,39 +497,24 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                     {/* 操作 */}
                     <td className="py-1.5 px-2 text-center sticky right-0 bg-inherit border border-[#8f8d8e] z-10 no-print">
                       <div className="flex items-center justify-center gap-1">
-                        {isEditing ? (
-                          <>
-                            <button onClick={() => saveEdit(item.id)}
-                              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md" title="保存">
-                              <Save className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => setEditingId(null)}
-                              className="p-1.5 text-[#74777d] hover:bg-[#f5f3f4] rounded-md" title="キャンセル">
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={() => startEdit(item)}
-                              className="p-1.5 text-[#74777d] hover:text-blue-600 hover:bg-blue-50 rounded-md opacity-70 group-hover:opacity-100" title="編集">
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleApprove(item.id)}
-                              disabled={approvingId === item.id || stillUploading(item)}
-                              title={stillUploading(item) ? '画像を保存中です...' : '承認'}
-                              className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md opacity-70 group-hover:opacity-100 disabled:opacity-30"
-                            >
-                              {approvingId === item.id
-                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                : <CheckCircle className="w-3.5 h-3.5" />}
-                            </button>
-                            <button onClick={() => handleDelete(item.id)}
-                              className="p-1.5 text-[#74777d] hover:text-rose-600 hover:bg-rose-50 rounded-md opacity-70 group-hover:opacity-100" title="削除">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
+                        <button onClick={() => startEdit(item)}
+                          className="p-1.5 text-[#74777d] hover:text-blue-600 hover:bg-blue-50 rounded-md opacity-70 group-hover:opacity-100" title="編集">
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleApprove(item.id)}
+                          disabled={approvingId === item.id || stillUploading(item)}
+                          title={stillUploading(item) ? '画像を保存中です...' : '承認'}
+                          className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md opacity-70 group-hover:opacity-100 disabled:opacity-30"
+                        >
+                          {approvingId === item.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <CheckCircle className="w-3.5 h-3.5" />}
+                        </button>
+                        <button onClick={() => handleDelete(item.id)}
+                          className="p-1.5 text-[#74777d] hover:text-rose-600 hover:bg-rose-50 rounded-md opacity-70 group-hover:opacity-100" title="削除">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -598,41 +560,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
 
         <div className="divide-y divide-[#f5f3f4]">
           {items.map((item) => {
-            const isEditing = editingId === item.id;
             const uploading = stillUploading(item);
-            if (isEditing) {
-              return (
-                <div key={item.id} className="p-3 bg-blue-50/30 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="text-[10px] font-bold text-[#74777d]">取引日
-                      <input type="date" value={(editDraft.transactionDate || '').replace(/\//g, '-')}
-                        onChange={e => setEditDraft(d => ({ ...d, transactionDate: e.target.value }))}
-                        className="mt-0.5 w-full px-2 py-1.5 border border-blue-300 rounded text-xs outline-none" />
-                    </label>
-                    <label className="text-[10px] font-bold text-[#74777d]">借方金額(円)
-                      <input type="number" value={editDraft.debitAmount || ''}
-                        onChange={e => { const v = parseInt(e.target.value) || 0; setEditDraft(d => ({ ...d, debitAmount: v, creditAmount: v })); }}
-                        className="mt-0.5 w-full px-2 py-1.5 border border-blue-300 rounded text-xs text-right outline-none" />
-                    </label>
-                    <label className="text-[10px] font-bold text-[#74777d]">借方勘定科目
-                      <div className="mt-0.5"><AccountSelect value={editDraft.debitAccount || ''} onChange={v => setEditDraft(d => ({ ...d, debitAccount: v }))} /></div>
-                    </label>
-                    <label className="text-[10px] font-bold text-[#74777d]">貸方勘定科目
-                      <div className="mt-0.5"><AccountSelect value={editDraft.creditAccount || ''} onChange={v => setEditDraft(d => ({ ...d, creditAccount: v }))} /></div>
-                    </label>
-                  </div>
-                  <label className="text-[10px] font-bold text-[#74777d] block">摘要
-                    <input value={editDraft.description || ''}
-                      onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))}
-                      className="mt-0.5 w-full px-2 py-1.5 border border-blue-300 rounded text-xs outline-none" />
-                  </label>
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button onClick={() => setEditingId(null)} className="px-3 py-1.5 text-xs font-bold text-[#74777d] bg-[#f5f3f4] rounded-lg">キャンセル</button>
-                    <button onClick={() => saveEdit(item.id)} className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 rounded-lg flex items-center gap-1"><Save className="w-3.5 h-3.5" />保存</button>
-                  </div>
-                </div>
-              );
-            }
             return (
               <div key={item.id} className="flex items-center gap-3 p-3 bg-white">
                 <div className="flex-1 min-w-0 grid gap-1">
@@ -697,6 +625,103 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                   ? <img src={previewUrl} alt="Receipt" className="max-w-full max-h-[60vh] object-contain rounded-xl shadow-lg" />
                   : <iframe src={previewUrl} className="w-full h-[60vh] border-none rounded-xl bg-white shadow-lg" title="Receipt Preview" />;
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit popup (same behavior style as 仕訳帳) */}
+      {editingId && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm no-print">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="px-5 py-3 border-b border-[#e4e2e3] bg-[#f5f3f4] flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm text-[#1b1c1d]">未承認仕訳を編集</h3>
+                <p className="text-[10px] text-[#74777d] mt-0.5">保存後に承認できます</p>
+              </div>
+              <button onClick={closeEditModal} className="p-1.5 text-[#74777d] hover:bg-slate-200 rounded-full">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <label className="block">
+                  <span className="block text-[11px] font-bold text-[#44474c] mb-1">取引日</span>
+                  <input
+                    type="date"
+                    value={(editDraft.transactionDate || '').replace(/\//g, '-')}
+                    onChange={e => setEditDraft(d => ({ ...d, transactionDate: e.target.value }))}
+                    className="w-full px-3 py-2 bg-[#f5f3f4] border border-[#e4e2e3] rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="block text-[11px] font-bold text-[#44474c] mb-1">Vendor</span>
+                  <input
+                    value={editDraft.vendor || ''}
+                    onChange={e => setEditDraft(d => ({ ...d, vendor: e.target.value }))}
+                    className="w-full px-3 py-2 bg-[#f5f3f4] border border-[#e4e2e3] rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Vendor name"
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <span className="block text-[11px] font-bold text-[#44474c] mb-1">借方勘定科目</span>
+                  <AccountSelect value={editDraft.debitAccount || ''} onChange={v => setEditDraft(d => ({ ...d, debitAccount: v }))} />
+                </div>
+                <div>
+                  <span className="block text-[11px] font-bold text-[#44474c] mb-1">貸方勘定科目</span>
+                  <AccountSelect value={editDraft.creditAccount || ''} onChange={v => setEditDraft(d => ({ ...d, creditAccount: v }))} />
+                </div>
+                <label className="block">
+                  <span className="block text-[11px] font-bold text-[#44474c] mb-1">借方金額(円)</span>
+                  <input
+                    type="number"
+                    value={editDraft.debitAmount || ''}
+                    onChange={e => {
+                      const v = parseInt(e.target.value) || 0;
+                      setEditDraft(d => ({ ...d, debitAmount: v, creditAmount: v }));
+                    }}
+                    className="w-full px-3 py-2 bg-[#f5f3f4] border border-[#e4e2e3] rounded-lg text-xs text-right font-mono outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </label>
+                <label className="block">
+                  <span className="block text-[11px] font-bold text-[#44474c] mb-1">貸方金額(円)</span>
+                  <input
+                    type="number"
+                    value={editDraft.creditAmount || ''}
+                    onChange={e => setEditDraft(d => ({ ...d, creditAmount: parseInt(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 bg-[#f5f3f4] border border-[#e4e2e3] rounded-lg text-xs text-right font-mono outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="block text-[11px] font-bold text-[#44474c] mb-1">摘要</span>
+                <input
+                  value={editDraft.description || ''}
+                  onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))}
+                  className="w-full px-3 py-2 bg-[#f5f3f4] border border-[#e4e2e3] rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="摘要を入力"
+                />
+              </label>
+            </div>
+
+            <div className="px-5 py-4 border-t border-[#e4e2e3] bg-[#f5f3f4] flex items-center gap-2">
+              <button
+                onClick={closeEditModal}
+                className="flex-1 px-4 py-2.5 bg-white border border-[#ccc9ca] text-[#44474c] rounded-xl text-xs font-bold hover:bg-[#f5f3f4]"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => saveEdit(editingId)}
+                className="flex-1 px-4 py-2.5 bg-[#003580] text-white rounded-xl text-xs font-bold hover:bg-brand-700 flex items-center justify-center gap-2"
+              >
+                <Save className="w-4 h-4" />保存
+              </button>
             </div>
           </div>
         </div>
