@@ -88,7 +88,7 @@ Không khớp gì cả → trả 400 kèm danh sách email đã thấy (xem tron
 
 ## 3. Chi tiết kỹ thuật
 
-- **Query Gmail mặc định:** `from:anthropic.com subject:receipt has:attachment filename:pdf newer_than:90d` (loại trừ thread đã gắn label). Nếu receipt đến từ địa chỉ khác (VD qua Stripe), chỉnh `GMAIL_QUERY`.
+- **Query Gmail mặc định:** `subject:"receipt from Anthropic" has:attachment filename:pdf newer_than:90d` (loại trừ thread đã gắn label). Nhận diện theo **subject** chứ không theo người gửi, nên hoạt động cả khi receipt được **forward** từ email đăng ký Anthropic sang hộp thư chạy script (From lúc đó không còn là anthropic.com). Cần pattern khác thì override bằng `GMAIL_QUERY`.
 - **Tỉ giá:** dùng `GOOGLEFINANCE("CURRENCY:USDJPY")` qua một spreadsheet phụ tự tạo (`SachiHouse FX Helper`) — đúng tỉ giá Google tại thời điểm script chạy. Tỉ giá + số tiền gốc được ghi vào description để đối chiếu.
 - **Chống trùng lặp (3 lớp):**
   1. Label Gmail + Script Properties (`processed:<messageId>`) — không gửi lại.

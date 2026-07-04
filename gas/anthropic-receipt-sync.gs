@@ -30,7 +30,11 @@
  */
 
 var LABEL_NAME = 'SachiHouse_Processed';
-var DEFAULT_QUERY = 'from:anthropic.com subject:receipt has:attachment filename:pdf newer_than:90d';
+// Nhận diện theo subject (không lọc người gửi) vì receipt có thể được forward
+// từ email đăng ký Anthropic sang hộp thư này — khi đó From không còn là
+// anthropic.com nữa. Subject "Your receipt from Anthropic, PBC #..." được giữ
+// nguyên khi forward (kể cả có prefix "Fwd:").
+var DEFAULT_QUERY = 'subject:"receipt from Anthropic" has:attachment filename:pdf newer_than:90d';
 var TARGET_CURRENCY = 'JPY';
 
 /* ========== Entry point (gắn trigger vào hàm này) ========== */
