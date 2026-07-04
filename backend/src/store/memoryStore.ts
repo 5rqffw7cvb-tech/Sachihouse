@@ -12,6 +12,7 @@ import {
   FinancialTransactionInput,
   PendingTransaction,
   PendingTransactionInput,
+  IngestRule,
   PropertyData,
   SiteSettings,
   StoredUser,
@@ -32,6 +33,7 @@ interface MemoryState {
   financialTransactions: FinancialTransaction[];
   pendingTransactions: PendingTransaction[];
   subscriptionRequests: SubscriptionRequest[];
+  ingestRules: IngestRule[];
 }
 
 export class MemoryStore implements DataStore {
@@ -52,6 +54,7 @@ export class MemoryStore implements DataStore {
       financialTransactions: [],
       pendingTransactions: [],
       subscriptionRequests: [],
+      ingestRules: [],
     };
   }
 
@@ -759,5 +762,33 @@ export class MemoryStore implements DataStore {
     const state = this.assertState();
     return state.pendingTransactions.some((t) => t.sourceRef === sourceRef)
       || state.financialTransactions.some((t) => t.sourceRef === sourceRef);
+  }
+
+  async listIngestRules(): Promise<IngestRule[]> {
+    const state = this.assertState();
+    return structuredClone(state.ingestRules.slice().sort((a, b) => a.email.localeCompare(b.email)));
+  }
+
+  async upsertIngestRule(email: string, propertyId: string, _actor: AuthUser): Promise<IngestRule> {
+    const state = this.assertState();
+    const normalized = email.trim().toLowerCase();
+    const now = Date.now();
+    const existing = state.ingestRules.find((r) => r.email === normalized);
+    if (existing) {
+      existing.propertyId = propertyId;
+      existing.updatedAt = now;
+      return structuredClone(existing);
+    }
+    const rule: IngestRule = { email: normalized, propertyId, createdAt: now, updatedAt: now };
+    state.ingestRules.push(rule);
+    return structuredClone(rule);
+  }
+
+  async deleteIngestRule(email: string, _actor: AuthUser): Promise<boolean> {
+    const state = this.assertState();
+    const normalized = email.trim().toLowerCase();
+    const before = state.ingestRules.length;
+    state.ingestRules = state.ingestRules.filter((r) => r.email !== normalized);
+    return state.ingestRules.length < before;
   }
 }

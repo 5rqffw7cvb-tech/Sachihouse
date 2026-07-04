@@ -12,6 +12,7 @@ import {
   FinancialTransactionInput,
   PendingTransaction,
   PendingTransactionInput,
+  IngestRule,
   PropertyData,
   SiteSettings,
   StoredUser,
@@ -173,6 +174,17 @@ export class PostgresStore implements DataStore {
       ON pending_transactions(source_ref) WHERE source_ref IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS uq_financial_transactions_source_ref
       ON financial_transactions(source_ref) WHERE source_ref IS NOT NULL;
+    `);
+
+    // Email → property routing rules for the ingest webhook (managed in the
+    // Finance admin UI; overrides the FINANCE_INGEST_RULES env fallback).
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS finance_ingest_rules (
+        email TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
     `);
 
     // Host subscription upgrade requests (admin-approved, no payment gateway yet).
@@ -1150,6 +1162,42 @@ export class PostgresStore implements DataStore {
        LIMIT 1`,
       [sourceRef],
     );
+    return result.rows.length > 0;
+  }
+
+  private mapIngestRule(row: { email: string; property_id: string; created_at: number; updated_at: number }): IngestRule {
+    return {
+      email: row.email,
+      propertyId: row.property_id,
+      createdAt: Number(row.created_at),
+      updatedAt: Number(row.updated_at),
+    };
+  }
+
+  async listIngestRules(): Promise<IngestRule[]> {
+    const result = await this.pool.query('SELECT * FROM finance_ingest_rules ORDER BY email');
+    return result.rows.map((row: Parameters<typeof this.mapIngestRule>[0]) => this.mapIngestRule(row));
+  }
+
+  async upsertIngestRule(email: string, propertyId: string, actor: AuthUser): Promise<IngestRule> {
+    const now = Date.now();
+    const result = await this.pool.query(
+      `INSERT INTO finance_ingest_rules (email, property_id, created_at, updated_at)
+       VALUES ($1, $2, $3, $3)
+       ON CONFLICT (email) DO UPDATE SET property_id = $2, updated_at = $3
+       RETURNING *`,
+      [email.trim().toLowerCase(), propertyId, now],
+    );
+    await this.writeAudit(actor.id, 'UPSERT_INGEST_RULE', 'finance_ingest_rule', email);
+    return this.mapIngestRule(result.rows[0]);
+  }
+
+  async deleteIngestRule(email: string, actor: AuthUser): Promise<boolean> {
+    const result = await this.pool.query(
+      'DELETE FROM finance_ingest_rules WHERE email = $1 RETURNING email',
+      [email.trim().toLowerCase()],
+    );
+    await this.writeAudit(actor.id, 'DELETE_INGEST_RULE', 'finance_ingest_rule', email);
     return result.rows.length > 0;
   }
 }

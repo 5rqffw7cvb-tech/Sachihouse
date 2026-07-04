@@ -2008,10 +2008,12 @@ export function createApp(store: DataStore) {
     return next();
   };
 
-  // Routing rules: FINANCE_INGEST_RULES maps an email address to the property
-  // that should absorb the expense, e.g. {"host-a@gmail.com":"property_a"}.
-  // Matched against the receipt's To addresses first (each host's billing
-  // address), then the Gmail account the Apps Script runs under.
+  // Routing rules map an email address to the property that should absorb the
+  // expense. Primary source is the finance_ingest_rules table (managed in the
+  // Finance admin UI); the FINANCE_INGEST_RULES env JSON remains as a fallback,
+  // e.g. {"host-a@gmail.com":"property_a"}. Matched against the receipt's To
+  // addresses first (each host's billing address), then the Gmail account the
+  // Apps Script runs under.
   const parseIngestRules = (): Record<string, string> => {
     try {
       const parsed = JSON.parse(process.env.FINANCE_INGEST_RULES ?? '{}') as Record<string, unknown>;
@@ -2060,11 +2062,15 @@ export function createApp(store: DataStore) {
       return res.status(400).json({ error: 'transactionDate must be YYYY-MM-DD.' });
     }
 
-    // Resolve the target property: routing rule (backend decides) → explicit
-    // propertyId from the bridge → global default.
-    const rules = parseIngestRules();
+    // Resolve the target property: DB rule → env rule → explicit propertyId
+    // from the bridge → global default.
+    const dbRules: Record<string, string> = {};
+    for (const rule of await store.listIngestRules()) {
+      dbRules[rule.email] = rule.propertyId;
+    }
+    const envRules = parseIngestRules();
     const emailCandidates = [...extractEmails(toEmail), ...extractEmails(accountEmail)];
-    const ruledPropertyId = emailCandidates.map((e) => rules[e]).find(Boolean) ?? '';
+    const ruledPropertyId = emailCandidates.map((e) => dbRules[e] ?? envRules[e]).find(Boolean) ?? '';
 
     const propertyId = ruledPropertyId
       || (typeof bodyPropertyId === 'string' && bodyPropertyId.trim())
@@ -2157,6 +2163,42 @@ export function createApp(store: DataStore) {
       console.error('[email-ingest] failed to create pending transaction:', err);
       return res.status(500).json({ error: 'Failed to create pending transaction.' });
     }
+  });
+
+  // ── Ingest routing rules (admin UI) ─────────────────────────────────────────
+  // Admin-only: rules decide which property absorbs expenses from any mailbox,
+  // so property-scoped host access is not enough.
+
+  // GET /api/finance/ingest-rules
+  app.get('/api/finance/ingest-rules', requireAdmin, async (_req, res) => {
+    return res.json(await store.listIngestRules());
+  });
+
+  // PUT /api/finance/ingest-rules — upsert one rule { email, propertyId }
+  app.put('/api/finance/ingest-rules', requireAdmin, async (req, res) => {
+    const { email, propertyId } = req.body ?? {};
+    if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return res.status(400).json({ error: 'A valid email is required.' });
+    }
+    if (typeof propertyId !== 'string' || !propertyId.trim()) {
+      return res.status(400).json({ error: 'propertyId is required.' });
+    }
+    const property = await store.getProperty(propertyId.trim());
+    if (!property) {
+      return res.status(400).json({ error: `Unknown property: ${propertyId}` });
+    }
+    const rule = await store.upsertIngestRule(email, property.id, req.authUser!);
+    return res.json(rule);
+  });
+
+  // DELETE /api/finance/ingest-rules?email=...
+  app.delete('/api/finance/ingest-rules', requireAdmin, async (req, res) => {
+    const email = typeof req.query.email === 'string' ? req.query.email : '';
+    if (!email.trim()) {
+      return res.status(400).json({ error: 'email query parameter is required.' });
+    }
+    const deleted = await store.deleteIngestRule(email, req.authUser!);
+    return deleted ? res.status(204).end() : res.status(404).json({ error: 'Rule not found.' });
   });
 
   // GET /api/finance/properties — list properties accessible to current user

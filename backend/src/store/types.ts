@@ -322,6 +322,14 @@ export interface PendingTransactionInput {
   sourceRef?: string;
 }
 
+// Email → property routing rule for the email-receipt ingest webhook.
+export interface IngestRule {
+  email: string;        // normalized lowercase
+  propertyId: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface DataStore {
   init(): Promise<void>;
   authenticate(email: string, password: string): Promise<AuthUser | null>;
@@ -386,4 +394,7 @@ export interface DataStore {
   // True when the sourceRef already exists in pending or approved transactions
   // (used by the email-receipt ingest webhook to stay idempotent).
   hasFinanceSourceRef(sourceRef: string): Promise<boolean>;
+  listIngestRules(): Promise<IngestRule[]>;
+  upsertIngestRule(email: string, propertyId: string, actor: AuthUser): Promise<IngestRule>;
+  deleteIngestRule(email: string, actor: AuthUser): Promise<boolean>;
 }

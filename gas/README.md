@@ -36,13 +36,16 @@ Thêm biến môi trường (`.env` của backend hoặc docker-compose):
 
 Migration tự chạy khi backend khởi động (thêm cột `source_ref` + unique index vào `pending_transactions` và `financial_transactions`).
 
-### Phân loại property theo rule (FINANCE_INGEST_RULES)
+### Phân loại property theo rule
+
+**Quản lý qua giao diện (khuyến nghị):** đăng nhập admin → 財務管理 (Finance) → tab **メール連携ルール** — thêm/sửa/xoá rule email → property trực tiếp, lưu trong DB (bảng `finance_ingest_rules`), có hiệu lực ngay không cần deploy.
 
 Apps Script gửi kèm 2 thông tin: `toEmail` (địa chỉ **To** của mail — email thanh toán của từng host) và `accountEmail` (tài khoản Gmail đang chạy script). Backend chọn property theo thứ tự:
 
-1. **Rule khớp** — duyệt các địa chỉ trong `toEmail` trước, rồi `accountEmail`; địa chỉ nào có trong `FINANCE_INGEST_RULES` thì lấy property tương ứng (backend quyết định, ghi đè config phía script).
-2. `PROPERTY_ID` do Apps Script gửi lên (nếu có).
-3. `FINANCE_INGEST_PROPERTY_ID` (mặc định toàn cục).
+1. **Rule trong DB** (quản lý qua giao diện) — duyệt các địa chỉ trong `toEmail` trước, rồi `accountEmail`.
+2. Rule trong env `FINANCE_INGEST_RULES` (fallback khi chưa có rule DB).
+3. `PROPERTY_ID` do Apps Script gửi lên (nếu có).
+4. `FINANCE_INGEST_PROPERTY_ID` (mặc định toàn cục).
 
 Không khớp gì cả → trả 400 kèm danh sách email đã thấy (xem trong log Executions của Apps Script để biết cần thêm rule nào).
 

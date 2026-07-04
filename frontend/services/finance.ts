@@ -38,6 +38,14 @@ export interface FinancialProperty {
   name: string;
 }
 
+// Email → property routing rule for the email-receipt ingest bridge.
+export interface IngestRule {
+  email: string;
+  propertyId: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface TransactionInput {
   propertyId: string;
   transactionNo: string;
@@ -133,6 +141,21 @@ export const financeApi = {
 
   async deletePendingTransaction(id: string): Promise<void> {
     await apiRequest<void>(`/finance/pending/${id}`, { method: 'DELETE' });
+  },
+
+  async listIngestRules(): Promise<IngestRule[]> {
+    return apiRequest<IngestRule[]>('/finance/ingest-rules');
+  },
+
+  async upsertIngestRule(email: string, propertyId: string): Promise<IngestRule> {
+    return apiRequest<IngestRule>('/finance/ingest-rules', {
+      method: 'PUT',
+      body: JSON.stringify({ email, propertyId }),
+    });
+  },
+
+  async deleteIngestRule(email: string): Promise<void> {
+    await apiRequest<void>(`/finance/ingest-rules?email=${encodeURIComponent(email)}`, { method: 'DELETE' });
   },
 };
 

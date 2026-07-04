@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Loader2, LayoutDashboard, FileSpreadsheet, Scale, CalendarDays, BookOpen,
   Check, RefreshCw, Printer, Menu, X, ChevronsUpDown, Building, Search, ChevronRight,
-  Clock,
+  Clock, Mail,
 } from 'lucide-react';
 import { getCurrentUser } from '../services/auth';
 import { financeApi, transactionsToCsvRows, FINANCE_HEADERS, FinancialProperty } from '../services/finance';
@@ -17,16 +17,18 @@ const BSStatement  = lazy(() => import('../components/finance/BSStatement'));
 const MonthlyReport = lazy(() => import('../components/finance/MonthlyReport'));
 const Journal      = lazy(() => import('../components/finance/Journal'));
 const PendingJournal = lazy(() => import('../components/finance/PendingJournal'));
+const IngestRules  = lazy(() => import('../components/finance/IngestRules'));
 
-type Tab = 'dashboard' | 'pl' | 'bs' | 'monthly' | 'journal' | 'pending';
+type Tab = 'dashboard' | 'pl' | 'bs' | 'monthly' | 'journal' | 'pending' | 'ingest';
 
-const NAV_ITEMS: { id: Tab; label: string; icon: React.ElementType }[] = [
+const NAV_ITEMS: { id: Tab; label: string; icon: React.ElementType; adminOnly?: boolean }[] = [
   { id: 'dashboard', label: 'Dash Board',       icon: LayoutDashboard },
   { id: 'pl',        label: '損益計算書',       icon: FileSpreadsheet  },
   { id: 'bs',        label: '貸借対照表',       icon: Scale            },
   { id: 'monthly',   label: '月次推移',         icon: CalendarDays     },
   { id: 'journal',   label: '仕訳帳',           icon: BookOpen         },
   { id: 'pending',   label: '仕訳帳（未承認）', icon: Clock            },
+  { id: 'ingest',    label: 'メール連携ルール', icon: Mail, adminOnly: true },
 ];
 
 const SuspenseFallback = () => (
@@ -48,7 +50,7 @@ const EMPTY_REPORT = (year: number): FinancialReport => ({
 const SIDEBAR_W = 272; // px
 const ACTIVE_TAB_KEY = 'finance.activeTab';
 
-const TAB_IDS: Tab[] = ['dashboard', 'pl', 'bs', 'monthly', 'journal', 'pending'];
+const TAB_IDS: Tab[] = ['dashboard', 'pl', 'bs', 'monthly', 'journal', 'pending', 'ingest'];
 const getInitialTab = (): Tab => {
   try {
     const saved = localStorage.getItem(ACTIVE_TAB_KEY) as Tab | null;
@@ -311,7 +313,7 @@ const FinancePage: React.FC = () => {
         {/* Nav items (High-Contrast) */}
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto bg-white">
           <p className="text-[11px] font-bold text-gray-800 uppercase tracking-widest px-3 pt-1.5 pb-2">レポート</p>
-          {NAV_ITEMS.map(item => (
+          {NAV_ITEMS.filter(item => !item.adminOnly || authUser.role === 'ADMIN').map(item => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
@@ -407,7 +409,10 @@ const FinancePage: React.FC = () => {
                   onApproved={handleRefresh}
                 />
               )}
-              {!report && activeTab !== 'journal' && activeTab !== 'pending' && (
+              {activeTab === 'ingest' && authUser.role === 'ADMIN' && (
+                <IngestRules allProperties={allProperties} />
+              )}
+              {!report && activeTab !== 'journal' && activeTab !== 'pending' && activeTab !== 'ingest' && (
                 <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
                   <BookOpen className="w-10 h-10 opacity-30" />
                   <p className="text-sm">データがありません。プロパティを選択してください。</p>
