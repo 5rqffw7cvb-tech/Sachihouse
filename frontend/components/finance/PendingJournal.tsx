@@ -196,6 +196,9 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
   const startEdit = (item: PendingTransaction) => {
     setEditingId(item.id);
     setEditDraft({
+      propertyId: item.propertyId,
+      gcsPath: item.gcsPath,
+      receiptUrl: item.receiptUrl,
       transactionDate: item.transactionDate,
       debitAccount: item.debitAccount,
       debitAmount: item.debitAmount,
@@ -212,9 +215,29 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
   };
 
   const saveEdit = async (id: string) => {
+    var current = items.find(i => i.id === id);
+    if (!current) return;
+
+    // Keep receipt link fields so editing journal metadata never drops evidence.
+    var payload: Partial<PendingTransaction> = {
+      ...editDraft,
+      propertyId: current.propertyId,
+      gcsPath: current.gcsPath,
+      receiptUrl: current.receiptUrl,
+    };
+
     try {
-      const updated = await financeApi.updatePendingTransaction(id, editDraft);
-      setItems(prev => prev.map(i => i.id === id ? { ...i, ...updated } : i));
+      const updated = await financeApi.updatePendingTransaction(id, payload);
+      setItems(prev => prev.map(i => {
+        if (i.id !== id) return i;
+        return {
+          ...i,
+          ...updated,
+          // Defensive fallback in case backend omits evidence fields in response.
+          gcsPath: updated.gcsPath || i.gcsPath,
+          receiptUrl: updated.receiptUrl || i.receiptUrl,
+        };
+      }));
       closeEditModal();
     } catch { alert('保存に失敗しました。'); }
   };
