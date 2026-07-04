@@ -15,6 +15,7 @@ Google Apps Script
    ▼
 POST /api/finance/ingest/email-receipt   (SachiHouse backend)
    │  - check API key (timing-safe)
+   │  - phân loại property theo rule email → property (tab メール連携ルール)
    │  - chống trùng: sourceRef "gmail:<messageId>" unique trong DB
    │  - lưu PDF nguyên bản vào GCS (receipts/<property>/...pdf)
    ▼
@@ -31,10 +32,10 @@ Thêm biến môi trường (`.env` của backend hoặc docker-compose):
 | Biến | Bắt buộc | Ý nghĩa |
 |---|---|---|
 | `FINANCE_INGEST_API_KEY` | ✅ | Shared secret cho webhook. Tạo chuỗi ngẫu nhiên dài (VD `openssl rand -hex 32`). Chưa set thì endpoint trả 503. |
-| `FINANCE_INGEST_RULES` | ⭕ | JSON map **email → property**: mail liên quan email nào thì ghi chi phí cho property đó. VD: `{"host-a@gmail.com":"property_a","host-b@gmail.com":"property_b"}` |
+| `FINANCE_INGEST_RULES` | ⭕ | **Fallback** — JSON map email → property, chỉ dùng khi email chưa có rule trong DB. Khuyến nghị quản lý rule qua giao diện (xem mục dưới) thay vì env này. VD: `{"host-a@gmail.com":"property_a"}` |
 | `FINANCE_INGEST_PROPERTY_ID` | ⭕ | Property mặc định khi không rule nào khớp. Có thể thay bằng `PROPERTY_ID` phía Apps Script. |
 
-Migration tự chạy khi backend khởi động (thêm cột `source_ref` + unique index vào `pending_transactions` và `financial_transactions`).
+Migration tự chạy khi backend khởi động: thêm cột `source_ref` + unique index vào `pending_transactions` / `financial_transactions`, và tạo bảng `finance_ingest_rules` (rule quản lý qua giao diện).
 
 ### Phân loại property theo rule
 
@@ -100,3 +101,5 @@ curl -X POST https://<domain>/api/finance/ingest/email-receipt \
 
 - Lần 1 → `201 { "id": "...", "duplicate": false }`
 - Lần 2 (cùng sourceRef) → `200 { "duplicate": true }`
+
+Lưu ý: request trên chỉ trả 201 khi `host-a@gmail.com` đã có rule (tab メール連携ルール hoặc `FINANCE_INGEST_RULES`), hoặc đã set `FINANCE_INGEST_PROPERTY_ID`. Nếu không sẽ trả `400` kèm danh sách email đã thấy — có thể thêm `"propertyId": "<id>"` vào payload để test không cần rule.
