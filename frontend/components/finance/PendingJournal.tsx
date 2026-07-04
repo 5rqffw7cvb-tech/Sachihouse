@@ -52,6 +52,37 @@ const AccountSelect: React.FC<{ value: string; onChange: (v: string) => void }> 
   </select>
 );
 
+function gcsToHttpsUrl_(gcsPath?: string): string {
+  var raw = String(gcsPath || '').trim();
+  if (!raw) return '';
+  var m = raw.match(/^gcs:\/\/([^\/]+)\/(.+)$/i);
+  if (!m) return '';
+
+  var bucket = m[1];
+  var objectPath = m[2]
+    .split('/')
+    .map(function (seg) { return encodeURIComponent(seg); })
+    .join('/');
+
+  return 'https://storage.googleapis.com/' + bucket + '/' + objectPath;
+}
+
+function isPreviewableUrl_(url?: string): boolean {
+  var v = String(url || '').trim();
+  return /^https?:\/\//i.test(v) || /^data:/i.test(v);
+}
+
+function resolveEvidencePreviewUrl_(item: { receiptUrl?: string; gcsPath?: string }): string {
+  var receipt = String(item.receiptUrl || '').trim();
+  if (isPreviewableUrl_(receipt)) return receipt;
+
+  var fromGcs = gcsToHttpsUrl_(item.gcsPath);
+  if (isPreviewableUrl_(fromGcs)) return fromGcs;
+
+  if (isPreviewableUrl_(String(item.gcsPath || '').trim())) return String(item.gcsPath || '').trim();
+  return receipt || String(item.gcsPath || '').trim();
+}
+
 interface PendingJournalProps {
   propertyId: string;
   propertyName?: string;
@@ -230,12 +261,19 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
       const updated = await financeApi.updatePendingTransaction(id, payload);
       setItems(prev => prev.map(i => {
         if (i.id !== id) return i;
+
+        var nextGcsPath = updated.gcsPath || i.gcsPath;
+        var nextReceiptUrl = resolveEvidencePreviewUrl_({
+          receiptUrl: updated.receiptUrl || i.receiptUrl,
+          gcsPath: nextGcsPath,
+        });
+
         return {
           ...i,
           ...updated,
           // Defensive fallback in case backend omits evidence fields in response.
-          gcsPath: updated.gcsPath || i.gcsPath,
-          receiptUrl: updated.receiptUrl || i.receiptUrl,
+          gcsPath: nextGcsPath,
+          receiptUrl: nextReceiptUrl,
         };
       }));
       closeEditModal();
@@ -524,7 +562,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
 
                     {/* 証憑 */}
                     <td className="py-1.5 px-2 text-center border border-[#8f8d8e] no-print">
-                      <button onClick={() => setPreviewUrl(item.receiptUrl || item.gcsPath)}
+                      <button onClick={() => setPreviewUrl(resolveEvidencePreviewUrl_(item))}
                         className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md" title="証憑確認">
                         <FileImage className="w-3.5 h-3.5" />
                       </button>
@@ -621,7 +659,7 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
                   <div className="text-xs font-bold font-mono text-[#1b1c1d] whitespace-nowrap">{item.debitAmount > 0 ? formatCurrency(item.debitAmount) : '—'}</div>
                   <div className="flex items-center gap-0.5">
-                    <button onClick={() => setPreviewUrl(item.receiptUrl || item.gcsPath)} className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md" title="証憑確認"><FileImage className="w-4 h-4" /></button>
+                    <button onClick={() => setPreviewUrl(resolveEvidencePreviewUrl_(item))} className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md" title="証憑確認"><FileImage className="w-4 h-4" /></button>
                     <button onClick={() => startEdit(item)} className="p-1.5 text-[#74777d] hover:text-blue-600 hover:bg-blue-50 rounded-md" title="編集"><Edit2 className="w-4 h-4" /></button>
                     <button onClick={() => handleApprove(item.id)} disabled={approvingId === item.id || uploading} title={uploading ? '画像を保存中です...' : '承認'} className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md disabled:opacity-30">
                       {approvingId === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
