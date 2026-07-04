@@ -91,6 +91,67 @@ function resolveEvidencePreviewUrl_(item: { receiptUrl?: string; gcsPath?: strin
   return '';
 }
 
+function normalizeKeyText_(value?: string): string {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function isDuplicateCheckEligible_(item: PendingTransaction): boolean {
+  return !!item.transactionDate
+    && !!item.debitAccount
+    && !!item.creditAccount
+    && item.debitAmount > 0
+    && item.creditAmount > 0;
+}
+
+function buildDuplicateKey_(item: PendingTransaction): string {
+  return [
+    item.propertyId,
+    item.transactionDate,
+    normalizeKeyText_(item.debitAccount),
+    String(item.debitAmount || 0),
+    normalizeKeyText_(item.creditAccount),
+    String(item.creditAmount || 0),
+    normalizeKeyText_(item.description),
+    normalizeKeyText_(item.vendor || ''),
+  ].join('|');
+}
+
+function getDuplicatePlan_(items: PendingTransaction[]): { groups: number; removeIds: string[] } {
+  var groups = new Map<string, PendingTransaction[]>();
+
+  items.forEach(function (item) {
+    if (!isDuplicateCheckEligible_(item)) return;
+    var key = buildDuplicateKey_(item);
+    var list = groups.get(key);
+    if (!list) {
+      groups.set(key, [item]);
+      return;
+    }
+    list.push(item);
+  });
+
+  var removeIds: string[] = [];
+  var dupGroups = 0;
+
+  groups.forEach(function (group) {
+    if (group.length <= 1) return;
+    dupGroups++;
+
+    var sorted = group.slice().sort(function (a, b) {
+      var scoreA = (a.receiptUrl || a.gcsPath ? 2 : 0) + (a.ocrProcessed ? 1 : 0);
+      var scoreB = (b.receiptUrl || b.gcsPath ? 2 : 0) + (b.ocrProcessed ? 1 : 0);
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+
+    for (var i = 1; i < sorted.length; i++) {
+      removeIds.push(sorted[i].id);
+    }
+  });
+
+  return { groups: dupGroups, removeIds: removeIds };
+}
+
 interface PendingJournalProps {
   propertyId: string;
   propertyName?: string;
@@ -330,6 +391,38 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
 
   const isProcessing = processingProgress !== null;
   const readyToApprove = items.filter(i => i.ocrProcessed && i.debitAmount > 0 && !stillUploading(i)).length;
+  const duplicatePlan = React.useMemo(() => getDuplicatePlan_(items), [items]);
+
+  const handleRemoveDuplicates = async () => {
+    if (duplicatePlan.removeIds.length === 0) {
+      alert('重複データは見つかりませんでした。');
+      return;
+    }
+
+    if (!window.confirm(
+      `重複候補 ${duplicatePlan.groups} グループ / ${duplicatePlan.removeIds.length} 件を削除し、各グループ1件だけ残します。実行しますか？`
+    )) return;
+
+    setIsBulkBusy(true);
+    try {
+      for (const id of duplicatePlan.removeIds) {
+        await financeApi.deletePendingTransaction(id);
+      }
+
+      var removeSet = new Set(duplicatePlan.removeIds);
+      setItems(prev => prev.filter(i => !removeSet.has(i.id)));
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        duplicatePlan.removeIds.forEach(id => next.delete(id));
+        return next;
+      });
+      alert(`重複削除が完了しました（${duplicatePlan.removeIds.length}件）。`);
+    } catch {
+      alert('重複削除に失敗しました。');
+    } finally {
+      setIsBulkBusy(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-[#ccc9ca] shadow-sm overflow-hidden">
@@ -398,6 +491,20 @@ const PendingJournal: React.FC<PendingJournalProps> = ({
               <CheckCheck className="w-3.5 h-3.5" />全承認 ({readyToApprove}件)
             </button>
           )}
+
+          <button
+            onClick={handleRemoveDuplicates}
+            disabled={isBulkBusy || duplicatePlan.removeIds.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#ccc9ca] rounded-xl text-xs font-semibold text-[#44474c] hover:bg-[#f5f3f4] disabled:opacity-40"
+            title="重複チェックして各グループ1件だけ残す"
+          >
+            重複チェック
+            {duplicatePlan.removeIds.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-bold">
+                -{duplicatePlan.removeIds.length}
+              </span>
+            )}
+          </button>
 
           <button onClick={() => load()} className="p-1.5 text-[#74777d] hover:text-[#1b1c1d] hover:bg-[#f5f3f4] rounded-md">
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
