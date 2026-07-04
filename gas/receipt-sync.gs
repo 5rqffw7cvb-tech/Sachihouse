@@ -236,6 +236,10 @@ function detectVendor_(subject, from, body) {
   var forwardedVendor = detectVendorFromForwardedBody_(body || '');
   if (forwardedVendor) return forwardedVendor;
 
+  // Case cổng thanh toán (PayPal...): ưu tiên lấy payee/merchant thực tế.
+  var payeeVendor = detectVendorFromPaymentPayee_(s, body || '');
+  if (payeeVendor) return payeeVendor;
+
   // Fallback: display name trong From ("Anthropic <invoice@...>"), rồi domain.
   var parsedFrom = parseFromLine_(from || '');
   if (parsedFrom.name && parsedFrom.name.indexOf('@') === -1 && !isFreeEmailDomain_(parsedFrom.domain)) {
@@ -307,6 +311,9 @@ function extractVendorFromSubject_(subject) {
 
   var patterns = [
     /^\s*\[([^\]]+)\]/, // [GitHub] Payment Receipt
+    /receipt\s+for\s+your\s+payment\s+to\s+(.+?)(?:\s*[#\-–\|]|\s*$)/i,
+    /^your\s+payment\s+to\s+(.+?)(?:\s*[#\-–\|]|\s*$)/i,
+    /payment\s+to\s+(.+?)(?:\s*[#\-–\|]|\s*$)/i,
     /^your\s+(.+?)\s+order\s+(?:receipt|invoice|payment|billing)/i,
     /^your\s+(.+?)\s+(?:receipt|invoice|payment|billing)/i,
     /^(.+?)\s+order\s+(?:receipt|invoice|payment|billing)/i,
@@ -322,6 +329,33 @@ function extractVendorFromSubject_(subject) {
     var candidate = normalizeVendorName_(m[1]);
     if (isDateLikeOrNoiseVendor_(candidate)) continue;
     if (candidate && candidate !== 'Unknown vendor') return candidate;
+  }
+
+  return null;
+}
+
+function detectVendorFromPaymentPayee_(subject, body) {
+  var sources = [String(subject || ''), String(body || '')];
+  var patterns = [
+    /payment\s+to\s+(.+?)(?:\s*(?:was\s+sent|completed|for|on)\b|\s*[\r\n]|\s*$)/i,
+    /payee\s*[:：]\s*(.+?)(?:\s*[\r\n]|\s*$)/i,
+    /merchant\s*[:：]\s*(.+?)(?:\s*[\r\n]|\s*$)/i,
+    /recipient\s*[:：]\s*(.+?)(?:\s*[\r\n]|\s*$)/i,
+    /支払い先\s*[:：]\s*(.+?)(?:\s*[\r\n]|\s*$)/,
+    /受取人\s*[:：]\s*(.+?)(?:\s*[\r\n]|\s*$)/
+  ];
+
+  for (var s = 0; s < sources.length; s++) {
+    var src = sources[s];
+    for (var i = 0; i < patterns.length; i++) {
+      var m = src.match(patterns[i]);
+      if (!m) continue;
+      var candidate = normalizeVendorName_(m[1]);
+      if (!candidate || candidate === 'Unknown vendor') continue;
+      if (isDateLikeOrNoiseVendor_(candidate)) continue;
+      if (/^paypal$/i.test(candidate)) continue;
+      return candidate;
+    }
   }
 
   return null;
@@ -390,6 +424,7 @@ function vendorFromDomain_(domain) {
   if (/(?:^|\.)anthropic\.com$/.test(d)) return 'Anthropic';
   if (/(?:^|\.)google\.com$/.test(d)) return 'Google';
   if (/(?:^|\.)amazon\./.test(d)) return 'Amazon';
+  if (/(?:^|\.)paypal\.com$/.test(d)) return 'PayPal';
 
   // Fallback generic: lấy second-level domain có ý nghĩa.
   var clean = d.replace(/^mail\./, '').replace(/^email\./, '').replace(/^billing\./, '');
@@ -414,6 +449,9 @@ function normalizeVendorName_(name) {
   var s = String(name || '').trim();
   s = s.replace(/^[\[\(\s]+|[\]\)\s]+$/g, '');
   s = s.replace(/^your\s+/i, '');
+  s = s.replace(/^payment\s+to\s+/i, '');
+  s = s.replace(/^paid\s+to\s+/i, '');
+  s = s.replace(/^to\s+/i, '');
   s = s.replace(/^(?:team|billing|payments?)\s+/i, '');
   s = s.replace(/\s+order$/i, '');
   s = s.replace(/\s+(?:team|billing|payments?)$/i, '');
@@ -427,6 +465,7 @@ function normalizeVendorName_(name) {
   if (/^amazon$/i.test(s)) return 'Amazon';
   if (/^google$/i.test(s)) return 'Google';
   if (/^google\s+play$/i.test(s)) return 'Google Play';
+  if (/^paypal$/i.test(s)) return 'PayPal';
 
   return s;
 }
