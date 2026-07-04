@@ -168,6 +168,37 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
     return filteredEntries.slice(start, start + itemsPerPage);
   }, [filteredEntries, currentPage, itemsPerPage, showAllForPrint]);
 
+  // Duplicate check (重複チェック): same transaction date + same amount.
+  // This is warning-only (highlight), never deletes records.
+  const duplicateEntryIds = useMemo(() => {
+    const groups = new Map<string, string[]>();
+
+    filteredEntries.forEach((entry) => {
+      if (!entry.date) return;
+      var amount = Number(entry.debitAmount || 0);
+      if (!(amount > 0)) return;
+
+      const key = `${entry.date}|${amount}`;
+      const dbId = entry.rawData['_id'] || `tmp:${entry.id}:${entry.date}:${amount}`;
+      const list = groups.get(key);
+      if (!list) {
+        groups.set(key, [dbId]);
+      } else {
+        list.push(dbId);
+      }
+    });
+
+    const duplicateIds = new Set<string>();
+    groups.forEach((ids) => {
+      if (ids.length <= 1) return;
+      ids.forEach((id) => duplicateIds.add(id));
+    });
+
+    return duplicateIds;
+  }, [filteredEntries]);
+
+  const duplicateWarningCount = duplicateEntryIds.size;
+
   // ── Bulk selection helpers ────────────────────────────────────────────
   const entryDbId = (entry: JournalEntry) => entry.rawData['_id'] || '';
   const selectableIds = filteredEntries.map(entryDbId).filter(Boolean);
@@ -531,6 +562,11 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
               </select>
             </div>
             <span className="bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-blue-100">{filteredEntries.length} 件</span>
+            {duplicateWarningCount > 0 && (
+              <span className="bg-rose-50 text-rose-700 px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-rose-200">
+                重複チェック {duplicateWarningCount} 件
+              </span>
+            )}
           </div>
           <div className="flex md:hidden items-center gap-2">
             <button onClick={() => setIsFilterOpen(!isFilterOpen)}
@@ -600,12 +636,14 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
       <div className="lg:hidden bg-white divide-y divide-[#f5f3f4] mb-20">
         {displayedEntries.map((entry, idx) => {
           const isRevenue = ACCOUNT_TYPE_MAP[entry.creditAccount] === AccountType.Revenue;
+          const rowId = entry.rawData['_id'] || `tmp:${entry.id}:${entry.date}:${entry.debitAmount}`;
+          const isDuplicate = duplicateEntryIds.has(rowId);
           const dateParts = entry.date ? entry.date.split('/') : [];
           const year = dateParts[0] ? dateParts[0].slice(-2) : '--';
           const month = dateParts[1] || '--';
           const day = dateParts[2] || '--';
           return (
-            <div key={`${entry.id}-${idx}`} className={`flex items-center gap-3 p-3.5 transition-all ${entry.isUnbalanced ? 'bg-rose-50/50' : 'bg-white'}`}>
+            <div key={`${entry.id}-${idx}`} className={`flex items-center gap-3 p-3.5 transition-all ${entry.isUnbalanced ? 'bg-rose-50/50' : 'bg-white'} ${isDuplicate ? 'text-rose-700' : ''}`}>
               <div onClick={() => openEditModal(entry)} className="flex flex-col items-center justify-center w-[46px] h-10 bg-[#f5f3f4] rounded-lg text-[#74777d] shrink-0 border border-[#e4e2e3] cursor-pointer">
                 <span className="text-[10px] font-bold leading-none">{year}{month}{day}</span>
               </div>
@@ -624,7 +662,7 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <div className={`text-xs font-bold font-mono whitespace-nowrap ${isRevenue ? 'text-blue-600' : 'text-[#1b1c1d]'}`}>{formatCurrency(entry.debitAmount)}</div>
+                <div className={`text-xs font-bold font-mono whitespace-nowrap ${isDuplicate ? 'text-rose-700' : (isRevenue ? 'text-blue-600' : 'text-[#1b1c1d]')}`}>{formatCurrency(entry.debitAmount)}</div>
                 <button onClick={(e) => { e.stopPropagation(); setPreviewEntry(entry); }} className="p-1.5 text-[#74777d] hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" title="証憑確認">
                   <FileImage className="w-4 h-4" />
                 </button>
@@ -699,15 +737,17 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
           <tbody className="text-[#1b1c1d]">
             {displayedEntries.map((entry, idx) => {
               const isRevenue = ACCOUNT_TYPE_MAP[entry.creditAccount] === AccountType.Revenue;
+              const rowId = entry.rawData['_id'] || `tmp:${entry.id}:${entry.date}:${entry.debitAmount}`;
+              const isDuplicate = duplicateEntryIds.has(rowId);
               const rowClass = entry.isUnbalanced ? "bg-rose-50" : isRevenue ? "bg-green-50/20" : (idx % 2 === 0 ? "bg-white" : "bg-[#f5f3f4]/10");
               return (
-                <tr key={`${entry.id}-${idx}`} className={`transition-colors group hover:bg-[#f5f3f4]/35 ${selectedIds.has(entryDbId(entry)) ? 'bg-blue-50/60' : rowClass}`}>
+                <tr key={`${entry.id}-${idx}`} className={`transition-colors group hover:bg-[#f5f3f4]/35 ${selectedIds.has(entryDbId(entry)) ? 'bg-blue-50/60' : rowClass} ${isDuplicate ? 'text-rose-700' : ''}`}>
                   <td className="py-1.5 px-1 text-center border border-[#8f8d8e] no-print">
                     <input type="checkbox" checked={selectedIds.has(entryDbId(entry))} onChange={() => toggleSelect(entryDbId(entry))}
                       disabled={!entryDbId(entry)} className="w-3.5 h-3.5 accent-blue-600 cursor-pointer align-middle" />
                   </td>
                   {displayHeaders.map((header, i) => (
-                    <td key={i} className={`py-1.5 px-2 border border-[#8f8d8e] break-words leading-tight ${isNumericColumn(header) ? 'text-right font-mono font-semibold' : 'text-left'}`}>
+                    <td key={i} className={`py-1.5 px-2 border border-[#8f8d8e] break-words leading-tight ${isNumericColumn(header) ? 'text-right font-mono font-semibold' : 'text-left'} ${isDuplicate ? 'text-rose-700' : ''}`}>
                       {renderCellContent(header, entry.rawData[header] || "", entry)}
                     </td>
                   ))}
