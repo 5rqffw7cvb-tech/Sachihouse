@@ -6,21 +6,34 @@ import {
 import { financeApi, PendingTransaction } from '../../services/finance';
 import { FinancialProperty } from '../../services/finance';
 import { ACCOUNT_TYPE_MAP } from '../../utils/accountingUtils';
+import { AccountType } from '../../types/finance';
 
 // Group accounts by type for the dropdown, preserving the order in ACCOUNT_TYPE_MAP.
 const ACCOUNT_GROUPS: { label: string; accounts: string[] }[] = (() => {
-  const TYPE_LABEL: Record<string, string> = {
-    Asset: '資産', Liability: '負債', Equity: '資本',
-    Revenue: '収益', CostOfSales: '売上原価', Expense: '費用',
+  const TYPE_LABEL: Record<AccountType, string> = {
+    [AccountType.Asset]: '資産',
+    [AccountType.Liability]: '負債',
+    [AccountType.Equity]: '資本',
+    [AccountType.Revenue]: '収益',
+    [AccountType.CostOfSales]: '売上原価',
+    [AccountType.Expense]: '費用',
   };
-  const order = ['Revenue', 'CostOfSales', 'Expense', 'Asset', 'Liability', 'Equity'];
-  const buckets: Record<string, string[]> = {};
+  const order: AccountType[] = [
+    AccountType.Revenue,
+    AccountType.CostOfSales,
+    AccountType.Expense,
+    AccountType.Asset,
+    AccountType.Liability,
+    AccountType.Equity,
+  ];
+  const buckets: Partial<Record<AccountType, string[]>> = {};
   Object.entries(ACCOUNT_TYPE_MAP).forEach(([name, type]) => {
+    if (!type) return;
     (buckets[type] ??= []).push(name);
   });
   return order
-    .filter(t => buckets[t]?.length)
-    .map(t => ({ label: TYPE_LABEL[t] ?? t, accounts: buckets[t] }));
+    .filter(t => (buckets[t] || []).length > 0)
+    .map(t => ({ label: TYPE_LABEL[t], accounts: buckets[t] || [] }));
 })();
 
 const AccountSelect: React.FC<{ value: string; onChange: (v: string) => void }> = ({ value, onChange }) => (
