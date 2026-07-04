@@ -272,6 +272,7 @@ export interface FinancialTransaction {
   creditAmount: number;
   description: string;
   receiptUrl?: string;
+  sourceRef?: string;       // external idempotency key (e.g. gmail:<messageId>)
   createdAt: number;
   updatedAt: number;
 }
@@ -286,6 +287,7 @@ export interface FinancialTransactionInput {
   creditAmount: number;
   description: string;
   receiptUrl?: string;
+  sourceRef?: string;
 }
 
 export interface PendingTransaction {
@@ -301,6 +303,7 @@ export interface PendingTransaction {
   creditAmount: number;
   description: string;
   vendor?: string;
+  sourceRef?: string;       // external idempotency key (e.g. gmail:<messageId>)
   createdAt: number;
   updatedAt: number;
 }
@@ -316,6 +319,7 @@ export interface PendingTransactionInput {
   description?: string;
   vendor?: string;
   ocrProcessed?: boolean;
+  sourceRef?: string;
 }
 
 export interface DataStore {
@@ -379,4 +383,7 @@ export interface DataStore {
   updatePendingTransaction(id: string, input: Partial<PendingTransactionInput>, actor: AuthUser): Promise<PendingTransaction>;
   approvePendingTransaction(id: string, actor: AuthUser): Promise<FinancialTransaction>;
   deletePendingTransaction(id: string, actor: AuthUser): Promise<PendingTransaction | null>;
+  // True when the sourceRef already exists in pending or approved transactions
+  // (used by the email-receipt ingest webhook to stay idempotent).
+  hasFinanceSourceRef(sourceRef: string): Promise<boolean>;
 }

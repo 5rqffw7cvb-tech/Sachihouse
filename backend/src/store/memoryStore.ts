@@ -622,6 +622,7 @@ export class MemoryStore implements DataStore {
       creditAmount: input.creditAmount,
       description: input.description,
       receiptUrl: input.receiptUrl,
+      sourceRef: input.sourceRef,
       createdAt: now,
       updatedAt: now,
     };
@@ -692,6 +693,7 @@ export class MemoryStore implements DataStore {
       creditAmount: input.creditAmount ?? 0,
       description: input.description ?? '',
       vendor: input.vendor,
+      sourceRef: input.sourceRef,
       createdAt: now,
       updatedAt: now,
     };
@@ -740,6 +742,7 @@ export class MemoryStore implements DataStore {
       creditAmount: pending.creditAmount,
       description: pending.description,
       receiptUrl: pending.gcsPath,
+      sourceRef: pending.sourceRef,
     }, actor);
     state.pendingTransactions = state.pendingTransactions.filter((t) => t.id !== id);
     return txn;
@@ -750,5 +753,11 @@ export class MemoryStore implements DataStore {
     const found = state.pendingTransactions.find((t) => t.id === id) ?? null;
     state.pendingTransactions = state.pendingTransactions.filter((t) => t.id !== id);
     return found ? structuredClone(found) : null;
+  }
+
+  async hasFinanceSourceRef(sourceRef: string): Promise<boolean> {
+    const state = this.assertState();
+    return state.pendingTransactions.some((t) => t.sourceRef === sourceRef)
+      || state.financialTransactions.some((t) => t.sourceRef === sourceRef);
   }
 }

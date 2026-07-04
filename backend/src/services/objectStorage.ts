@@ -306,6 +306,41 @@ export class ObjectStorageService {
     };
   }
 
+  // Store a receipt PDF as-is (no compression) — used by the email-receipt
+  // ingest webhook to keep the original invoice PDF as evidence.
+  async uploadReceiptPdf(params: {
+    pdfBuffer: Buffer;
+    propertyId: string;
+    fileNameHint?: string;
+  }): Promise<UploadResult> {
+    const safeProperty = toSafeSegment(params.propertyId);
+    const safeHint = params.fileNameHint ? toSafeSegment(params.fileNameHint.replace(/\.pdf$/i, '')) : 'receipt';
+    const objectName = `receipts/${safeProperty}/${Date.now()}_${safeHint}.pdf`;
+
+    if (!this.receiptStorage || !this.receiptBucketName) {
+      return {
+        evidenceUrl: `data:application/pdf;base64,${params.pdfBuffer.toString('base64')}`,
+        mimeType: 'application/pdf',
+        sizeBytes: params.pdfBuffer.length,
+      };
+    }
+
+    const bucket = this.receiptStorage.bucket(this.receiptBucketName);
+    const file = bucket.file(objectName);
+
+    await file.save(params.pdfBuffer, {
+      contentType: 'application/pdf',
+      resumable: false,
+      metadata: { cacheControl: 'private, max-age=0, no-store' },
+    });
+
+    return {
+      evidenceUrl: `gcs://${this.receiptBucketName}/${objectName}`,
+      mimeType: 'application/pdf',
+      sizeBytes: params.pdfBuffer.length,
+    };
+  }
+
   async uploadEvidenceImage(params: {
     imageBuffer: Buffer;
     mimeType: string;

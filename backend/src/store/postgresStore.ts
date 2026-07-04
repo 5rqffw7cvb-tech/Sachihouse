@@ -164,6 +164,17 @@ export class PostgresStore implements DataStore {
       ON pending_transactions(property_id, created_at DESC);
     `);
 
+    // Email-receipt ingest: external idempotency key so the same Gmail message
+    // can never create two expenses (survives approval: pending → journal).
+    await this.pool.query(`
+      ALTER TABLE pending_transactions ADD COLUMN IF NOT EXISTS source_ref TEXT;
+      ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS source_ref TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_pending_transactions_source_ref
+      ON pending_transactions(source_ref) WHERE source_ref IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_financial_transactions_source_ref
+      ON financial_transactions(source_ref) WHERE source_ref IS NOT NULL;
+    `);
+
     // Host subscription upgrade requests (admin-approved, no payment gateway yet).
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS subscription_requests (
@@ -910,6 +921,7 @@ export class PostgresStore implements DataStore {
     credit_amount: number;
     description: string;
     receipt_url?: string | null;
+    source_ref?: string | null;
     created_at: number;
     updated_at: number;
   }): FinancialTransaction {
@@ -926,6 +938,7 @@ export class PostgresStore implements DataStore {
       creditAmount: Number(row.credit_amount),
       description: row.description,
       receiptUrl: row.receipt_url ?? undefined,
+      sourceRef: row.source_ref ?? undefined,
       createdAt: Number(row.created_at),
       updatedAt: Number(row.updated_at),
     };
@@ -948,11 +961,11 @@ export class PostgresStore implements DataStore {
     const now = Date.now();
     const result = await this.pool.query(
       `INSERT INTO financial_transactions
-        (property_id, transaction_no, transaction_date, debit_account, debit_amount, credit_account, credit_amount, description, receipt_url, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        (property_id, transaction_no, transaction_date, debit_account, debit_amount, credit_account, credit_amount, description, receipt_url, source_ref, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [input.propertyId, input.transactionNo, input.transactionDate, input.debitAccount, input.debitAmount,
-       input.creditAccount, input.creditAmount, input.description, input.receiptUrl ?? null, now, now],
+       input.creditAccount, input.creditAmount, input.description, input.receiptUrl ?? null, input.sourceRef ?? null, now, now],
     );
     await this.writeAudit(actor.id, 'CREATE_FINANCE_TXN', 'financial_transaction', result.rows[0].id);
     return this.mapFinancialTransaction(result.rows[0]);
@@ -1025,6 +1038,7 @@ export class PostgresStore implements DataStore {
     credit_amount: number;
     description: string;
     vendor?: string | null;
+    source_ref?: string | null;
     created_at: number;
     updated_at: number;
   }): PendingTransaction {
@@ -1041,6 +1055,7 @@ export class PostgresStore implements DataStore {
       creditAmount: Number(row.credit_amount),
       description: row.description,
       vendor: row.vendor ?? undefined,
+      sourceRef: row.source_ref ?? undefined,
       createdAt: Number(row.created_at),
       updatedAt: Number(row.updated_at),
     };
@@ -1059,14 +1074,14 @@ export class PostgresStore implements DataStore {
     const now = Date.now();
     const result = await this.pool.query(
       `INSERT INTO pending_transactions
-        (property_id, gcs_path, ocr_processed, transaction_date, debit_account, debit_amount, credit_account, credit_amount, description, vendor, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        (property_id, gcs_path, ocr_processed, transaction_date, debit_account, debit_amount, credit_account, credit_amount, description, vendor, source_ref, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         input.propertyId, input.gcsPath, input.ocrProcessed ?? false,
         input.transactionDate ?? '', input.debitAccount ?? '', input.debitAmount ?? 0,
         input.creditAccount ?? '普通預金', input.creditAmount ?? 0, input.description ?? '',
-        input.vendor ?? null, now, now,
+        input.vendor ?? null, input.sourceRef ?? null, now, now,
       ],
     );
     return this.mapPendingTransaction(result.rows[0]);
@@ -1116,6 +1131,7 @@ export class PostgresStore implements DataStore {
       creditAmount: pending.creditAmount,
       description: pending.description,
       receiptUrl: pending.gcsPath,
+      sourceRef: pending.sourceRef,
     }, actor);
     await this.pool.query('DELETE FROM pending_transactions WHERE id = $1', [id]);
     return txn;
@@ -1124,5 +1140,16 @@ export class PostgresStore implements DataStore {
   async deletePendingTransaction(id: string, _actor: AuthUser): Promise<PendingTransaction | null> {
     const result = await this.pool.query('DELETE FROM pending_transactions WHERE id = $1 RETURNING *', [id]);
     return result.rows[0] ? this.mapPendingTransaction(result.rows[0]) : null;
+  }
+
+  async hasFinanceSourceRef(sourceRef: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `SELECT 1 FROM pending_transactions WHERE source_ref = $1
+       UNION ALL
+       SELECT 1 FROM financial_transactions WHERE source_ref = $1
+       LIMIT 1`,
+      [sourceRef],
+    );
+    return result.rows.length > 0;
   }
 }

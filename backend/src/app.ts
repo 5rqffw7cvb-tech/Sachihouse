@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import cors from 'cors';
 import express, { NextFunction, Request, RequestHandler, Response } from 'express';
 import helmet from 'helmet';
@@ -588,6 +589,7 @@ export function createApp(store: DataStore) {
       || req.path.endsWith('/finance/pending/upload-single')
       || req.path.endsWith('/finance/pending/batch-upload')
       || req.path.endsWith('/finance/receipts/upload')
+      || req.path.endsWith('/finance/ingest/email-receipt')
       || /\/properties\/[^/]+\/images$/.test(req.path);
     return (isImageRoute ? imageJson : standardJson)(req, res, next);
   });
@@ -1989,6 +1991,138 @@ export function createApp(store: DataStore) {
   });
 
   // ── Finance API ─────────────────────────────────────────────────────────────
+
+  // ── Email receipt ingest (Google Apps Script bridge) ───────────────────────
+  // Machine-to-machine endpoint: the Gmail Apps Script forwards vendor receipts
+  // (e.g. Anthropic invoices) here. Auth is a shared API key, not a user session.
+  const requireIngestKey: RequestHandler = (req, res, next) => {
+    const configured = process.env.FINANCE_INGEST_API_KEY ?? '';
+    if (!configured) {
+      return res.status(503).json({ error: 'Email receipt ingest is not configured (FINANCE_INGEST_API_KEY).' });
+    }
+    const provided = Buffer.from(String(req.headers['x-api-key'] ?? ''));
+    const expected = Buffer.from(configured);
+    if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
+      return res.status(401).json({ error: 'Invalid API key.' });
+    }
+    return next();
+  };
+
+  // POST /api/finance/ingest/email-receipt — create a PENDING expense from an
+  // emailed receipt. Idempotent via sourceRef (gmail:<messageId>): replays and
+  // concurrent retries return { duplicate: true } instead of a second record.
+  // The original PDF is kept as evidence in the receipt bucket. Amounts arrive
+  // already converted to JPY (the Apps Script converts at the Google Finance
+  // rate at processing time) with the original amount/rate kept in description.
+  app.post('/api/finance/ingest/email-receipt', requireIngestKey, async (req, res) => {
+    const {
+      sourceRef, vendor, transactionDate, description,
+      amountJpy, originalAmount, originalCurrency, exchangeRate,
+      debitAccount, creditAccount, propertyId: bodyPropertyId,
+      pdfBase64, fileName,
+    } = req.body ?? {};
+
+    if (typeof sourceRef !== 'string' || !sourceRef.trim()) {
+      return res.status(400).json({ error: 'sourceRef is required.' });
+    }
+    const ref = sourceRef.trim();
+
+    const amount = Math.round(Number(amountJpy));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'amountJpy must be a positive number.' });
+    }
+    if (typeof transactionDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(transactionDate)) {
+      return res.status(400).json({ error: 'transactionDate must be YYYY-MM-DD.' });
+    }
+
+    const propertyId = (typeof bodyPropertyId === 'string' && bodyPropertyId.trim())
+      || process.env.FINANCE_INGEST_PROPERTY_ID
+      || '';
+    if (!propertyId) {
+      return res.status(400).json({ error: 'propertyId missing and FINANCE_INGEST_PROPERTY_ID is not set.' });
+    }
+    const property = await store.getProperty(propertyId);
+    if (!property) {
+      return res.status(400).json({ error: `Unknown property: ${propertyId}` });
+    }
+
+    if (await store.hasFinanceSourceRef(ref)) {
+      return res.status(200).json({ duplicate: true });
+    }
+
+    // Keep the original PDF as evidence (stored uncompressed).
+    let gcsPath = '';
+    if (typeof pdfBase64 === 'string' && pdfBase64.length > 0) {
+      let pdfBuffer: Buffer;
+      try {
+        pdfBuffer = Buffer.from(pdfBase64, 'base64');
+      } catch {
+        return res.status(400).json({ error: 'pdfBase64 is not valid base64.' });
+      }
+      if (pdfBuffer.length > 10 * 1024 * 1024) {
+        return res.status(400).json({ error: 'PDF exceeds 10MB limit.' });
+      }
+      if (!pdfBuffer.subarray(0, 5).toString('latin1').startsWith('%PDF')) {
+        return res.status(400).json({ error: 'Attachment is not a PDF.' });
+      }
+      try {
+        const upload = await objectStorage.uploadReceiptPdf({
+          pdfBuffer,
+          propertyId: property.id,
+          fileNameHint: typeof fileName === 'string' ? fileName : undefined,
+        });
+        gcsPath = upload.evidenceUrl;
+      } catch (err) {
+        console.error('[email-ingest] PDF upload failed:', err);
+        return res.status(502).json({ error: 'Failed to store receipt PDF.' });
+      }
+    }
+
+    // Fallback description when the bridge did not compose one.
+    const composedDescription = (typeof description === 'string' && description.trim())
+      || [
+        typeof vendor === 'string' && vendor.trim() ? vendor.trim() : 'Email receipt',
+        originalAmount != null && typeof originalCurrency === 'string'
+          ? `${originalAmount} ${originalCurrency}` : '',
+        exchangeRate != null ? `@${exchangeRate}` : '',
+        `= ¥${amount.toLocaleString('ja-JP')}`,
+      ].filter(Boolean).join(' ');
+
+    const systemActor: AuthUser = {
+      id: 0,
+      name: 'email-ingest',
+      email: 'email-ingest@system.local',
+      role: 'ADMIN',
+      canEditBlog: false,
+      assignedPropertyIds: [],
+      hostLevel: null,
+    };
+
+    try {
+      const pending = await store.createPendingTransaction({
+        propertyId: property.id,
+        gcsPath,
+        // OCR is skipped: the amount/date were already extracted from the email.
+        ocrProcessed: true,
+        transactionDate,
+        debitAccount: typeof debitAccount === 'string' && debitAccount.trim() ? debitAccount.trim() : '通信費',
+        debitAmount: amount,
+        creditAccount: typeof creditAccount === 'string' && creditAccount.trim() ? creditAccount.trim() : '普通預金',
+        creditAmount: amount,
+        description: composedDescription,
+        vendor: typeof vendor === 'string' && vendor.trim() ? vendor.trim() : undefined,
+        sourceRef: ref,
+      }, systemActor);
+      return res.status(201).json({ id: pending.id, duplicate: false });
+    } catch (err) {
+      // Unique-index race: another delivery of the same message won the insert.
+      if ((err as { code?: string }).code === '23505') {
+        return res.status(200).json({ duplicate: true });
+      }
+      console.error('[email-ingest] failed to create pending transaction:', err);
+      return res.status(500).json({ error: 'Failed to create pending transaction.' });
+    }
+  });
 
   // GET /api/finance/properties — list properties accessible to current user
   app.get('/api/finance/properties', requireFinanceAccess, async (req, res) => {
