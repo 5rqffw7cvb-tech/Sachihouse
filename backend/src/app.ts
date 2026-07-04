@@ -2008,6 +2008,30 @@ export function createApp(store: DataStore) {
     return next();
   };
 
+  // Routing rules: FINANCE_INGEST_RULES maps an email address to the property
+  // that should absorb the expense, e.g. {"host-a@gmail.com":"property_a"}.
+  // Matched against the receipt's To addresses first (each host's billing
+  // address), then the Gmail account the Apps Script runs under.
+  const parseIngestRules = (): Record<string, string> => {
+    try {
+      const parsed = JSON.parse(process.env.FINANCE_INGEST_RULES ?? '{}') as Record<string, unknown>;
+      const rules: Record<string, string> = {};
+      for (const [email, propertyId] of Object.entries(parsed)) {
+        if (typeof propertyId === 'string' && propertyId.trim()) {
+          rules[email.trim().toLowerCase()] = propertyId.trim();
+        }
+      }
+      return rules;
+    } catch {
+      console.error('[email-ingest] FINANCE_INGEST_RULES is not valid JSON — routing rules disabled.');
+      return {};
+    }
+  };
+
+  // Pull bare addresses out of header-style strings like "Name <a@b.com>, c@d.com".
+  const extractEmails = (value: unknown): string[] =>
+    String(value ?? '').toLowerCase().match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) ?? [];
+
   // POST /api/finance/ingest/email-receipt — create a PENDING expense from an
   // emailed receipt. Idempotent via sourceRef (gmail:<messageId>): replays and
   // concurrent retries return { duplicate: true } instead of a second record.
@@ -2019,6 +2043,7 @@ export function createApp(store: DataStore) {
       sourceRef, vendor, transactionDate, description,
       amountJpy, originalAmount, originalCurrency, exchangeRate,
       debitAccount, creditAccount, propertyId: bodyPropertyId,
+      accountEmail, toEmail,
       pdfBase64, fileName,
     } = req.body ?? {};
 
@@ -2035,11 +2060,21 @@ export function createApp(store: DataStore) {
       return res.status(400).json({ error: 'transactionDate must be YYYY-MM-DD.' });
     }
 
-    const propertyId = (typeof bodyPropertyId === 'string' && bodyPropertyId.trim())
+    // Resolve the target property: routing rule (backend decides) → explicit
+    // propertyId from the bridge → global default.
+    const rules = parseIngestRules();
+    const emailCandidates = [...extractEmails(toEmail), ...extractEmails(accountEmail)];
+    const ruledPropertyId = emailCandidates.map((e) => rules[e]).find(Boolean) ?? '';
+
+    const propertyId = ruledPropertyId
+      || (typeof bodyPropertyId === 'string' && bodyPropertyId.trim())
       || process.env.FINANCE_INGEST_PROPERTY_ID
       || '';
     if (!propertyId) {
-      return res.status(400).json({ error: 'propertyId missing and FINANCE_INGEST_PROPERTY_ID is not set.' });
+      return res.status(400).json({
+        error: 'No property matched: set FINANCE_INGEST_RULES for this email, pass propertyId, or set FINANCE_INGEST_PROPERTY_ID.',
+        emails: emailCandidates,
+      });
     }
     const property = await store.getProperty(propertyId);
     if (!property) {

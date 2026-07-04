@@ -106,6 +106,11 @@ function processMessage_(message, webhookUrl, apiKey, props) {
 
   var payload = {
     sourceRef: 'gmail:' + message.getId(),
+    // Để backend tự phân loại property theo FINANCE_INGEST_RULES:
+    // ưu tiên địa chỉ To của mail (email thanh toán của từng host),
+    // sau đó đến tài khoản Gmail đang chạy script này.
+    accountEmail: Session.getEffectiveUser().getEmail(),
+    toEmail: message.getTo(),
     vendor: 'Anthropic',
     transactionDate: transactionDate,
     amountJpy: amountJpy,

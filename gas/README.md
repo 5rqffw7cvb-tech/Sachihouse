@@ -31,9 +31,20 @@ Thêm biến môi trường (`.env` của backend hoặc docker-compose):
 | Biến | Bắt buộc | Ý nghĩa |
 |---|---|---|
 | `FINANCE_INGEST_API_KEY` | ✅ | Shared secret cho webhook. Tạo chuỗi ngẫu nhiên dài (VD `openssl rand -hex 32`). Chưa set thì endpoint trả 503. |
-| `FINANCE_INGEST_PROPERTY_ID` | ⭕ | Property mặc định nhận chi phí (ID trong bảng properties). Có thể thay bằng `PROPERTY_ID` phía Apps Script. |
+| `FINANCE_INGEST_RULES` | ⭕ | JSON map **email → property**: mail liên quan email nào thì ghi chi phí cho property đó. VD: `{"host-a@gmail.com":"property_a","host-b@gmail.com":"property_b"}` |
+| `FINANCE_INGEST_PROPERTY_ID` | ⭕ | Property mặc định khi không rule nào khớp. Có thể thay bằng `PROPERTY_ID` phía Apps Script. |
 
 Migration tự chạy khi backend khởi động (thêm cột `source_ref` + unique index vào `pending_transactions` và `financial_transactions`).
+
+### Phân loại property theo rule (FINANCE_INGEST_RULES)
+
+Apps Script gửi kèm 2 thông tin: `toEmail` (địa chỉ **To** của mail — email thanh toán của từng host) và `accountEmail` (tài khoản Gmail đang chạy script). Backend chọn property theo thứ tự:
+
+1. **Rule khớp** — duyệt các địa chỉ trong `toEmail` trước, rồi `accountEmail`; địa chỉ nào có trong `FINANCE_INGEST_RULES` thì lấy property tương ứng (backend quyết định, ghi đè config phía script).
+2. `PROPERTY_ID` do Apps Script gửi lên (nếu có).
+3. `FINANCE_INGEST_PROPERTY_ID` (mặc định toàn cục).
+
+Không khớp gì cả → trả 400 kèm danh sách email đã thấy (xem trong log Executions của Apps Script để biết cần thêm rule nào).
 
 ## 2. Cài Google Apps Script
 
@@ -73,6 +84,7 @@ curl -X POST https://<domain>/api/finance/ingest/email-receipt \
   -H "x-api-key: <FINANCE_INGEST_API_KEY>" \
   -d '{
     "sourceRef": "gmail:test-001",
+    "toEmail": "host-a@gmail.com",
     "vendor": "Anthropic",
     "transactionDate": "2026-07-01",
     "amountJpy": 3900,
