@@ -25,9 +25,9 @@ pending_transactions (ocr_processed=true)
 financial_transactions (journal chính thức)
 ```
 
-## 1. Cấu hình backend
+## 1. Cấu hình backend (Railway)
 
-Thêm biến môi trường (`.env` của backend hoặc docker-compose):
+App chạy trên Railway nên biến môi trường phải đặt **trên Railway** (không phải file `.env` ở máy — file đó chỉ dùng test local).
 
 | Biến | Bắt buộc | Ý nghĩa |
 |---|---|---|
@@ -35,7 +35,25 @@ Thêm biến môi trường (`.env` của backend hoặc docker-compose):
 | `FINANCE_INGEST_RULES` | ⭕ | **Fallback** — JSON map email → property, chỉ dùng khi email chưa có rule trong DB. Khuyến nghị quản lý rule qua giao diện (xem mục dưới) thay vì env này. VD: `{"host-a@gmail.com":"property_a"}` |
 | `FINANCE_INGEST_PROPERTY_ID` | ⭕ | Property mặc định khi không rule nào khớp. Có thể thay bằng `PROPERTY_ID` phía Apps Script. |
 
-Migration tự chạy khi backend khởi động: thêm cột `source_ref` + unique index vào `pending_transactions` / `financial_transactions`, và tạo bảng `finance_ingest_rules` (rule quản lý qua giao diện).
+Các bước trên Railway:
+
+1. Mở https://railway.app → vào **project** của bạn → chọn **service backend** (service chạy API, cùng chỗ đã có `GCP_SERVICE_ACCOUNT_JSON_B64`, `GCS_BUCKET`...).
+2. Tab **Variables** → **New Variable**:
+   - Name: `FINANCE_INGEST_API_KEY`, Value: chuỗi secret (đã tạo sẵn — xem `backend/.env` local hoặc tạo mới).
+   - (Tuỳ chọn) thêm `FINANCE_INGEST_PROPERTY_ID` nếu muốn có property mặc định.
+3. Railway tự redeploy sau khi thêm biến (hoặc bấm **Deploy**). Migration tự chạy khi backend khởi động: thêm cột `source_ref` + unique index vào `pending_transactions` / `financial_transactions`, và tạo bảng `finance_ingest_rules` (rule quản lý qua giao diện).
+4. Lấy **domain public** của service backend: tab **Settings → Networking → Public Networking** (dạng `https://<tên>.up.railway.app`, hoặc custom domain nếu đã gắn). Webhook URL cho Apps Script sẽ là:
+
+   ```
+   https://<domain-backend>/api/finance/ingest/email-receipt
+   ```
+
+5. Kiểm tra nhanh sau khi deploy: gọi thử không có API key phải trả `401` (còn `503` nghĩa là biến chưa được set):
+
+   ```bash
+   curl -i -X POST https://<domain-backend>/api/finance/ingest/email-receipt \
+     -H "Content-Type: application/json" -d '{}'
+   ```
 
 ### Phân loại property theo rule
 
