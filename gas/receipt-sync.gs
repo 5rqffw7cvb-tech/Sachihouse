@@ -1080,3 +1080,34 @@ function setup() {
 function testRunOnce() {
   syncReceipts();
 }
+
+// Reset trạng thái dedupe phía script để quét lại email cũ khi cần.
+function resetReceiptSyncState() {
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties();
+  var keys = Object.keys(all);
+
+  var deletedCount = 0;
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    if (key.indexOf('processed:') === 0) {
+      props.deleteProperty(key);
+      deletedCount++;
+    }
+  }
+
+  var label = GmailApp.getUserLabelByName(LABEL_NAME);
+  var unlabeledThreads = 0;
+  if (label) {
+    var threads = label.getThreads(0, 500);
+    while (threads.length > 0) {
+      for (var t = 0; t < threads.length; t++) {
+        threads[t].removeLabel(label);
+        unlabeledThreads++;
+      }
+      threads = label.getThreads(0, 500);
+    }
+  }
+
+  Logger.log('Reset done. deleted processed keys=%s, unlabeled threads=%s', deletedCount, unlabeledThreads);
+}
