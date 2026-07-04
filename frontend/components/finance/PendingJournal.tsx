@@ -54,7 +54,29 @@ const AccountSelect: React.FC<{ value: string; onChange: (v: string) => void }> 
 
 function isPreviewableUrl_(url?: string): boolean {
   var v = String(url || '').trim();
-  return /^https?:\/\//i.test(v) || /^data:/i.test(v);
+  if (/^data:/i.test(v)) return true;
+  if (!/^https?:\/\//i.test(v)) return false;
+  return !isPrivateGcsUrl_(v);
+}
+
+function isPrivateGcsUrl_(url: string): boolean {
+  try {
+    var parsed = new URL(url);
+    var host = parsed.hostname.toLowerCase();
+    var isGcsHost = host === 'storage.googleapis.com' || /\.storage\.googleapis\.com$/.test(host);
+    if (!isGcsHost) return false;
+
+    var p = parsed.searchParams;
+    var hasTemporaryAccess = p.has('X-Goog-Signature')
+      || p.has('X-Goog-Algorithm')
+      || p.has('GoogleAccessId')
+      || p.has('Signature')
+      || p.has('token');
+
+    return !hasTemporaryAccess;
+  } catch {
+    return false;
+  }
 }
 
 function resolveEvidencePreviewUrl_(item: { receiptUrl?: string; gcsPath?: string }): string {

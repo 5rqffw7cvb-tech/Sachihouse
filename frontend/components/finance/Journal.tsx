@@ -216,6 +216,28 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
 
   const getEmbedUrl = (url: string | null) => {
     if (!url) return null;
+    const isPrivateGcs = (() => {
+      try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.toLowerCase();
+        const isGcsHost = host === 'storage.googleapis.com' || /\.storage\.googleapis\.com$/.test(host);
+        if (!isGcsHost) return false;
+
+        const p = parsed.searchParams;
+        const hasTemporaryAccess = p.has('X-Goog-Signature')
+          || p.has('X-Goog-Algorithm')
+          || p.has('GoogleAccessId')
+          || p.has('Signature')
+          || p.has('token');
+
+        return !hasTemporaryAccess;
+      } catch {
+        return false;
+      }
+    })();
+
+    if (isPrivateGcs) return { url, type: 'blocked' as const };
+
     const driveMatch = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([^/?#\s]+)/) || url.match(/[?&]id=([^/?#&\s]+)/);
     // Google Drive blocks iframe embedding via CSP (frame-ancestors). Use the
     // thumbnail image endpoint which loads as a normal <img>, plus keep the
@@ -230,7 +252,7 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
     // Allow query string / fragment after the extension (e.g. GCS signed URLs ending in ?X-Goog-...)
     if (/\.(jpeg|jpg|gif|png|webp|bmp|svg|avif)(\?|#|$)/i.test(url)) return { url, type: 'image' as const };
     // GCS signed URLs are always images uploaded by our pipeline
-    if (/storage\.googleapis\.com\//i.test(url)) return { url, type: 'image' as const };
+    if (/storage\.googleapis\.com\//i.test(url) || /\.storage\.googleapis\.com\//i.test(url)) return { url, type: 'image' as const };
     return { url, type: 'other' as const };
   };
 
@@ -1058,6 +1080,12 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
                         className="px-5 py-2 bg-[#003580] hover:bg-brand-700 text-white text-xs font-bold rounded-xl inline-flex items-center gap-2 shadow-sm transition-all">
                         <ExternalLink className="w-4 h-4" /> Driveで開く
                       </a>
+                    </div>
+                  ) : embed.type === 'blocked' ? (
+                    <div className="text-center p-8 bg-white rounded-2xl shadow-lg border border-[#e4e2e3] max-w-sm">
+                      <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-4" />
+                      <h4 className="text-sm font-bold text-slate-800 mb-2">非公開ストレージのためプレビュー不可</h4>
+                      <p className="text-xs text-[#74777d]">署名付きURLまたはDrive共有リンクを設定してください。</p>
                     </div>
                   ) : (
                     <div className="text-center p-8 bg-white rounded-2xl shadow-lg border border-[#e4e2e3] max-w-sm">
