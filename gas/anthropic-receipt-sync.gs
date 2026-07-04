@@ -13,13 +13,19 @@
  *  - Client: label Gmail + Script Properties (processed:<messageId>).
  *  - Server: sourceRef "gmail:<messageId>" là unique trong DB (pending + journal).
  *
+ * Phân loại property: backend tự chọn theo rule email → property quản lý ở
+ * giao diện admin (Finance → tab メール連携ルール). Script chỉ cần gửi kèm
+ * toEmail/accountEmail; PROPERTY_ID bên dưới chỉ là fallback khi không rule
+ * nào khớp.
+ *
  * Cài đặt: xem gas/README.md. Script Properties bắt buộc:
- *  - SACHIHOUSE_WEBHOOK_URL  ví dụ https://sachihouse.com/api/finance/ingest/email-receipt
- *  - SACHIHOUSE_API_KEY      trùng với FINANCE_INGEST_API_KEY của backend
+ *  - SACHIHOUSE_WEBHOOK_URL  ví dụ https://sachihouse-production.up.railway.app/api/finance/ingest/email-receipt
+ *  - SACHIHOUSE_API_KEY      trùng với FINANCE_INGEST_API_KEY trên Railway
  * Tuỳ chọn:
- *  - PROPERTY_ID       property nhận chi phí (nếu backend chưa set FINANCE_INGEST_PROPERTY_ID)
+ *  - PROPERTY_ID       fallback khi không rule nào khớp (backend còn có
+ *                      FINANCE_INGEST_PROPERTY_ID làm fallback cuối cùng)
  *  - GMAIL_QUERY       override câu query Gmail mặc định
- *  - DEBIT_ACCOUNT     khoa mục borrowed mặc định (mặc định: 通信費)
+ *  - DEBIT_ACCOUNT     khoản mục nợ (借方) mặc định, backend dùng 通信費 nếu bỏ trống
  *  - DRIVE_FOLDER_NAME nếu set, lưu thêm 1 bản PDF vào Drive folder này
  */
 
@@ -106,7 +112,7 @@ function processMessage_(message, webhookUrl, apiKey, props) {
 
   var payload = {
     sourceRef: 'gmail:' + message.getId(),
-    // Để backend tự phân loại property theo FINANCE_INGEST_RULES:
+    // Để backend tự phân loại property theo rule (tab メール連携ルール):
     // ưu tiên địa chỉ To của mail (email thanh toán của từng host),
     // sau đó đến tài khoản Gmail đang chạy script này.
     accountEmail: Session.getEffectiveUser().getEmail(),
