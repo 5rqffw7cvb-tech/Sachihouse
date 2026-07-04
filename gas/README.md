@@ -1,16 +1,16 @@
-# Anthropic Receipt Sync — Gmail → SachiHouse Finance
+# Receipt Sync — Gmail → SachiHouse Finance
 
-Tự động: mail receipt từ Anthropic (kèm PDF) → Google Apps Script trích xuất → quy đổi JPY theo tỉ giá Google → POST sang SachiHouse → tạo giao dịch **PENDING** trong module Finance (chờ approve ở màn 未承認仕訳). PDF gốc được lưu vào GCS receipt bucket làm chứng từ.
+Tự động: **mọi mail receipt/invoice kèm PDF** (Anthropic, OpenAI, Google, Amazon, hoá đơn tiếng Nhật...) → Google Apps Script trích xuất vendor/số tiền/ngày → quy đổi JPY theo tỉ giá Google (receipt JPY thì giữ nguyên) → POST sang SachiHouse → tạo giao dịch **PENDING** trong module Finance (chờ approve ở màn 未承認仕訳). PDF gốc được lưu vào GCS receipt bucket làm chứng từ.
 
 ## Luồng hoạt động
 
 ```
-Gmail (receipt Anthropic + PDF)
+Gmail (receipt/invoice + PDF, mọi vendor)
    │  trigger 15 phút
    ▼
 Google Apps Script
-   │  1. parse số tiền / ngày / số receipt
-   │  2. GOOGLEFINANCE: USD→JPY tại thời điểm xử lý
+   │  1. parse vendor / số tiền / ngày / số receipt
+   │  2. GOOGLEFINANCE: quy đổi → JPY tại thời điểm xử lý
    │  3. POST JSON + PDF base64, header x-api-key
    ▼
 POST /api/finance/ingest/email-receipt   (SachiHouse backend)
@@ -71,7 +71,7 @@ Không khớp gì cả → trả 400 kèm danh sách email đã thấy (xem tron
 ## 2. Cài Google Apps Script
 
 1. Vào https://script.google.com (đúng tài khoản Gmail nhận receipt) → **New project**.
-2. Dán toàn bộ nội dung `anthropic-receipt-sync.gs`.
+2. Dán toàn bộ nội dung `receipt-sync.gs`.
 3. **Project Settings → Script Properties**, thêm:
 
    | Key | Value |
@@ -88,8 +88,10 @@ Không khớp gì cả → trả 400 kèm danh sách email đã thấy (xem tron
 
 ## 3. Chi tiết kỹ thuật
 
-- **Query Gmail mặc định:** `subject:"receipt from Anthropic" has:attachment filename:pdf newer_than:90d` (loại trừ thread đã gắn label). Nhận diện theo **subject** chứ không theo người gửi, nên hoạt động cả khi receipt được **forward** từ email đăng ký Anthropic sang hộp thư chạy script (From lúc đó không còn là anthropic.com). Cần pattern khác thì override bằng `GMAIL_QUERY`.
-- **Tỉ giá:** dùng `GOOGLEFINANCE("CURRENCY:USDJPY")` qua một spreadsheet phụ tự tạo (`SachiHouse FX Helper`) — đúng tỉ giá Google tại thời điểm script chạy. Tỉ giá + số tiền gốc được ghi vào description để đối chiếu.
+- **Query Gmail mặc định:** `subject:(receipt OR invoice OR 領収書 OR 請求書) has:attachment filename:pdf newer_than:90d` (loại trừ thread đã gắn label). Nhận diện theo **subject** chứ không theo người gửi, nên hoạt động cả khi receipt được **forward** từ hộp thư khác sang. Cần pattern khác thì override bằng `GMAIL_QUERY`.
+- **Nhận diện vendor:** từ subject ("Your receipt from Anthropic, PBC #..." → "Anthropic, PBC"), fallback sang tên hiển thị/domain người gửi. Vendor được ghi vào cột vendor + description của giao dịch.
+- **Parse số tiền:** ưu tiên dòng có nhãn (Amount paid / Total / 合計 / ご請求金額...), hỗ trợ ký hiệu `$ € £ ¥ ₫`, mã `USD EUR GBP JPY...` và dạng `1,234円`. Vì mail mỗi vendor mỗi khác, **luôn kiểm tra lại số tiền khi approve**.
+- **Tỉ giá:** dùng `GOOGLEFINANCE("CURRENCY:<XXX>JPY")` qua một spreadsheet phụ tự tạo (`SachiHouse FX Helper`) — đúng tỉ giá Google tại thời điểm script chạy. Tỉ giá + số tiền gốc được ghi vào description để đối chiếu. Receipt đã là JPY thì không quy đổi.
 - **Chống trùng lặp (3 lớp):**
   1. Label Gmail + Script Properties (`processed:<messageId>`) — không gửi lại.
   2. Backend check `sourceRef` trước khi tạo record → trả `{ duplicate: true }`.
