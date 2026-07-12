@@ -62,7 +62,11 @@ const Dashboard: React.FC<DashboardProps> = ({ report, onRefresh, isRefreshing =
     売上: r.amount,
     経費: (report.monthlyExpense[i]?.amount || 0) + (report.monthlyCostOfSales[i]?.amount || 0),
   }));
-  const profitLine = report.monthlyProfit.map(p => ({ name: p.month.split('/')[1] + '月', amount: p.amount }));
+  const profitLine = report.monthlyProfit.reduce<{ name: string; amount: number }[]>((acc, p) => {
+    const prevTotal = acc.length ? acc[acc.length - 1].amount : 0;
+    acc.push({ name: p.month.split('/')[1] + '月', amount: prevTotal + p.amount });
+    return acc;
+  }, []);
 
   const kpis = [
     {
@@ -212,7 +216,7 @@ const Dashboard: React.FC<DashboardProps> = ({ report, onRefresh, isRefreshing =
         <div className="bg-white p-4 md:p-5 rounded-2xl border border-[#e4e2e3] shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-[#1b1c1d] flex items-center gap-2">
-              <span className="w-1 h-4 bg-emerald-500 rounded-full" />純利益の推移
+              <span className="w-1 h-4 bg-emerald-500 rounded-full" />純利益の推移（累計）
             </h3>
           </div>
           <div className="h-56 md:h-60 w-full font-sans -ml-4">
@@ -228,7 +232,7 @@ const Dashboard: React.FC<DashboardProps> = ({ report, onRefresh, isRefreshing =
                 <XAxis dataKey="name" fontSize={9} tickLine={false} axisLine={false} stroke="#74777d" />
                 <YAxis fontSize={9} tickFormatter={(v) => `¥${v / 1000}k`} tickLine={false} axisLine={false} width={38} stroke="#74777d" />
                 <Tooltip
-                  formatter={(value: number) => [fmt(value), '純利益']}
+                  formatter={(value: number) => [fmt(value), '累計純利益']}
                   contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e4e2e3', fontSize: '11px' }}
                 />
                 <Area type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={2.5} fill="url(#profitFill)"
