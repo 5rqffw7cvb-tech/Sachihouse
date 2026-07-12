@@ -663,6 +663,12 @@ function parseReceiptDate_(subject, body) {
   var text = String(body || '');
   var s = String(subject || '');
 
+  // Airbnb payout mail thường ghi ngày thực chi theo dạng
+  // "Your money was sent on June 26 and should arrive by July 3, 2026".
+  // Ưu tiên ngày sent-out thay vì ngày arrival hoặc ngày stay period.
+  var payoutSentDate = parsePayoutSentDate_(s, text);
+  if (payoutSentDate) return payoutSentDate;
+
   // 1) Ưu tiên các dòng có nhãn ngày rõ ràng trên receipt.
   var labeledPatterns = [
     /(?:Date paid|Date of issue|Issue date|Invoice date|Receipt date|Paid on|Payment date|Transaction date|Billing date|Processed on|発行日|支払日|お支払い日|請求日|取引日)[^\n\r]{0,80}?((?:[A-Z][a-z]{2,8}\s+\d{1,2},\s*\d{4})|(?:\d{4}[\/\-.年]\d{1,2}[\/\-.月]\d{1,2}日?)|(?:\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}))/i,
@@ -698,6 +704,35 @@ function parseReceiptDate_(subject, body) {
   if (genericSubject) return genericSubject;
 
   return null;
+}
+
+function parsePayoutSentDate_(subject, body) {
+  var text = [String(subject || ''), String(body || '')].join('\n');
+
+  var directMatch = text.match(
+    /(?:your\s+money\s+was\s+sent\s+on|money\s+was\s+sent\s+on|sent\s+on)\s+((?:[A-Z][a-z]{2,8}\s+\d{1,2},\s*\d{4})|(?:\d{4}[\/\-.年]\d{1,2}[\/\-.月]\d{1,2}日?)|(?:\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}))/i
+  );
+  if (directMatch) {
+    var directDate = parseDateToken_(directMatch[1]);
+    if (directDate) return directDate;
+  }
+
+  var inferredYearMatch = text.match(
+    /(?:your\s+money\s+was\s+sent\s+on|money\s+was\s+sent\s+on|sent\s+on)\s+([A-Z][a-z]{2,8}\s+\d{1,2})\s+and\s+should\s+arrive\s+by\s+([A-Z][a-z]{2,8}\s+\d{1,2},\s*\d{4})/i
+  );
+  if (!inferredYearMatch) return null;
+
+  var arrivalDate = parseDateToken_(inferredYearMatch[2]);
+  if (!arrivalDate) return null;
+
+  var sentDate = parseDateToken_(inferredYearMatch[1] + ', ' + arrivalDate.getFullYear());
+  if (!sentDate) return null;
+
+  if (sentDate.getTime() > arrivalDate.getTime()) {
+    sentDate.setFullYear(sentDate.getFullYear() - 1);
+  }
+
+  return sentDate;
 }
 
 function parseOldestForwardedHeaderDate_(text) {
