@@ -103,7 +103,7 @@ const FinancePage: React.FC = () => {
     if (!canUseFinance) return;
     financeApi.listProperties().then(props => {
       setAllProperties(props);
-      if (props.length > 0) setSelectedPropertyIds([props[0].id]);
+      if (props.length > 0) setSelectedPropertyIds(props.map(p => p.id));
     }).catch(console.error);
   }, []);
 
