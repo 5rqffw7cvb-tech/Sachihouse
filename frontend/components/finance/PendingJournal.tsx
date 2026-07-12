@@ -81,14 +81,23 @@ function isPrivateGcsUrl_(url: string): boolean {
 
 function resolveEvidencePreviewUrl_(item: { receiptUrl?: string; gcsPath?: string }): string {
   var receipt = String(item.receiptUrl || '').trim();
-  if (isPreviewableUrl_(receipt)) return receipt;
+  if (isPreviewableUrl_(receipt)) return toEmbeddablePreviewUrl_(receipt);
 
   var gcsPath = String(item.gcsPath || '').trim();
-  if (isPreviewableUrl_(gcsPath)) return gcsPath;
+  if (isPreviewableUrl_(gcsPath)) return toEmbeddablePreviewUrl_(gcsPath);
 
   // gcs:// path needs a signed/public URL. Do not rewrite to storage.googleapis.com
   // because private buckets will fail with Anonymous caller AccessDenied.
   return '';
+}
+
+function toEmbeddablePreviewUrl_(url: string): string {
+  var value = String(url || '').trim();
+  var driveMatch = value.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([^/?#\s]+)/) || value.match(/[?&]id=([^/?#&\s]+)/);
+  if (driveMatch && driveMatch[1]) {
+    return 'https://drive.google.com/file/d/' + driveMatch[1] + '/preview';
+  }
+  return value;
 }
 
 function normalizeKeyText_(value?: string): string {

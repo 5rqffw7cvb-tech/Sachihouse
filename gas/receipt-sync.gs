@@ -1,15 +1,17 @@
 /**
  * SachiHouse — Receipt Sync (Gmail → Finance module)
  *
- * Xử lý MỌI mail receipt/invoice có PDF đính kèm (Anthropic, OpenAI, Google,
- * Amazon, hoá đơn tiếng Nhật...), chạy theo time-driven trigger (15 phút/lần):
- *  1. Tìm mail có subject dạng receipt/invoice/領収書/請求書 kèm PDF, chưa xử lý.
+ * Xử lý MỌI mail receipt/invoice/payout có PDF đính kèm hoặc chỉ có nội dung
+ * trong email (Anthropic, OpenAI, Google, Amazon, Airbnb payout, hoá đơn tiếng
+ * Nhật...), chạy theo time-driven trigger (15 phút/lần):
+ *  1. Tìm mail có subject dạng receipt/invoice/領収書/請求書/payout, chưa xử lý.
  *  2. Trích xuất: vendor, số tiền, tiền tệ, ngày thanh toán, số receipt.
  *  3. Quy đổi sang JPY theo tỉ giá Google Finance tại thời điểm xử lý
  *     (receipt đã là JPY thì giữ nguyên).
  *  4. POST sang SachiHouse webhook (kèm PDF base64) → tạo giao dịch PENDING
- *     (chờ approve trong màn hình 未承認 của module Finance — vì parser chạy
- *     trên nhiều định dạng mail khác nhau nên LUÔN xem lại số tiền khi approve).
+ *     (chi phí hoặc doanh thu, tuỳ loại mail; vẫn chờ approve trong màn hình
+ *     未承認 của module Finance vì parser chạy trên nhiều định dạng khác nhau,
+ *     nên LUÔN xem lại số tiền/tài khoản khi approve).
  *  5. Gắn label "SachiHouse_Processed" để không xử lý lại.
  *
  * Chống trùng lặp 2 lớp:
@@ -28,8 +30,9 @@
  *  - PROPERTY_ID       fallback khi không rule nào khớp (backend còn có
  *                      FINANCE_INGEST_PROPERTY_ID làm fallback cuối cùng)
  *  - GMAIL_QUERY       override câu query Gmail mặc định
- *  - DEBIT_ACCOUNT     khoản mục nợ (借方) mặc định, backend dùng 通信費 nếu bỏ trống
- *                      (khoản mục chỉnh lại được từng dòng lúc approve)
+ *  - DEBIT_ACCOUNT     khoản mục nợ (借方) mặc định cho mail chi phí; backend dùng
+ *                      通信費 nếu bỏ trống. Các mail payout doanh thu sẽ tự override
+ *                      sang 普通預金 / 売上高.
  *  - DRIVE_FOLDER_NAME thư mục gốc lưu evidence trên Drive (mặc định: SachiHouse_Receipt_Evidence)
  *  - DRIVE_EVIDENCE_PUBLIC_LINK true/false, mặc định true để tạo link web xem evidence
  */
@@ -37,10 +40,11 @@
 var LABEL_NAME = 'SachiHouse_Processed';
 // Nhận diện theo subject (không lọc người gửi) để bắt được cả mail forward
 // từ hộp thư khác sang. Bao gồm cả từ khoá tiếng Nhật cho hoá đơn nội địa.
-// Không ép filename:pdf để xử lý được cả receipt chỉ có nội dung trong email.
-var DEFAULT_QUERY = 'subject:(receipt OR invoice OR 領収書 OR 請求書) newer_than:90d';
+// Không ép filename:pdf để xử lý được cả receipt/payout chỉ có nội dung email.
+var DEFAULT_QUERY = 'subject:(receipt OR invoice OR 領収書 OR 請求書 OR payout) newer_than:90d';
 var TARGET_CURRENCY = 'JPY';
 var FX_CACHE_MAX_AGE_MINUTES = 360;
+var DRIVE_RETENTION_YEARS = 10;
 
 // Cache trong 1 lần chạy để không gọi Spreadsheet lặp lại cùng cặp tiền tệ.
 var runtimeFxCache_ = {};
@@ -127,6 +131,7 @@ function processMessage_(message, webhookUrl, apiKey, props, config) {
   var driveEvidence = null;
 
   var subject = message.getSubject() || '';
+  var from = message.getFrom() || '';
   var body = getReceiptText_(message);
 
   var parsed = parseReceipt_(subject, body);
@@ -146,7 +151,8 @@ function processMessage_(message, webhookUrl, apiKey, props, config) {
     return { skipped: true, reason: 'không tìm thấy số tiền trong nội dung mail' };
   }
 
-  var vendor = detectVendor_(subject, message.getFrom(), body);
+  var vendor = detectVendor_(subject, from, body);
+  var entryType = detectFinanceEntryType_(subject, from, body, vendor);
   var paidDate = parsed.paidDate || message.getDate();
   var transactionDate = Utilities.formatDate(paidDate, 'Asia/Tokyo', 'yyyy-MM-dd');
 
@@ -166,6 +172,14 @@ function processMessage_(message, webhookUrl, apiKey, props, config) {
     + (parsed.currency === TARGET_CURRENCY ? '' : ' × ' + rate.toFixed(4) + ' = ¥' + amountJpy
         + ' (tỉ giá Google ' + Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm') + ')');
 
+  if (entryType.kind === 'revenue') {
+    var payoutDetails = extractAirbnbPayoutDetails_(subject, body);
+    var revenueParts = [description, 'Revenue payout'];
+    if (payoutDetails.payoutCode) revenueParts.push('Payout#' + payoutDetails.payoutCode);
+    if (payoutDetails.listingName) revenueParts.push(payoutDetails.listingName);
+    description = revenueParts.join(' | ');
+  }
+
   var payload = {
     sourceRef: 'gmail:' + message.getId(),
     // Để backend tự phân loại property theo rule (tab メール連携ルール):
@@ -180,7 +194,8 @@ function processMessage_(message, webhookUrl, apiKey, props, config) {
     originalCurrency: parsed.currency,
     exchangeRate: rate,
     description: description,
-    debitAccount: config.debitAccount,
+    debitAccount: entryType.debitAccount || config.debitAccount,
+    creditAccount: entryType.creditAccount,
     propertyId: config.propertyId,
   };
 
@@ -221,6 +236,65 @@ function processMessage_(message, webhookUrl, apiKey, props, config) {
   }
 
   throw new Error('Webhook trả về HTTP ' + code + ': ' + text);
+}
+
+function detectFinanceEntryType_(subject, from, body, vendor) {
+  var subjectText = String(subject || '');
+  var fromText = String(from || '');
+  var bodyText = String(body || '');
+  var vendorText = String(vendor || '');
+  var combined = [subjectText, fromText, bodyText, vendorText].join('\n').toLowerCase();
+
+  var isAirbnb = /airbnb/.test(combined) || /@airbnb\./i.test(fromText);
+  var looksLikePayout = /\bwe sent a payout\b/i.test(subjectText)
+    || /\bpayout\b/i.test(subjectText)
+    || /\bwas sent today\b/i.test(bodyText)
+    || /\btotal paid\b/i.test(bodyText);
+
+  if (isAirbnb && looksLikePayout) {
+    return {
+      kind: 'revenue',
+      debitAccount: '普通預金',
+      creditAccount: '売上高'
+    };
+  }
+
+  return {
+    kind: 'expense',
+    debitAccount: '',
+    creditAccount: ''
+  };
+}
+
+function extractAirbnbPayoutDetails_(subject, body) {
+  var text = [String(subject || ''), String(body || '')].join('\n');
+  var payoutCode = extractFirstMatch_(text, [
+    /payout\s+id\s*[:：]?\s*([A-Z0-9-]+)/i,
+    /payout\s+code\s*[:：]?\s*([A-Z0-9-]+)/i,
+    /支払いコード\s*[:：]?\s*([A-Z0-9-]+)/i
+  ]);
+  var listingName = extractFirstMatch_(text, [
+    /listing\s+name\s*[:：]?\s*([^\n\r]+)/i,
+    /リスティング名\s*[:：]?\s*([^\n\r]+)/i,
+    /details[\s\S]*?\n([^\n\r]+)\n(?:listing|listing id|home|payout)/i
+  ]);
+
+  return {
+    payoutCode: payoutCode ? String(payoutCode).trim() : '',
+    listingName: listingName ? normalizeWhitespace_(String(listingName)) : ''
+  };
+}
+
+function extractFirstMatch_(text, patterns) {
+  for (var i = 0; i < patterns.length; i++) {
+    var match = String(text || '').match(patterns[i]);
+    if (match && match[1]) return match[1];
+  }
+  return '';
+}
+
+function normalizeWhitespace_(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
 /* ========== Nhận diện vendor ========== */
@@ -1044,6 +1118,103 @@ function getOrCreateSubFolder_(parentFolder, subFolderName) {
   return it.hasNext() ? it.next() : parentFolder.createFolder(subFolderName);
 }
 
+function cleanupOldDriveEvidence() {
+  var props = PropertiesService.getScriptProperties();
+  var rootFolderName = props.getProperty('DRIVE_FOLDER_NAME') || 'SachiHouse_Receipt_Evidence';
+  var retentionYears = Number(props.getProperty('DRIVE_RETENTION_YEARS') || DRIVE_RETENTION_YEARS);
+  if (!(retentionYears > 0)) retentionYears = DRIVE_RETENTION_YEARS;
+
+  var rootFolders = DriveApp.getFoldersByName(rootFolderName);
+  if (!rootFolders.hasNext()) {
+    Logger.log('Không thấy thư mục evidence %s, bỏ qua cleanup.', rootFolderName);
+    return;
+  }
+
+  var cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - retentionYears);
+
+  var deletedFiles = 0;
+  var deletedFolders = 0;
+
+  while (rootFolders.hasNext()) {
+    var rootFolder = rootFolders.next();
+    deletedFiles += cleanupReceiptFolderTree_(rootFolder, cutoff);
+    deletedFolders += trashEmptySubFolders_(rootFolder);
+  }
+
+  Logger.log(
+    'Drive cleanup done. retentionYears=%s, cutoff=%s, deletedFiles=%s, deletedFolders=%s',
+    retentionYears,
+    Utilities.formatDate(cutoff, 'Asia/Tokyo', 'yyyy-MM-dd'),
+    deletedFiles,
+    deletedFolders
+  );
+}
+
+function cleanupReceiptFolderTree_(rootFolder, cutoffDate) {
+  var deletedFiles = 0;
+  var yearFolders = rootFolder.getFolders();
+
+  while (yearFolders.hasNext()) {
+    var yearFolder = yearFolders.next();
+    var monthFolders = yearFolder.getFolders();
+
+    while (monthFolders.hasNext()) {
+      var monthFolder = monthFolders.next();
+      var files = monthFolder.getFiles();
+
+      while (files.hasNext()) {
+        var file = files.next();
+        var receiptDate = parseReceiptDateFromFileName_(file.getName());
+        if (!receiptDate) continue;
+        if (receiptDate.getTime() >= cutoffDate.getTime()) continue;
+
+        file.setTrashed(true);
+        deletedFiles++;
+      }
+    }
+  }
+
+  return deletedFiles;
+}
+
+function parseReceiptDateFromFileName_(fileName) {
+  var m = String(fileName || '').match(/^receipt-(\d{4})-(\d{2})-(\d{2})-/i);
+  if (!m) return null;
+
+  var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function trashEmptySubFolders_(rootFolder) {
+  var deletedFolders = 0;
+  var yearFolders = rootFolder.getFolders();
+
+  while (yearFolders.hasNext()) {
+    var yearFolder = yearFolders.next();
+    var monthFolders = yearFolder.getFolders();
+
+    while (monthFolders.hasNext()) {
+      var monthFolder = monthFolders.next();
+      if (!folderHasAnyFileOrFolder_(monthFolder)) {
+        monthFolder.setTrashed(true);
+        deletedFolders++;
+      }
+    }
+
+    if (!folderHasAnyFileOrFolder_(yearFolder)) {
+      yearFolder.setTrashed(true);
+      deletedFolders++;
+    }
+  }
+
+  return deletedFolders;
+}
+
+function folderHasAnyFileOrFolder_(folder) {
+  return folder.getFiles().hasNext() || folder.getFolders().hasNext();
+}
+
 /* ========== Helpers ========== */
 
 function getOrCreateLabel_(name) {
@@ -1059,10 +1230,10 @@ function isTruthyProp_(value) {
 
 // Chạy tay 1 lần để cấp quyền + tạo trigger 15 phút.
 function setup() {
-  // Xoá trigger cũ (cả tên hàm cũ syncAnthropicReceipts lẫn tên mới).
+  // Xoá trigger cũ để tránh tạo trùng lịch chạy.
   ScriptApp.getProjectTriggers().forEach(function (t) {
     var fn = t.getHandlerFunction();
-    if (fn === 'syncReceipts' || fn === 'syncAnthropicReceipts') {
+    if (fn === 'syncReceipts' || fn === 'syncAnthropicReceipts' || fn === 'cleanupOldDriveEvidence') {
       ScriptApp.deleteTrigger(t);
     }
   });
@@ -1072,8 +1243,15 @@ function setup() {
     .everyMinutes(15)
     .create();
 
+  ScriptApp.newTrigger('cleanupOldDriveEvidence')
+    .timeBased()
+    .onWeekDay(ScriptApp.WeekDay.SUNDAY)
+    .atHour(23)
+    .everyWeeks(1)
+    .create();
+
   getOrCreateLabel_(LABEL_NAME);
-  Logger.log('Đã tạo trigger 15 phút + label %s', LABEL_NAME);
+  Logger.log('Đã tạo trigger 15 phút, cleanup Drive tối Chủ nhật + label %s', LABEL_NAME);
 }
 
 // Chạy thử 1 lần bằng tay, xem log ở Executions.

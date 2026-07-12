@@ -270,11 +270,8 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
     if (isPrivateGcs) return { url, type: 'blocked' as const };
 
     const driveMatch = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([^/?#\s]+)/) || url.match(/[?&]id=([^/?#&\s]+)/);
-    // Google Drive blocks iframe embedding via CSP (frame-ancestors). Use the
-    // thumbnail image endpoint which loads as a normal <img>, plus keep the
-    // original link so the user can open the full file in a new tab.
     if (driveMatch) return {
-      url: `https://drive.google.com/uc?export=view&id=${driveMatch[1]}`,
+      url: `https://drive.google.com/file/d/${driveMatch[1]}/preview`,
       imgUrl: `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`,
       openUrl: `https://drive.google.com/file/d/${driveMatch[1]}/view`,
       type: 'drive' as const,
@@ -1110,11 +1107,15 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
                     <img src={embed.url} alt="Evidence" className="max-w-full max-h-[60vh] object-contain rounded-xl shadow-lg border border-[#e4e2e3] bg-white" />
                   ) : embed.type === 'drive' ? (
                     <div className="flex flex-col items-center gap-3 w-full">
+                      <iframe
+                        src={embed.url}
+                        className="w-full h-[60vh] border-none rounded-xl bg-white shadow-lg"
+                        title="Drive Evidence Preview"
+                      />
                       <img
                         src={embed.imgUrl}
-                        alt="Drive Evidence"
-                        className="max-w-full max-h-[55vh] object-contain rounded-xl shadow-lg border border-[#e4e2e3] bg-white"
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        alt="Drive Evidence Thumbnail"
+                        className="hidden max-w-full max-h-[28vh] object-contain rounded-xl shadow-lg border border-[#e4e2e3] bg-white"
                       />
                       <a href={embed.openUrl} target="_blank" rel="noopener noreferrer"
                         className="px-5 py-2 bg-[#003580] hover:bg-brand-700 text-white text-xs font-bold rounded-xl inline-flex items-center gap-2 shadow-sm transition-all">
