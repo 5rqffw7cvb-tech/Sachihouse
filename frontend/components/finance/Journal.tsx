@@ -276,11 +276,19 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
       openUrl: `https://drive.google.com/file/d/${driveMatch[1]}/view`,
       type: 'drive' as const,
     };
+    if (/\.pdf(\?|#|$)/i.test(url)) return { url, type: 'pdf' as const };
     if (url.startsWith('data:image/')) return { url, type: 'image' as const };
     // Allow query string / fragment after the extension (e.g. GCS signed URLs ending in ?X-Goog-...)
     if (/\.(jpeg|jpg|gif|png|webp|bmp|svg|avif)(\?|#|$)/i.test(url)) return { url, type: 'image' as const };
-    // GCS signed URLs are always images uploaded by our pipeline
-    if (/storage\.googleapis\.com\//i.test(url) || /\.storage\.googleapis\.com\//i.test(url)) return { url, type: 'image' as const };
+    if (/storage\.googleapis\.com\//i.test(url) || /\.storage\.googleapis\.com\//i.test(url)) {
+      try {
+        const parsed = new URL(url);
+        if (/\.pdf$/i.test(parsed.pathname)) return { url, type: 'pdf' as const };
+        if (/\.(jpeg|jpg|gif|png|webp|bmp|svg|avif)$/i.test(parsed.pathname)) return { url, type: 'image' as const };
+      } catch {
+        return { url, type: 'other' as const };
+      }
+    }
     return { url, type: 'other' as const };
   };
 
@@ -1105,6 +1113,8 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
                 {embed ? (
                   embed.type === 'image' ? (
                     <img src={embed.url} alt="Evidence" className="max-w-full max-h-[60vh] object-contain rounded-xl shadow-lg border border-[#e4e2e3] bg-white" />
+                  ) : embed.type === 'pdf' ? (
+                    <iframe src={embed.url} className="w-full h-[60vh] border-none rounded-xl bg-white shadow-lg" title="Evidence PDF Preview" />
                   ) : embed.type === 'drive' ? (
                     <div className="flex flex-col items-center gap-3 w-full">
                       <iframe
