@@ -574,126 +574,142 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
           )}
         </div>
 
-        <div className="mb-10 hidden w-full flex-wrap items-center justify-start gap-3 md:flex">
-            <div className="w-full sm:w-[200px]">
-              <label htmlFor="desktop-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_country')}</label>
-              <select
-                id="desktop-listing-country"
-                value={draftCountryCode}
-                onChange={(event) => {
-                  setDraftCountryCode(event.target.value.toUpperCase());
-                  setDraftProvinceCode('');
-                }}
-                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-              >
-                <option value="">{t('listing_all_countries')}</option>
-                {countryOptions.map((country) => (
-                  <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>
-                ))}
-              </select>
+        <div className="mb-10 hidden md:block">
+          <div className="rounded-2xl border border-[#e3e5e9] bg-white p-5 shadow-[0_1px_3px_rgba(4,22,39,0.06)]">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-[0.1em] text-[#63768a]">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                </svg>
+                {t('listing_filters')}
+              </div>
+              {isHost && (
+                <div className="inline-flex items-center gap-1 rounded-lg bg-[#f5f3f4] p-1">
+                  <button
+                    onClick={() => handleScopeChange('all')}
+                    className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${activeScope === 'all' ? 'bg-[#041627] text-white shadow-sm' : 'text-[#44474c] hover:text-[#1b1c1d]'}`}
+                  >
+                    {t('listing_scope_all')}
+                  </button>
+                  <button
+                    onClick={() => handleScopeChange('mine')}
+                    className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${activeScope === 'mine' ? 'bg-[#041627] text-white shadow-sm' : 'text-[#44474c] hover:text-[#1b1c1d]'}`}
+                  >
+                    {t('listing_my_properties')}
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="w-full sm:w-[200px]">
-              <label htmlFor="desktop-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_province')}</label>
-              <select
-                id="desktop-listing-province"
-                value={draftProvinceCode}
-                disabled={!draftCountryCode}
-                onChange={(event) => {
-                  setDraftProvinceCode(event.target.value.toUpperCase());
-                }}
-                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] disabled:bg-[#f5f3f4] disabled:text-[#8a8d92]"
-              >
-                <option value="">{t('listing_all_provinces')}</option>
-                {draftProvinceOptions.map((province) => (
-                  <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
-                ))}
-              </select>
-            </div>
-            <div className="w-[140px]">
-              <label htmlFor="desktop-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_bedrooms')}</label>
-              <select
-                id="desktop-listing-bedrooms"
-                value={draftMinBedrooms}
-                onChange={(event) => setDraftMinBedrooms(event.target.value)}
-                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-              >
-                <option value="">{t('listing_any')}</option>
-                {bedroomOptions.map((value) => (
-                  <option key={value} value={value}>{value}+</option>
-                ))}
-              </select>
-            </div>
-            <div className="w-[140px]">
-              <label htmlFor="desktop-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_guests')}</label>
-              <select
-                id="desktop-listing-guests"
-                value={draftMinGuests}
-                onChange={(event) => setDraftMinGuests(event.target.value)}
-                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-              >
-                <option value="">{t('listing_any')}</option>
-                {guestOptions.map((value) => (
-                  <option key={value} value={value}>{value}+</option>
-                ))}
-              </select>
-            </div>
-            <div className="w-[160px]">
-              <label htmlFor="desktop-listing-checkin" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_checkin')}</label>
-              <input
-                id="desktop-listing-checkin"
-                type="date"
-                value={draftCheckIn}
-                min={todayYmd}
-                onChange={(event) => {
-                  setDraftCheckIn(event.target.value);
-                  if (draftCheckOut && event.target.value && draftCheckOut <= event.target.value) {
-                    setDraftCheckOut('');
-                  }
-                }}
-                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-              />
-            </div>
-            <div className="w-[160px]">
-              <label htmlFor="desktop-listing-checkout" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_checkout')}</label>
-              <input
-                id="desktop-listing-checkout"
-                type="date"
-                value={draftCheckOut}
-                min={draftCheckIn || todayYmd}
-                onChange={(event) => setDraftCheckOut(event.target.value)}
-                className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={applyDraftFilters}
-              className="mt-5 rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
-            >
-              {t('listing_apply_filter')}
-            </button>
-            <button
-              type="button"
-              onClick={clearAllFilters}
-              className="mt-5 rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
-            >
-              {t('listing_clear_filter')}
-            </button>
-            {isHost && (
-              <div className="hidden md:flex items-center gap-2 rounded-lg border border-[#c4c6cd] bg-white p-1">
-                <button
-                  onClick={() => handleScopeChange('all')}
-                  className={`px-3 py-1.5 rounded-md text-[13px] font-semibold transition-colors ${activeScope === 'all' ? 'bg-[#041627] text-white' : 'text-[#44474c] hover:bg-[#efedef]'}`}
+
+            <div className="flex flex-wrap items-end gap-x-3 gap-y-4">
+              <div className="min-w-[170px] flex-1">
+                <label htmlFor="desktop-listing-country" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#63768a]">{t('listing_country')}</label>
+                <select
+                  id="desktop-listing-country"
+                  value={draftCountryCode}
+                  onChange={(event) => {
+                    setDraftCountryCode(event.target.value.toUpperCase());
+                    setDraftProvinceCode('');
+                  }}
+                  className="h-11 w-full rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
                 >
-                  {t('listing_scope_all')}
+                  <option value="">{t('listing_all_countries')}</option>
+                  {countryOptions.map((country) => (
+                    <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-[170px] flex-1">
+                <label htmlFor="desktop-listing-province" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#63768a]">{t('listing_province')}</label>
+                <select
+                  id="desktop-listing-province"
+                  value={draftProvinceCode}
+                  disabled={!draftCountryCode}
+                  onChange={(event) => {
+                    setDraftProvinceCode(event.target.value.toUpperCase());
+                  }}
+                  className="h-11 w-full rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] disabled:cursor-not-allowed disabled:border-[#e3e5e9] disabled:bg-[#f5f3f4] disabled:text-[#8a8d92] disabled:hover:border-[#e3e5e9]"
+                >
+                  <option value="">{t('listing_all_provinces')}</option>
+                  {draftProvinceOptions.map((province) => (
+                    <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="w-[110px]">
+                <label htmlFor="desktop-listing-bedrooms" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#63768a]">{t('listing_bedrooms')}</label>
+                <select
+                  id="desktop-listing-bedrooms"
+                  value={draftMinBedrooms}
+                  onChange={(event) => setDraftMinBedrooms(event.target.value)}
+                  className="h-11 w-full rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                >
+                  <option value="">{t('listing_any')}</option>
+                  {bedroomOptions.map((value) => (
+                    <option key={value} value={value}>{value}+</option>
+                  ))}
+                </select>
+              </div>
+              <div className="w-[110px]">
+                <label htmlFor="desktop-listing-guests" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#63768a]">{t('listing_guests')}</label>
+                <select
+                  id="desktop-listing-guests"
+                  value={draftMinGuests}
+                  onChange={(event) => setDraftMinGuests(event.target.value)}
+                  className="h-11 w-full rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                >
+                  <option value="">{t('listing_any')}</option>
+                  {guestOptions.map((value) => (
+                    <option key={value} value={value}>{value}+</option>
+                  ))}
+                </select>
+              </div>
+              <div className="w-[150px]">
+                <label htmlFor="desktop-listing-checkin" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#63768a]">{t('listing_checkin')}</label>
+                <input
+                  id="desktop-listing-checkin"
+                  type="date"
+                  value={draftCheckIn}
+                  min={todayYmd}
+                  onChange={(event) => {
+                    setDraftCheckIn(event.target.value);
+                    if (draftCheckOut && event.target.value && draftCheckOut <= event.target.value) {
+                      setDraftCheckOut('');
+                    }
+                  }}
+                  className="h-11 w-full rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                />
+              </div>
+              <div className="w-[150px]">
+                <label htmlFor="desktop-listing-checkout" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#63768a]">{t('listing_checkout')}</label>
+                <input
+                  id="desktop-listing-checkout"
+                  type="date"
+                  value={draftCheckOut}
+                  min={draftCheckIn || todayYmd}
+                  onChange={(event) => setDraftCheckOut(event.target.value)}
+                  className="h-11 w-full rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+                />
+              </div>
+
+              <div className="ml-auto flex items-center gap-2 self-end">
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="h-11 rounded-lg px-3 text-[13px] font-semibold text-[#63768a] transition-colors hover:bg-[#f5f3f4] hover:text-[#1b1c1d]"
+                >
+                  {t('listing_clear_filter')}
                 </button>
                 <button
-                  onClick={() => handleScopeChange('mine')}
-                  className={`px-3 py-1.5 rounded-md text-[13px] font-semibold transition-colors ${activeScope === 'mine' ? 'bg-[#041627] text-white' : 'text-[#44474c] hover:bg-[#efedef]'}`}
+                  type="button"
+                  onClick={applyDraftFilters}
+                  className="h-11 rounded-lg bg-[#041627] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
                 >
-                  {t('listing_my_properties')}
+                  {t('listing_apply_filter')}
                 </button>
               </div>
-            )}
+            </div>
+          </div>
         </div>
 
         {isHost && activeScope === 'mine' && (
