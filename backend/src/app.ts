@@ -10,6 +10,7 @@ import { signCheckInToken, verifyCheckInToken, verifyToken, signToken } from './
 import {
   AuthUser,
   BlogPost,
+  BookingConfirmationPatch,
   CheckInGuest,
   CheckInListFilters,
   CheckInSubmission,
@@ -1988,6 +1989,186 @@ export function createApp(store: DataStore) {
     }
 
     return res.status(201).json({ imported, errors: importErrors });
+  });
+
+  // ── Booking confirmation API ────────────────────────────────────────────────
+  // Hosts generate a PDF booking confirmation for direct (off-platform) bookings
+  // and the record is stored for the direct-booking revenue report. Access is any
+  // HOST (assigned to the property) or ADMIN — no host-level gate.
+
+  function toWholeAmount(value: unknown): number | null {
+    const parsed = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return null;
+    }
+    return Math.round(parsed);
+  }
+
+  function isHmTime(value: unknown): value is string {
+    return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+  }
+
+  app.post('/api/properties/:id/booking-confirmations', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const propertyId = getParam(req.params.id);
+    const property = await store.getProperty(propertyId);
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (!canPerformAction(actor, 'property.read', property.id)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+
+    const body = req.body ?? {};
+    const guestName = normalizeText(body.guestName);
+    if (!guestName) {
+      return res.status(400).json({ error: 'guestName is required.' });
+    }
+
+    const checkInDate = normalizeText(body.checkInDate);
+    const checkOutDate = normalizeText(body.checkOutDate);
+    if (!isIsoDate(checkInDate) || !isIsoDate(checkOutDate)) {
+      return res.status(400).json({ error: 'checkInDate/checkOutDate must be YYYY-MM-DD.' });
+    }
+    if (checkInDate >= checkOutDate) {
+      return res.status(400).json({ error: 'checkOutDate must be after checkInDate.' });
+    }
+
+    const checkInTime = isHmTime(body.checkInTime) ? body.checkInTime : '15:00';
+    const checkOutTime = isHmTime(body.checkOutTime) ? body.checkOutTime : '10:00';
+
+    const numGuests = toNonNegativeInt(typeof body.numGuests === 'string' ? Number(body.numGuests) : body.numGuests);
+    if (numGuests === null || numGuests < 1) {
+      return res.status(400).json({ error: 'numGuests must be a positive integer.' });
+    }
+
+    const roomFee = toWholeAmount(body.roomFee);
+    const cleaningFee = toWholeAmount(body.cleaningFee);
+    const extraFee = toWholeAmount(body.extraFee ?? 0);
+    const totalAmount = toWholeAmount(body.totalAmount);
+    const depositAmount = toWholeAmount(body.depositAmount ?? 0);
+    const balanceDue = toWholeAmount(body.balanceDue);
+    if ([roomFee, cleaningFee, extraFee, totalAmount, depositAmount, balanceDue].some((value) => value === null)) {
+      return res.status(400).json({ error: 'Amount fields must be non-negative numbers.' });
+    }
+
+    const confirmation = await store.createBookingConfirmation({
+      propertyId: property.id,
+      propertyName: normalizeText(body.propertyName) || property.name,
+      propertyAddress: normalizeText(body.propertyAddress) || property.address,
+      propertyUrl: normalizeText(body.propertyUrl),
+      guestName,
+      guestEmail: normalizeText(body.guestEmail) || undefined,
+      guestPhone: normalizeText(body.guestPhone) || undefined,
+      numGuests,
+      checkInDate,
+      checkOutDate,
+      checkInTime,
+      checkOutTime,
+      currency: normalizeText(body.currency) || 'JPY',
+      roomFee: roomFee!,
+      cleaningFee: cleaningFee!,
+      extraFeeLabel: normalizeText(body.extraFeeLabel) || undefined,
+      extraFee: extraFee!,
+      totalAmount: totalAmount!,
+      depositAmount: depositAmount!,
+      balanceDue: balanceDue!,
+      notes: normalizeText(body.notes) || undefined,
+      includeInAccounting: body.includeInAccounting === true,
+      createdByUserId: actor.id,
+      createdByName: actor.name,
+    });
+
+    return res.status(201).json({ confirmation });
+  });
+
+  app.get('/api/booking-confirmations', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const propertyIdRaw = req.query.propertyId;
+    const fromDateRaw = req.query.fromDate;
+    const toDateRaw = req.query.toDate;
+    const guestNameRaw = req.query.guestName;
+
+    if ([propertyIdRaw, fromDateRaw, toDateRaw, guestNameRaw].some(Array.isArray)) {
+      return res.status(400).json({ error: 'Filter query parameters must be singular values.' });
+    }
+
+    const fromDate = typeof fromDateRaw === 'string' ? fromDateRaw : undefined;
+    const toDate = typeof toDateRaw === 'string' ? toDateRaw : undefined;
+    if (fromDate && !isIsoDate(fromDate)) {
+      return res.status(400).json({ error: 'fromDate must be YYYY-MM-DD.' });
+    }
+    if (toDate && !isIsoDate(toDate)) {
+      return res.status(400).json({ error: 'toDate must be YYYY-MM-DD.' });
+    }
+
+    const rows = await store.listBookingConfirmations({
+      propertyId: typeof propertyIdRaw === 'string' ? propertyIdRaw : undefined,
+      fromDate,
+      toDate,
+      guestName: typeof guestNameRaw === 'string' ? guestNameRaw : undefined,
+    });
+    const visible = rows.filter((row) => canPerformAction(actor, 'property.read', row.propertyId));
+    return res.json({ confirmations: visible });
+  });
+
+  app.get('/api/booking-confirmations/:id', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const confirmation = await store.getBookingConfirmation(getParam(req.params.id));
+    if (!confirmation) {
+      return res.status(404).json({ error: 'Booking confirmation not found.' });
+    }
+    if (!canPerformAction(actor, 'property.read', confirmation.propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+    return res.json({ confirmation });
+  });
+
+  app.patch('/api/booking-confirmations/:id', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const confirmation = await store.getBookingConfirmation(getParam(req.params.id));
+    if (!confirmation) {
+      return res.status(404).json({ error: 'Booking confirmation not found.' });
+    }
+    if (!canPerformAction(actor, 'property.read', confirmation.propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+
+    const body = req.body ?? {};
+    const patch: BookingConfirmationPatch = {};
+
+    if (body.includeInAccounting !== undefined) {
+      if (typeof body.includeInAccounting !== 'boolean') {
+        return res.status(400).json({ error: 'includeInAccounting must be a boolean.' });
+      }
+      patch.includeInAccounting = body.includeInAccounting;
+    }
+    if (body.notes !== undefined) {
+      patch.notes = normalizeText(body.notes) || undefined;
+    }
+
+    const updated = await store.updateBookingConfirmation(confirmation.id, patch);
+    if (!updated) {
+      return res.status(404).json({ error: 'Booking confirmation not found.' });
+    }
+    return res.json({ confirmation: updated });
+  });
+
+  app.delete('/api/booking-confirmations/:id', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const confirmation = await store.getBookingConfirmation(getParam(req.params.id));
+    if (!confirmation) {
+      return res.status(404).json({ error: 'Booking confirmation not found.' });
+    }
+    if (!canPerformAction(actor, 'property.delete', confirmation.propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+
+    const deleted = await store.deleteBookingConfirmation(confirmation.id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Booking confirmation not found.' });
+    }
+    return res.status(204).send();
   });
 
   // ── Finance API ─────────────────────────────────────────────────────────────

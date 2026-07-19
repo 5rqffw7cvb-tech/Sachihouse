@@ -175,6 +175,110 @@ export interface CheckInListFilters {
   nationality?: string;
 }
 
+// A host-generated booking confirmation for a direct (off-platform) booking.
+// Amounts are whole-currency units (JPY has no minor unit). The property's
+// name/address/public URL are snapshotted at creation time so the stored record
+// (and any regenerated PDF) stays stable even if the property is later edited.
+export interface BookingConfirmation {
+  id: string;
+  confirmationNo: string;   // human-readable, e.g. BC-20260719-AB12
+  propertyId: string;
+  propertyName: string;
+  propertyAddress: string;
+  propertyUrl: string;      // public listing URL captured at creation
+  guestName: string;
+  guestEmail?: string;
+  guestPhone?: string;
+  numGuests: number;
+  checkInDate: string;      // YYYY-MM-DD
+  checkOutDate: string;     // YYYY-MM-DD
+  checkInTime: string;      // HH:mm (default 15:00)
+  checkOutTime: string;     // HH:mm (default 10:00)
+  currency: string;         // e.g. JPY
+  roomFee: number;
+  cleaningFee: number;
+  extraFeeLabel?: string;
+  extraFee: number;
+  totalAmount: number;
+  depositAmount: number;
+  balanceDue: number;
+  notes?: string;
+  // When true the host has opted this direct-booking revenue into accounting.
+  // Currently informational only — it is NOT auto-posted to the double-entry
+  // journal, but it drives the direct-booking revenue report.
+  includeInAccounting: boolean;
+  createdByUserId: number;
+  createdByName: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Builds a human-readable confirmation number like BC-20260719-A1B2 from a
+// timestamp plus a short random suffix (collisions are effectively impossible
+// at this volume and the id column, not this string, is the real key).
+export function generateConfirmationNo(timestamp: number): string {
+  const date = new Date(timestamp);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `BC-${y}${m}${d}-${suffix}`;
+}
+
+export interface BookingConfirmationInput {
+  propertyId: string;
+  propertyName: string;
+  propertyAddress: string;
+  propertyUrl: string;
+  guestName: string;
+  guestEmail?: string;
+  guestPhone?: string;
+  numGuests: number;
+  checkInDate: string;
+  checkOutDate: string;
+  checkInTime: string;
+  checkOutTime: string;
+  currency: string;
+  roomFee: number;
+  cleaningFee: number;
+  extraFeeLabel?: string;
+  extraFee: number;
+  totalAmount: number;
+  depositAmount: number;
+  balanceDue: number;
+  notes?: string;
+  includeInAccounting: boolean;
+  createdByUserId: number;
+  createdByName: string;
+}
+
+export interface BookingConfirmationListFilters {
+  propertyId?: string;
+  fromDate?: string;   // filters on checkInDate >= fromDate
+  toDate?: string;     // filters on checkInDate <= toDate
+  guestName?: string;
+}
+
+export interface BookingConfirmationPatch {
+  guestName?: string;
+  guestEmail?: string;
+  guestPhone?: string;
+  numGuests?: number;
+  checkInDate?: string;
+  checkOutDate?: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  roomFee?: number;
+  cleaningFee?: number;
+  extraFeeLabel?: string;
+  extraFee?: number;
+  totalAmount?: number;
+  depositAmount?: number;
+  balanceDue?: number;
+  notes?: string;
+  includeInAccounting?: boolean;
+}
+
 export interface PropertyData {
   id?: string;
   metalink?: string;
@@ -381,6 +485,11 @@ export interface DataStore {
   ): Promise<CheckInSubmission | null>;
   deleteCheckInSubmission(id: string): Promise<boolean>;
   deleteExpiredCheckInSubmissions(olderThanTimestamp: number): Promise<CheckInSubmission[]>;
+  createBookingConfirmation(input: BookingConfirmationInput): Promise<BookingConfirmation>;
+  listBookingConfirmations(filters?: BookingConfirmationListFilters): Promise<BookingConfirmation[]>;
+  getBookingConfirmation(id: string): Promise<BookingConfirmation | null>;
+  updateBookingConfirmation(id: string, patch: BookingConfirmationPatch): Promise<BookingConfirmation | null>;
+  deleteBookingConfirmation(id: string): Promise<boolean>;
   listFinancialTransactions(propertyIds: string[], year?: number): Promise<FinancialTransaction[]>;
   createFinancialTransaction(input: FinancialTransactionInput, actor: AuthUser): Promise<FinancialTransaction>;
   updateFinancialTransaction(id: string, input: Partial<FinancialTransactionInput>, actor: AuthUser): Promise<FinancialTransaction>;

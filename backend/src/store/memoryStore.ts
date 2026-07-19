@@ -3,6 +3,11 @@ import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSe
 import {
   AuthUser,
   BlogPost,
+  BookingConfirmation,
+  BookingConfirmationInput,
+  BookingConfirmationListFilters,
+  BookingConfirmationPatch,
+  generateConfirmationNo,
   CheckInGuest,
   CheckInListFilters,
   CheckInSubmission,
@@ -30,6 +35,7 @@ interface MemoryState {
   blogPosts: BlogPost[];
   blockedDates: Record<string, string[]>;
   checkIns: CheckInSubmission[];
+  bookingConfirmations: BookingConfirmation[];
   financialTransactions: FinancialTransaction[];
   pendingTransactions: PendingTransaction[];
   subscriptionRequests: SubscriptionRequest[];
@@ -51,6 +57,7 @@ export class MemoryStore implements DataStore {
       blogPosts: structuredClone(blogPostsSeed),
       blockedDates: structuredClone(blockedDatesSeed),
       checkIns: [],
+      bookingConfirmations: [],
       financialTransactions: [],
       pendingTransactions: [],
       subscriptionRequests: [],
@@ -327,6 +334,13 @@ export class MemoryStore implements DataStore {
       return { ...submission, propertyId: targetId };
     });
 
+    state.bookingConfirmations = state.bookingConfirmations.map((confirmation) => {
+      if (confirmation.propertyId !== oldId) {
+        return confirmation;
+      }
+      return { ...confirmation, propertyId: targetId };
+    });
+
     return structuredClone(next);
   }
 
@@ -600,6 +614,98 @@ export class MemoryStore implements DataStore {
 
     state.checkIns = state.checkIns.filter((submission) => submission.createdAt >= olderThanTimestamp);
     return structuredClone(expired);
+  }
+
+  async createBookingConfirmation(input: BookingConfirmationInput): Promise<BookingConfirmation> {
+    const state = this.assertState();
+    const now = Date.now();
+    const confirmation: BookingConfirmation = {
+      id: `bc_${Math.random().toString(36).slice(2, 10)}`,
+      confirmationNo: generateConfirmationNo(now),
+      propertyId: input.propertyId,
+      propertyName: input.propertyName,
+      propertyAddress: input.propertyAddress,
+      propertyUrl: input.propertyUrl,
+      guestName: input.guestName,
+      guestEmail: input.guestEmail,
+      guestPhone: input.guestPhone,
+      numGuests: input.numGuests,
+      checkInDate: input.checkInDate,
+      checkOutDate: input.checkOutDate,
+      checkInTime: input.checkInTime,
+      checkOutTime: input.checkOutTime,
+      currency: input.currency,
+      roomFee: input.roomFee,
+      cleaningFee: input.cleaningFee,
+      extraFeeLabel: input.extraFeeLabel,
+      extraFee: input.extraFee,
+      totalAmount: input.totalAmount,
+      depositAmount: input.depositAmount,
+      balanceDue: input.balanceDue,
+      notes: input.notes,
+      includeInAccounting: input.includeInAccounting,
+      createdByUserId: input.createdByUserId,
+      createdByName: input.createdByName,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.bookingConfirmations.unshift(confirmation);
+    return structuredClone(confirmation);
+  }
+
+  async listBookingConfirmations(filters?: BookingConfirmationListFilters): Promise<BookingConfirmation[]> {
+    const state = this.assertState();
+    const guestNameNeedle = filters?.guestName?.trim().toLowerCase() ?? '';
+
+    const rows = state.bookingConfirmations.filter((row) => {
+      if (filters?.propertyId && row.propertyId !== filters.propertyId) {
+        return false;
+      }
+      if (filters?.fromDate && row.checkInDate < filters.fromDate) {
+        return false;
+      }
+      if (filters?.toDate && row.checkInDate > filters.toDate) {
+        return false;
+      }
+      if (guestNameNeedle && !row.guestName.toLowerCase().includes(guestNameNeedle)) {
+        return false;
+      }
+      return true;
+    });
+
+    return structuredClone(rows).sort((left, right) => right.createdAt - left.createdAt);
+  }
+
+  async getBookingConfirmation(id: string): Promise<BookingConfirmation | null> {
+    const row = this.assertState().bookingConfirmations.find((item) => item.id === id);
+    return row ? structuredClone(row) : null;
+  }
+
+  async updateBookingConfirmation(id: string, patch: BookingConfirmationPatch): Promise<BookingConfirmation | null> {
+    const state = this.assertState();
+    const index = state.bookingConfirmations.findIndex((item) => item.id === id);
+    if (index < 0) {
+      return null;
+    }
+    const current = state.bookingConfirmations[index];
+    const next: BookingConfirmation = {
+      ...current,
+      ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
+      id: current.id,
+      updatedAt: Date.now(),
+    };
+    state.bookingConfirmations[index] = next;
+    return structuredClone(next);
+  }
+
+  async deleteBookingConfirmation(id: string): Promise<boolean> {
+    const state = this.assertState();
+    const index = state.bookingConfirmations.findIndex((item) => item.id === id);
+    if (index < 0) {
+      return false;
+    }
+    state.bookingConfirmations.splice(index, 1);
+    return true;
   }
 
   async listFinancialTransactions(propertyIds: string[], year?: number): Promise<FinancialTransaction[]> {

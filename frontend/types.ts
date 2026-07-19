@@ -231,6 +231,37 @@ export interface PropertyData {
   titles: PropertyTitles;
 }
 
+export interface BookingConfirmation {
+  id: string;
+  confirmationNo: string;
+  propertyId: string;
+  propertyName: string;
+  propertyAddress: string;
+  propertyUrl: string;
+  guestName: string;
+  guestEmail?: string;
+  guestPhone?: string;
+  numGuests: number;
+  checkInDate: string;
+  checkOutDate: string;
+  checkInTime: string;
+  checkOutTime: string;
+  currency: string;
+  roomFee: number;
+  cleaningFee: number;
+  extraFeeLabel?: string;
+  extraFee: number;
+  totalAmount: number;
+  depositAmount: number;
+  balanceDue: number;
+  notes?: string;
+  includeInAccounting: boolean;
+  createdByUserId: number;
+  createdByName: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type IdDocumentType = 'passport' | 'driver_license' | 'residence_card' | 'national_id' | 'unknown';
 
 export interface CheckInGuestEstimatedFlags {

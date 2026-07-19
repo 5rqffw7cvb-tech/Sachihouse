@@ -3,6 +3,11 @@ import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSe
 import {
   AuthUser,
   BlogPost,
+  BookingConfirmation,
+  BookingConfirmationInput,
+  BookingConfirmationListFilters,
+  BookingConfirmationPatch,
+  generateConfirmationNo,
   CheckInGuest,
   CheckInListFilters,
   CheckInSubmission,
@@ -108,6 +113,22 @@ export class PostgresStore implements DataStore {
 
       CREATE INDEX IF NOT EXISTS idx_checkin_submissions_created_at
       ON checkin_submissions(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS booking_confirmations (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        check_in_date DATE NOT NULL,
+        check_out_date DATE NOT NULL,
+        data JSONB NOT NULL,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_booking_confirmations_property_date
+      ON booking_confirmations(property_id, check_in_date, created_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_booking_confirmations_created_at
+      ON booking_confirmations(created_at DESC);
 
       CREATE TABLE IF NOT EXISTS financial_transactions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -556,6 +577,15 @@ export class PostgresStore implements DataStore {
         `,
         [current.id, targetId],
       );
+      await client.query(
+        `
+          UPDATE booking_confirmations
+          SET property_id = $2,
+              data = jsonb_set(data, '{propertyId}', to_jsonb($2::text), true)
+          WHERE property_id = $1
+        `,
+        [current.id, targetId],
+      );
 
       await client.query('DELETE FROM properties WHERE id = $1', [current.id]);
 
@@ -913,6 +943,137 @@ export class PostgresStore implements DataStore {
     );
 
     return result.rows.map((row) => row.data);
+  }
+
+  private hydrateBookingConfirmation(row: {
+    data: BookingConfirmation;
+    property_id: string;
+    check_in_date: string;
+    check_out_date: string;
+  }): BookingConfirmation {
+    return {
+      ...row.data,
+      propertyId: row.property_id,
+      checkInDate: row.check_in_date,
+      checkOutDate: row.check_out_date,
+    };
+  }
+
+  async createBookingConfirmation(input: BookingConfirmationInput): Promise<BookingConfirmation> {
+    const now = Date.now();
+    const row: BookingConfirmation = {
+      id: `bc_${Math.random().toString(36).slice(2, 10)}`,
+      confirmationNo: generateConfirmationNo(now),
+      propertyId: input.propertyId,
+      propertyName: input.propertyName,
+      propertyAddress: input.propertyAddress,
+      propertyUrl: input.propertyUrl,
+      guestName: input.guestName,
+      guestEmail: input.guestEmail,
+      guestPhone: input.guestPhone,
+      numGuests: input.numGuests,
+      checkInDate: input.checkInDate,
+      checkOutDate: input.checkOutDate,
+      checkInTime: input.checkInTime,
+      checkOutTime: input.checkOutTime,
+      currency: input.currency,
+      roomFee: input.roomFee,
+      cleaningFee: input.cleaningFee,
+      extraFeeLabel: input.extraFeeLabel,
+      extraFee: input.extraFee,
+      totalAmount: input.totalAmount,
+      depositAmount: input.depositAmount,
+      balanceDue: input.balanceDue,
+      notes: input.notes,
+      includeInAccounting: input.includeInAccounting,
+      createdByUserId: input.createdByUserId,
+      createdByName: input.createdByName,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.pool.query(
+      'INSERT INTO booking_confirmations (id, property_id, check_in_date, check_out_date, data, created_at, updated_at) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)',
+      [row.id, row.propertyId, row.checkInDate, row.checkOutDate, JSON.stringify(row), row.createdAt, row.updatedAt],
+    );
+
+    return structuredClone(row);
+  }
+
+  async listBookingConfirmations(filters?: BookingConfirmationListFilters): Promise<BookingConfirmation[]> {
+    const clauses: string[] = [];
+    const values: unknown[] = [];
+
+    if (filters?.propertyId) {
+      values.push(filters.propertyId);
+      clauses.push(`property_id = $${values.length}`);
+    }
+    if (filters?.fromDate) {
+      values.push(filters.fromDate);
+      clauses.push(`check_in_date >= $${values.length}`);
+    }
+    if (filters?.toDate) {
+      values.push(filters.toDate);
+      clauses.push(`check_in_date <= $${values.length}`);
+    }
+
+    const query = `
+      SELECT data, property_id, check_in_date::text, check_out_date::text
+      FROM booking_confirmations
+      ${clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''}
+      ORDER BY created_at DESC
+    `;
+
+    const result = await this.pool.query<{
+      data: BookingConfirmation;
+      property_id: string;
+      check_in_date: string;
+      check_out_date: string;
+    }>(query, values);
+
+    const guestNameNeedle = filters?.guestName?.trim().toLowerCase() ?? '';
+    return result.rows
+      .map((row) => this.hydrateBookingConfirmation(row))
+      .filter((row) => (guestNameNeedle ? row.guestName.toLowerCase().includes(guestNameNeedle) : true));
+  }
+
+  async getBookingConfirmation(id: string): Promise<BookingConfirmation | null> {
+    const result = await this.pool.query<{
+      data: BookingConfirmation;
+      property_id: string;
+      check_in_date: string;
+      check_out_date: string;
+    }>(
+      'SELECT data, property_id, check_in_date::text, check_out_date::text FROM booking_confirmations WHERE id = $1 LIMIT 1',
+      [id],
+    );
+    return result.rows[0] ? this.hydrateBookingConfirmation(result.rows[0]) : null;
+  }
+
+  async updateBookingConfirmation(id: string, patch: BookingConfirmationPatch): Promise<BookingConfirmation | null> {
+    const current = await this.getBookingConfirmation(id);
+    if (!current) {
+      return null;
+    }
+
+    const next: BookingConfirmation = {
+      ...current,
+      ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
+      id: current.id,
+      updatedAt: Date.now(),
+    };
+
+    await this.pool.query(
+      'UPDATE booking_confirmations SET check_in_date = $2, check_out_date = $3, data = $4::jsonb, updated_at = $5 WHERE id = $1',
+      [id, next.checkInDate, next.checkOutDate, JSON.stringify(next), next.updatedAt],
+    );
+
+    return structuredClone(next);
+  }
+
+  async deleteBookingConfirmation(id: string): Promise<boolean> {
+    const result = await this.pool.query('DELETE FROM booking_confirmations WHERE id = $1', [id]);
+    return (result.rowCount ?? 0) > 0;
   }
 
   private async writeAudit(actorUserId: number, action: string, targetType: string, targetId: string): Promise<void> {
