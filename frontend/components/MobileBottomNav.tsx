@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Mail, User, Settings, LogOut, Receipt, Building2, ClipboardCheck, Newspaper, Users, Briefcase, Tag } from 'lucide-react';
+import { Home, Mail, User, Settings, LogOut, Receipt, Building2, ClipboardCheck, Newspaper, Users, Tag } from 'lucide-react';
 import { getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { CheckInLinkPicker } from './CheckInLinkPicker';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -100,12 +100,6 @@ export const MobileBottomNav: React.FC = () => {
 
   const isHome = pathname === '/' || pathname === '/index.html';
   const isBlog = pathname.startsWith('/blog');
-  const isBecomeHost = pathname.startsWith('/become-host');
-  // Guests see "Host" (Become Host); hosts below top level see "Upgrade".
-  const showUpgradeNav = authUser?.role === 'HOST' && (authUser?.hostLevel ?? 1) < 4;
-  const showJoinNav = !authUser || authUser.role === 'GUEST';
-  const becomeHostNavVisible = showJoinNav || showUpgradeNav;
-  const becomeHostNavLabel = showUpgradeNav ? 'Upgrade' : 'Host';
 
   return (
     <nav ref={navRef} className={navContainerClass} style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}>
@@ -123,16 +117,6 @@ export const MobileBottomNav: React.FC = () => {
         <Mail className="mb-0.5 w-4 h-4" />
         <span>{t('common_blog')}</span>
       </Link>
-
-      {becomeHostNavVisible && (
-        <Link
-          className={`flex flex-col items-center justify-center rounded-lg px-3 py-1 duration-200 ${isBecomeHost ? 'text-[#1b1c1d] bg-[#efedef]' : 'text-[#44474c] hover:bg-[#e4e2e3]'}`}
-          to="/become-host"
-        >
-          <Briefcase className="mb-0.5 w-4 h-4" />
-          <span>{becomeHostNavLabel}</span>
-        </Link>
-      )}
 
       {canManageProperties && (
         <CheckInLinkPicker authUser={authUser} direction="up" />

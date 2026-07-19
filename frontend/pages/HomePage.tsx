@@ -229,11 +229,10 @@ const RoomCarousel: React.FC<{ rooms: SleepingArrangement[]; onSelect: (room: Sl
                         className="min-w-[280px] md:min-w-[320px] bg-white border border-gray-200 rounded-2xl overflow-hidden cursor-pointer snap-start transition-all duration-300 hover:shadow-xl hover:-translate-y-1 group/card"
                     >
                         <div className="h-52 bg-gray-100 relative overflow-hidden">
-                            <img 
-                                src={room.imageUrl} 
-                                alt={room.title} 
-                                loading="lazy" 
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110" 
+                            <img
+                                src={room.imageUrl}
+                                alt={room.title}
+                                className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
                             />
                             <div className="absolute inset-0 bg-black/0 group-hover/card:bg-black/10 transition-colors" />
                             <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm opacity-0 group-hover/card:opacity-100 transform translate-y-2 group-hover/card:translate-y-0 transition-all">
