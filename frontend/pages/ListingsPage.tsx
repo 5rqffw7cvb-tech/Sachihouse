@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PropertyData, SiteSettings } from '../types';
-import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train, Globe } from 'lucide-react';
+import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train, Globe, Plus } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -33,6 +33,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const [hosts, setHosts] = useState<ApiUser[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingAssignmentKey, setPendingAssignmentKey] = useState<string | null>(null);
+  // Co-Host picker: which property's search input is open, and its query.
+  const [coHostOpenId, setCoHostOpenId] = useState<string | null>(null);
+  const [coHostQuery, setCoHostQuery] = useState('');
   const [visibleCardCount, setVisibleCardCount] = useState(3);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [draftCountryCode, setDraftCountryCode] = useState('');
@@ -895,55 +898,101 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                       )}
                     </div>
                     <div className="mt-3 rounded-xl border border-[#e4e2e3] bg-[#f8f7f7] px-3 py-3 text-[12px] text-[#44474c]">
-                        <div className="mb-2">
-                          <div className="font-semibold text-[#1b1c1d]">Assigned Hosts</div>
-                          {assignedHosts.length === 0 ? (
-                            <div className="text-[#74777d]">No host assigned yet.</div>
-                          ) : (
-                            <div className="flex flex-wrap gap-1.5 mt-1">
-                              {assignedHosts.map((host) => (
-                                <span key={host.id} className="rounded-full bg-white border border-[#c4c6cd] px-2 py-0.5 text-[#1b1c1d]">
+                        <div className="font-semibold text-[#1b1c1d] mb-2">Assigned Hosts</div>
+                        {assignedHosts.length === 0 ? (
+                          <div className="text-[#74777d] mb-2">No host assigned yet.</div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {assignedHosts.map((host) => {
+                              const assignmentKey = `${property.id}:${host.id}`;
+                              const pending = pendingAssignmentKey === assignmentKey;
+                              return (
+                                <span key={host.id} className="inline-flex items-center gap-1.5 rounded-full bg-white border border-[#c4c6cd] pl-2.5 pr-1 py-0.5 text-[#1b1c1d]">
                                   {host.name}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleToggleHostAssignment(property.id, host); }}
+                                    disabled={pending}
+                                    className="rounded-full p-0.5 text-[#9a9ca0] hover:text-[#ba1a1a] hover:bg-[#fdeef0] disabled:opacity-50"
+                                    title="Remove host"
+                                  >
+                                    {pending ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                                  </button>
                                 </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          {hosts.length === 0 ? (
-                            <div className="text-[#74777d]">No host accounts available. Create a host in User Administration first.</div>
-                          ) : hosts.map((host) => {
-                            const assigned = host.assignedPropertyIds?.includes(property.id);
-                            const assignmentKey = `${property.id}:${host.id}`;
-                            return (
-                              <div key={host.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#e4e2e3] bg-white px-2.5 py-2">
-                                <div>
-                                  <div className="font-semibold text-[#1b1c1d]">{host.name}</div>
-                                  <div className="text-[#74777d]">{host.email}</div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {coHostOpenId === property.id ? (
+                          <div className="relative">
+                            <input
+                              autoFocus
+                              type="text"
+                              value={coHostQuery}
+                              onChange={(e) => setCoHostQuery(e.target.value)}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                              placeholder="Type a host name or email…"
+                              className="w-full rounded-lg border border-[#c4c6cd] bg-white px-2.5 py-2 text-[12px] text-[#1b1c1d] outline-none focus:border-[#041627]"
+                            />
+                            {(() => {
+                              const q = coHostQuery.trim().toLowerCase();
+                              const assignedIdSet = new Set(assignedHosts.map((h) => h.id));
+                              const suggestions = hosts
+                                .filter((h) => !assignedIdSet.has(h.id))
+                                .filter((h) => q === '' || h.name.toLowerCase().includes(q) || h.email.toLowerCase().includes(q))
+                                .slice(0, 6);
+                              return (
+                                <div className="mt-1 max-h-52 overflow-y-auto rounded-lg border border-[#e4e2e3] bg-white shadow-sm">
+                                  {suggestions.length === 0 ? (
+                                    <div className="px-2.5 py-2 text-[#74777d]">
+                                      {hosts.length === 0 ? 'No host accounts available. Create a host in User Administration first.' : 'No matching host.'}
+                                    </div>
+                                  ) : suggestions.map((host) => {
+                                    const assignmentKey = `${property.id}:${host.id}`;
+                                    const pending = pendingAssignmentKey === assignmentKey;
+                                    return (
+                                      <button
+                                        key={host.id}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          handleToggleHostAssignment(property.id, host);
+                                          setCoHostQuery('');
+                                          setCoHostOpenId(null);
+                                        }}
+                                        disabled={pending}
+                                        className="flex w-full items-center justify-between gap-3 px-2.5 py-2 text-left hover:bg-[#f5f3f4] disabled:opacity-50"
+                                      >
+                                        <span className="min-w-0">
+                                          <span className="block font-semibold text-[#1b1c1d] truncate">{host.name}</span>
+                                          <span className="block text-[#74777d] truncate">{host.email}</span>
+                                        </span>
+                                        {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Plus className="w-3.5 h-3.5 text-[#041627] shrink-0" />}
+                                      </button>
+                                    );
+                                  })}
                                 </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    handleToggleHostAssignment(property.id, host);
-                                  }}
-                                  disabled={pendingAssignmentKey === assignmentKey}
-                                  className={`rounded-full px-3 py-1 font-semibold transition-colors disabled:opacity-60 ${assigned
-                                    ? 'bg-[#041627] text-white hover:bg-[#041627]/90'
-                                    : 'bg-white text-[#041627] border border-[#041627] hover:bg-[#efedef]'}`}
-                                >
-                                  {pendingAssignmentKey === assignmentKey ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : assigned ? (
-                                    'Unassign Host'
-                                  ) : (
-                                    'Assign Host'
-                                  )}
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
+                              );
+                            })()}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCoHostOpenId(null); setCoHostQuery(''); }}
+                              className="mt-1.5 text-[11px] font-semibold text-[#74777d] hover:text-[#1b1c1d]"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCoHostOpenId(property.id); setCoHostQuery(''); }}
+                            className="inline-flex items-center gap-1 rounded-full border border-[#041627] bg-white px-3 py-1 font-semibold text-[#041627] hover:bg-[#efedef] transition-colors"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Co-Host
+                          </button>
+                        )}
                       </div>
                   </div>
                 )}
