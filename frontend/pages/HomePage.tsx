@@ -394,7 +394,6 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
     const bathFacilityBaseLabel = data.bathFacilityType === 'shower_room' ? t('home_spec_shower_room') : t('home_spec_bathroom');
     const bathFacilityLabelPlural = data.bathFacilityType === 'shower_room' ? t('home_spec_shower_rooms') : t('home_spec_bathrooms');
     const bathFacilityLabel = data.baths === 1 ? bathFacilityBaseLabel : bathFacilityLabelPlural;
-    const fromPricePerGuest = data.pricing?.rates?.length ? Math.min(...data.pricing.rates.map(r => r.price)) : null;
 
   return (
     <div className="pb-4 md:pb-10">
@@ -454,11 +453,6 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                         </div>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {fromPricePerGuest !== null && (
-                            <span className="inline-flex items-center rounded-full bg-[var(--color-primary-50)] text-[var(--color-primary-700)] px-2.5 py-0.5 text-[13px] font-bold">
-                                ¥{fromPricePerGuest.toLocaleString()} {t('sim_per_night')}
-                            </span>
-                        )}
                         {nearestStationDistanceInline && (
                             <span className="inline-flex items-center rounded-full bg-amber-100/80 px-2.5 py-0.5 text-[13px] font-semibold text-amber-800">
                                 {nearestStationDistanceInline}
@@ -530,11 +524,6 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                  <span className="truncate">{data.address}</span>
              </div>
              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                 {fromPricePerGuest !== null && (
-                     <span className="inline-flex items-center rounded-full bg-[var(--color-primary-50)] text-[var(--color-primary-700)] px-2.5 py-0.5 text-[13px] font-bold">
-                         ¥{fromPricePerGuest.toLocaleString()} {t('sim_per_night')}
-                     </span>
-                 )}
                  {nearestStationDistanceInline && (
                      <span className="inline-flex items-center rounded-full bg-amber-100/80 px-2.5 py-0.5 text-[13px] font-semibold text-amber-800">
                          {nearestStationDistanceInline}
