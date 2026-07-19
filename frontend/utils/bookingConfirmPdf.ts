@@ -52,20 +52,24 @@ function buildDocumentHtml(confirmation: BookingConfirmation): string {
   const nights = nightsBetween(confirmation.checkInDate, confirmation.checkOutDate);
   const money = (amount: number) => formatMoney(amount, confirmation.currency);
 
-  const rows: Array<{ label: string; amount: number; muted?: boolean }> = [
+  const rows: Array<{ label: string; amount: number; negative?: boolean }> = [
     { label: 'Accommodation fee', amount: confirmation.roomFee },
     { label: 'Cleaning fee', amount: confirmation.cleaningFee },
   ];
   if (confirmation.extraFee > 0) {
     rows.push({ label: confirmation.extraFeeLabel?.trim() || 'Additional fee', amount: confirmation.extraFee });
   }
+  const discountAmount = confirmation.discountAmount ?? 0;
+  if (discountAmount > 0) {
+    rows.push({ label: confirmation.discountLabel?.trim() || 'Discount', amount: discountAmount, negative: true });
+  }
 
   const feeRowsHtml = rows
     .map(
       (row) => `
         <tr>
-          <td style="padding:9px 0;color:#44474c;font-size:13px;">${escapeHtml(row.label)}</td>
-          <td style="padding:9px 0;text-align:right;color:#1b1c1d;font-size:13px;font-variant-numeric:tabular-nums;">${money(row.amount)}</td>
+          <td style="padding:9px 0;color:${row.negative ? '#1a7f4b' : '#44474c'};font-size:13px;">${escapeHtml(row.label)}</td>
+          <td style="padding:9px 0;text-align:right;color:${row.negative ? '#1a7f4b' : '#1b1c1d'};font-size:13px;font-variant-numeric:tabular-nums;">${row.negative ? '−' : ''}${money(row.amount)}</td>
         </tr>`,
     )
     .join('');

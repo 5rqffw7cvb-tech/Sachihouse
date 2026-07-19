@@ -73,6 +73,8 @@ const BookingConfirmPage: React.FC = () => {
   const [cleaningFee, setCleaningFee] = useState('');
   const [extraFeeLabel, setExtraFeeLabel] = useState('');
   const [extraFee, setExtraFee] = useState('');
+  const [discountLabel, setDiscountLabel] = useState('');
+  const [discountAmount, setDiscountAmount] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [includeInAccounting, setIncludeInAccounting] = useState(false);
@@ -155,8 +157,9 @@ const BookingConfirmPage: React.FC = () => {
   const roomFeeNum = num(roomFee);
   const cleaningFeeNum = num(cleaningFee);
   const extraFeeNum = num(extraFee);
+  const discountNum = num(discountAmount);
   const depositNum = num(depositAmount);
-  const totalAmount = roomFeeNum + cleaningFeeNum + extraFeeNum;
+  const totalAmount = Math.max(0, roomFeeNum + cleaningFeeNum + extraFeeNum - discountNum);
   const balanceDue = Math.max(0, totalAmount - depositNum);
 
   const applySuggestion = () => {
@@ -202,6 +205,8 @@ const BookingConfirmPage: React.FC = () => {
         cleaningFee: cleaningFeeNum,
         extraFeeLabel: extraFeeLabel.trim() || undefined,
         extraFee: extraFeeNum,
+        discountLabel: discountLabel.trim() || undefined,
+        discountAmount: discountNum,
         totalAmount,
         depositAmount: depositNum,
         balanceDue,
@@ -228,6 +233,8 @@ const BookingConfirmPage: React.FC = () => {
     setCleaningFee('');
     setExtraFeeLabel('');
     setExtraFee('');
+    setDiscountLabel('');
+    setDiscountAmount('');
     setDepositAmount('');
     setNotes('');
     setIncludeInAccounting(false);
@@ -432,6 +439,14 @@ const BookingConfirmPage: React.FC = () => {
                     <input inputMode="numeric" className={inputClass} value={extraFee} onChange={(e) => setExtraFee(e.target.value)} placeholder="0" />
                   </div>
                   <div>
+                    <label className={labelClass}>Discount label</label>
+                    <input className={inputClass} value={discountLabel} onChange={(e) => setDiscountLabel(e.target.value)} placeholder="e.g. Returning guest" />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Other discount</label>
+                    <input inputMode="numeric" className={inputClass} value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
                     <label className={labelClass}>Deposit paid</label>
                     <input inputMode="numeric" className={inputClass} value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="0" />
                   </div>
@@ -455,6 +470,7 @@ const BookingConfirmPage: React.FC = () => {
                   <div className="flex justify-between"><dt className="text-[#74777d]">Accommodation</dt><dd className="tabular-nums">{formatMoney(roomFeeNum, currency)}</dd></div>
                   <div className="flex justify-between"><dt className="text-[#74777d]">Cleaning</dt><dd className="tabular-nums">{formatMoney(cleaningFeeNum, currency)}</dd></div>
                   {extraFeeNum > 0 && <div className="flex justify-between"><dt className="text-[#74777d]">{extraFeeLabel.trim() || 'Extra'}</dt><dd className="tabular-nums">{formatMoney(extraFeeNum, currency)}</dd></div>}
+                  {discountNum > 0 && <div className="flex justify-between text-[#1a7f4b]"><dt>{discountLabel.trim() || 'Discount'}</dt><dd className="tabular-nums">−{formatMoney(discountNum, currency)}</dd></div>}
                   <div className="flex justify-between border-t border-[#e4e2e3] pt-2 font-bold"><dt>Total</dt><dd className="tabular-nums">{formatMoney(totalAmount, currency)}</dd></div>
                   <div className="flex justify-between"><dt className="text-[#74777d]">Deposit paid</dt><dd className="tabular-nums">−{formatMoney(depositNum, currency)}</dd></div>
                   <div className="flex justify-between rounded-lg bg-[#1b1c1d] px-3 py-2 text-white font-bold"><dt>Balance due</dt><dd className="tabular-nums">{formatMoney(balanceDue, currency)}</dd></div>

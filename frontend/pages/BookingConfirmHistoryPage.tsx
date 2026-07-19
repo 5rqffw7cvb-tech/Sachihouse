@@ -152,7 +152,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
   const exportCsv = () => {
     const header = [
       'confirmation_no', 'property', 'guest', 'guests', 'check_in', 'check_out',
-      'currency', 'accommodation', 'cleaning', 'extra', 'total', 'deposit', 'balance',
+      'currency', 'accommodation', 'cleaning', 'extra', 'discount', 'total', 'deposit', 'balance',
       'in_accounting', 'created_at',
     ];
     const lines = [header.join(',')];
@@ -168,6 +168,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
         r.roomFee,
         r.cleaningFee,
         r.extraFee,
+        r.discountAmount ?? 0,
         r.totalAmount,
         r.depositAmount,
         r.balanceDue,

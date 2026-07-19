@@ -639,6 +639,8 @@ export class MemoryStore implements DataStore {
       cleaningFee: input.cleaningFee,
       extraFeeLabel: input.extraFeeLabel,
       extraFee: input.extraFee,
+      discountLabel: input.discountLabel,
+      discountAmount: input.discountAmount,
       totalAmount: input.totalAmount,
       depositAmount: input.depositAmount,
       balanceDue: input.balanceDue,

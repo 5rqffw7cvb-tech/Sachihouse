@@ -2045,10 +2045,11 @@ export function createApp(store: DataStore) {
     const roomFee = toWholeAmount(body.roomFee);
     const cleaningFee = toWholeAmount(body.cleaningFee);
     const extraFee = toWholeAmount(body.extraFee ?? 0);
+    const discountAmount = toWholeAmount(body.discountAmount ?? 0);
     const totalAmount = toWholeAmount(body.totalAmount);
     const depositAmount = toWholeAmount(body.depositAmount ?? 0);
     const balanceDue = toWholeAmount(body.balanceDue);
-    if ([roomFee, cleaningFee, extraFee, totalAmount, depositAmount, balanceDue].some((value) => value === null)) {
+    if ([roomFee, cleaningFee, extraFee, discountAmount, totalAmount, depositAmount, balanceDue].some((value) => value === null)) {
       return res.status(400).json({ error: 'Amount fields must be non-negative numbers.' });
     }
 
@@ -2070,6 +2071,8 @@ export function createApp(store: DataStore) {
       cleaningFee: cleaningFee!,
       extraFeeLabel: normalizeText(body.extraFeeLabel) || undefined,
       extraFee: extraFee!,
+      discountLabel: normalizeText(body.discountLabel) || undefined,
+      discountAmount: discountAmount!,
       totalAmount: totalAmount!,
       depositAmount: depositAmount!,
       balanceDue: balanceDue!,

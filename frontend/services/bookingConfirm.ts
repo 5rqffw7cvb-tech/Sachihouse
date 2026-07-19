@@ -21,6 +21,8 @@ export interface CreateBookingConfirmationPayload {
   cleaningFee: number;
   extraFeeLabel?: string;
   extraFee: number;
+  discountLabel?: string;
+  discountAmount: number;
   totalAmount: number;
   depositAmount: number;
   balanceDue: number;
