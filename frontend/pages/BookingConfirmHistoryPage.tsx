@@ -245,7 +245,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
             <p className="hidden md:block mt-1.5 text-[13px] text-[#74777d]">Booking confirmations you have issued, and the revenue they represent.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button type="button" onClick={exportCsv} className="flex items-center gap-1.5 rounded-xl border border-[#c4c6cd] bg-white px-3.5 py-2 text-[13px] font-semibold hover:bg-[#f5f3f4] transition-colors">
+            <button type="button" onClick={exportCsv} className="hidden md:flex items-center gap-1.5 rounded-xl border border-[#c4c6cd] bg-white px-3.5 py-2 text-[13px] font-semibold hover:bg-[#f5f3f4] transition-colors">
               <Download className="h-4 w-4" /> CSV
             </button>
             <button type="button" onClick={handleNewBooking} className="flex items-center gap-1.5 rounded-xl bg-[#1b1c1d] px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#333] transition-colors">
@@ -256,8 +256,8 @@ const BookingConfirmHistoryPage: React.FC = () => {
 
         {errorMsg && <div className="mb-4 rounded-xl border border-[#f5c2c7] bg-[#fdeef0] px-4 py-3 text-[13px] text-[#ba1a1a]">{errorMsg}</div>}
 
-        {/* Summary tiles */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        {/* Summary tiles (desktop only — mobile stays minimal) */}
+        <div className="hidden md:grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           {[
             { label: 'Confirmations', value: String(rows.length) },
             { label: 'Total revenue', value: formatMoney(totals.total, summaryCurrency) },
@@ -271,8 +271,8 @@ const BookingConfirmHistoryPage: React.FC = () => {
           ))}
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-end gap-3 mb-4">
+        {/* Filters (desktop only) */}
+        <div className="hidden md:flex flex-wrap items-end gap-3 mb-4">
           <div>
             <label className="block text-[11px] font-semibold text-[#74777d] mb-1">Property</label>
             <select className={inputClass} value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
@@ -300,8 +300,8 @@ const BookingConfirmHistoryPage: React.FC = () => {
           )}
         </div>
 
-        {/* Table */}
-        <div className="rounded-2xl border border-[#e4e2e3] bg-white overflow-hidden">
+        {/* Table (desktop) */}
+        <div className="hidden md:block rounded-2xl border border-[#e4e2e3] bg-white overflow-hidden">
           <div className="overflow-x-auto">
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-[#74777d]"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
@@ -373,6 +373,69 @@ const BookingConfirmHistoryPage: React.FC = () => {
               </table>
             )}
           </div>
+        </div>
+
+        {/* Card list (mobile) — compact, no horizontal scroll */}
+        <div className="md:hidden space-y-3">
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-[#74777d] bg-white rounded-2xl border border-[#e4e2e3]"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+          ) : rows.length === 0 ? (
+            <div className="py-16 text-center text-[13px] text-[#74777d] bg-white rounded-2xl border border-[#e4e2e3]">No booking confirmations yet.</div>
+          ) : (
+            rows.map((r) => (
+              <div key={r.id} className="rounded-2xl border border-[#e4e2e3] bg-white p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-[15px] truncate">{r.guestName}</div>
+                    <div className="text-[12px] text-[#74777d] truncate">{propertyNameById.get(r.propertyId) || r.propertyName}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-bold text-[15px] tabular-nums">{formatMoney(r.totalAmount, r.currency)}</div>
+                    <div className="text-[11px] text-[#9a9ca0]">{r.confirmationNo}</div>
+                  </div>
+                </div>
+                <div className="mt-2.5 flex items-center justify-between text-[12px] text-[#44474c]">
+                  <span>{formatDate(r.checkInDate)} → {formatDate(r.checkOutDate)}</span>
+                  <span className="text-[#74777d]">{r.numGuests} pax</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-[12px]">
+                  <span className="text-[#74777d]">Deposit {formatMoney(r.depositAmount, r.currency)}</span>
+                  <span className="font-semibold">Balance {formatMoney(r.balanceDue, r.currency)}</span>
+                </div>
+                <div className="mt-3 flex items-center justify-between border-t border-[#f0eef0] pt-2.5">
+                  <label className="flex items-center gap-2 text-[12px] text-[#44474c]">
+                    <input
+                      type="checkbox"
+                      checked={r.includeInAccounting}
+                      disabled={busyId === r.id}
+                      onChange={() => void handleToggleAccounting(r)}
+                      className="h-4 w-4 accent-[#1b1c1d]"
+                    />
+                    In accounting
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => void downloadBookingConfirmationPdf(r)}
+                      className="rounded-lg p-2 text-[#44474c] hover:bg-[#efedef] transition-colors"
+                      title="Download PDF"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(r)}
+                      disabled={busyId === r.id}
+                      className="rounded-lg p-2 text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-50"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </main>
 
