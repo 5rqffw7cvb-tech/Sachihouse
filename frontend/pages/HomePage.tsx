@@ -232,6 +232,9 @@ const RoomCarousel: React.FC<{ rooms: SleepingArrangement[]; onSelect: (room: Sl
                             <img
                                 src={room.imageUrl}
                                 alt={room.title}
+                                width={320}
+                                height={208}
+                                decoding="async"
                                 className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
                             />
                             <div className="absolute inset-0 bg-black/0 group-hover/card:bg-black/10 transition-colors" />
