@@ -8,7 +8,10 @@ import { BookingConfirmation } from '../types';
 // only pulled into the bundle when a host actually exports a PDF.
 
 const A4_WIDTH_PX = 794;   // 210mm at ~96dpi
-const A4_HEIGHT_PX = 1123; // 297mm at ~96dpi
+
+// Free-cancellation window: guests may cancel up to this many days before
+// check-in. After the deadline the full total is charged (non-refundable).
+const FREE_CANCEL_DAYS = 7;
 
 function formatMoney(amount: number, currency: string): string {
   const safeCurrency = currency || 'JPY';
@@ -46,6 +49,38 @@ function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// Deadline for free cancellation: FREE_CANCEL_DAYS before the check-in date/time.
+function cancellationDeadline(checkInDate: string, checkInTime: string): Date | null {
+  const time = /^\d{2}:\d{2}$/.test(checkInTime) ? checkInTime : '15:00';
+  const dt = new Date(`${checkInDate}T${time}:00`);
+  if (Number.isNaN(dt.getTime())) {
+    return null;
+  }
+  dt.setDate(dt.getDate() - FREE_CANCEL_DAYS);
+  return dt;
+}
+
+function formatDateTime(d: Date): string {
+  return d.toLocaleString('en-GB', {
+    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+}
+
+// Public sub-pages of the property that we link the guest to. Derived from the
+// stored base property URL (e.g. https://host/#/slug -> .../slug/access).
+function propertyGuideLinks(propertyUrl: string | undefined): Array<{ label: string; url: string }> {
+  const base = (propertyUrl || '').trim().replace(/\/+$/, '');
+  if (!base) {
+    return [];
+  }
+  return [
+    { label: 'Getting here & access guide', url: `${base}/access` },
+    { label: 'House rules', url: `${base}/rules` },
+    { label: 'Guest manual', url: `${base}/manual` },
+  ];
 }
 
 function buildDocumentHtml(confirmation: BookingConfirmation): string {
@@ -93,8 +128,19 @@ function buildDocumentHtml(confirmation: BookingConfirmation): string {
     ? `<div style="font-size:11.5px;color:#2563EB;margin-top:4px;word-break:break-all;">${escapeHtml(confirmation.propertyUrl.trim())}</div>`
     : '';
 
+  const deadline = cancellationDeadline(confirmation.checkInDate, confirmation.checkInTime);
+  const cancellationHtml = deadline
+    ? `<div style="margin-top:22px;border:1px solid #e4e2e3;border-radius:12px;padding:14px 16px;">
+         <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#74777d;margin-bottom:6px;">Cancellation policy</div>
+         <div style="font-size:12.5px;color:#1b1c1d;line-height:1.55;">
+           Free cancellation until <strong>${escapeHtml(formatDateTime(deadline))}</strong> — up to ${FREE_CANCEL_DAYS} days before check-in.
+           Cancellations after this time are charged <strong>100% of the total</strong> (${money(confirmation.totalAmount)}) and are non-refundable.
+         </div>
+       </div>`
+    : '';
+
   return `
-    <div style="box-sizing:border-box;width:${A4_WIDTH_PX}px;min-height:${A4_HEIGHT_PX}px;padding:54px 56px;background:#ffffff;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN','Noto Sans JP','Noto Sans',sans-serif;color:#1b1c1d;">
+    <div style="box-sizing:border-box;width:${A4_WIDTH_PX}px;padding:54px 56px;background:#ffffff;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN','Noto Sans JP','Noto Sans',sans-serif;color:#1b1c1d;">
 
       <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1b1c1d;padding-bottom:20px;">
         <div>
@@ -153,6 +199,8 @@ function buildDocumentHtml(confirmation: BookingConfirmation): string {
         </div>
       </div>
 
+      ${cancellationHtml}
+
       ${notesHtml}
 
       <div style="margin-top:38px;border-top:1px solid #f0eef0;padding-top:14px;font-size:10.5px;color:#9a9ca0;line-height:1.5;">
@@ -191,8 +239,41 @@ export async function downloadBookingConfirmationPdf(confirmation: BookingConfir
     const imgHeight = (canvas.height * pageWidth) / canvas.width;
 
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
-    // Single page in practice; guard against slight overflow by clamping height.
-    pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, Math.min(imgHeight, pageHeight));
+    // The content card is content-height (shorter than a page), leaving room to
+    // render the guide links below it as real, clickable PDF link annotations
+    // (rasterized <a> tags inside the image would not be clickable).
+    const drawnImgHeight = Math.min(imgHeight, pageHeight);
+    pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, drawnImgHeight);
+
+    const links = propertyGuideLinks(confirmation.propertyUrl);
+    if (links.length > 0) {
+      const marginX = 15;
+      const lineGap = 7;
+      const blockHeight = 12 + links.length * lineGap;
+      let y = drawnImgHeight + 10;
+      if (y + blockHeight > pageHeight) {
+        pdf.addPage();
+        y = 20;
+      }
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.setTextColor(27, 28, 29);
+      pdf.text('Useful links for your stay', marginX, y);
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.setTextColor(154, 156, 160);
+      pdf.text('Tap a link below to open it in your browser.', marginX, y + 5);
+
+      y += 12;
+      pdf.setFontSize(11);
+      pdf.setTextColor(37, 99, 235);
+      for (const link of links) {
+        pdf.textWithLink(link.label, marginX, y, { url: link.url });
+        y += lineGap;
+      }
+    }
 
     const safeGuest = confirmation.guestName.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '') || 'guest';
     pdf.save(`BookingConfirmation_${confirmation.confirmationNo}_${safeGuest}.pdf`);
