@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Download, Loader2, Plus, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Download, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { Footer } from '../components/Footer';
+import { BookingConfirmForm, BOOKING_CONFIRM_CREATED_KEY } from '../components/BookingConfirmForm';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
 import { getAllProperties } from '../services/storage';
 import {
@@ -44,7 +44,6 @@ const inputClass =
   'rounded-xl border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] outline-none focus:border-[#1b1c1d] transition-colors';
 
 const BookingConfirmHistoryPage: React.FC = () => {
-  const navigate = useNavigate();
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
   const [rows, setRows] = useState<BookingConfirmation[]>([]);
@@ -56,6 +55,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
   const [propertyId, setPropertyId] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [showForm, setShowForm] = useState(false);
 
   const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
 
@@ -95,6 +95,32 @@ const BookingConfirmHistoryPage: React.FC = () => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess]);
+
+  // Keep a ref to the latest load() so the cross-tab refresh listener always
+  // reloads with the current filters.
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
+  // Refresh the list when a booking is created in another tab (mobile opens the
+  // form in a new tab, so the revenue list here won't otherwise know about it).
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === BOOKING_CONFIRM_CREATED_KEY) void loadRef.current();
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
+
+  // Desktop opens an in-page modal; mobile opens the form in a new tab so the
+  // small screen gets a full page to work with.
+  const handleNewBooking = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      const url = `${window.location.origin}${window.location.pathname}#/admin/booking-confirm/new`;
+      window.open(url, '_blank');
+    } else {
+      setShowForm(true);
+    }
+  };
 
   const scopedProperties = useMemo(() => {
     if (!authUser) return [] as PropertyItem[];
@@ -222,8 +248,8 @@ const BookingConfirmHistoryPage: React.FC = () => {
             <button type="button" onClick={exportCsv} className="flex items-center gap-1.5 rounded-xl border border-[#c4c6cd] bg-white px-3.5 py-2 text-[13px] font-semibold hover:bg-[#f5f3f4] transition-colors">
               <Download className="h-4 w-4" /> CSV
             </button>
-            <button type="button" onClick={() => navigate('/admin/booking-confirm')} className="flex items-center gap-1.5 rounded-xl bg-[#1b1c1d] px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#333] transition-colors">
-              <Plus className="h-4 w-4" /> New
+            <button type="button" onClick={handleNewBooking} className="flex items-center gap-1.5 rounded-xl bg-[#1b1c1d] px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#333] transition-colors">
+              <Plus className="h-4 w-4" /> New Booking
             </button>
           </div>
         </div>
@@ -349,6 +375,39 @@ const BookingConfirmHistoryPage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Desktop "New Booking" modal */}
+      {showForm && (
+        <div
+          className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-[2px] p-4 md:p-8"
+          onClick={() => setShowForm(false)}
+        >
+          <div className="relative w-full max-w-[960px] my-2" onClick={(e) => e.stopPropagation()}>
+            <div className="rounded-2xl bg-[#e8e5e6] border border-[#d8d5d7] shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[#d8d5d7] bg-white/60">
+                <h2 className="text-[16px] font-bold">New booking</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  aria-label="Close"
+                  className="rounded-lg p-1.5 text-[#74777d] hover:bg-black/5 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="p-5">
+                <BookingConfirmForm
+                  authUser={authUser}
+                  onCreated={() => void load()}
+                  onDone={() => setShowForm(false)}
+                  doneLabel="Done"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <MobileBottomNav />
       <Footer />
     </div>
