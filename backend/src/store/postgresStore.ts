@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { randomBytes } from 'node:crypto';
 import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSettingsSeed } from './seed.js';
 import {
   AuthUser,
@@ -744,6 +745,77 @@ export class PostgresStore implements DataStore {
       [property.id],
     );
     return result.rows.map((row: { blocked_date: string }) => row.blocked_date);
+  }
+
+  async addBlockedDates(propertyId: string, dates: string[]): Promise<void> {
+    const property = await this.getProperty(propertyId);
+    if (!property) {
+      throw new Error('Property not found.');
+    }
+    if (!dates.length) {
+      return;
+    }
+    await this.pool.query(
+      `INSERT INTO blocked_dates (property_id, blocked_date)
+       SELECT $1, UNNEST($2::date[])
+       ON CONFLICT (property_id, blocked_date) DO NOTHING`,
+      [property.id, dates],
+    );
+  }
+
+  async removeBlockedDates(propertyId: string, dates: string[]): Promise<void> {
+    const property = await this.getProperty(propertyId);
+    if (!property) {
+      throw new Error('Property not found.');
+    }
+    if (!dates.length) {
+      return;
+    }
+    await this.pool.query(
+      'DELETE FROM blocked_dates WHERE property_id = $1 AND blocked_date = ANY($2::date[])',
+      [property.id, dates],
+    );
+  }
+
+  async updateIcalFeeds(
+    propertyId: string,
+    feeds: PropertyData['icalFeeds'],
+  ): Promise<PropertyData & { id: string }> {
+    const current = await this.getProperty(propertyId);
+    if (!current) {
+      throw new Error('Property not found.');
+    }
+    const next = { ...current, icalFeeds: feeds };
+    await this.pool.query(
+      'UPDATE properties SET data = $2::jsonb, updated_at = NOW() WHERE id = $1',
+      [current.id, JSON.stringify(next)],
+    );
+    return next;
+  }
+
+  async ensureIcalExportToken(propertyId: string): Promise<string> {
+    const current = await this.getProperty(propertyId);
+    if (!current) {
+      throw new Error('Property not found.');
+    }
+    if (current.icalExportToken) {
+      return current.icalExportToken;
+    }
+    return this.regenerateIcalExportToken(propertyId);
+  }
+
+  async regenerateIcalExportToken(propertyId: string): Promise<string> {
+    const current = await this.getProperty(propertyId);
+    if (!current) {
+      throw new Error('Property not found.');
+    }
+    const token = randomBytes(24).toString('hex');
+    const next = { ...current, icalExportToken: token };
+    await this.pool.query(
+      'UPDATE properties SET data = $2::jsonb, updated_at = NOW() WHERE id = $1',
+      [current.id, JSON.stringify(next)],
+    );
+    return token;
   }
 
   async listBlogPosts(includeArchived = false): Promise<BlogPost[]> {

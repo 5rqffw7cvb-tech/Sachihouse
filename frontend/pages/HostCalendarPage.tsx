@@ -1,0 +1,423 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameMonth,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+  subMonths,
+} from 'date-fns';
+import { Check, ChevronLeft, ChevronRight, Copy, Loader2, RefreshCw, Plus, Trash2 } from 'lucide-react';
+import { TopNavBar } from '../components/TopNavBar';
+import { MobileBottomNav } from '../components/MobileBottomNav';
+import { Footer } from '../components/Footer';
+import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
+import { getAllProperties } from '../services/storage';
+import {
+  addBlockedDates,
+  getPropertyCalendar,
+  PropertyCalendar,
+  regenerateIcalExportToken,
+  removeBlockedDates,
+  updateIcalFeeds,
+} from '../services/calendar';
+import { ApiUser } from '../services/api';
+import { ICalFeed, PropertyData } from '../types';
+
+type PropertyItem = PropertyData & { id: string };
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Expands a set of bookings into a map of YYYY-MM-DD -> guest name for the
+// nights they occupy (check-out morning is free again, so it is excluded).
+function buildBookingMap(bookings: PropertyCalendar['bookings']): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const booking of bookings) {
+    const start = parseISO(booking.checkInDate);
+    const end = parseISO(booking.checkOutDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(start < end)) continue;
+    for (const day of eachDayOfInterval({ start, end })) {
+      const iso = format(day, 'yyyy-MM-dd');
+      if (iso === booking.checkOutDate) continue; // checkout day is available
+      if (!map.has(iso)) map.set(iso, booking.guestName || 'Reserved');
+    }
+  }
+  return map;
+}
+
+const HostCalendarPage: React.FC = () => {
+  const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
+  const [properties, setProperties] = useState<PropertyItem[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState('');
+  const [calendar, setCalendar] = useState<PropertyCalendar | null>(null);
+  const [viewMonth, setViewMonth] = useState<Date>(startOfMonth(new Date()));
+  const [loadingProps, setLoadingProps] = useState(true);
+  const [loadingCal, setLoadingCal] = useState(false);
+  const [busyDates, setBusyDates] = useState<Set<string>>(new Set());
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // iCal import feed editor (local draft until Save).
+  const [feedDraft, setFeedDraft] = useState<ICalFeed[]>([]);
+  const [savingFeeds, setSavingFeeds] = useState(false);
+  const [feedsSaved, setFeedsSaved] = useState(false);
+
+  const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
+
+  useEffect(() => {
+    let unsubscribe = () => {};
+    subscribeToAuth((user) => {
+      setAuthUser(user);
+      setIsAuthenticated(!!user);
+    }).then((unsub) => { unsubscribe = unsub; });
+    return () => unsubscribe();
+  }, []);
+
+  const scopedProperties = useMemo(() => {
+    if (!authUser) return [] as PropertyItem[];
+    if (authUser.role === 'ADMIN') return properties;
+    const assigned = new Set(authUser.assignedPropertyIds ?? []);
+    return properties.filter((p) => assigned.has(p.id));
+  }, [authUser, properties]);
+
+  // Load the property list once we know who the user is.
+  useEffect(() => {
+    if (!canAccess) { setLoadingProps(false); return; }
+    let cancelled = false;
+    (async () => {
+      setLoadingProps(true);
+      try {
+        const all = await getAllProperties({ includeArchived: true });
+        if (!cancelled) setProperties(all);
+      } catch (err) {
+        if (!cancelled) setErrorMsg(err instanceof Error ? err.message : 'Failed to load properties.');
+      } finally {
+        if (!cancelled) setLoadingProps(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [canAccess]);
+
+  // Auto-select the first accessible property.
+  useEffect(() => {
+    if (!selectedPropertyId && scopedProperties.length > 0) {
+      setSelectedPropertyId(scopedProperties[0].id);
+    }
+  }, [scopedProperties, selectedPropertyId]);
+
+  const loadCalendar = async (propertyId: string) => {
+    if (!propertyId) { setCalendar(null); return; }
+    setLoadingCal(true);
+    setErrorMsg(null);
+    try {
+      const data = await getPropertyCalendar(propertyId);
+      setCalendar(data);
+      setFeedDraft(data.icalFeeds);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to load calendar.');
+      setCalendar(null);
+    } finally {
+      setLoadingCal(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadCalendar(selectedPropertyId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPropertyId]);
+
+  const manualSet = useMemo(() => new Set(calendar?.manualBlockedDates ?? []), [calendar]);
+  const importedSet = useMemo(() => new Set(calendar?.importedBlockedDates ?? []), [calendar]);
+  const bookingMap = useMemo(() => buildBookingMap(calendar?.bookings ?? []), [calendar]);
+
+  const gridDays = useMemo(() => {
+    const start = startOfWeek(startOfMonth(viewMonth), { weekStartsOn: 0 });
+    const end = endOfWeek(endOfMonth(viewMonth), { weekStartsOn: 0 });
+    return eachDayOfInterval({ start, end });
+  }, [viewMonth]);
+
+  const todayIso = format(new Date(), 'yyyy-MM-dd');
+
+  const toggleDay = async (iso: string) => {
+    if (!calendar) return;
+    // Imported dates and direct bookings are read-only on this screen.
+    if (importedSet.has(iso) || bookingMap.has(iso)) return;
+    if (busyDates.has(iso)) return;
+
+    const isBlocked = manualSet.has(iso);
+    setBusyDates((prev) => new Set(prev).add(iso));
+    setErrorMsg(null);
+    try {
+      const next = isBlocked
+        ? await removeBlockedDates(calendar.propertyId, [iso])
+        : await addBlockedDates(calendar.propertyId, [iso]);
+      setCalendar((prev) => (prev ? { ...prev, manualBlockedDates: next } : prev));
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to update the date.');
+    } finally {
+      setBusyDates((prev) => {
+        const clone = new Set(prev);
+        clone.delete(iso);
+        return clone;
+      });
+    }
+  };
+
+  const copyExportUrl = async () => {
+    if (!calendar?.exportUrl) return;
+    try {
+      await navigator.clipboard.writeText(calendar.exportUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setErrorMsg('Could not copy to clipboard.');
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!calendar) return;
+    if (!window.confirm('Regenerate the export link? Any platform using the old link will stop receiving updates until you share the new one.')) return;
+    try {
+      const exportUrl = await regenerateIcalExportToken(calendar.propertyId);
+      setCalendar((prev) => (prev ? { ...prev, exportUrl } : prev));
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to regenerate the export link.');
+    }
+  };
+
+  // ---- iCal import feed editor ----
+  const addFeedRow = () => {
+    setFeedsSaved(false);
+    setFeedDraft((prev) => [
+      ...prev,
+      { id: `feed_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name: '', url: '', lastSynced: '' },
+    ]);
+  };
+
+  const updateFeedRow = (id: string, field: 'name' | 'url', value: string) => {
+    setFeedsSaved(false);
+    setFeedDraft((prev) => prev.map((f) => (f.id === id ? { ...f, [field]: value } : f)));
+  };
+
+  const removeFeedRow = (id: string) => {
+    setFeedsSaved(false);
+    setFeedDraft((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const saveFeeds = async () => {
+    if (!calendar) return;
+    setSavingFeeds(true);
+    setErrorMsg(null);
+    try {
+      const cleaned = feedDraft.filter((f) => f.url.trim());
+      const saved = await updateIcalFeeds(calendar.propertyId, cleaned);
+      setCalendar((prev) => (prev ? { ...prev, icalFeeds: saved } : prev));
+      setFeedDraft(saved);
+      setFeedsSaved(true);
+      // Re-pull so imported dates from any new feed show up.
+      void loadCalendar(calendar.propertyId);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to save iCal feeds.');
+    } finally {
+      setSavingFeeds(false);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#e8e5e6]">
+        <TopNavBar />
+        <div className="max-w-3xl mx-auto px-4 pt-[120px]">
+          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">Please login as host/admin to manage the calendar.</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!canAccess) {
+    return (
+      <div className="min-h-screen bg-[#e8e5e6]">
+        <TopNavBar />
+        <div className="max-w-3xl mx-auto px-4 pt-[120px]">
+          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">Host or admin role required.</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
+      <TopNavBar />
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-8 pt-3 md:pt-[110px] pb-24 md:pb-12">
+        <div className="mb-4">
+          <h1 className="font-['Plus_Jakarta_Sans'] text-[20px] md:text-[28px] font-bold tracking-tight leading-none">Calendar</h1>
+          <p className="hidden md:block mt-1.5 text-[13px] text-[#74777d]">Block dates manually and sync availability with other platforms via iCal.</p>
+        </div>
+
+        {/* Property selector */}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <label className="text-[13px] font-medium text-[#44474c]">Property</label>
+          <select
+            value={selectedPropertyId}
+            onChange={(e) => setSelectedPropertyId(e.target.value)}
+            disabled={loadingProps}
+            className="rounded-xl border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] outline-none focus:border-[#1b1c1d] transition-colors min-w-[220px]"
+          >
+            {loadingProps && <option>Loading…</option>}
+            {!loadingProps && scopedProperties.length === 0 && <option value="">No properties available</option>}
+            {scopedProperties.map((p) => (
+              <option key={p.id} value={p.id}>{p.name || p.id}</option>
+            ))}
+          </select>
+          {loadingCal && <Loader2 className="h-4 w-4 animate-spin text-[#74777d]" />}
+        </div>
+
+        {errorMsg && <div className="mb-4 rounded-xl border border-[#f5c2c7] bg-[#fdeef0] px-4 py-3 text-[13px] text-[#ba1a1a]">{errorMsg}</div>}
+
+        {calendar && (
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5 items-start">
+            {/* Calendar card */}
+            <section className="bg-white border border-[#e4e2e3] rounded-2xl p-4 md:p-5">
+              <div className="flex items-center justify-between mb-4">
+                <button type="button" onClick={() => setViewMonth((m) => subMonths(m, 1))} className="p-2 rounded-lg hover:bg-[#f5f3f4] transition-colors" aria-label="Previous month">
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <div className="text-[15px] md:text-[17px] font-semibold">{format(viewMonth, 'MMMM yyyy')}</div>
+                <button type="button" onClick={() => setViewMonth((m) => addMonths(m, 1))} className="p-2 rounded-lg hover:bg-[#f5f3f4] transition-colors" aria-label="Next month">
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-7 gap-1 mb-1">
+                {WEEKDAYS.map((d) => (
+                  <div key={d} className="text-center text-[11px] font-semibold text-[#74777d] py-1">{d}</div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-1">
+                {gridDays.map((day) => {
+                  const iso = format(day, 'yyyy-MM-dd');
+                  const inMonth = isSameMonth(day, viewMonth);
+                  const isManual = manualSet.has(iso);
+                  const isImported = importedSet.has(iso);
+                  const bookingName = bookingMap.get(iso);
+                  const isBooking = !!bookingName;
+                  const isBusy = busyDates.has(iso);
+                  const readOnly = isImported || isBooking;
+                  const isToday = iso === todayIso;
+
+                  let cellClass = 'bg-white hover:bg-[#f0eeef] text-[#1b1c1d]';
+                  let label = '';
+                  if (isBooking) { cellClass = 'bg-[#e7f0ff] text-[#0b57d0] cursor-default'; label = 'Booked'; }
+                  else if (isImported) { cellClass = 'bg-[#fff1e0] text-[#8a5a00] cursor-default'; label = 'iCal'; }
+                  else if (isManual) { cellClass = 'bg-[#1b1c1d] text-white hover:bg-[#333]'; label = 'Blocked'; }
+
+                  return (
+                    <button
+                      key={iso}
+                      type="button"
+                      disabled={readOnly || isBusy}
+                      onClick={() => toggleDay(iso)}
+                      title={bookingName ? `Booked — ${bookingName}` : (isImported ? 'Imported from another platform' : (isManual ? 'Blocked (click to unblock)' : 'Available (click to block)'))}
+                      className={`relative aspect-square rounded-lg border ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} flex flex-col items-center justify-center text-[13px] transition-colors ${cellClass} ${!inMonth ? 'opacity-35' : ''} ${readOnly ? '' : 'cursor-pointer'}`}
+                    >
+                      <span className="font-medium leading-none">{format(day, 'd')}</span>
+                      {label && <span className="mt-0.5 text-[8px] uppercase tracking-wide leading-none">{label}</span>}
+                      {isBusy && <Loader2 className="absolute h-3.5 w-3.5 animate-spin" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Legend */}
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-[#44474c]">
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-white border border-[#c4c6cd]" /> Available</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#1b1c1d]" /> Manually blocked</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#fff1e0] border border-[#e6c48a]" /> iCal imported</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#e7f0ff] border border-[#a9c8f5]" /> Direct booking</span>
+              </div>
+              <p className="mt-3 text-[11px] text-[#74777d]">Click an available day to block it, or a blocked day to free it. iCal-imported dates and direct bookings are managed elsewhere.</p>
+            </section>
+
+            {/* iCal panel */}
+            <aside className="space-y-5">
+              {/* Export link */}
+              <section className="bg-white border border-[#e4e2e3] rounded-2xl p-4 md:p-5">
+                <h2 className="text-[15px] font-semibold mb-1">Export calendar (iCal)</h2>
+                <p className="text-[12px] text-[#74777d] mb-3">Give this link to Airbnb, Booking.com, etc. so they import your blocked dates and direct bookings.</p>
+                <div className="flex items-stretch gap-2">
+                  <input
+                    readOnly
+                    value={calendar.exportUrl}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="flex-1 min-w-0 rounded-xl border border-[#c4c6cd] bg-[#f7f6f7] px-3 py-2 text-[12px] text-[#44474c] outline-none"
+                  />
+                  <button type="button" onClick={copyExportUrl} className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-[#1b1c1d] px-3 py-2 text-[12px] font-semibold text-white hover:bg-[#333] transition-colors">
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <button type="button" onClick={handleRegenerate} className="mt-2 inline-flex items-center gap-1.5 text-[12px] text-[#74777d] hover:text-[#1b1c1d] transition-colors">
+                  <RefreshCw className="h-3.5 w-3.5" /> Regenerate link
+                </button>
+              </section>
+
+              {/* Import feeds */}
+              <section className="bg-white border border-[#e4e2e3] rounded-2xl p-4 md:p-5">
+                <h2 className="text-[15px] font-semibold mb-1">Import calendars (iCal)</h2>
+                <p className="text-[12px] text-[#74777d] mb-3">Paste iCal URLs from other platforms. We refresh them about once a minute and block the imported dates automatically.</p>
+
+                <div className="space-y-3">
+                  {feedDraft.length === 0 && <p className="text-[12px] text-[#9aa0a6]">No import feeds yet.</p>}
+                  {feedDraft.map((feed) => (
+                    <div key={feed.id} className="rounded-xl border border-[#e4e2e3] p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          value={feed.name}
+                          onChange={(e) => updateFeedRow(feed.id, 'name', e.target.value)}
+                          placeholder="Label (e.g. Airbnb)"
+                          className="flex-1 min-w-0 rounded-lg border border-[#c4c6cd] bg-white px-2.5 py-1.5 text-[12px] outline-none focus:border-[#1b1c1d] transition-colors"
+                        />
+                        <button type="button" onClick={() => removeFeedRow(feed.id)} className="shrink-0 p-1.5 rounded-lg text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors" aria-label="Remove feed">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <input
+                        value={feed.url}
+                        onChange={(e) => updateFeedRow(feed.id, 'url', e.target.value)}
+                        placeholder="https://…/calendar.ics"
+                        className="w-full rounded-lg border border-[#c4c6cd] bg-white px-2.5 py-1.5 text-[12px] outline-none focus:border-[#1b1c1d] transition-colors"
+                      />
+                      {feed.lastSynced && <p className="mt-1 text-[10px] text-[#9aa0a6]">Last synced: {feed.lastSynced}</p>}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-3 flex items-center justify-between">
+                  <button type="button" onClick={addFeedRow} className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#44474c] hover:text-[#1b1c1d] transition-colors">
+                    <Plus className="h-4 w-4" /> Add feed
+                  </button>
+                  <button type="button" onClick={saveFeeds} disabled={savingFeeds} className="inline-flex items-center gap-1.5 rounded-xl bg-[#1b1c1d] px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-[#333] disabled:opacity-60 transition-colors">
+                    {savingFeeds ? <Loader2 className="h-4 w-4 animate-spin" /> : (feedsSaved ? <Check className="h-4 w-4" /> : null)} {feedsSaved ? 'Saved' : 'Save feeds'}
+                  </button>
+                </div>
+              </section>
+            </aside>
+          </div>
+        )}
+
+        {!calendar && !loadingCal && scopedProperties.length > 0 && (
+          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center text-[13px] text-[#74777d]">Select a property to manage its calendar.</div>
+        )}
+      </main>
+      <Footer />
+      <MobileBottomNav />
+    </div>
+  );
+};
+
+export default HostCalendarPage;

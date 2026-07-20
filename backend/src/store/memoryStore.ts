@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSettingsSeed } from './seed.js';
 import {
   AuthUser,
@@ -437,6 +438,61 @@ export class MemoryStore implements DataStore {
 
   async listBlockedDates(propertyId: string): Promise<string[]> {
     return [...(this.assertState().blockedDates[propertyId] ?? [])];
+  }
+
+  async addBlockedDates(propertyId: string, dates: string[]): Promise<void> {
+    const state = this.assertState();
+    const existing = new Set(state.blockedDates[propertyId] ?? []);
+    for (const date of dates) {
+      existing.add(date);
+    }
+    state.blockedDates[propertyId] = Array.from(existing).sort();
+  }
+
+  async removeBlockedDates(propertyId: string, dates: string[]): Promise<void> {
+    const state = this.assertState();
+    const remove = new Set(dates);
+    const remaining = (state.blockedDates[propertyId] ?? []).filter((date) => !remove.has(date));
+    state.blockedDates[propertyId] = remaining;
+  }
+
+  async updateIcalFeeds(
+    propertyId: string,
+    feeds: PropertyData['icalFeeds'],
+  ): Promise<PropertyData & { id: string }> {
+    const state = this.assertState();
+    const index = state.properties.findIndex((item) => item.id === propertyId || item.metalink === propertyId);
+    if (index === -1) {
+      throw new Error('Property not found.');
+    }
+    state.properties[index] = { ...state.properties[index], icalFeeds: structuredClone(feeds) };
+    return structuredClone(state.properties[index]);
+  }
+
+  async ensureIcalExportToken(propertyId: string): Promise<string> {
+    const state = this.assertState();
+    const index = state.properties.findIndex((item) => item.id === propertyId || item.metalink === propertyId);
+    if (index === -1) {
+      throw new Error('Property not found.');
+    }
+    const existing = state.properties[index].icalExportToken;
+    if (existing) {
+      return existing;
+    }
+    const token = randomBytes(24).toString('hex');
+    state.properties[index] = { ...state.properties[index], icalExportToken: token };
+    return token;
+  }
+
+  async regenerateIcalExportToken(propertyId: string): Promise<string> {
+    const state = this.assertState();
+    const index = state.properties.findIndex((item) => item.id === propertyId || item.metalink === propertyId);
+    if (index === -1) {
+      throw new Error('Property not found.');
+    }
+    const token = randomBytes(24).toString('hex');
+    state.properties[index] = { ...state.properties[index], icalExportToken: token };
+    return token;
   }
 
   async listBlogPosts(includeArchived = false): Promise<BlogPost[]> {

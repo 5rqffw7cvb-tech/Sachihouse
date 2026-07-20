@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Settings, User, LogOut, Loader2, Building2, ClipboardCheck, Wallet, Newspaper, Users, Home, Tag, FileText } from 'lucide-react';
+import { Settings, User, LogOut, Loader2, Building2, ClipboardCheck, Wallet, Newspaper, Users, Home, Tag, FileText, CalendarDays } from 'lucide-react';
 import { getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { getSiteSettings } from '../services/storage';
 import { CheckInLinkPicker } from './CheckInLinkPicker';
@@ -328,6 +328,14 @@ export const TopNavBar: React.FC<{ actionButton?: React.ReactNode; mobileActionB
                         className="w-full text-left px-4 py-2.5 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors flex items-center gap-2.5"
                       >
                         <Building2 className="w-4 h-4 text-[#74777d]" /> {t('common_admin_property')}
+                      </button>
+                    )}
+                    {canManageProperties && (
+                      <button
+                        onClick={() => { setIsDropdownOpen(false); navigate('/admin/calendar'); }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-[#44474c] hover:bg-[#f5f3f4] hover:text-[#1b1c1d] transition-colors flex items-center gap-2.5"
+                      >
+                        <CalendarDays className="w-4 h-4 text-[#74777d]" /> Calendar
                       </button>
                     )}
                     {canManageProperties && (

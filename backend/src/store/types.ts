@@ -335,6 +335,9 @@ export interface PropertyData {
   rules: Array<{ id: string; text: string; icon: string; type: 'allowed' | 'forbidden' }>;
   manual: Array<{ id: string; title: string; content: string; imageUrl?: string }>;
   icalFeeds: Array<{ id: string; name: string; url: string; lastSynced: string }>;
+  // Secret token that guards the public iCal export URL for this property.
+  // Generated lazily the first time a host opens the calendar/export panel.
+  icalExportToken?: string;
   amenities: string[];
   galleryCategories: Array<{ id: string; label: string }>;
   galleryImages: Array<{ id: string; url: string; caption: string; category: string; showOnHome?: boolean }>;
@@ -468,6 +471,21 @@ export interface DataStore {
   getSubscriptionRequest(id: string): Promise<SubscriptionRequest | null>;
   updateSubscriptionRequestStatus(id: string, status: SubscriptionRequestStatus, actor: AuthUser): Promise<SubscriptionRequest>;
   listBlockedDates(propertyId: string): Promise<string[]>;
+  // Manual calendar blocks managed by hosts. Dates are YYYY-MM-DD; adding an
+  // already-blocked date (or removing a free one) is a no-op.
+  addBlockedDates(propertyId: string, dates: string[]): Promise<void>;
+  removeBlockedDates(propertyId: string, dates: string[]): Promise<void>;
+  // Replaces the property's iCal import feeds (host-managed, host-scoped).
+  updateIcalFeeds(
+    propertyId: string,
+    feeds: PropertyData['icalFeeds'],
+    actor: AuthUser,
+  ): Promise<PropertyData & { id: string }>;
+  // Returns the property's iCal export token, generating and persisting one on
+  // first use so the public export URL stays stable afterwards.
+  ensureIcalExportToken(propertyId: string): Promise<string>;
+  // Rotates the iCal export token, invalidating any previously shared URL.
+  regenerateIcalExportToken(propertyId: string): Promise<string>;
   listBlogPosts(includeArchived?: boolean): Promise<BlogPost[]>;
   getBlogPost(id: string): Promise<BlogPost | null>;
   createBlogPost(post: Omit<BlogPost, 'createdAt' | 'updatedAt'>, actor: AuthUser): Promise<BlogPost>;

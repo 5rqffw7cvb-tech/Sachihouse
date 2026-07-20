@@ -24,6 +24,7 @@ import {
 import { getParam } from './types/params.js';
 import { Role } from './types/domain.js';
 import { IcalSyncService } from './services/icalSync.js';
+import { buildPropertyIcs } from './services/icsExport.js';
 import { IdProcessingService } from './services/idProcessing.js';
 import { ObjectStorageService } from './services/objectStorage.js';
 import { ReceiptProcessingService } from './services/receiptProcessing.js';
@@ -182,6 +183,8 @@ function redactPropertyForViewer(
   // on the backend type, so remove it via a runtime delete.
   const clone = { ...property, icalFeeds: [] } as PropertyData & { id: string };
   delete (clone as unknown as Record<string, unknown>).emailJs;
+  // The export token guards the public iCal URL; never expose it to non-owners.
+  delete (clone as unknown as Record<string, unknown>).icalExportToken;
   return clone;
 }
 
@@ -1033,6 +1036,161 @@ export function createApp(store: DataStore) {
     }
     const blockedDates = await getEffectiveBlockedDates(property, 'stale-ok');
     res.json({ blockedDates });
+  });
+
+  // Builds the absolute, token-guarded iCal export URL other platforms subscribe
+  // to. Honors X-Forwarded-Proto (trust proxy is set) so it stays https behind
+  // Railway's TLS termination.
+  function buildIcalExportUrl(req: Request, propertyId: string, token: string): string {
+    const host = req.get('host') ?? 'localhost';
+    return `${req.protocol}://${host}/api/ical/${encodeURIComponent(propertyId)}/${token}.ics`;
+  }
+
+  // Host-scoped calendar view: manual blocks (editable), dates imported from
+  // other platforms via iCal (read-only), direct bookings, the import feeds, and
+  // this property's export URL.
+  app.get('/api/properties/:id/calendar', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.id));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (!canAccessProperty(req.authUser!, property.id)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+
+    const manualBlockedDates = await store.listBlockedDates(property.id);
+    const effective = await getEffectiveBlockedDates(property, 'fresh-if-stale');
+    const manualSet = new Set(manualBlockedDates);
+    const importedBlockedDates = effective.filter((date) => !manualSet.has(date));
+
+    const bookings = (await store.listBookingConfirmations({ propertyId: property.id })).map((b) => ({
+      id: b.id,
+      guestName: b.guestName,
+      checkInDate: b.checkInDate,
+      checkOutDate: b.checkOutDate,
+    }));
+
+    const token = await store.ensureIcalExportToken(property.id);
+
+    res.json({
+      propertyId: property.id,
+      propertyName: property.name,
+      manualBlockedDates,
+      importedBlockedDates,
+      bookings,
+      icalFeeds: property.icalFeeds ?? [],
+      exportUrl: buildIcalExportUrl(req, property.id, token),
+    });
+  });
+
+  // Adds manual calendar blocks. Body: { dates: string[] } (YYYY-MM-DD).
+  app.post('/api/properties/:id/blocked-dates', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.id));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (!canAccessProperty(req.authUser!, property.id)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+    const rawDates = Array.isArray(req.body?.dates) ? req.body.dates : [];
+    const dates = Array.from(new Set(rawDates.filter((d: unknown) => isIsoDate(d)))) as string[];
+    if (!dates.length) {
+      return res.status(400).json({ error: 'dates must be a non-empty array of YYYY-MM-DD values.' });
+    }
+    await store.addBlockedDates(property.id, dates);
+    const manualBlockedDates = await store.listBlockedDates(property.id);
+    res.json({ manualBlockedDates });
+  });
+
+  // Removes manual calendar blocks. Body: { dates: string[] } (YYYY-MM-DD).
+  // Only affects manual blocks; dates imported from other platforms are ignored.
+  app.delete('/api/properties/:id/blocked-dates', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.id));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (!canAccessProperty(req.authUser!, property.id)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+    const rawDates = Array.isArray(req.body?.dates) ? req.body.dates : [];
+    const dates = Array.from(new Set(rawDates.filter((d: unknown) => isIsoDate(d)))) as string[];
+    if (!dates.length) {
+      return res.status(400).json({ error: 'dates must be a non-empty array of YYYY-MM-DD values.' });
+    }
+    await store.removeBlockedDates(property.id, dates);
+    const manualBlockedDates = await store.listBlockedDates(property.id);
+    res.json({ manualBlockedDates });
+  });
+
+  // Replaces the property's iCal import feeds. Body: { feeds: [{ id, name, url, lastSynced }] }.
+  app.put('/api/properties/:id/ical-feeds', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.id));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (!canAccessProperty(req.authUser!, property.id)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+    const rawFeeds = Array.isArray(req.body?.feeds) ? req.body.feeds : [];
+    const feeds = rawFeeds
+      .map((feed: Record<string, unknown>) => ({
+        id: typeof feed?.id === 'string' && feed.id.trim() ? feed.id : `feed_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name: normalizeText(feed?.name),
+        url: normalizeText(feed?.url),
+        lastSynced: typeof feed?.lastSynced === 'string' ? feed.lastSynced : '',
+      }))
+      .filter((feed: { url: string }) => feed.url.length > 0);
+    const updated = await store.updateIcalFeeds(property.id, feeds, req.authUser!);
+    res.json({ icalFeeds: updated.icalFeeds ?? [] });
+  });
+
+  // Rotates the export token, invalidating any previously shared export URL.
+  app.post('/api/properties/:id/ical-export-token/regenerate', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.id));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (!canAccessProperty(req.authUser!, property.id)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+    const token = await store.regenerateIcalExportToken(property.id);
+    res.json({ exportUrl: buildIcalExportUrl(req, property.id, token) });
+  });
+
+  // Public token-guarded iCal export consumed by other booking platforms. No
+  // auth: the secret token in the path is the credential. Publishes manual
+  // blocks + direct bookings only (imported dates are excluded to avoid loops).
+  app.get('/api/ical/:propertyId/:token.ics', async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.propertyId));
+    const providedToken = getParam(req.params.token);
+    if (!property || !property.icalExportToken) {
+      return res.status(404).type('text/plain').send('Not found');
+    }
+    const expected = Buffer.from(property.icalExportToken);
+    const provided = Buffer.from(providedToken);
+    if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
+      return res.status(404).type('text/plain').send('Not found');
+    }
+
+    const manualBlockedDates = await store.listBlockedDates(property.id);
+    const bookings = (await store.listBookingConfirmations({ propertyId: property.id })).map((b) => ({
+      id: b.id,
+      guestName: b.guestName,
+      checkInDate: b.checkInDate,
+      checkOutDate: b.checkOutDate,
+    }));
+
+    const ics = buildPropertyIcs({
+      propertyId: property.id,
+      propertyName: property.name,
+      manualBlockedDates,
+      bookings,
+    });
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `inline; filename="${property.id}.ics"`);
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(ics);
   });
 
   app.post('/api/properties', requireAdmin, async (req, res) => {
