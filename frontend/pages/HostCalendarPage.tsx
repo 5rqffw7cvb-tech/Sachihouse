@@ -11,7 +11,7 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns';
-import { Check, ChevronLeft, ChevronRight, Copy, Loader2, RefreshCw, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Loader2, RefreshCw, Plus, Settings2, Trash2 } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { Footer } from '../components/Footer';
@@ -61,6 +61,9 @@ const HostCalendarPage: React.FC = () => {
   const [busyDates, setBusyDates] = useState<Set<string>>(new Set());
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // On mobile the iCal settings stay collapsed by default so blocked dates
+  // aren't edited by accident; a tap expands them. Desktop always shows them.
+  const [icalOpen, setIcalOpen] = useState(false);
 
   // iCal import feed editor (local draft until Save).
   const [feedDraft, setFeedDraft] = useState<ICalFeed[]>([]);
@@ -346,6 +349,20 @@ const HostCalendarPage: React.FC = () => {
 
             {/* iCal panel */}
             <aside className="space-y-5">
+              {/* Mobile-only toggle: keeps the iCal settings collapsed so they
+                  aren't edited by accident. Hidden on desktop (lg+). */}
+              <button
+                type="button"
+                onClick={() => setIcalOpen((o) => !o)}
+                aria-expanded={icalOpen}
+                className="lg:hidden w-full flex items-center justify-between gap-2 bg-white border border-[#e4e2e3] rounded-2xl px-4 py-3 text-[14px] font-semibold text-[#1b1c1d]"
+              >
+                <span className="inline-flex items-center gap-2"><Settings2 className="h-4 w-4 text-[#74777d]" /> iCal settings</span>
+                <ChevronDown className={`h-5 w-5 text-[#74777d] transition-transform ${icalOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Collapsed on mobile unless opened; always shown on desktop. */}
+              <div className={`${icalOpen ? 'block' : 'hidden'} lg:block space-y-5`}>
               {/* Export link */}
               <section className="bg-white border border-[#e4e2e3] rounded-2xl p-4 md:p-5">
                 <h2 className="text-[15px] font-semibold mb-1">Export calendar (iCal)</h2>
@@ -406,6 +423,7 @@ const HostCalendarPage: React.FC = () => {
                   </button>
                 </div>
               </section>
+              </div>
             </aside>
           </div>
         )}
