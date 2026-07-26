@@ -282,7 +282,8 @@ MAIL_HOST_NOTIFY=...
 | :--- | :--- | :--- | :--- |
 | POST | `/api/bookings` | công khai | Tính giá lại, tạo hold trong transaction, tạo Checkout Session. Trả `{ bookingId, checkoutUrl }`. 409 nếu ngày đã bị chiếm. |
 | GET | `/api/bookings/:id?token=` | guest token | Trạng thái booking cho trang kết quả (frontend poll 2s trong ~30s chờ webhook). |
-| POST | `/api/bookings/:id/cancel` | guest token | Khách tự hủy, áp quy tắc 7 ngày, gọi refund. |
+| POST | `/api/bookings/:id/cancel` | guest token | Khách tự hủy, áp quy tắc 7 ngày, gọi refund. Hoàn tiền **trước** rồi mới nhả phòng — ngược lại sẽ có nguy cơ khách mất cả phòng lẫn tiền nếu Stripe lỗi. |
+| POST | `/api/bookings/:id/cancel-by-host` | host/admin | Hủy + hoàn 100% (không trừ phí). |
 | POST | `/api/stripe/webhook` | chữ ký Stripe | Xử lý event. |
 | GET | `/api/bookings` | host/admin | Danh sách booking trực tiếp, lọc theo property/ngày/trạng thái. |
 | POST | `/api/bookings/:id/cancel-by-host` | host/admin | Hủy + hoàn 100%. |

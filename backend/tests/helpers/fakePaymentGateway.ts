@@ -18,6 +18,7 @@ export class FakePaymentGateway implements PaymentGateway {
   readonly refunds: Array<{ paymentIntentId: string; amount: number }> = [];
   chargeFee = 1260;
   failNextSession = false;
+  failNextRefund = false;
 
   async createCheckoutSession(params: CheckoutSessionParams): Promise<CheckoutSession> {
     if (this.failNextSession) {
@@ -39,6 +40,9 @@ export class FakePaymentGateway implements PaymentGateway {
   }
 
   async createRefund(paymentIntentId: string, amount: number) {
+    if (this.failNextRefund) {
+      throw new Error('Stripe refund declined');
+    }
     this.refunds.push({ paymentIntentId, amount });
     return { id: `re_test_${this.refunds.length}`, amount };
   }

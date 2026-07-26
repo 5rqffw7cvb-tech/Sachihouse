@@ -6,7 +6,13 @@ import morgan from 'morgan';
 import { addDays, format, isValid, parseISO } from 'date-fns';
 import { canAccessProperty, canPerformAction } from './domain/authorization.js';
 import { calculateQuote } from './domain/pricing.js';
-import { canTransition, getStayDates, isDirectBookingEnabled, validateBookingWindow } from './domain/booking.js';
+import {
+  calculateRefund,
+  canTransition,
+  getStayDates,
+  isDirectBookingEnabled,
+  validateBookingWindow,
+} from './domain/booking.js';
 import { signCheckInToken, verifyCheckInToken, verifyToken, signToken } from './auth/jwt.js';
 import {
   ACTIVE_BOOKING_STATUSES,
@@ -1696,8 +1702,77 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       quote: booking.quote,
       holdExpiresAt: booking.holdExpiresAt,
       refundAmount: booking.refundAmount,
+      cancelledAt: booking.cancelledAt,
+      // So the cancellation screen can state the amount before the guest
+      // commits, rather than surprising them after the fact.
+      refundIfCancelledNow: calculateRefund(booking, Date.now()).refundAmount,
       createdAt: booking.createdAt,
     };
+  }
+
+  // Reads the booking named in the URL and checks the guest's token against it.
+  // Any failure is reported as 404 so the endpoint cannot be used to discover
+  // which booking ids exist.
+  async function loadBookingForGuest(idParam: string, tokenParam: unknown): Promise<Booking | null> {
+    const token = typeof tokenParam === 'string' ? tokenParam : '';
+    const booking = await store.getBooking(idParam);
+    if (!booking || !token) {
+      return null;
+    }
+    const expected = Buffer.from(booking.guestToken);
+    const provided = Buffer.from(token);
+    if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
+      return null;
+    }
+    return booking;
+  }
+
+  type CancelOutcome =
+    | { ok: true; booking: Booking; refundAmount: number }
+    | { ok: false; status: number; error: string };
+
+  // Cancels a booking and refunds whatever the policy allows. Guests get the
+  // amount minus Stripe's processing fee when they cancel at least a week out
+  // and nothing after that; a host cancelling always refunds in full.
+  async function cancelBooking(
+    booking: Booking,
+    options: { byHost: boolean; reason: string },
+  ): Promise<CancelOutcome> {
+    const nextStatus: BookingStatus = options.byHost ? 'cancelled_by_host' : 'cancelled_by_guest';
+    if (!canTransition(booking.status, nextStatus)) {
+      return { ok: false, status: 409, error: `A booking in status "${booking.status}" cannot be cancelled.` };
+    }
+
+    const outcome = calculateRefund(booking, Date.now(), { byHost: options.byHost });
+
+    // Money moves before the room is released. The reverse order risks leaving
+    // the guest with neither their stay nor their refund if Stripe fails.
+    let refunded = 0;
+    if (outcome.refundAmount > 0 && booking.stripePaymentIntentId) {
+      try {
+        const refund = await payments.createRefund(booking.stripePaymentIntentId, outcome.refundAmount);
+        refunded = refund.amount;
+      } catch (error) {
+        console.error(`Refund failed for booking ${booking.id}; it stays confirmed.`, error);
+        return { ok: false, status: 502, error: 'Refund could not be processed. The booking was not cancelled.' };
+      }
+    }
+
+    const updated = await store.updateBooking(booking.id, {
+      status: nextStatus,
+      cancelledAt: Date.now(),
+      cancelReason: options.reason,
+      refundAmount: booking.refundAmount + refunded,
+      holdExpiresAt: null,
+    });
+
+    if (!updated) {
+      // The refund already went through, so this must not look like a success.
+      console.error(`Booking ${booking.id} was refunded ${refunded} but could not be marked cancelled.`);
+      return { ok: false, status: 500, error: 'Booking was refunded but could not be updated. Contact support.' };
+    }
+
+    return { ok: true, booking: updated, refundAmount: refunded };
   }
 
   // Creates a booking and claims the nights. Payment is wired up separately;
@@ -1826,19 +1901,50 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   // Guest-facing lookup. The token in the query string is the only credential,
   // so it is compared in constant time like the iCal export token.
   app.get('/api/bookings/:id', async (req, res) => {
-    const token = typeof req.query.token === 'string' ? req.query.token : '';
-    const booking = await store.getBooking(getParam(req.params.id));
-    if (!booking || !token) {
+    const booking = await loadBookingForGuest(getParam(req.params.id), req.query.token);
+    if (!booking) {
       return res.status(404).json({ error: 'Booking not found.' });
     }
-
-    const expected = Buffer.from(booking.guestToken);
-    const provided = Buffer.from(token);
-    if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
-      return res.status(404).json({ error: 'Booking not found.' });
-    }
-
     return res.json({ booking: toGuestBookingView(booking) });
+  });
+
+  // Guest self-service cancellation, authorised by the same token as the lookup.
+  app.post('/api/bookings/:id/cancel', async (req, res) => {
+    const booking = await loadBookingForGuest(getParam(req.params.id), req.query.token ?? req.body?.token);
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found.' });
+    }
+
+    const result = await cancelBooking(booking, { byHost: false, reason: 'guest_requested' });
+    if (!result.ok) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    return res.json({
+      booking: toGuestBookingView(result.booking),
+      refundAmount: result.refundAmount,
+    });
+  });
+
+  // Host/admin cancellation. Always refunds in full: the guest is losing a stay
+  // they did nothing wrong to lose, so we absorb the processing fee.
+  app.post('/api/bookings/:id/cancel-by-host', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const booking = await store.getBooking(getParam(req.params.id));
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found.' });
+    }
+    if (!canAccessProperty(req.authUser!, booking.propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+
+    const reason = normalizeText(req.body?.reason) || 'host_cancelled';
+    const result = await cancelBooking(booking, { byHost: true, reason });
+    if (!result.ok) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    const { guestToken, ...safe } = result.booking;
+    return res.json({ booking: safe, refundAmount: result.refundAmount });
   });
 
   // Host/admin listing, scoped to the properties the actor may see.
