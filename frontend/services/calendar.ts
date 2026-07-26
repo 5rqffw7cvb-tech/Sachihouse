@@ -8,6 +8,18 @@ export interface CalendarBooking {
   checkOutDate: string;
 }
 
+// A booking a guest made and paid for on our own site. `pending_payment` is a
+// short-lived hold taken while they are on the payment page.
+export interface DirectBooking {
+  id: string;
+  status: 'pending_payment' | 'confirmed';
+  guestName: string;
+  checkInDate: string;
+  checkOutDate: string;
+  amountTotal: number;
+  currency: string;
+}
+
 export interface PropertyCalendar {
   propertyId: string;
   propertyName: string;
@@ -15,7 +27,10 @@ export interface PropertyCalendar {
   manualBlockedDates: string[];
   // Dates pulled in from other platforms via iCal import (read-only here).
   importedBlockedDates: string[];
+  // Host-entered confirmations for off-platform stays.
   bookings: CalendarBooking[];
+  // Guest-made online bookings. These occupy the calendar too.
+  directBookings: DirectBooking[];
   icalFeeds: ICalFeed[];
   exportUrl: string;
 }

@@ -32,20 +32,40 @@ type PropertyItem = PropertyData & { id: string };
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Expands a set of bookings into a map of YYYY-MM-DD -> guest name for the
-// nights they occupy (check-out morning is free again, so it is excluded).
-function buildBookingMap(bookings: PropertyCalendar['bookings']): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const booking of bookings) {
-    const start = parseISO(booking.checkInDate);
-    const end = parseISO(booking.checkOutDate);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(start < end)) continue;
+// A paid stay and an unpaid hold both take the night off the market, but they
+// are not the same thing to a host, so the calendar distinguishes them.
+type Occupancy = { name: string; kind: 'booking' | 'hold' };
+
+// Expands bookings into a map of YYYY-MM-DD -> occupancy for the nights they
+// take (check-out morning is free again, so it is excluded).
+function buildOccupancyMap(calendar: PropertyCalendar | null): Map<string, Occupancy> {
+  const map = new Map<string, Occupancy>();
+
+  const claim = (checkInDate: string, checkOutDate: string, name: string, kind: Occupancy['kind']) => {
+    const start = parseISO(checkInDate);
+    const end = parseISO(checkOutDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(start < end)) return;
     for (const day of eachDayOfInterval({ start, end })) {
       const iso = format(day, 'yyyy-MM-dd');
-      if (iso === booking.checkOutDate) continue; // checkout day is available
-      if (!map.has(iso)) map.set(iso, booking.guestName || 'Reserved');
+      if (iso === checkOutDate) continue; // checkout day is available again
+      if (!map.has(iso)) map.set(iso, { name, kind });
     }
+  };
+
+  for (const booking of calendar?.bookings ?? []) {
+    claim(booking.checkInDate, booking.checkOutDate, booking.guestName || 'Reserved', 'booking');
   }
+  // Without this the nights a guest already paid for would render as available
+  // and clickable, which is worse than not showing them at all.
+  for (const booking of calendar?.directBookings ?? []) {
+    claim(
+      booking.checkInDate,
+      booking.checkOutDate,
+      booking.guestName || 'Reserved',
+      booking.status === 'confirmed' ? 'booking' : 'hold',
+    );
+  }
+
   return map;
 }
 
@@ -136,7 +156,7 @@ const HostCalendarPage: React.FC = () => {
 
   const manualSet = useMemo(() => new Set(calendar?.manualBlockedDates ?? []), [calendar]);
   const importedSet = useMemo(() => new Set(calendar?.importedBlockedDates ?? []), [calendar]);
-  const bookingMap = useMemo(() => buildBookingMap(calendar?.bookings ?? []), [calendar]);
+  const occupancyMap = useMemo(() => buildOccupancyMap(calendar), [calendar]);
 
   const gridDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(viewMonth), { weekStartsOn: 0 });
@@ -148,8 +168,8 @@ const HostCalendarPage: React.FC = () => {
 
   const toggleDay = async (iso: string) => {
     if (!calendar) return;
-    // Imported dates and direct bookings are read-only on this screen.
-    if (importedSet.has(iso) || bookingMap.has(iso)) return;
+    // Imported dates, direct bookings and unpaid holds are read-only here.
+    if (importedSet.has(iso) || occupancyMap.has(iso)) return;
     if (busyDates.has(iso)) return;
 
     const isBlocked = manualSet.has(iso);
@@ -308,15 +328,15 @@ const HostCalendarPage: React.FC = () => {
                   const inMonth = isSameMonth(day, viewMonth);
                   const isManual = manualSet.has(iso);
                   const isImported = importedSet.has(iso);
-                  const bookingName = bookingMap.get(iso);
-                  const isBooking = !!bookingName;
+                  const occupancy = occupancyMap.get(iso);
                   const isBusy = busyDates.has(iso);
-                  const readOnly = isImported || isBooking;
+                  const readOnly = isImported || !!occupancy;
                   const isToday = iso === todayIso;
 
                   let cellClass = 'bg-white hover:bg-[#f0eeef] text-[#1b1c1d]';
                   let label = '';
-                  if (isBooking) { cellClass = 'bg-[#e7f0ff] text-[#0b57d0] cursor-default'; label = 'Booked'; }
+                  if (occupancy?.kind === 'booking') { cellClass = 'bg-[#e7f0ff] text-[#0b57d0] cursor-default'; label = 'Booked'; }
+                  else if (occupancy?.kind === 'hold') { cellClass = 'bg-[#f3e8ff] text-[#6b21a8] cursor-default'; label = 'Hold'; }
                   else if (isImported) { cellClass = 'bg-[#fff1e0] text-[#8a5a00] cursor-default'; label = 'iCal'; }
                   else if (isManual) { cellClass = 'bg-[#1b1c1d] text-white hover:bg-[#333]'; label = 'Blocked'; }
 
@@ -326,7 +346,9 @@ const HostCalendarPage: React.FC = () => {
                       type="button"
                       disabled={readOnly || isBusy}
                       onClick={() => toggleDay(iso)}
-                      title={bookingName ? `Booked — ${bookingName}` : (isImported ? 'Imported from another platform' : (isManual ? 'Blocked (click to unblock)' : 'Available (click to block)'))}
+                      title={occupancy
+                        ? `${occupancy.kind === 'hold' ? 'Unpaid hold' : 'Booked'} — ${occupancy.name}`
+                        : (isImported ? 'Imported from another platform' : (isManual ? 'Blocked (click to unblock)' : 'Available (click to block)'))}
                       className={`relative aspect-square rounded-lg border ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} flex flex-col items-center justify-center text-[13px] transition-colors ${cellClass} ${!inMonth ? 'opacity-35' : ''} ${readOnly ? '' : 'cursor-pointer'}`}
                     >
                       <span className="font-medium leading-none">{format(day, 'd')}</span>
@@ -343,9 +365,57 @@ const HostCalendarPage: React.FC = () => {
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#1b1c1d]" /> Manually blocked</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#fff1e0] border border-[#e6c48a]" /> iCal imported</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#e7f0ff] border border-[#a9c8f5]" /> Direct booking</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#f3e8ff] border border-[#d8b4fe]" /> Unpaid hold</span>
               </div>
               <p className="mt-3 text-[11px] text-[#74777d]">Click an available day to block it, or a blocked day to free it. iCal-imported dates and direct bookings are managed elsewhere.</p>
             </section>
+
+            {/* Direct bookings taken on our own site, newest check-in first. */}
+            {(calendar?.directBookings?.length ?? 0) > 0 && (
+              <section className="rounded-2xl border border-[#e3e1e2] bg-white p-5">
+                <h2 className="text-[15px] font-semibold text-[#1b1c1d]">Direct bookings</h2>
+                <p className="mt-1 text-[12px] text-[#74777d]">
+                  Booked and paid on this site. Unpaid holds disappear on their own if the guest does not finish paying.
+                </p>
+
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-left text-[13px]">
+                    <thead>
+                      <tr className="text-[11px] uppercase tracking-wide text-[#74777d]">
+                        <th className="pb-2 pr-3 font-medium">Guest</th>
+                        <th className="pb-2 pr-3 font-medium">Stay</th>
+                        <th className="pb-2 pr-3 font-medium">Amount</th>
+                        <th className="pb-2 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...calendar!.directBookings]
+                        .sort((a, b) => a.checkInDate.localeCompare(b.checkInDate))
+                        .map((booking) => (
+                          <tr key={booking.id} className="border-t border-[#efedee]">
+                            <td className="py-2.5 pr-3 text-[#1b1c1d]">{booking.guestName}</td>
+                            <td className="py-2.5 pr-3 text-[#44474c] whitespace-nowrap">
+                              {booking.checkInDate} → {booking.checkOutDate}
+                            </td>
+                            <td className="py-2.5 pr-3 text-[#1b1c1d] whitespace-nowrap">
+                              ¥{booking.amountTotal.toLocaleString()}
+                            </td>
+                            <td className="py-2.5">
+                              <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                booking.status === 'confirmed'
+                                  ? 'bg-[#e7f0ff] text-[#0b57d0]'
+                                  : 'bg-[#f3e8ff] text-[#6b21a8]'
+                              }`}>
+                                {booking.status === 'confirmed' ? 'Paid' : 'Awaiting payment'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
 
             {/* iCal panel */}
             <aside className="space-y-5">
