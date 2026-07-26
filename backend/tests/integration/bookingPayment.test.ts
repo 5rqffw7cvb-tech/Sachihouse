@@ -267,7 +267,7 @@ describe('failed and abandoned payments', () => {
     expect(await store.listHeldDates('main')).toEqual([]);
   });
 
-  it('releases the nights when the payment fails', async () => {
+  it('keeps the hold when a card is declined, because Checkout allows a retry', async () => {
     await enableDirectBooking();
     const body = await createBooking();
 
@@ -277,8 +277,28 @@ describe('failed and abandoned payments', () => {
       data: { object: { id: 'pi_test_123', metadata: { bookingId: body.booking.id } } },
     }).expect(200);
 
-    expect((await store.getBooking(body.booking.id))?.status).toBe('payment_failed');
-    expect(await store.listHeldDates('main')).toEqual([]);
+    expect((await store.getBooking(body.booking.id))?.status).toBe('pending_payment');
+    expect(await store.listHeldDates('main')).toEqual(STAY_NIGHTS);
+  });
+
+  it('confirms a booking whose first card was declined and second succeeded', async () => {
+    await enableDirectBooking();
+    const body = await createBooking();
+
+    await postWebhook({
+      id: 'evt_failed_2',
+      type: 'payment_intent.payment_failed',
+      data: { object: { id: 'pi_test_123', metadata: { bookingId: body.booking.id } } },
+    }).expect(200);
+
+    // The guest tries another card on the same Checkout page and it works.
+    await postWebhook(checkoutCompleted(body.booking.id, 'evt_retry_ok')).expect(200);
+
+    const stored = await store.getBooking(body.booking.id);
+    // Taking the money without confirming the stay would be the worst outcome.
+    expect(stored?.status).toBe('confirmed');
+    expect(stored?.confirmationNo).toBeTruthy();
+    expect(await store.listHeldDates('main')).toEqual(STAY_NIGHTS);
   });
 
   it('does not expire a booking that was already paid', async () => {

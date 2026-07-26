@@ -2182,9 +2182,12 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
           break;
         }
         case 'payment_intent.payment_failed': {
-          if (bookingId) {
-            await releaseUnpaidBooking(bookingId, 'payment_failed', 'payment_intent_failed');
-          }
+          // A declined card is not the end of the session: Stripe Checkout lets
+          // the guest try another card on the same page. Releasing the nights
+          // here would leave a successful retry unable to confirm — money taken
+          // and no reservation. The hold lapses on its own if they give up, and
+          // checkout.session.expired covers the abandoned case.
+          console.warn(`Payment attempt failed for booking ${bookingId ?? 'unknown'}; hold kept so a retry can still succeed.`);
           break;
         }
         case 'charge.refunded': {
