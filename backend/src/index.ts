@@ -60,6 +60,31 @@ async function main() {
   cron.schedule(cronSchedule, runCleanup, { timezone });
   console.log(`Check-in retention cleanup scheduled: "${cronSchedule}" (${timezone})`);
 
+  // Safety net for holds whose payment never completed. Stripe also tells us via
+  // `checkout.session.expired`, but that webhook can be missed, and every stale
+  // hold is a night nobody can book.
+  let holdSweepRunning = false;
+  const sweepExpiredHolds = async () => {
+    if (holdSweepRunning) {
+      return;
+    }
+    holdSweepRunning = true;
+    try {
+      const expiredIds = await store.expireStaleHolds(Date.now());
+      if (expiredIds.length > 0) {
+        console.log(`Released ${expiredIds.length} expired booking hold(s).`);
+      }
+    } catch (error) {
+      console.error('Booking hold sweep failed.', error);
+    } finally {
+      holdSweepRunning = false;
+    }
+  };
+
+  const holdSweepSchedule = process.env.BOOKING_HOLD_SWEEP_CRON || '*/5 * * * *';
+  cron.schedule(holdSweepSchedule, sweepExpiredHolds, { timezone });
+  console.log(`Booking hold sweep scheduled: "${holdSweepSchedule}" (${timezone})`);
+
   const app = createApp(store);
   app.listen(PORT, () => {
     console.log(`API listening on http://localhost:${PORT}`);

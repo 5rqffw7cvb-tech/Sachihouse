@@ -1,4 +1,4 @@
-import { Role } from '../types/domain.js';
+import { QuoteResult, Role } from '../types/domain.js';
 
 export interface AuthUser {
   id: number;
@@ -283,6 +283,122 @@ export interface BookingConfirmationPatch {
   includeInAccounting?: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Direct booking (guest-initiated, paid online)
+// ---------------------------------------------------------------------------
+
+// `pending_payment` is a short-lived hold taken while the guest is on the
+// payment page. Only the webhook may promote it to `confirmed`.
+export type BookingStatus =
+  | 'pending_payment'
+  | 'confirmed'
+  | 'expired'
+  | 'payment_failed'
+  | 'cancelled_by_guest'
+  | 'cancelled_by_host';
+
+export const BOOKING_STATUSES: BookingStatus[] = [
+  'pending_payment',
+  'confirmed',
+  'expired',
+  'payment_failed',
+  'cancelled_by_guest',
+  'cancelled_by_host',
+];
+
+// Statuses that still occupy the calendar. Every "does this booking block the
+// date?" decision goes through this list rather than repeating the condition.
+export const ACTIVE_BOOKING_STATUSES: BookingStatus[] = ['pending_payment', 'confirmed'];
+
+export function isActiveBookingStatus(status: BookingStatus): boolean {
+  return ACTIVE_BOOKING_STATUSES.includes(status);
+}
+
+// A booking the guest made themselves on our site. Amounts are whole-currency
+// units — JPY has no minor unit, so `amountTotal: 15000` means ¥15,000 and must
+// never be multiplied by 100 when handed to Stripe.
+export interface Booking {
+  id: string;                        // BK-xxxxxxxxxxxx
+  confirmationNo?: string;           // issued only once confirmed
+  propertyId: string;
+  status: BookingStatus;
+  guestName: string;
+  guestEmail: string;
+  guestPhone?: string;
+  // Random secret that lets the guest view/cancel their booking without an
+  // account. Never returned in host/admin listings.
+  guestToken: string;
+  adults: number;
+  children: number;
+  infants: number;
+  checkInDate: string;               // YYYY-MM-DD
+  checkOutDate: string;              // YYYY-MM-DD (exclusive: guest leaves that morning)
+  nights: number;
+  currency: string;                  // 'JPY'
+  amountTotal: number;
+  // Price snapshot taken server-side at booking time, so a later pricing edit
+  // never changes what the guest agreed to pay.
+  quote: QuoteResult;
+  stripeSessionId?: string;
+  stripePaymentIntentId?: string;
+  // Actual processing fee read back from Stripe's balance transaction. Refunds
+  // deduct it, because Stripe does not return the fee when money is refunded.
+  stripeFeeAmount: number;
+  holdExpiresAt?: number | null;     // meaningful only while pending_payment
+  confirmedAt?: number | null;
+  cancelledAt?: number | null;
+  cancelReason?: string;
+  refundAmount: number;
+  locale: string;                    // en | vi | ja | zh | ko
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface BookingInput {
+  propertyId: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone?: string;
+  adults: number;
+  children: number;
+  infants: number;
+  checkInDate: string;
+  checkOutDate: string;
+  nights: number;
+  currency: string;
+  amountTotal: number;
+  quote: QuoteResult;
+  holdExpiresAt: number;
+  locale: string;
+}
+
+export interface BookingListFilters {
+  propertyId?: string;
+  propertyIds?: string[];
+  statuses?: BookingStatus[];
+  fromDate?: string;   // filters on checkInDate >= fromDate
+  toDate?: string;     // filters on checkInDate <= toDate
+}
+
+export interface BookingStatusPatch {
+  status?: BookingStatus;
+  confirmationNo?: string;
+  stripeSessionId?: string;
+  stripePaymentIntentId?: string;
+  stripeFeeAmount?: number;
+  holdExpiresAt?: number | null;
+  confirmedAt?: number | null;
+  cancelledAt?: number | null;
+  cancelReason?: string;
+  refundAmount?: number;
+}
+
+// Either the hold was taken for every requested night, or none of it was and
+// `conflictDates` says which nights someone else already holds.
+export type CreateBookingResult =
+  | { ok: true; booking: Booking }
+  | { ok: false; conflictDates: string[] };
+
 export interface PropertyData {
   id?: string;
   metalink?: string;
@@ -338,6 +454,14 @@ export interface PropertyData {
   // Secret token that guards the public iCal export URL for this property.
   // Generated lazily the first time a host opens the calendar/export panel.
   icalExportToken?: string;
+  // Opt-in per property: guests may book and pay online themselves. Absent or
+  // `enabled: false` keeps the legacy "email the host for a quote" flow.
+  directBooking?: {
+    enabled: boolean;
+    minNights?: number;           // default 1
+    maxAdvanceDays?: number;      // default 365
+    sameDayCutoffHour?: number;   // default 12, Asia/Tokyo
+  };
   amenities: string[];
   galleryCategories: Array<{ id: string; label: string }>;
   galleryImages: Array<{ id: string; url: string; caption: string; category: string; showOnHome?: boolean }>;
@@ -512,6 +636,22 @@ export interface DataStore {
   getBookingConfirmation(id: string): Promise<BookingConfirmation | null>;
   updateBookingConfirmation(id: string, patch: BookingConfirmationPatch): Promise<BookingConfirmation | null>;
   deleteBookingConfirmation(id: string): Promise<boolean>;
+  // Creates a direct booking and claims every requested night atomically. The
+  // per-night uniqueness constraint is what prevents double booking, so callers
+  // must treat an `ok: false` result as authoritative rather than re-checking.
+  createBookingWithHold(input: BookingInput): Promise<CreateBookingResult>;
+  getBooking(id: string): Promise<Booking | null>;
+  listBookings(filters?: BookingListFilters): Promise<Booking[]>;
+  updateBooking(id: string, patch: BookingStatusPatch): Promise<Booking | null>;
+  // Nights currently claimed by bookings in an active status (YYYY-MM-DD).
+  listHeldDates(propertyId: string): Promise<string[]>;
+  // Releases holds whose payment window elapsed. Returns the expired booking ids.
+  expireStaleHolds(now: number): Promise<string[]>;
+  // Records a Stripe webhook event id. Returns false when it was already seen,
+  // which is how redelivered events are ignored instead of double-processed.
+  recordStripeEvent(input: { id: string; type: string; bookingId?: string; payload?: unknown }): Promise<boolean>;
+  // Looks up the booking a Checkout Session belongs to.
+  getBookingByStripeSessionId(sessionId: string): Promise<Booking | null>;
   listFinancialTransactions(propertyIds: string[], year?: number): Promise<FinancialTransaction[]>;
   createFinancialTransaction(input: FinancialTransactionInput, actor: AuthUser): Promise<FinancialTransaction>;
   updateFinancialTransaction(id: string, input: Partial<FinancialTransactionInput>, actor: AuthUser): Promise<FinancialTransaction>;

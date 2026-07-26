@@ -4,10 +4,16 @@ import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSe
 import {
   AuthUser,
   BlogPost,
+  Booking,
   BookingConfirmation,
   BookingConfirmationInput,
   BookingConfirmationListFilters,
   BookingConfirmationPatch,
+  BookingInput,
+  BookingListFilters,
+  BookingStatusPatch,
+  CreateBookingResult,
+  isActiveBookingStatus,
   generateConfirmationNo,
   CheckInGuest,
   CheckInListFilters,
@@ -28,6 +34,7 @@ import {
   BillingCycle,
 } from './types.js';
 import { Role } from '../types/domain.js';
+import { generateBookingId, generateGuestToken, getStayDates } from '../domain/booking.js';
 
 interface MemoryState {
   users: StoredUser[];
@@ -37,6 +44,11 @@ interface MemoryState {
   blockedDates: Record<string, string[]>;
   checkIns: CheckInSubmission[];
   bookingConfirmations: BookingConfirmation[];
+  bookings: Booking[];
+  // "<propertyId>|<YYYY-MM-DD>" -> booking id, standing in for the composite
+  // primary key on booking_held_dates.
+  heldDates: Map<string, string>;
+  stripeEventIds: Set<string>;
   financialTransactions: FinancialTransaction[];
   pendingTransactions: PendingTransaction[];
   subscriptionRequests: SubscriptionRequest[];
@@ -59,6 +71,9 @@ export class MemoryStore implements DataStore {
       blockedDates: structuredClone(blockedDatesSeed),
       checkIns: [],
       bookingConfirmations: [],
+      bookings: [],
+      heldDates: new Map(),
+      stripeEventIds: new Set(),
       financialTransactions: [],
       pendingTransactions: [],
       subscriptionRequests: [],
@@ -764,6 +779,171 @@ export class MemoryStore implements DataStore {
     }
     state.bookingConfirmations.splice(index, 1);
     return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Direct bookings
+  // ---------------------------------------------------------------------------
+
+  // Mirrors the Postgres `booking_held_dates` primary key. The conflict check
+  // and the write below must stay in one synchronous run — an `await` between
+  // them would open the very race the database constraint exists to close.
+  private heldDateKey(propertyId: string, stayDate: string): string {
+    return `${propertyId}|${stayDate}`;
+  }
+
+  async createBookingWithHold(input: BookingInput): Promise<CreateBookingResult> {
+    const state = this.assertState();
+    const stayDates = getStayDates(input.checkInDate, input.checkOutDate);
+
+    const conflictDates = stayDates.filter((date) => state.heldDates.has(this.heldDateKey(input.propertyId, date)));
+    if (conflictDates.length) {
+      return { ok: false, conflictDates };
+    }
+
+    const now = Date.now();
+    const booking: Booking = {
+      id: generateBookingId(),
+      propertyId: input.propertyId,
+      status: 'pending_payment',
+      guestName: input.guestName,
+      guestEmail: input.guestEmail,
+      guestPhone: input.guestPhone,
+      guestToken: generateGuestToken(),
+      adults: input.adults,
+      children: input.children,
+      infants: input.infants,
+      checkInDate: input.checkInDate,
+      checkOutDate: input.checkOutDate,
+      nights: input.nights,
+      currency: input.currency,
+      amountTotal: input.amountTotal,
+      quote: input.quote,
+      stripeFeeAmount: 0,
+      holdExpiresAt: input.holdExpiresAt,
+      refundAmount: 0,
+      locale: input.locale,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    state.bookings.unshift(booking);
+    for (const date of stayDates) {
+      state.heldDates.set(this.heldDateKey(input.propertyId, date), booking.id);
+    }
+
+    return { ok: true, booking: structuredClone(booking) };
+  }
+
+  async getBooking(id: string): Promise<Booking | null> {
+    const state = this.assertState();
+    const booking = state.bookings.find((item) => item.id === id);
+    return booking ? structuredClone(booking) : null;
+  }
+
+  async listBookings(filters?: BookingListFilters): Promise<Booking[]> {
+    const state = this.assertState();
+    const rows = state.bookings.filter((row) => {
+      if (filters?.propertyId && row.propertyId !== filters.propertyId) {
+        return false;
+      }
+      // An empty allow-list means "no properties", not "all properties".
+      if (filters?.propertyIds && !filters.propertyIds.includes(row.propertyId)) {
+        return false;
+      }
+      if (filters?.statuses?.length && !filters.statuses.includes(row.status)) {
+        return false;
+      }
+      if (filters?.fromDate && row.checkInDate < filters.fromDate) {
+        return false;
+      }
+      if (filters?.toDate && row.checkInDate > filters.toDate) {
+        return false;
+      }
+      return true;
+    });
+
+    return structuredClone(rows).sort((left, right) => right.createdAt - left.createdAt);
+  }
+
+  async updateBooking(id: string, patch: BookingStatusPatch): Promise<Booking | null> {
+    const state = this.assertState();
+    const index = state.bookings.findIndex((item) => item.id === id);
+    if (index < 0) {
+      return null;
+    }
+
+    const next: Booking = {
+      ...state.bookings[index],
+      ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
+      id,
+      updatedAt: Date.now(),
+    } as Booking;
+    state.bookings[index] = next;
+
+    if (!isActiveBookingStatus(next.status)) {
+      this.releaseHeldDates(id);
+    }
+
+    return structuredClone(next);
+  }
+
+  private releaseHeldDates(bookingId: string): void {
+    const state = this.assertState();
+    for (const [key, heldBy] of state.heldDates) {
+      if (heldBy === bookingId) {
+        state.heldDates.delete(key);
+      }
+    }
+  }
+
+  async listHeldDates(propertyId: string): Promise<string[]> {
+    const state = this.assertState();
+    const activeIds = new Set(
+      state.bookings.filter((booking) => isActiveBookingStatus(booking.status)).map((booking) => booking.id),
+    );
+
+    const dates: string[] = [];
+    for (const [key, bookingId] of state.heldDates) {
+      const separator = key.lastIndexOf('|');
+      if (key.slice(0, separator) === propertyId && activeIds.has(bookingId)) {
+        dates.push(key.slice(separator + 1));
+      }
+    }
+    return dates.sort();
+  }
+
+  async expireStaleHolds(now: number): Promise<string[]> {
+    const state = this.assertState();
+    const expired = state.bookings.filter(
+      (booking) => booking.status === 'pending_payment'
+        && typeof booking.holdExpiresAt === 'number'
+        && booking.holdExpiresAt < now,
+    );
+
+    for (const booking of expired) {
+      booking.status = 'expired';
+      booking.holdExpiresAt = null;
+      booking.updatedAt = now;
+      this.releaseHeldDates(booking.id);
+    }
+
+    return expired.map((booking) => booking.id);
+  }
+
+  async recordStripeEvent(input: { id: string; type: string; bookingId?: string }): Promise<boolean> {
+    const state = this.assertState();
+    if (state.stripeEventIds.has(input.id)) {
+      return false;
+    }
+    state.stripeEventIds.add(input.id);
+    return true;
+  }
+
+  async getBookingByStripeSessionId(sessionId: string): Promise<Booking | null> {
+    const state = this.assertState();
+    const booking = state.bookings.find((item) => item.stripeSessionId === sessionId);
+    return booking ? structuredClone(booking) : null;
   }
 
   async listFinancialTransactions(propertyIds: string[], year?: number): Promise<FinancialTransaction[]> {

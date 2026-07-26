@@ -2,12 +2,20 @@ import { Pool } from 'pg';
 import { randomBytes } from 'node:crypto';
 import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSettingsSeed } from './seed.js';
 import {
+  ACTIVE_BOOKING_STATUSES,
   AuthUser,
   BlogPost,
+  Booking,
   BookingConfirmation,
   BookingConfirmationInput,
   BookingConfirmationListFilters,
   BookingConfirmationPatch,
+  BookingInput,
+  BookingListFilters,
+  BookingStatus,
+  BookingStatusPatch,
+  CreateBookingResult,
+  isActiveBookingStatus,
   generateConfirmationNo,
   CheckInGuest,
   CheckInListFilters,
@@ -28,6 +36,7 @@ import {
   BillingCycle,
 } from './types.js';
 import { Role } from '../types/domain.js';
+import { generateBookingId, generateGuestToken, getStayDates } from '../domain/booking.js';
 
 export class PostgresStore implements DataStore {
   constructor(private readonly pool: Pool) {}
@@ -130,6 +139,49 @@ export class PostgresStore implements DataStore {
 
       CREATE INDEX IF NOT EXISTS idx_booking_confirmations_created_at
       ON booking_confirmations(created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS bookings (
+        id TEXT PRIMARY KEY,
+        confirmation_no TEXT UNIQUE,
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        status TEXT NOT NULL,
+        check_in_date DATE NOT NULL,
+        check_out_date DATE NOT NULL,
+        amount_total INTEGER NOT NULL,
+        stripe_session_id TEXT UNIQUE,
+        hold_expires_at BIGINT,
+        data JSONB NOT NULL,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_bookings_property_date
+      ON bookings(property_id, check_in_date);
+
+      CREATE INDEX IF NOT EXISTS idx_bookings_status_hold
+      ON bookings(status, hold_expires_at);
+
+      -- One row per booked night per property. The primary key is what actually
+      -- prevents double booking: a second guest inserting the same night fails
+      -- with a unique violation instead of silently overbooking.
+      CREATE TABLE IF NOT EXISTS booking_held_dates (
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        stay_date DATE NOT NULL,
+        booking_id TEXT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+        PRIMARY KEY (property_id, stay_date)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_booking_held_dates_booking
+      ON booking_held_dates(booking_id);
+
+      -- Processed Stripe webhook events, so a redelivered event is ignored.
+      CREATE TABLE IF NOT EXISTS stripe_events (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        booking_id TEXT,
+        received_at BIGINT NOT NULL,
+        payload JSONB
+      );
 
       CREATE TABLE IF NOT EXISTS financial_transactions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -587,6 +639,20 @@ export class PostgresStore implements DataStore {
         `,
         [current.id, targetId],
       );
+
+      // Bookings and their held nights must be repointed before the old row is
+      // deleted — both cascade on property delete, so skipping this would wipe
+      // every direct booking the property has taken.
+      await client.query(
+        `
+          UPDATE bookings
+          SET property_id = $2,
+              data = jsonb_set(data, '{propertyId}', to_jsonb($2::text), true)
+          WHERE property_id = $1
+        `,
+        [current.id, targetId],
+      );
+      await client.query('UPDATE booking_held_dates SET property_id = $2 WHERE property_id = $1', [current.id, targetId]);
 
       await client.query('DELETE FROM properties WHERE id = $1', [current.id]);
 
@@ -1148,6 +1214,301 @@ export class PostgresStore implements DataStore {
   async deleteBookingConfirmation(id: string): Promise<boolean> {
     const result = await this.pool.query('DELETE FROM booking_confirmations WHERE id = $1', [id]);
     return (result.rowCount ?? 0) > 0;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Direct bookings
+  // ---------------------------------------------------------------------------
+
+  private hydrateBooking(row: {
+    data: Booking;
+    property_id: string;
+    status: string;
+    check_in_date: string;
+    check_out_date: string;
+  }): Booking {
+    return {
+      ...row.data,
+      propertyId: row.property_id,
+      status: row.status as BookingStatus,
+      checkInDate: row.check_in_date,
+      checkOutDate: row.check_out_date,
+    };
+  }
+
+  private static readonly BOOKING_SELECT =
+    'SELECT data, property_id, status, check_in_date::text, check_out_date::text FROM bookings';
+
+  async createBookingWithHold(input: BookingInput): Promise<CreateBookingResult> {
+    const stayDates = getStayDates(input.checkInDate, input.checkOutDate);
+    const now = Date.now();
+    const booking: Booking = {
+      id: generateBookingId(),
+      propertyId: input.propertyId,
+      status: 'pending_payment',
+      guestName: input.guestName,
+      guestEmail: input.guestEmail,
+      guestPhone: input.guestPhone,
+      guestToken: generateGuestToken(),
+      adults: input.adults,
+      children: input.children,
+      infants: input.infants,
+      checkInDate: input.checkInDate,
+      checkOutDate: input.checkOutDate,
+      nights: input.nights,
+      currency: input.currency,
+      amountTotal: input.amountTotal,
+      quote: input.quote,
+      stripeFeeAmount: 0,
+      holdExpiresAt: input.holdExpiresAt,
+      refundAmount: 0,
+      locale: input.locale,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO bookings
+           (id, property_id, status, check_in_date, check_out_date, amount_total, hold_expires_at, data, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)`,
+        [
+          booking.id,
+          booking.propertyId,
+          booking.status,
+          booking.checkInDate,
+          booking.checkOutDate,
+          booking.amountTotal,
+          booking.holdExpiresAt,
+          JSON.stringify(booking),
+          booking.createdAt,
+          booking.updatedAt,
+        ],
+      );
+
+      // One statement so the first already-taken night aborts the whole claim.
+      const placeholders = stayDates.map((_, index) => `($1, $${index + 3}, $2)`).join(', ');
+      await client.query(
+        `INSERT INTO booking_held_dates (property_id, stay_date, booking_id) VALUES ${placeholders}`,
+        [booking.propertyId, booking.id, ...stayDates],
+      );
+
+      await client.query('COMMIT');
+      return { ok: true, booking: structuredClone(booking) };
+    } catch (error) {
+      // The rollback itself can fail on a broken connection; the original error
+      // is the one worth surfacing.
+      await client.query('ROLLBACK').catch(() => undefined);
+
+      const code = typeof error === 'object' && error && 'code' in error
+        ? (error as { code?: string }).code
+        : undefined;
+      if (code === '23505') {
+        const conflictDates = await this.findHeldDates(booking.propertyId, stayDates);
+        return { ok: false, conflictDates };
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async findHeldDates(propertyId: string, stayDates: string[]): Promise<string[]> {
+    const result = await this.pool.query<{ stay_date: string }>(
+      `SELECT stay_date::text FROM booking_held_dates
+       WHERE property_id = $1 AND stay_date = ANY($2::date[])
+       ORDER BY stay_date`,
+      [propertyId, stayDates],
+    );
+    return result.rows.map((row) => row.stay_date);
+  }
+
+  async getBooking(id: string): Promise<Booking | null> {
+    const result = await this.pool.query<{
+      data: Booking;
+      property_id: string;
+      status: string;
+      check_in_date: string;
+      check_out_date: string;
+    }>(`${PostgresStore.BOOKING_SELECT} WHERE id = $1 LIMIT 1`, [id]);
+    return result.rows[0] ? this.hydrateBooking(result.rows[0]) : null;
+  }
+
+  async listBookings(filters?: BookingListFilters): Promise<Booking[]> {
+    const clauses: string[] = [];
+    const values: unknown[] = [];
+
+    if (filters?.propertyId) {
+      values.push(filters.propertyId);
+      clauses.push(`property_id = $${values.length}`);
+    }
+    if (filters?.propertyIds) {
+      // An empty allow-list means "no properties", not "all properties".
+      if (!filters.propertyIds.length) {
+        return [];
+      }
+      values.push(filters.propertyIds);
+      clauses.push(`property_id = ANY($${values.length}::text[])`);
+    }
+    if (filters?.statuses?.length) {
+      values.push(filters.statuses);
+      clauses.push(`status = ANY($${values.length}::text[])`);
+    }
+    if (filters?.fromDate) {
+      values.push(filters.fromDate);
+      clauses.push(`check_in_date >= $${values.length}`);
+    }
+    if (filters?.toDate) {
+      values.push(filters.toDate);
+      clauses.push(`check_in_date <= $${values.length}`);
+    }
+
+    const result = await this.pool.query<{
+      data: Booking;
+      property_id: string;
+      status: string;
+      check_in_date: string;
+      check_out_date: string;
+    }>(
+      `${PostgresStore.BOOKING_SELECT}
+       ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
+       ORDER BY created_at DESC`,
+      values,
+    );
+    return result.rows.map((row) => this.hydrateBooking(row));
+  }
+
+  async updateBooking(id: string, patch: BookingStatusPatch): Promise<Booking | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const current = await client.query<{
+        data: Booking;
+        property_id: string;
+        status: string;
+        check_in_date: string;
+        check_out_date: string;
+      }>(`${PostgresStore.BOOKING_SELECT} WHERE id = $1 FOR UPDATE`, [id]);
+
+      if (!current.rows[0]) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
+      const booking = this.hydrateBooking(current.rows[0]);
+      const next: Booking = {
+        ...booking,
+        ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
+        id: booking.id,
+        updatedAt: Date.now(),
+      } as Booking;
+
+      await client.query(
+        `UPDATE bookings
+         SET status = $2, confirmation_no = $3, stripe_session_id = $4,
+             hold_expires_at = $5, data = $6::jsonb, updated_at = $7
+         WHERE id = $1`,
+        [
+          next.id,
+          next.status,
+          next.confirmationNo ?? null,
+          next.stripeSessionId ?? null,
+          next.holdExpiresAt ?? null,
+          JSON.stringify(next),
+          next.updatedAt,
+        ],
+      );
+
+      // Leaving an active status frees the nights for the next guest. Keeping
+      // this here means the held dates can never drift from the booking status.
+      if (!isActiveBookingStatus(next.status)) {
+        await client.query('DELETE FROM booking_held_dates WHERE booking_id = $1', [next.id]);
+      }
+
+      await client.query('COMMIT');
+      return next;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  // Takes the canonical property id (not a metalink) — every caller resolves the
+  // property first, and this sits in the availability hot path.
+  async listHeldDates(propertyId: string): Promise<string[]> {
+    const result = await this.pool.query<{ stay_date: string }>(
+      `SELECT h.stay_date::text
+       FROM booking_held_dates h
+       JOIN bookings b ON b.id = h.booking_id
+       WHERE h.property_id = $1 AND b.status = ANY($2::text[])
+       ORDER BY h.stay_date`,
+      [propertyId, ACTIVE_BOOKING_STATUSES],
+    );
+    return result.rows.map((row) => row.stay_date);
+  }
+
+  async expireStaleHolds(now: number): Promise<string[]> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const expired = await client.query<{ id: string }>(
+        `UPDATE bookings
+         SET status = 'expired',
+             hold_expires_at = NULL,
+             data = jsonb_set(data, '{status}', '"expired"'::jsonb, true),
+             updated_at = $1
+         WHERE status = 'pending_payment' AND hold_expires_at IS NOT NULL AND hold_expires_at < $1
+         RETURNING id`,
+        [now],
+      );
+
+      const ids = expired.rows.map((row) => row.id);
+      if (ids.length) {
+        await client.query('DELETE FROM booking_held_dates WHERE booking_id = ANY($1::text[])', [ids]);
+      }
+
+      await client.query('COMMIT');
+      return ids;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  // Relies on the primary key to decide novelty: ON CONFLICT DO NOTHING makes
+  // the insert a no-op for a redelivered event, and rowCount tells us which
+  // happened. No read-then-write gap for two concurrent deliveries to slip through.
+  async recordStripeEvent(input: {
+    id: string;
+    type: string;
+    bookingId?: string;
+    payload?: unknown;
+  }): Promise<boolean> {
+    const result = await this.pool.query(
+      `INSERT INTO stripe_events (id, type, booking_id, received_at, payload)
+       VALUES ($1, $2, $3, $4, $5::jsonb)
+       ON CONFLICT (id) DO NOTHING`,
+      [input.id, input.type, input.bookingId ?? null, Date.now(), JSON.stringify(input.payload ?? null)],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getBookingByStripeSessionId(sessionId: string): Promise<Booking | null> {
+    const result = await this.pool.query<{
+      data: Booking;
+      property_id: string;
+      status: string;
+      check_in_date: string;
+      check_out_date: string;
+    }>(`${PostgresStore.BOOKING_SELECT} WHERE stripe_session_id = $1 LIMIT 1`, [sessionId]);
+    return result.rows[0] ? this.hydrateBooking(result.rows[0]) : null;
   }
 
   private async writeAudit(actorUserId: number, action: string, targetType: string, targetId: string): Promise<void> {
