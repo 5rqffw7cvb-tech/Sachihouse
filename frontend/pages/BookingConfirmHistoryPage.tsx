@@ -239,7 +239,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
       <TopNavBar />
-      <main className="flex-1 w-full max-w-none mx-auto px-4 md:px-8 xl:px-12 pt-3 md:pt-[110px] pb-24 md:pb-12">
+      <main className="flex-1 w-full max-w-none mx-auto px-4 md:px-8 xl:px-12 pt-3 md:pt-[84px] pb-24 md:pb-12">
         <div className="flex items-end justify-between gap-4 mb-4">
           <div>
             <h1 className="font-['Plus_Jakarta_Sans'] text-[20px] md:text-[28px] font-bold tracking-tight leading-none">Direct booking revenue</h1>
