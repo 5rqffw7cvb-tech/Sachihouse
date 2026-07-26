@@ -149,6 +149,14 @@ export function normalizeSiteUrl(raw: string | undefined): string {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
+// The public site is a single-page app on HashRouter — every real route lives
+// after a `#` (e.g. `/#/sachi-ojima/checkin`). A link built without it loads
+// the bundle but renders the default route instead of the intended page, so
+// every outbound link (email, Stripe redirect) must go through this.
+export function buildSiteUrl(siteUrl: string, pathAndQuery: string): string {
+  return `${siteUrl}/#${pathAndQuery}`;
+}
+
 function getClientIp(req: Request): string {
   // Relies on `app.set('trust proxy', ...)` so Express resolves req.ip from the
   // trusted hop count rather than blindly trusting a client-suppliable header
@@ -1763,9 +1771,9 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       booking,
       propertyName: property.name,
       propertyAddress: property.address,
-      manageUrl: `${publicSiteUrl}/booking/result?id=${encodeURIComponent(booking.id)}`
-        + `&token=${encodeURIComponent(booking.guestToken)}`,
-      checkInUrl: `${publicSiteUrl}/${encodeURIComponent(slug)}/checkin`,
+      manageUrl: buildSiteUrl(publicSiteUrl, `/booking/result?id=${encodeURIComponent(booking.id)}`
+        + `&token=${encodeURIComponent(booking.guestToken)}`),
+      checkInUrl: buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}/checkin`),
       };
   }
 
@@ -1969,8 +1977,8 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       checkout = await payments.createCheckoutSession({
         booking,
         propertyName: property.name,
-        successUrl: `${publicSiteUrl}/booking/result?id=${booking.id}&token=${booking.guestToken}`,
-        cancelUrl: `${publicSiteUrl}/booking/cancelled?id=${booking.id}`,
+        successUrl: buildSiteUrl(publicSiteUrl, `/booking/result?id=${booking.id}&token=${booking.guestToken}`),
+        cancelUrl: buildSiteUrl(publicSiteUrl, `/booking/cancelled?id=${booking.id}`),
         // Stripe rejects an expiry under 30 minutes; the internal hold is longer
         // so the session always dies first.
         expiresAt: Math.floor(Date.now() / 1000) + 30 * 60,
