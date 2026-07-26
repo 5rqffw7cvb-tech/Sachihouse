@@ -209,6 +209,13 @@ export interface BookingConfirmation {
   // Currently informational only — it is NOT auto-posted to the double-entry
   // journal, but it drives the direct-booking revenue report.
   includeInAccounting: boolean;
+  // 'online' rows are created automatically when a Stripe-paid Booking is
+  // confirmed (see sourceBookingId); 'manual' rows are host-entered for
+  // off-platform stays. The UI uses this to badge rows and to block deleting
+  // an online one, since that would hide real revenue without touching the
+  // Booking it came from.
+  source: 'online' | 'manual';
+  sourceBookingId?: string;
   createdByUserId: number;
   createdByName: string;
   createdAt: number;
@@ -252,6 +259,8 @@ export interface BookingConfirmationInput {
   balanceDue: number;
   notes?: string;
   includeInAccounting: boolean;
+  source: 'online' | 'manual';
+  sourceBookingId?: string;
   createdByUserId: number;
   createdByName: string;
 }
@@ -634,6 +643,7 @@ export interface DataStore {
   createBookingConfirmation(input: BookingConfirmationInput): Promise<BookingConfirmation>;
   listBookingConfirmations(filters?: BookingConfirmationListFilters): Promise<BookingConfirmation[]>;
   getBookingConfirmation(id: string): Promise<BookingConfirmation | null>;
+  getBookingConfirmationBySourceBookingId(bookingId: string): Promise<BookingConfirmation | null>;
   updateBookingConfirmation(id: string, patch: BookingConfirmationPatch): Promise<BookingConfirmation | null>;
   deleteBookingConfirmation(id: string): Promise<boolean>;
   // Creates a direct booking and claims every requested night atomically. The

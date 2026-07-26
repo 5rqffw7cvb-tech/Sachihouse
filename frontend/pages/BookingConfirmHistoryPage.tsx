@@ -177,7 +177,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
 
   const exportCsv = () => {
     const header = [
-      'confirmation_no', 'property', 'guest', 'guests', 'check_in', 'check_out',
+      'confirmation_no', 'source', 'property', 'guest', 'guests', 'check_in', 'check_out',
       'currency', 'accommodation', 'cleaning', 'extra', 'discount', 'total', 'deposit', 'balance',
       'in_accounting', 'created_at',
     ];
@@ -185,6 +185,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
     for (const r of rows) {
       lines.push([
         csvEscape(r.confirmationNo),
+        csvEscape(r.source),
         csvEscape(propertyNameById.get(r.propertyId) || r.propertyName),
         csvEscape(r.guestName),
         r.numGuests,
@@ -312,6 +313,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
                 <thead>
                   <tr className="border-b border-[#e4e2e3] text-left text-[11px] uppercase tracking-[0.05em] text-[#74777d]">
                     <th className="px-3 py-2.5 font-semibold">Confirmation</th>
+                    <th className="px-3 py-2.5 font-semibold">Source</th>
                     <th className="px-3 py-2.5 font-semibold">Property</th>
                     <th className="px-3 py-2.5 font-semibold">Guest</th>
                     <th className="px-3 py-2.5 font-semibold text-center">Pax</th>
@@ -328,6 +330,13 @@ const BookingConfirmHistoryPage: React.FC = () => {
                   {rows.map((r) => (
                     <tr key={r.id} className="border-b border-[#f0eef0] hover:bg-[#faf9fa]">
                       <td className="px-3 py-2.5 font-semibold">{r.confirmationNo}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          r.source === 'online' ? 'bg-[#e7f0ff] text-[#0b57d0]' : 'bg-[#f0eef0] text-[#44474c]'
+                        }`}>
+                          {r.source === 'online' ? 'Online' : 'Manual'}
+                        </span>
+                      </td>
                       <td className="px-3 py-2.5">{propertyNameById.get(r.propertyId) || r.propertyName}</td>
                       <td className="px-3 py-2.5">{r.guestName}</td>
                       <td className="px-3 py-2.5 text-center tabular-nums">{r.numGuests}</td>
@@ -359,9 +368,9 @@ const BookingConfirmHistoryPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => void handleDelete(r)}
-                            disabled={busyId === r.id}
-                            className="rounded-lg p-1.5 text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-50"
-                            title="Delete"
+                            disabled={busyId === r.id || r.source === 'online'}
+                            className="rounded-lg p-1.5 text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                            title={r.source === 'online' ? 'Online bookings are tied to a real payment and cannot be deleted here.' : 'Delete'}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -386,7 +395,14 @@ const BookingConfirmHistoryPage: React.FC = () => {
               <div key={r.id} className="rounded-2xl border border-[#e4e2e3] bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-semibold text-[15px] truncate">{r.guestName}</div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="font-semibold text-[15px] truncate">{r.guestName}</div>
+                      <span className={`shrink-0 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                        r.source === 'online' ? 'bg-[#e7f0ff] text-[#0b57d0]' : 'bg-[#f0eef0] text-[#44474c]'
+                      }`}>
+                        {r.source === 'online' ? 'Online' : 'Manual'}
+                      </span>
+                    </div>
                     <div className="text-[12px] text-[#74777d] truncate">{propertyNameById.get(r.propertyId) || r.propertyName}</div>
                   </div>
                   <div className="text-right shrink-0">
@@ -425,9 +441,9 @@ const BookingConfirmHistoryPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => void handleDelete(r)}
-                      disabled={busyId === r.id}
-                      className="rounded-lg p-2 text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-50"
-                      title="Delete"
+                      disabled={busyId === r.id || r.source === 'online'}
+                      className="rounded-lg p-2 text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                      title={r.source === 'online' ? 'Online bookings are tied to a real payment and cannot be deleted here.' : 'Delete'}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

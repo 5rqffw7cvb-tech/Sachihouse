@@ -1126,6 +1126,8 @@ export class PostgresStore implements DataStore {
       balanceDue: input.balanceDue,
       notes: input.notes,
       includeInAccounting: input.includeInAccounting,
+      source: input.source,
+      sourceBookingId: input.sourceBookingId,
       createdByUserId: input.createdByUserId,
       createdByName: input.createdByName,
       createdAt: now,
@@ -1186,6 +1188,19 @@ export class PostgresStore implements DataStore {
     }>(
       'SELECT data, property_id, check_in_date::text, check_out_date::text FROM booking_confirmations WHERE id = $1 LIMIT 1',
       [id],
+    );
+    return result.rows[0] ? this.hydrateBookingConfirmation(result.rows[0]) : null;
+  }
+
+  async getBookingConfirmationBySourceBookingId(bookingId: string): Promise<BookingConfirmation | null> {
+    const result = await this.pool.query<{
+      data: BookingConfirmation;
+      property_id: string;
+      check_in_date: string;
+      check_out_date: string;
+    }>(
+      "SELECT data, property_id, check_in_date::text, check_out_date::text FROM booking_confirmations WHERE data->>'sourceBookingId' = $1 LIMIT 1",
+      [bookingId],
     );
     return result.rows[0] ? this.hydrateBookingConfirmation(result.rows[0]) : null;
   }

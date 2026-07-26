@@ -717,6 +717,8 @@ export class MemoryStore implements DataStore {
       balanceDue: input.balanceDue,
       notes: input.notes,
       includeInAccounting: input.includeInAccounting,
+      source: input.source,
+      sourceBookingId: input.sourceBookingId,
       createdByUserId: input.createdByUserId,
       createdByName: input.createdByName,
       createdAt: now,
@@ -751,6 +753,11 @@ export class MemoryStore implements DataStore {
 
   async getBookingConfirmation(id: string): Promise<BookingConfirmation | null> {
     const row = this.assertState().bookingConfirmations.find((item) => item.id === id);
+    return row ? structuredClone(row) : null;
+  }
+
+  async getBookingConfirmationBySourceBookingId(bookingId: string): Promise<BookingConfirmation | null> {
+    const row = this.assertState().bookingConfirmations.find((item) => item.sourceBookingId === bookingId);
     return row ? structuredClone(row) : null;
   }
 

@@ -1777,6 +1777,79 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       };
   }
 
+  // Mirrors a confirmed online booking into the same table the host uses for
+  // off-platform confirmations, so revenue/accounting/PDF export work from one
+  // place no matter how the booking was taken. Guarded by sourceBookingId so a
+  // Stripe webhook redelivery — already a no-op earlier in confirmPaidBooking —
+  // can never create a second row.
+  async function syncBookingConfirmationForBooking(booking: Booking): Promise<void> {
+    try {
+      const existing = await store.getBookingConfirmationBySourceBookingId(booking.id);
+      if (existing) {
+        return;
+      }
+      const property = await store.getProperty(booking.propertyId);
+      if (!property) {
+        return;
+      }
+      const slug = property.metalink || property.id;
+      const quote = booking.quote;
+      await store.createBookingConfirmation({
+        propertyId: property.id,
+        propertyName: property.name,
+        propertyAddress: property.address,
+        propertyUrl: buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}`),
+        guestName: booking.guestName,
+        guestEmail: booking.guestEmail,
+        guestPhone: booking.guestPhone,
+        numGuests: booking.adults + booking.children + booking.infants,
+        checkInDate: booking.checkInDate,
+        checkOutDate: booking.checkOutDate,
+        checkInTime: '15:00',
+        checkOutTime: '10:00',
+        currency: booking.currency,
+        roomFee: quote.adultTotal + quote.childTotal,
+        cleaningFee: quote.cleaningFee,
+        extraFee: 0,
+        discountLabel: quote.longStayDiscount > 0 ? 'Long-stay discount' : undefined,
+        discountAmount: quote.longStayDiscount,
+        totalAmount: booking.amountTotal,
+        depositAmount: booking.amountTotal,
+        balanceDue: 0,
+        includeInAccounting: true,
+        source: 'online',
+        sourceBookingId: booking.id,
+        createdByUserId: 0,
+        createdByName: 'Online booking (Stripe)',
+      });
+    } catch (error) {
+      // The Booking row is the source of truth; a failure here can be
+      // reconciled later and must not affect the booking itself.
+      console.error(`Booking ${booking.id}: could not create its accounting confirmation.`, error);
+    }
+  }
+
+  // Refunded means no real revenue was kept, so the mirrored confirmation is
+  // removed; a late cancellation that keeps the money (D4) leaves it in place,
+  // just annotated, since it is still earned revenue.
+  async function syncBookingConfirmationOnCancel(booking: Booking, refundedAmount: number): Promise<void> {
+    try {
+      const existing = await store.getBookingConfirmationBySourceBookingId(booking.id);
+      if (!existing) {
+        return;
+      }
+      if (refundedAmount > 0) {
+        await store.deleteBookingConfirmation(existing.id);
+        return;
+      }
+      const note = 'Guest cancelled — no refund (past the free-cancellation window).';
+      const notes = existing.notes ? `${existing.notes}\n${note}` : note;
+      await store.updateBookingConfirmation(existing.id, { notes });
+    } catch (error) {
+      console.error(`Booking ${booking.id}: could not update its accounting confirmation after cancellation.`, error);
+    }
+  }
+
   async function hostRecipientFor(propertyId: string): Promise<string> {
     const property = await store.getProperty(propertyId);
     return (property?.adminEmail || hostMailFallback).trim();
@@ -1874,6 +1947,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     // an abandoned hold quietly lapsing is not news to anyone.
     if (booking.status === 'confirmed') {
       await sendBookingEmails(updated, 'cancelled', refunded);
+      await syncBookingConfirmationOnCancel(updated, refunded);
     }
 
     return { ok: true, booking: updated, refundAmount: refunded };
@@ -2148,6 +2222,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       // The event id is recorded before this runs, so a Stripe redelivery is
       // dropped earlier and the guest is never emailed twice.
       await sendBookingEmails(confirmed, 'confirmed');
+      await syncBookingConfirmationForBooking(confirmed);
     }
   }
 
@@ -2899,6 +2974,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       balanceDue: balanceDue!,
       notes: normalizeText(body.notes) || undefined,
       includeInAccounting: body.includeInAccounting === true,
+      source: 'manual',
       createdByUserId: actor.id,
       createdByName: actor.name,
     });

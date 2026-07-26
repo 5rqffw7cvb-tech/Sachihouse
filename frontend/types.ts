@@ -266,6 +266,10 @@ export interface BookingConfirmation {
   balanceDue: number;
   notes?: string;
   includeInAccounting: boolean;
+  // 'online' rows are created automatically from a paid Stripe booking;
+  // 'manual' rows are host-entered for off-platform stays.
+  source: 'online' | 'manual';
+  sourceBookingId?: string;
   createdByUserId: number;
   createdByName: string;
   createdAt: number;
