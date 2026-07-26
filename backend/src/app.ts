@@ -138,6 +138,17 @@ function extractBookingId(event: { data?: { object?: unknown } }): string | unde
   return typeof reference === 'string' && reference ? reference : undefined;
 }
 
+// Stripe rejects a success_url without an explicit scheme, which turns one
+// mistyped environment variable into a 502 on every booking attempt. A bare
+// host is assumed to be https rather than being passed through to fail.
+export function normalizeSiteUrl(raw: string | undefined): string {
+  const trimmed = (raw ?? '').trim().replace(/\/+$/, '');
+  if (!trimmed) {
+    return 'http://localhost:5173';
+  }
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 function getClientIp(req: Request): string {
   // Relies on `app.set('trust proxy', ...)` so Express resolves req.ip from the
   // trusted hop count rather than blindly trusting a client-suppliable header
@@ -335,7 +346,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   const translationService = new TranslationService();
   const payments: PaymentGateway = deps.payments ?? new StripeService();
   const mailer: Mailer = deps.mailer ?? new SmtpMailer();
-  const publicSiteUrl = (process.env.PUBLIC_SITE_URL ?? 'http://localhost:5173').replace(/\/+$/, '');
+  const publicSiteUrl = normalizeSiteUrl(process.env.PUBLIC_SITE_URL);
   // Guests read their own language; the host reads one, set once.
   const hostMailLocale = (process.env.MAIL_HOST_LOCALE ?? 'ja').trim().toLowerCase();
   const hostMailFallback = (process.env.MAIL_HOST_FALLBACK ?? '').trim();
