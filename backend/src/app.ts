@@ -2022,6 +2022,25 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     });
   });
 
+  // Mail delivery is best-effort, so a confirmed booking can exist with no
+  // confirmation ever reaching the guest. This is how that gets put right
+  // without touching the payment.
+  app.post('/api/bookings/:id/resend-confirmation', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const booking = await store.getBooking(getParam(req.params.id));
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found.' });
+    }
+    if (!canAccessProperty(req.authUser!, booking.propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+    if (booking.status !== 'confirmed') {
+      return res.status(409).json({ error: `Only a confirmed booking has a confirmation to resend (this one is ${booking.status}).` });
+    }
+
+    await sendBookingEmails(booking, 'confirmed');
+    return res.json({ sent: true, to: booking.guestEmail });
+  });
+
   // Host/admin cancellation. Always refunds in full: the guest is losing a stay
   // they did nothing wrong to lose, so we absorb the processing fee.
   app.post('/api/bookings/:id/cancel-by-host', requireAuth, requireHostOrAdmin, async (req, res) => {

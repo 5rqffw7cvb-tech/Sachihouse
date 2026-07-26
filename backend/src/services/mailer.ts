@@ -13,6 +13,26 @@ export interface Mailer {
   send(message: MailMessage): Promise<void>;
 }
 
+// `family: 4` is not optional here. Railway's containers have no outbound IPv6
+// route, but DNS hands back Gmail's AAAA record first, so the default behaviour
+// is to dial an IPv6 address and fail with ENETUNREACH. Pinning the address
+// family is what makes mail work in production; it succeeds locally either way,
+// which is exactly why this was easy to miss.
+export function buildGmailTransportOptions(user: string, password: string) {
+  return {
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    family: 4 as const,
+    auth: { user, pass: password },
+    // Confirmation mail is sent while answering Stripe's webhook, so a hanging
+    // SMTP connection must fail fast rather than hold the response open.
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
+  };
+}
+
 // Gmail SMTP. Requires an app password, not the account password — Google
 // blocks plain password logins for SMTP on accounts with 2FA, which is all of
 // them by default.
@@ -26,15 +46,7 @@ export class SmtpMailer implements Mailer {
     this.from = options.from ?? process.env.MAIL_FROM ?? (user ? `Sachi House <${user}>` : '');
 
     this.transporter = user && password
-      ? nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user, pass: password },
-        // Confirmation mail is sent while answering Stripe's webhook, so a
-        // hanging SMTP connection must fail fast rather than hold the response.
-        connectionTimeout: 8000,
-        greetingTimeout: 8000,
-        socketTimeout: 10000,
-      })
+      ? nodemailer.createTransport(buildGmailTransportOptions(user, password))
       : null;
   }
 

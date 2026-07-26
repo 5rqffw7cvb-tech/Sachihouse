@@ -165,6 +165,42 @@ describe('confirmation email', () => {
   });
 });
 
+describe('resending a confirmation', () => {
+  it('sends the confirmation again to guest and host', async () => {
+    await enableDirectBooking({ adminEmail: 'host@sachihouse.com' });
+    const { id } = await bookAndPay();
+    mailer.sent.length = 0;
+
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const res = await request(app)
+      .post(`/api/bookings/${id}/resend-confirmation`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(200);
+
+    expect(res.body).toEqual({ sent: true, to: GUEST_EMAIL });
+    expect(mailer.to(GUEST_EMAIL)).toHaveLength(1);
+    expect(mailer.to('host@sachihouse.com')).toHaveLength(1);
+  });
+
+  it('refuses for a booking that was never confirmed', async () => {
+    await enableDirectBooking();
+    const { id } = await bookAndPay({ pay: false });
+
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const res = await request(app)
+      .post(`/api/bookings/${id}/resend-confirmation`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(409);
+    expect(res.body.error).toMatch(/pending_payment/);
+  });
+
+  it('requires authentication', async () => {
+    await enableDirectBooking();
+    const { id } = await bookAndPay();
+    await request(app).post(`/api/bookings/${id}/resend-confirmation`).expect(401);
+  });
+});
+
 describe('cancellation email', () => {
   it('tells the guest the refund amount', async () => {
     await enableDirectBooking();
