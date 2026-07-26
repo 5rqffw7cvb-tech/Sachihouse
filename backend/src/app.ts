@@ -43,7 +43,7 @@ import { ObjectStorageService } from './services/objectStorage.js';
 import { ReceiptProcessingService } from './services/receiptProcessing.js';
 import { TranslationService } from './services/translationService.js';
 import { PaymentGateway, StripeService } from './services/stripe.js';
-import { Mailer, SmtpMailer } from './services/mailer.js';
+import { Mailer, ResendMailer } from './services/mailer.js';
 import {
   BookingEmailContext,
   buildGuestCancellationEmail,
@@ -345,7 +345,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   const receiptProcessing = new ReceiptProcessingService();
   const translationService = new TranslationService();
   const payments: PaymentGateway = deps.payments ?? new StripeService();
-  const mailer: Mailer = deps.mailer ?? new SmtpMailer();
+  const mailer: Mailer = deps.mailer ?? new ResendMailer();
   const publicSiteUrl = normalizeSiteUrl(process.env.PUBLIC_SITE_URL);
   // Guests read their own language; the host reads one, set once.
   const hostMailLocale = (process.env.MAIL_HOST_LOCALE ?? 'ja').trim().toLowerCase();
