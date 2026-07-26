@@ -40,9 +40,6 @@ function csvEscape(value: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-const inputClass =
-  'rounded-xl border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] outline-none focus:border-[#1b1c1d] transition-colors';
-
 const BookingConfirmHistoryPage: React.FC = () => {
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
@@ -240,9 +237,9 @@ const BookingConfirmHistoryPage: React.FC = () => {
     <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
       <TopNavBar />
       <main className="flex-1 w-full max-w-none mx-auto px-4 md:px-8 xl:px-12 pt-3 md:pt-[84px] pb-24 md:pb-12">
-        <div className="flex items-end justify-between gap-4 mb-4">
+        <div className="flex items-end justify-between gap-4 mb-3">
           <div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-[20px] md:text-[28px] font-bold tracking-tight leading-none">Direct booking revenue</h1>
+            <h1 className="font-['Plus_Jakarta_Sans'] text-[20px] md:text-[24px] font-bold tracking-tight leading-none">Direct booking revenue</h1>
             <p className="hidden md:block mt-1.5 text-[13px] text-[#74777d]">Booking confirmations you have issued, and the revenue they represent.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -272,33 +269,51 @@ const BookingConfirmHistoryPage: React.FC = () => {
           ))}
         </div>
 
-        {/* Filters (desktop only) */}
-        <div className="hidden md:flex flex-wrap items-end gap-3 mb-4">
-          <div>
-            <label className="block text-[11px] font-semibold text-[#74777d] mb-1">Property</label>
-            <select className={inputClass} value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
-              <option value="">All properties</option>
-              {scopedProperties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+        {/* Filter toolbar (desktop only) — one compact bar instead of stacked, labelled fields */}
+        <div className="hidden md:flex flex-wrap items-center gap-1 rounded-xl border border-[#e4e2e3] bg-white px-2 py-1.5 mb-3">
+          <select
+            aria-label="Property"
+            className="rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-[13px] font-medium text-[#1b1c1d] outline-none hover:bg-[#f5f3f4] focus:border-[#c4c6cd] transition-colors cursor-pointer"
+            value={propertyId}
+            onChange={(e) => setPropertyId(e.target.value)}
+          >
+            <option value="">All properties</option>
+            {scopedProperties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <span className="h-5 w-px bg-[#e4e2e3] mx-1" />
+          <div className="flex items-center gap-1.5 pl-1 text-[13px] text-[#9a9ca0]">
+            <span>Check-in</span>
+            <input
+              type="date"
+              aria-label="Check-in from"
+              className="rounded-lg border border-transparent bg-transparent px-1.5 py-1 text-[13px] text-[#1b1c1d] outline-none hover:bg-[#f5f3f4] focus:border-[#c4c6cd] transition-colors"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+            />
+            <span>→</span>
+            <input
+              type="date"
+              aria-label="Check-in to"
+              className="rounded-lg border border-transparent bg-transparent px-1.5 py-1 text-[13px] text-[#1b1c1d] outline-none hover:bg-[#f5f3f4] focus:border-[#c4c6cd] transition-colors"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+            />
           </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-[#74777d] mb-1">Check-in from</label>
-            <input type="date" className={inputClass} value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-[#74777d] mb-1">Check-in to</label>
-            <input type="date" className={inputClass} value={toDate} onChange={(e) => setToDate(e.target.value)} />
-          </div>
-          <button type="button" onClick={() => void load()} className="rounded-xl bg-[#1b1c1d] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#333] transition-colors">Apply</button>
+          <button type="button" onClick={() => void load()} className="ml-1 rounded-lg bg-[#1b1c1d] px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-[#333] transition-colors">
+            Apply
+          </button>
           {(propertyId || fromDate || toDate) && (
             <button
               type="button"
               onClick={() => { setPropertyId(''); setFromDate(''); setToDate(''); void load({ propertyId: '', fromDate: '', toDate: '' }); }}
-              className="rounded-xl border border-[#c4c6cd] bg-white px-4 py-2 text-[13px] font-semibold hover:bg-[#f5f3f4] transition-colors"
+              className="rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium text-[#74777d] hover:bg-[#f5f3f4] transition-colors"
             >
               Clear
             </button>
           )}
+          <span className="ml-auto pr-1 text-[12.5px] text-[#9a9ca0]">
+            {loading ? 'Loading…' : `${rows.length} confirmation${rows.length === 1 ? '' : 's'}`}
+          </span>
         </div>
 
         {/* Table (desktop) */}
@@ -311,51 +326,60 @@ const BookingConfirmHistoryPage: React.FC = () => {
             ) : (
               <table className="w-full text-[12.5px] whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-[#e4e2e3] text-left text-[11px] uppercase tracking-[0.05em] text-[#74777d]">
-                    <th className="px-3 py-2.5 font-semibold">Confirmation</th>
-                    <th className="px-3 py-2.5 font-semibold">Source</th>
-                    <th className="px-3 py-2.5 font-semibold">Property</th>
-                    <th className="px-3 py-2.5 font-semibold">Guest</th>
-                    <th className="px-3 py-2.5 font-semibold text-center">Pax</th>
-                    <th className="px-3 py-2.5 font-semibold">Check-in</th>
-                    <th className="px-3 py-2.5 font-semibold">Check-out</th>
-                    <th className="px-3 py-2.5 font-semibold text-right">Total</th>
-                    <th className="px-3 py-2.5 font-semibold text-right">Deposit</th>
-                    <th className="px-3 py-2.5 font-semibold text-right">Balance</th>
-                    <th className="px-3 py-2.5 font-semibold text-center">Acct.</th>
-                    <th className="px-3 py-2.5 font-semibold text-right">Actions</th>
+                  <tr className="border-b border-[#e4e2e3] text-left text-[10px] uppercase tracking-[0.06em] text-[#9a9ca0]">
+                    <th className="px-3 py-2 font-semibold">Confirmation</th>
+                    <th className="px-3 py-2 font-semibold">Source</th>
+                    <th className="px-3 py-2 font-semibold">Property</th>
+                    <th className="px-3 py-2 font-semibold">Guest</th>
+                    <th className="px-3 py-2 font-semibold text-center">Pax</th>
+                    <th className="px-3 py-2 font-semibold">Check-in</th>
+                    <th className="px-3 py-2 font-semibold">Check-out</th>
+                    <th className="px-3 py-2 font-semibold text-right">Total</th>
+                    <th className="px-3 py-2 font-semibold text-right">Deposit</th>
+                    <th className="px-3 py-2 font-semibold text-right">Balance</th>
+                    <th className="px-3 py-2 font-semibold text-center">In accounting</th>
+                    <th className="px-3 py-2 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.id} className="border-b border-[#f0eef0] hover:bg-[#faf9fa]">
-                      <td className="px-3 py-2.5 font-semibold">{r.confirmationNo}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2 font-semibold">{r.confirmationNo}</td>
+                      <td className="px-3 py-2">
                         <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
                           r.source === 'online' ? 'bg-[#e7f0ff] text-[#0b57d0]' : 'bg-[#f0eef0] text-[#44474c]'
                         }`}>
                           {r.source === 'online' ? 'Online' : 'Manual'}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">{propertyNameById.get(r.propertyId) || r.propertyName}</td>
-                      <td className="px-3 py-2.5">{r.guestName}</td>
-                      <td className="px-3 py-2.5 text-center tabular-nums">{r.numGuests}</td>
-                      <td className="px-3 py-2.5">{formatDate(r.checkInDate)}</td>
-                      <td className="px-3 py-2.5">{formatDate(r.checkOutDate)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{formatMoney(r.totalAmount, r.currency)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{formatMoney(r.depositAmount, r.currency)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{formatMoney(r.balanceDue, r.currency)}</td>
-                      <td className="px-3 py-2.5 text-center">
-                        <input
-                          type="checkbox"
-                          checked={r.includeInAccounting}
+                      <td className="px-3 py-2">{propertyNameById.get(r.propertyId) || r.propertyName}</td>
+                      <td className="px-3 py-2">{r.guestName}</td>
+                      <td className="px-3 py-2 text-center tabular-nums">{r.numGuests}</td>
+                      <td className="px-3 py-2">{formatDate(r.checkInDate)}</td>
+                      <td className="px-3 py-2">{formatDate(r.checkOutDate)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatMoney(r.totalAmount, r.currency)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(r.depositAmount, r.currency)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatMoney(r.balanceDue, r.currency)}</td>
+                      <td className="px-3 py-2 text-center">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={r.includeInAccounting}
+                          onClick={() => void handleToggleAccounting(r)}
                           disabled={busyId === r.id}
-                          onChange={() => void handleToggleAccounting(r)}
-                          className="h-4 w-4 accent-[#1b1c1d] cursor-pointer"
                           title="Include this revenue in accounting reports"
-                        />
+                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors disabled:opacity-50 ${
+                            r.includeInAccounting ? 'bg-[#1b8f5a]' : 'bg-[#d7d5d6]'
+                          }`}
+                        >
+                          <span
+                            className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                              r.includeInAccounting ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
@@ -419,16 +443,25 @@ const BookingConfirmHistoryPage: React.FC = () => {
                   <span className="font-semibold">Balance {formatMoney(r.balanceDue, r.currency)}</span>
                 </div>
                 <div className="mt-3 flex items-center justify-between border-t border-[#f0eef0] pt-2.5">
-                  <label className="flex items-center gap-2 text-[12px] text-[#44474c]">
-                    <input
-                      type="checkbox"
-                      checked={r.includeInAccounting}
+                  <div className="flex items-center gap-2 text-[12px] text-[#44474c]">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={r.includeInAccounting}
+                      onClick={() => void handleToggleAccounting(r)}
                       disabled={busyId === r.id}
-                      onChange={() => void handleToggleAccounting(r)}
-                      className="h-4 w-4 accent-[#1b1c1d]"
-                    />
+                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors disabled:opacity-50 ${
+                        r.includeInAccounting ? 'bg-[#1b8f5a]' : 'bg-[#d7d5d6]'
+                      }`}
+                    >
+                      <span
+                        className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                          r.includeInAccounting ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
                     In accounting
-                  </label>
+                  </div>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
