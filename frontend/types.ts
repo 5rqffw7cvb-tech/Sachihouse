@@ -216,6 +216,14 @@ export interface PropertyData {
   rules: HouseRule[];
   manual: ManualItem[];
   icalFeeds: ICalFeed[];
+  // Opt-in per property: guests book and pay online instead of emailing for a
+  // quote. Absent or disabled keeps the legacy enquiry flow.
+  directBooking?: {
+    enabled: boolean;
+    minNights?: number;
+    maxAdvanceDays?: number;
+    sameDayCutoffHour?: number;
+  };
   amenities: string[];
   
   // Dynamic Categories

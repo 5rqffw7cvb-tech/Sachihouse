@@ -94,7 +94,12 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
           <div className="lg:col-span-7 space-y-8">
              {/* Mobile Only: Show Simulator here */}
             <div className="block lg:hidden">
-                <BookingWidget pricing={data.pricing} adminEmail={data.adminEmail} />
+                <BookingWidget
+                    pricing={data.pricing}
+                    adminEmail={data.adminEmail}
+                    propertyId={data.id}
+                    directBooking={data.directBooking}
+                />
             </div>
 
             {/* Pricing Rules Section */}

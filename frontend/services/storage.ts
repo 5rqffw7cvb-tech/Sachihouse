@@ -306,8 +306,10 @@ export const saveSiteSettings = async (settings: SiteSettings): Promise<void> =>
   window.dispatchEvent(new Event('site-settings-updated'));
 };
 
-export const refreshBlockedDates = async (data: PropertyData) => {
-  const propertyId = data.id || data.metalink || 'main';
+// Accepts a property id directly so callers that only know the id (the booking
+// widget, for one) can refresh without holding the whole property record.
+export const refreshBlockedDates = async (data: PropertyData | string) => {
+  const propertyId = typeof data === 'string' ? data : (data.id || data.metalink || 'main');
   try {
     const response = await apiRequest<{ blockedDates: string[] }>(`/properties/${propertyId}/blocked-dates`);
     blockedDatesCache = new Set(response.blockedDates);

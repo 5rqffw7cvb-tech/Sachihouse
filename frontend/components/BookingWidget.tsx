@@ -1,15 +1,16 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { PricingConfig } from '../types';
+import { PricingConfig, PropertyData } from '../types';
+import BookingGuestForm from './BookingGuestForm';
 import { PriceResult } from '../utils/pricing';
 import { 
     differenceInDays, addDays, format, isBefore, eachDayOfInterval, 
     endOfMonth, getDay, isSameDay, isWithinInterval, addMonths 
 } from 'date-fns';
-import { Star, Minus, Plus, ChevronDown, ChevronUp, Mail, Calculator, Calendar as CalendarIcon, Users, AlertCircle, ChevronLeft, ChevronRight, X, Baby } from 'lucide-react';
+import { Star, Minus, Plus, ChevronDown, ChevronUp, Mail, Calculator, Calendar as CalendarIcon, Users, AlertCircle, ChevronLeft, ChevronRight, X, Baby, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { calculateHomestayPrice } from '../utils/pricing';
-import { isDateBlocked } from '../services/storage';
+import { isDateBlocked, refreshBlockedDates } from '../services/storage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
 
@@ -17,6 +18,10 @@ interface BookingWidgetProps {
   pricing: PricingConfig;
   className?: string;
   adminEmail?: string;
+  // Both are required before the widget will offer online booking; without them
+  // it keeps the original "email the host" behaviour.
+  propertyId?: string;
+  directBooking?: PropertyData['directBooking'];
 }
 
 type CalculationResult = 
@@ -37,7 +42,7 @@ const startOfMonth = (date: Date): Date => {
   return newDate;
 };
 
-const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, adminEmail }) => {
+const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, adminEmail, propertyId, directBooking }) => {
   const { t, language } = useLanguage();
   const dateLocale = getDateFnsLocale(language);
   const weekdayLabels = [t('weekday_sun'), t('weekday_mon'), t('weekday_tue'), t('weekday_wed'), t('weekday_thu'), t('weekday_fri'), t('weekday_sat')];
@@ -55,8 +60,23 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarViewMonth, setCalendarViewMonth] = useState(today);
   const [selectingField, setSelectingField] = useState<'checkIn' | 'checkOut'>('checkIn');
-  
+  const [isBookingFormOpen, setIsBookingFormOpen] = useState(false);
+  // Nights that were taken while the guest was filling in the form; shown so
+  // they understand why the calendar suddenly changed under them.
+  const [takenDates, setTakenDates] = useState<string[]>([]);
+
+  const canBookOnline = Boolean(propertyId && directBooking?.enabled);
+
   const calendarRef = useRef<HTMLDivElement>(null);
+
+  // isDateBlocked reads a module-level cache, so a refresh has to be turned into
+  // a render for the newly taken nights to show as unavailable.
+  const [, setBlockedVersion] = useState(0);
+  useEffect(() => {
+    const handler = () => setBlockedVersion((n) => n + 1);
+    window.addEventListener('ical-updated', handler);
+    return () => window.removeEventListener('ical-updated', handler);
+  }, []);
 
   // Close calendar when clicking outside
   useEffect(() => {
@@ -468,16 +488,35 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                     </div>
                 </div>
 
-                <button
-                    onClick={handleEmailInquiry}
-                    className="w-full bg-[var(--color-primary-600)] hover:opacity-90 text-white font-bold text-lg py-4 px-6 rounded-xl shadow-lg shadow-black/10 transition-all duration-200 flex items-center justify-center gap-3 group transform hover:-translate-y-1"
-                >
-                    <Mail className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                    {t('sim_send_inquiry')}
-                </button>
-                
+                {takenDates.length > 0 && (
+                    <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                        <p className="text-sm text-amber-800">
+                            {t('book_err_conflict')} {takenDates.join(', ')}
+                        </p>
+                    </div>
+                )}
+
+                {canBookOnline ? (
+                    <button
+                        onClick={() => { setTakenDates([]); setIsBookingFormOpen(true); }}
+                        className="w-full bg-[var(--color-primary-600)] hover:opacity-90 text-white font-bold text-lg py-4 px-6 rounded-xl shadow-lg shadow-black/10 transition-all duration-200 flex items-center justify-center gap-3 group transform hover:-translate-y-1"
+                    >
+                        <Lock className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                        {t('book_now')}
+                    </button>
+                ) : (
+                    <button
+                        onClick={handleEmailInquiry}
+                        className="w-full bg-[var(--color-primary-600)] hover:opacity-90 text-white font-bold text-lg py-4 px-6 rounded-xl shadow-lg shadow-black/10 transition-all duration-200 flex items-center justify-center gap-3 group transform hover:-translate-y-1"
+                    >
+                        <Mail className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                        {t('sim_send_inquiry')}
+                    </button>
+                )}
+
                 <p className="text-xs text-gray-400 text-center leading-tight">
-                    {t('sim_note')}
+                    {canBookOnline ? t('book_widget_note') : t('sim_note')}
                 </p>
             </div>
         ) : (
@@ -491,6 +530,30 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
             </div>
         )}
       </div>
+
+      {isBookingFormOpen && canBookOnline && calculation?.isValid && checkIn && checkOut && (
+        <BookingGuestForm
+          propertyId={propertyId!}
+          checkIn={checkIn}
+          checkOut={checkOut}
+          nights={calculation.nights}
+          adults={adults}
+          children={children}
+          infants={infants}
+          estimatedTotal={calculation.total}
+          onClose={() => setIsBookingFormOpen(false)}
+          onDatesUnavailable={(conflicts) => {
+            // Someone else paid for these nights first. Close the form, surface
+            // the clash and reopen the calendar so the guest can pick again.
+            setIsBookingFormOpen(false);
+            setTakenDates(conflicts);
+            setCheckOut(null);
+            setSelectingField('checkIn');
+            setIsCalendarOpen(true);
+            refreshBlockedDates(propertyId!).catch(() => undefined);
+          }}
+        />
+      )}
     </div>
   );
 };

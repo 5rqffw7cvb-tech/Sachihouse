@@ -686,7 +686,12 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
 
             {/* Sticky Sidebar */}
             <div className="col-span-1 mt-3 lg:mt-0">
-                <BookingWidget pricing={data.pricing} adminEmail={data.adminEmail} />
+                <BookingWidget
+                    pricing={data.pricing}
+                    adminEmail={data.adminEmail}
+                    propertyId={data.id}
+                    directBooking={data.directBooking}
+                />
                 
                 {/* Mobile Only: Platform Links (Now below BookingWidget) */}
                 <div className="py-3 md:hidden">

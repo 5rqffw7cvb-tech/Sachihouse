@@ -15,6 +15,8 @@ const PricingPage = lazy(() => import('./pages/PricingPage'));
 const RulesPage = lazy(() => import('./pages/RulesPage'));
 const ManualPage = lazy(() => import('./pages/ManualPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
+const BookingResultPage = lazy(() => import('./pages/BookingResultPage'));
+const BookingCancelledPage = lazy(() => import('./pages/BookingCancelledPage'));
 const PhotoTourPage = lazy(() => import('./pages/PhotoTourPage'));
 const BlogPage = lazy(() => import('./pages/BlogPage'));
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
@@ -568,6 +570,10 @@ const App: React.FC = () => {
 
           <Routes>
                         <Route path="/" element={<ListingsRoute />} />
+                        {/* Stripe returns the guest to these two after checkout. They must
+                            sit above /:id/* so a booking id is never read as a property. */}
+                        <Route path="/booking/result" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BookingResultPage /></Suspense>} />
+                        <Route path="/booking/cancelled" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BookingCancelledPage /></Suspense>} />
                                                 <Route path="/login" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><LoginPage /></Suspense>} />
                         <Route path="/become-host" element={<Suspense fallback={<div className="min-h-screen bg-[#f8fafc] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BecomeHostPage /></Suspense>} />
                         <Route path="/admin/services" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><ServicesAdminPage /></Suspense>} />
