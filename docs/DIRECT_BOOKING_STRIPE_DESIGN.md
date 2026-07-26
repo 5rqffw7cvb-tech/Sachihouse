@@ -363,7 +363,7 @@ Còn thiếu:
 | :--- | :--- | :--- |
 | Q1 | `STRIPE_WEBHOOK_SECRET` — chỉ có sau khi tạo webhook endpoint trong Stripe. Không có thì webhook trả 400 và booking không bao giờ được xác nhận. | **Chặn chạy thật** |
 | Q2 | Ràng buộc đặt phòng cho `s01`/`s02`: số đêm tối thiểu, đặt trước tối đa bao xa, giờ cắt đặt trong ngày. Mặc định: 1 đêm / 365 ngày / 12:00 JST. | Cấu hình |
-| Q3 | App password của Gmail cho nodemailer. | Pha 4 |
+| Q3 | **`GMAIL_APP_PASSWORD`** — App Password của Google (không phải mật khẩu tài khoản). Chưa có thì email chỉ ghi log, không gửi. Lấy tại: Google Account → Security → 2-Step Verification → App passwords. | **Chặn gửi mail** |
 | Q4 | Nội dung 特商法: họ tên chủ hộ kinh doanh, địa chỉ, số điện thoại, email liên hệ. | Pha 6 |
 | Q5 | Có thu 宿泊税 (thuế lưu trú của tỉnh/thành) không, và thu online hay tại chỗ? | Tính tiền |
 

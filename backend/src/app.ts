@@ -43,6 +43,14 @@ import { ObjectStorageService } from './services/objectStorage.js';
 import { ReceiptProcessingService } from './services/receiptProcessing.js';
 import { TranslationService } from './services/translationService.js';
 import { PaymentGateway, StripeService } from './services/stripe.js';
+import { Mailer, SmtpMailer } from './services/mailer.js';
+import {
+  BookingEmailContext,
+  buildGuestCancellationEmail,
+  buildGuestConfirmationEmail,
+  buildHostCancellationEmail,
+  buildHostConfirmationEmail,
+} from './domain/bookingEmails.js';
 
 const ALLOWED_ROLES: Role[] = ['ADMIN', 'HOST', 'GUEST'];
 // Declared once because the body-parser middleware and the route must agree
@@ -307,6 +315,7 @@ function buildTranslatableFields(property: PropertyData): Array<{ path: string; 
 export interface AppDependencies {
   // Injected by tests so the booking and webhook flows run without network calls.
   payments?: PaymentGateway;
+  mailer?: Mailer;
 }
 
 export function createApp(store: DataStore, deps: AppDependencies = {}) {
@@ -325,7 +334,11 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   const receiptProcessing = new ReceiptProcessingService();
   const translationService = new TranslationService();
   const payments: PaymentGateway = deps.payments ?? new StripeService();
+  const mailer: Mailer = deps.mailer ?? new SmtpMailer();
   const publicSiteUrl = (process.env.PUBLIC_SITE_URL ?? 'http://localhost:5173').replace(/\/+$/, '');
+  // Guests read their own language; the host reads one, set once.
+  const hostMailLocale = (process.env.MAIL_HOST_LOCALE ?? 'ja').trim().toLowerCase();
+  const hostMailFallback = (process.env.MAIL_HOST_FALLBACK ?? '').trim();
   const ocrRateMap = new Map<string, { count: number; resetAt: number }>();
   const bookingRateMap = new Map<string, { count: number; resetAt: number }>();
   const bookingRateLimitPerHour = Math.max(1, Number(process.env.BOOKING_RATE_LIMIT_PER_HOUR ?? 10));
@@ -1727,6 +1740,72 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return booking;
   }
 
+  async function buildBookingEmailContext(booking: Booking): Promise<BookingEmailContext | null> {
+    const property = await store.getProperty(booking.propertyId);
+    if (!property) {
+      return null;
+    }
+    // The public site routes properties by metalink, so links must use it
+    // rather than the internal id.
+    const slug = property.metalink || property.id;
+    return {
+      booking,
+      propertyName: property.name,
+      propertyAddress: property.address,
+      manageUrl: `${publicSiteUrl}/booking/result?id=${encodeURIComponent(booking.id)}`
+        + `&token=${encodeURIComponent(booking.guestToken)}`,
+      checkInUrl: `${publicSiteUrl}/${encodeURIComponent(slug)}/checkin`,
+      };
+  }
+
+  async function hostRecipientFor(propertyId: string): Promise<string> {
+    const property = await store.getProperty(propertyId);
+    return (property?.adminEmail || hostMailFallback).trim();
+  }
+
+  // Mail is best-effort on purpose. A booking that is paid for and confirmed
+  // must not be reported as failed because an SMTP server was unreachable, so
+  // every failure here is logged and swallowed.
+  async function sendBookingEmails(
+    booking: Booking,
+    kind: 'confirmed' | 'cancelled',
+    refundAmount = 0,
+  ): Promise<void> {
+    try {
+      const context = await buildBookingEmailContext(booking);
+      if (!context) {
+        console.error(`Cannot send ${kind} mail for booking ${booking.id}: property is missing.`);
+        return;
+      }
+
+      const guestMail = kind === 'confirmed'
+        ? buildGuestConfirmationEmail(context)
+        : buildGuestCancellationEmail(context, refundAmount);
+      const hostTo = await hostRecipientFor(booking.propertyId);
+
+      const deliveries: Array<Promise<void>> = [
+        mailer.send({ ...guestMail, to: booking.guestEmail }),
+      ];
+      if (hostTo) {
+        const hostMail = kind === 'confirmed'
+          ? buildHostConfirmationEmail(context, hostMailLocale)
+          : buildHostCancellationEmail(context, refundAmount, hostMailLocale);
+        // Replying to the host notification should reach the guest directly.
+        deliveries.push(mailer.send({ ...hostMail, to: hostTo, replyTo: booking.guestEmail }));
+      }
+
+      // One failed recipient must not stop the other from being told.
+      const results = await Promise.allSettled(deliveries);
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          console.error(`Booking ${booking.id}: ${kind} mail failed.`, result.reason);
+        }
+      }
+    } catch (error) {
+      console.error(`Booking ${booking.id}: could not prepare ${kind} mail.`, error);
+    }
+  }
+
   type CancelOutcome =
     | { ok: true; booking: Booking; refundAmount: number }
     | { ok: false; status: number; error: string };
@@ -1770,6 +1849,12 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       // The refund already went through, so this must not look like a success.
       console.error(`Booking ${booking.id} was refunded ${refunded} but could not be marked cancelled.`);
       return { ok: false, status: 500, error: 'Booking was refunded but could not be updated. Contact support.' };
+    }
+
+    // Only a booking that was actually paid for warrants a cancellation notice;
+    // an abandoned hold quietly lapsing is not news to anyone.
+    if (booking.status === 'confirmed') {
+      await sendBookingEmails(updated, 'cancelled', refunded);
     }
 
     return { ok: true, booking: updated, refundAmount: refunded };
@@ -2012,7 +2097,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       }
     }
 
-    await store.updateBooking(bookingId, {
+    const confirmed = await store.updateBooking(bookingId, {
       status: 'confirmed',
       confirmationNo: generateConfirmationNo(Date.now()),
       stripePaymentIntentId: paymentIntentId,
@@ -2020,6 +2105,12 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       holdExpiresAt: null,
       confirmedAt: Date.now(),
     });
+
+    if (confirmed) {
+      // The event id is recorded before this runs, so a Stripe redelivery is
+      // dropped earlier and the guest is never emailed twice.
+      await sendBookingEmails(confirmed, 'confirmed');
+    }
   }
 
   async function releaseUnpaidBooking(bookingId: string, status: BookingStatus, reason: string): Promise<void> {
