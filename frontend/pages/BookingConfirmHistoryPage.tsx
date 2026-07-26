@@ -258,16 +258,16 @@ const BookingConfirmHistoryPage: React.FC = () => {
         {errorMsg && <div className="mb-4 rounded-xl border border-[#f5c2c7] bg-[#fdeef0] px-4 py-3 text-[13px] text-[#ba1a1a]">{errorMsg}</div>}
 
         {/* Summary tiles (desktop only — mobile stays minimal) */}
-        <div className="hidden md:grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div className="hidden md:grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
           {[
             { label: 'Confirmations', value: String(rows.length) },
             { label: 'Total revenue', value: formatMoney(totals.total, summaryCurrency) },
             { label: 'Balance due', value: formatMoney(totals.balance, summaryCurrency) },
             { label: 'In accounting', value: formatMoney(totals.accounted, summaryCurrency) },
           ].map((tile) => (
-            <div key={tile.label} className="rounded-2xl border border-[#e4e2e3] bg-white px-4 py-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#74777d]">{tile.label}</div>
-              <div className="mt-1 text-[18px] md:text-[20px] font-bold tabular-nums">{tile.value}</div>
+            <div key={tile.label} className="flex items-center justify-between gap-2 rounded-xl border border-[#e4e2e3] bg-white px-3 py-2">
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#74777d]">{tile.label}</span>
+              <span className="text-[14px] font-bold tabular-nums">{tile.value}</span>
             </div>
           ))}
         </div>
