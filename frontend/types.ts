@@ -72,6 +72,8 @@ export interface SocialInfo {
   airbnbUrl?: string;
   bookingUrl?: string;
   agodaUrl?: string;
+  expediaUrl?: string;
+  vrboUrl?: string;
 }
 
 export interface EmailJsConfig {

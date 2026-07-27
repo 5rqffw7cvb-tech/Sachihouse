@@ -1403,11 +1403,31 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Agoda URL</label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
                                     value={formData.social.agodaUrl || ''}
                                     onChange={(e) => handleSocialChange('agodaUrl', e.target.value)}
+                                    placeholder="Leave empty to hide"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Expedia URL</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    value={formData.social.expediaUrl || ''}
+                                    onChange={(e) => handleSocialChange('expediaUrl', e.target.value)}
+                                    placeholder="Leave empty to hide"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Vrbo URL</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    value={formData.social.vrboUrl || ''}
+                                    onChange={(e) => handleSocialChange('vrboUrl', e.target.value)}
                                     placeholder="Leave empty to hide"
                                 />
                             </div>

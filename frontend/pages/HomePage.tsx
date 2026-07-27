@@ -703,6 +703,8 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                          <PlatformButton url={data.social.airbnbUrl} name="Airbnb" color="#FF385C" label={t('home_book_on')} />
                          <PlatformButton url={data.social.bookingUrl} name="Booking.com" color="#003580" label={t('home_book_on')} />
                          <PlatformButton url={data.social.agodaUrl} name="Agoda" color="#2a2a2a" label={t('home_book_on')} />
+                         <PlatformButton url={data.social.expediaUrl} name="Expedia" color="#00355F" label={t('home_book_on')} />
+                         <PlatformButton url={data.social.vrboUrl} name="Vrbo" color="#3D67FF" label={t('home_book_on')} />
                     </div>
                 </div>
             </div>

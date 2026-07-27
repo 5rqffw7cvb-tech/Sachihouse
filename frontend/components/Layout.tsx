@@ -181,7 +181,7 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
                </a>
                
                {/* Other Platforms Section */}
-               {(data.social.airbnbUrl || data.social.bookingUrl || data.social.agodaUrl) && (
+               {(data.social.airbnbUrl || data.social.bookingUrl || data.social.agodaUrl || data.social.expediaUrl || data.social.vrboUrl) && (
                    <div className="flex flex-col gap-3 p-4 bg-gray-50/50 rounded-xl">
                         <h4 className="font-bold text-gray-400 text-[10px] uppercase tracking-wider flex items-center gap-2">
                             <span className="w-1 h-3 bg-blue-600 rounded-full"></span>
@@ -191,6 +191,8 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
                             <PlatformButton url={data.social.airbnbUrl} name="Airbnb" color="#FF385C" bgColor="#fff" label={t('home_book_on')} />
                             <PlatformButton url={data.social.bookingUrl} name="Booking.com" color="#003580" bgColor="#fff" label={t('home_book_on')} />
                             <PlatformButton url={data.social.agodaUrl} name="Agoda" color="#2a2a2a" bgColor="#fff" label={t('home_book_on')} />
+                            <PlatformButton url={data.social.expediaUrl} name="Expedia" color="#00355F" bgColor="#fff" label={t('home_book_on')} />
+                            <PlatformButton url={data.social.vrboUrl} name="Vrbo" color="#3D67FF" bgColor="#fff" label={t('home_book_on')} />
                         </div>
                    </div>
                )}

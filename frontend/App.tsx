@@ -300,6 +300,8 @@ const createDraftPropertyData = (propertyId: string): PropertyData => {
             airbnbUrl: '',
             bookingUrl: '',
             agodaUrl: '',
+            expediaUrl: '',
+            vrboUrl: '',
         },
         titles: {
             about: 'About this stay',
