@@ -276,18 +276,39 @@ const BookingResultPage: React.FC = () => {
         </div>
 
         {booking.refundAmount > 0 && (
-          <div className="flex justify-between items-baseline text-sm text-green-700">
-            <span>{t('manage_refunded')}</span>
-            <span className="font-bold">¥{booking.refundAmount.toLocaleString()}</span>
+          <div>
+            <div className="flex justify-between items-baseline text-sm text-green-700">
+              <span>{t('manage_refunded')}</span>
+              <span className="font-bold">¥{booking.refundAmount.toLocaleString()}</span>
+            </div>
+            {booking.refundAmount < booking.amountTotal && (
+              <p className="text-right text-[11px] text-gray-400 mt-0.5">
+                ({t('book_total')} ¥{booking.amountTotal.toLocaleString()} − {t('manage_refund_fee_label')} ¥
+                {(booking.amountTotal - booking.refundAmount).toLocaleString()})
+              </p>
+            )}
           </div>
         )}
 
         {isConfirmed && (
           <div className="pt-4 space-y-3">
             <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-4 text-xs text-gray-600 leading-relaxed">
-              {booking.refundIfCancelledNow > 0
-                ? `${t('manage_refund_if_now')} ¥${booking.refundIfCancelledNow.toLocaleString()}`
-                : t('manage_no_refund_now')}
+              {booking.refundIfCancelledNow > 0 ? (
+                <>
+                  <p className="font-semibold text-gray-800">
+                    {t('manage_refund_if_now')} ¥{booking.refundIfCancelledNow.toLocaleString()}
+                  </p>
+                  {booking.refundIfCancelledNow < booking.amountTotal && (
+                    <p className="mt-1 text-gray-500">
+                      ({t('book_total')} ¥{booking.amountTotal.toLocaleString()} − {t('manage_refund_fee_label')} ¥
+                      {(booking.amountTotal - booking.refundIfCancelledNow).toLocaleString()})
+                    </p>
+                  )}
+                  <p className="mt-1.5 text-[11px] text-gray-400">{t('manage_refund_disclaimer')}</p>
+                </>
+              ) : (
+                t('manage_no_refund_now')
+              )}
             </div>
 
             {cancelError && (

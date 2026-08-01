@@ -103,6 +103,8 @@ export const translations = {
     manage_refund_if_now: "Cancel now and you would be refunded",
     manage_no_refund_now: "This booking is inside the 7-day window and is no longer refundable.",
     manage_refunded: "Refunded",
+    manage_refund_fee_label: "Stripe processing fee",
+    manage_refund_disclaimer: "The actual amount may differ slightly depending on Stripe's fees at the time of cancellation.",
     abandoned_title: "Payment cancelled",
     abandoned_body: "You were not charged. The dates were held briefly and are now free again — you can start a new booking whenever you like.",
     
@@ -493,6 +495,8 @@ export const translations = {
     manage_refund_if_now: "Hủy bây giờ bạn sẽ được hoàn",
     manage_no_refund_now: "Đặt phòng này đã vào trong 7 ngày trước ngày nhận phòng nên không còn được hoàn tiền.",
     manage_refunded: "Đã hoàn",
+    manage_refund_fee_label: "Phí xử lý Stripe",
+    manage_refund_disclaimer: "Số tiền thực tế có thể chênh lệch một chút tùy theo chính sách phí của Stripe tại thời điểm hủy.",
     abandoned_title: "Đã hủy thanh toán",
     abandoned_body: "Bạn chưa bị trừ tiền. Các ngày chỉ được giữ tạm và giờ đã mở lại — bạn có thể đặt lại bất cứ lúc nào.",
     
@@ -883,6 +887,8 @@ export const translations = {
     manage_refund_if_now: "今キャンセルした場合の返金額",
     manage_no_refund_now: "チェックイン7日前以内のため、返金の対象外です。",
     manage_refunded: "返金済み",
+    manage_refund_fee_label: "Stripe決済手数料",
+    manage_refund_disclaimer: "実際の金額は、キャンセル時点のStripeの手数料により若干異なる場合があります。",
     abandoned_title: "お支払いを中止しました",
     abandoned_body: "料金は発生していません。日程は一時的に確保されていましたが解放されました。いつでも改めてご予約いただけます。",
     
@@ -1273,6 +1279,8 @@ export const translations = {
     manage_refund_if_now: "现在取消可退款",
     manage_no_refund_now: "此预订已进入入住前7天内，不再享有退款。",
     manage_refunded: "已退款",
+    manage_refund_fee_label: "Stripe手续费",
+    manage_refund_disclaimer: "实际金额可能会因取消时Stripe的手续费政策而略有不同。",
     abandoned_title: "已取消付款",
     abandoned_body: "未产生扣款。日期只是短暂保留，现已重新开放，您随时可以重新预订。",
     
@@ -1663,6 +1671,8 @@ export const translations = {
     manage_refund_if_now: "지금 취소하면 환불 금액",
     manage_no_refund_now: "체크인 7일 이내이므로 환불 대상이 아닙니다.",
     manage_refunded: "환불 완료",
+    manage_refund_fee_label: "Stripe 결제 수수료",
+    manage_refund_disclaimer: "실제 금액은 취소 시점의 Stripe 수수료 정책에 따라 다소 차이가 있을 수 있습니다.",
     abandoned_title: "결제를 취소했습니다",
     abandoned_body: "결제된 금액은 없습니다. 날짜는 잠시 확보되었다가 해제되었으며, 언제든 다시 예약하실 수 있습니다.",
 
