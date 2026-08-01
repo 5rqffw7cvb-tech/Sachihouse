@@ -160,7 +160,10 @@ const BookingConfirmHistoryPage: React.FC = () => {
   };
 
   const handleDelete = async (row: BookingConfirmation) => {
-    if (!window.confirm(`Delete booking confirmation ${row.confirmationNo}? This cannot be undone.`)) return;
+    const message = row.source === 'online'
+      ? `${row.confirmationNo} represents real revenue collected via Stripe for a paid booking. Deleting it here does NOT cancel or refund the booking — it only removes this accounting record, and it cannot be undone.\n\nDelete anyway?`
+      : `Delete booking confirmation ${row.confirmationNo}? This cannot be undone.`;
+    if (!window.confirm(message)) return;
     setBusyId(row.id);
     try {
       await deleteBookingConfirmation(row.id);
@@ -392,9 +395,9 @@ const BookingConfirmHistoryPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => void handleDelete(r)}
-                            disabled={busyId === r.id || r.source === 'online'}
+                            disabled={busyId === r.id}
                             className="rounded-lg p-1.5 text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
-                            title={r.source === 'online' ? 'Online bookings are tied to a real payment and cannot be deleted here.' : 'Delete'}
+                            title={r.source === 'online' ? 'This is real Stripe revenue — deleting only removes the accounting record.' : 'Delete'}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -474,9 +477,9 @@ const BookingConfirmHistoryPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => void handleDelete(r)}
-                      disabled={busyId === r.id || r.source === 'online'}
+                      disabled={busyId === r.id}
                       className="rounded-lg p-2 text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
-                      title={r.source === 'online' ? 'Online bookings are tied to a real payment and cannot be deleted here.' : 'Delete'}
+                      title={r.source === 'online' ? 'This is real Stripe revenue — deleting only removes the accounting record.' : 'Delete'}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
