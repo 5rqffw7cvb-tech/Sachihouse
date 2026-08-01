@@ -19,6 +19,7 @@ import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
 import { getAllProperties } from '../services/storage';
 import {
   addBlockedDates,
+  DirectBooking,
   getPropertyCalendar,
   PropertyCalendar,
   regenerateIcalExportToken,
@@ -26,6 +27,7 @@ import {
   updateIcalFeeds,
 } from '../services/calendar';
 import { ApiUser } from '../services/api';
+import { cancelBookingByHost } from '../services/booking';
 import { ICalFeed, PropertyData } from '../types';
 
 type PropertyItem = PropertyData & { id: string };
@@ -79,6 +81,7 @@ const HostCalendarPage: React.FC = () => {
   const [loadingProps, setLoadingProps] = useState(true);
   const [loadingCal, setLoadingCal] = useState(false);
   const [busyDates, setBusyDates] = useState<Set<string>>(new Set());
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   // On mobile the iCal settings stay collapsed by default so blocked dates
@@ -188,6 +191,28 @@ const HostCalendarPage: React.FC = () => {
         clone.delete(iso);
         return clone;
       });
+    }
+  };
+
+  // Always a full refund — the guest did nothing wrong, so the host (not the
+  // guest) absorbs the Stripe processing fee. Only a paid booking can be
+  // cancelled this way; an unpaid hold just expires on its own.
+  const handleCancelBooking = async (booking: DirectBooking) => {
+    const reason = window.prompt(
+      `Cancel ${booking.guestName}'s booking (${booking.checkInDate} → ${booking.checkOutDate})?\n\n`
+      + `This refunds ¥${booking.amountTotal.toLocaleString()} in full and cannot be undone. `
+      + `The guest is emailed automatically.\n\nOptional reason (included in that email):`,
+    );
+    if (reason === null) return; // dismissed the prompt
+    setCancellingId(booking.id);
+    setErrorMsg(null);
+    try {
+      await cancelBookingByHost(booking.id, reason || undefined);
+      if (calendar) void loadCalendar(calendar.propertyId);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to cancel the booking.');
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -385,7 +410,8 @@ const HostCalendarPage: React.FC = () => {
                         <th className="pb-2 pr-3 font-medium">Guest</th>
                         <th className="pb-2 pr-3 font-medium">Stay</th>
                         <th className="pb-2 pr-3 font-medium">Amount</th>
-                        <th className="pb-2 font-medium">Status</th>
+                        <th className="pb-2 pr-3 font-medium">Status</th>
+                        <th className="pb-2 font-medium text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -400,7 +426,7 @@ const HostCalendarPage: React.FC = () => {
                             <td className="py-2.5 pr-3 text-[#1b1c1d] whitespace-nowrap">
                               ¥{booking.amountTotal.toLocaleString()}
                             </td>
-                            <td className="py-2.5">
+                            <td className="py-2.5 pr-3">
                               <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
                                 booking.status === 'confirmed'
                                   ? 'bg-[#e7f0ff] text-[#0b57d0]'
@@ -408,6 +434,18 @@ const HostCalendarPage: React.FC = () => {
                               }`}>
                                 {booking.status === 'confirmed' ? 'Paid' : 'Awaiting payment'}
                               </span>
+                            </td>
+                            <td className="py-2.5 text-right">
+                              {booking.status === 'confirmed' && (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleCancelBooking(booking)}
+                                  disabled={cancellingId === booking.id}
+                                  className="rounded-lg border border-[#e4c2c2] px-2.5 py-1 text-[11px] font-semibold text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-50"
+                                >
+                                  {cancellingId === booking.id ? 'Cancelling…' : 'Cancel'}
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}

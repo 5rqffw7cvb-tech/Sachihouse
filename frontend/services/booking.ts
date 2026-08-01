@@ -74,6 +74,20 @@ export async function cancelBooking(
   );
 }
 
+// Host/admin cancellation. Unlike a guest cancelling themselves, this always
+// refunds in full — the guest did nothing wrong, so the host (not the guest)
+// absorbs the Stripe processing fee. Requires an authenticated host/admin
+// session; apiRequest attaches that token automatically.
+export async function cancelBookingByHost(
+  id: string,
+  reason?: string,
+): Promise<{ booking: GuestBooking; refundAmount: number }> {
+  return apiRequest<{ booking: GuestBooking; refundAmount: number }>(
+    `/bookings/${encodeURIComponent(id)}/cancel-by-host`,
+    { method: 'POST', body: JSON.stringify({ reason }) },
+  );
+}
+
 // The browser is redirected back from Stripe the moment payment succeeds, but
 // the booking is only confirmed once Stripe's webhook reaches our server. That
 // gap is normally under a second and occasionally a few seconds, so the result
