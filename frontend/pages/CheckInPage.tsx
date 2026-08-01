@@ -1,8 +1,8 @@
 import React, { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronUp, EyeOff, FileBadge2, Lock, Loader2, Menu, PencilLine, Plus, ShieldCheck, Upload, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { AlertTriangle, Check, ChevronUp, EyeOff, FileBadge2, Lock, Loader2, Menu, PencilLine, Plus, ShieldCheck, Upload, X } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { PropertyData, CheckInGuest } from '../types';
-import { CheckInConsentPolicy, ocrGuestDocument, startCheckInSession, submitCheckIn } from '../services/checkin';
+import { CheckInConsentPolicy, matchCheckInBooking, ocrGuestDocument, startCheckInSession, submitCheckIn } from '../services/checkin';
 import { ApiError, ApiUser } from '../services/api';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { HoldToSubmitButton } from '../components/HoldToSubmitButton';
@@ -259,8 +259,21 @@ const prepareCheckInImage = async (file: File): Promise<string> => {
   throw new Error(CHECKIN_IMG_ERR.TOO_LARGE_COMPRESSED);
 };
 
+type BookingGateState = 'none' | 'checking' | 'matched' | 'mismatch';
+
 const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const [searchParams] = useSearchParams();
+  // A link with no `bk` at all (the generic per-property link a host copies
+  // from the Check-in link picker) skips this gate entirely — 'none' renders
+  // the form exactly as before. A link carrying `bk` (from a booking
+  // confirmation email) must match a real booking_confirmations row first.
+  const urlBk = searchParams.get('bk') ?? '';
+  const [gateState, setGateState] = useState<BookingGateState>(urlBk ? 'checking' : 'none');
+  const [matchedBk, setMatchedBk] = useState(urlBk);
+  const [manualBk, setManualBk] = useState('');
+  const [gateError, setGateError] = useState<string | null>(null);
+  const [gateSubmitting, setGateSubmitting] = useState(false);
   const [checkInDate, setCheckInDate] = useState<string>(toDateInput(0));
   const [checkOutDate, setCheckOutDate] = useState<string>(toDateInput(1));
   const [checkInTime, setCheckInTime] = useState<string>('15:00');
@@ -290,6 +303,52 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const [sameAsLeadByGuest, setSameAsLeadByGuest] = useState<Record<string, boolean>>({});
   const [pendingDraft, setPendingDraft] = useState<CheckInDraft | null>(null);
   const [draftCheckDone, setDraftCheckDone] = useState(false);
+
+  useEffect(() => {
+    if (!urlBk) {
+      return;
+    }
+    let cancelled = false;
+    setGateState('checking');
+    matchCheckInBooking(propertyId, urlBk)
+      .then((ok) => {
+        if (cancelled) return;
+        if (ok) {
+          setMatchedBk(urlBk);
+          setGateState('matched');
+        } else {
+          setGateState('mismatch');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setGateState('mismatch');
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyId, urlBk]);
+
+  const handleGateConfirm = async () => {
+    const candidate = manualBk.trim();
+    if (!candidate) {
+      setGateError(t('checkin_gate_enter_id'));
+      return;
+    }
+    setGateSubmitting(true);
+    setGateError(null);
+    try {
+      const ok = await matchCheckInBooking(propertyId, candidate);
+      if (ok) {
+        setMatchedBk(candidate);
+        setGateState('matched');
+      } else {
+        setGateError(t('checkin_gate_mismatch'));
+      }
+    } catch {
+      setGateError(t('checkin_gate_mismatch'));
+    } finally {
+      setGateSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -716,6 +775,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           acceptedAt: Date.now(),
           noticeVersion: consentPolicy?.noticeVersion ?? 'v1',
         },
+        ...(gateState === 'matched' ? { bk: matchedBk, locale: language } : {}),
       });
       setSubmitSuccess(submission.id);
       clearCheckInDraft(propertyId);
@@ -740,6 +800,51 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     return (
       <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center px-6 text-center text-[#ba1a1a]">
         {settingsLoadError}
+      </div>
+    );
+  }
+
+  // Only a link carrying `bk` reaches these two states; the generic
+  // per-property link (no `bk`) goes straight to the form below, unchanged.
+  if (gateState === 'checking') {
+    return (
+      <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center gap-3 text-[#041627]">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <p className="text-sm font-medium tracking-[0.04em] uppercase">{t('checkin_gate_checking')}</p>
+      </div>
+    );
+  }
+
+  if (gateState === 'mismatch') {
+    return (
+      <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center px-6">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50">
+            <AlertTriangle className="h-6 w-6 text-amber-500" />
+          </div>
+          <h1 className="text-center text-lg font-bold text-gray-900">{t('checkin_gate_mismatch_title')}</h1>
+          <p className="mt-2 text-center text-sm text-gray-500">{t('checkin_gate_mismatch_body')}</p>
+          <div className="mt-5">
+            <input
+              type="text"
+              value={manualBk}
+              onChange={(e) => { setManualBk(e.target.value); setGateError(null); }}
+              placeholder={t('checkin_gate_id_placeholder')}
+              disabled={gateSubmitting}
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-semibold tracking-wide text-gray-900 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+            />
+            {gateError && <p className="mt-2 text-center text-xs text-red-600">{gateError}</p>}
+            <button
+              type="button"
+              onClick={() => void handleGateConfirm()}
+              disabled={gateSubmitting}
+              className="mt-3 w-full rounded-xl bg-gray-900 py-3 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {gateSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t('checkin_gate_confirm')}
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

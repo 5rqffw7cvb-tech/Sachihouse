@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { PropertyData, PricingConfig, ICalFeed, HouseRule, ManualItem, SleepingArrangement, HighlightItem, AccessInfo, PricingTier, CleaningTier, SocialInfo, PropertyTitles, GalleryItem, GalleryCategoryDef } from '../types';
+import { PropertyData, PricingConfig, ICalFeed, HouseRule, ManualItem, SleepingArrangement, HighlightItem, AccessInfo, CheckInInfo, PricingTier, CleaningTier, SocialInfo, PropertyTitles, GalleryItem, GalleryCategoryDef } from '../types';
 import { savePropertyData, translateAndSavePropertyContent, getAllProperties } from '../services/storage';
 import { ImageInput } from '../components/ImageInput';
 import { UploadButton } from '../components/UploadButton';
@@ -15,7 +15,7 @@ import {
   Tv, Car, Waves, Dumbbell, Flame, Sun, Bath, Thermometer, 
   ShieldCheck, Key, Shirt, Briefcase, Lock as LockIcon, Mail, LogOut, Loader2, Shield,
   Eye, EyeOff, Type, Globe, Refrigerator, Microwave, ShowerHead, Zap, Medal, Palette,
-  Settings, FolderOpen, Home, Github, Cloud, CloudRain, LockKeyhole, Share2, Menu
+  Settings, FolderOpen, Home, Github, Cloud, CloudRain, LockKeyhole, Share2, Menu, Phone, MapPin
 } from 'lucide-react';
 
 interface AdminPageProps {
@@ -553,6 +553,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
       setFormData(prev => ({
           ...prev,
           accessInfo: { ...prev.accessInfo, [field]: value }
+      }));
+  };
+
+  const handleCheckInInfoChange = (field: keyof CheckInInfo, value: string) => {
+      setFormData(prev => ({
+          ...prev,
+          checkInInfo: { ...prev.checkInInfo, [field]: value }
       }));
   };
 
@@ -2514,12 +2521,73 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">YouTube Guide URL (チェックイン動画URL)</label>
-                                <input 
-                                    type="text" 
+                                <input
+                                    type="text"
                                     className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
                                     value={formData.accessInfo.youtubeGuideUrl || ''}
                                     onChange={(e) => handleAccessChange('youtubeGuideUrl', e.target.value)}
                                     placeholder="https://youtu.be/..."
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Card 3: Guest check-in info — sent by email only after a guest with a
+                        booking-specific check-in link submits the check-in form. */}
+                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6 shadow-sm">
+                        <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2">
+                            <Key className="w-5 h-5 text-blue-700" />
+                            Guest Check-in Info (チェックイン後に送るゲスト情報)
+                        </h3>
+                        <p className="text-xs text-gray-500 -mt-4">
+                            Emailed to the guest automatically once they submit the check-in form via their booking link. Leave any field blank to omit it from that email.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Google Maps link</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    value={formData.checkInInfo?.googleMapsUrl || ''}
+                                    onChange={(e) => handleCheckInInfoChange('googleMapsUrl', e.target.value)}
+                                    placeholder="https://maps.app.goo.gl/..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Emergency contact phone</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    value={formData.checkInInfo?.emergencyContactPhone || ''}
+                                    onChange={(e) => handleCheckInInfoChange('emergencyContactPhone', e.target.value)}
+                                    placeholder="+81 90 1234 5678"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Wifi className="w-3.5 h-3.5" /> Wi-Fi name (SSID)</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    value={formData.checkInInfo?.wifiName || ''}
+                                    onChange={(e) => handleCheckInInfoChange('wifiName', e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Wifi className="w-3.5 h-3.5" /> Wi-Fi password</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    value={formData.checkInInfo?.wifiPassword || ''}
+                                    onChange={(e) => handleCheckInInfoChange('wifiPassword', e.target.value)}
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Key className="w-3.5 h-3.5" /> Entry code / keybox instructions</label>
+                                <textarea
+                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm h-20"
+                                    value={formData.checkInInfo?.entryCode || ''}
+                                    onChange={(e) => handleCheckInInfoChange('entryCode', e.target.value)}
+                                    placeholder="Door code, keybox code, or free-text instructions..."
                                 />
                             </div>
                         </div>

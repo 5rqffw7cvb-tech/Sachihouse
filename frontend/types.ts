@@ -76,6 +76,17 @@ export interface SocialInfo {
   vrboUrl?: string;
 }
 
+// Sent to the guest by email once they submit the check-in form reached via a
+// booking-specific link. Every field is optional and simply omitted from the
+// email if blank.
+export interface CheckInInfo {
+  wifiName?: string;
+  wifiPassword?: string;
+  entryCode?: string; // door code, keybox code, or free-text entry instructions
+  emergencyContactPhone?: string;
+  googleMapsUrl?: string;
+}
+
 export interface EmailJsConfig {
   serviceId: string;
   templateId: string;
@@ -211,6 +222,7 @@ export interface PropertyData {
   highlights: HighlightItem[];
 
   accessInfo: AccessInfo;
+  checkInInfo?: CheckInInfo;
 
   additionalRules: string;
 

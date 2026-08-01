@@ -761,6 +761,14 @@ export class MemoryStore implements DataStore {
     return row ? structuredClone(row) : null;
   }
 
+  async getBookingConfirmationByNo(propertyId: string, confirmationNo: string): Promise<BookingConfirmation | null> {
+    const needle = confirmationNo.trim().toUpperCase();
+    const row = this.assertState().bookingConfirmations.find(
+      (item) => item.propertyId === propertyId && item.confirmationNo.toUpperCase() === needle,
+    );
+    return row ? structuredClone(row) : null;
+  }
+
   async updateBookingConfirmation(id: string, patch: BookingConfirmationPatch): Promise<BookingConfirmation | null> {
     const state = this.assertState();
     const index = state.bookingConfirmations.findIndex((item) => item.id === id);

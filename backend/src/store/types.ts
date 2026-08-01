@@ -481,6 +481,18 @@ export interface PropertyData {
     airbnbUrl?: string;
     bookingUrl?: string;
     agodaUrl?: string;
+    expediaUrl?: string;
+    vrboUrl?: string;
+  };
+  // Sent to the guest by email once they submit the check-in form reached via a
+  // booking-specific link (see checkInUrl in bookingEmails.ts). Every field is
+  // optional and simply omitted from the email if blank.
+  checkInInfo?: {
+    wifiName?: string;
+    wifiPassword?: string;
+    entryCode?: string; // door code, keybox code, or free-text entry instructions
+    emergencyContactPhone?: string;
+    googleMapsUrl?: string;
   };
   titles: {
     about: string;
@@ -644,6 +656,9 @@ export interface DataStore {
   listBookingConfirmations(filters?: BookingConfirmationListFilters): Promise<BookingConfirmation[]>;
   getBookingConfirmation(id: string): Promise<BookingConfirmation | null>;
   getBookingConfirmationBySourceBookingId(bookingId: string): Promise<BookingConfirmation | null>;
+  // Case-insensitive match on the human-readable confirmation number, scoped to
+  // one property — this is what gates the booking-specific check-in link.
+  getBookingConfirmationByNo(propertyId: string, confirmationNo: string): Promise<BookingConfirmation | null>;
   updateBookingConfirmation(id: string, patch: BookingConfirmationPatch): Promise<BookingConfirmation | null>;
   deleteBookingConfirmation(id: string): Promise<boolean>;
   // Creates a direct booking and claims every requested night atomically. The

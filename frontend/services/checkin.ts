@@ -34,6 +34,17 @@ export async function startCheckInSession(propertyId: string): Promise<{ checkin
   });
 }
 
+// Gates a booking-specific check-in link (one carrying ?bk=<confirmation no>):
+// true means a real, matching booking confirmation exists for this property.
+// The generic per-property link from the Check-in link picker carries no `bk`
+// and never calls this.
+export async function matchCheckInBooking(propertyId: string, bk: string): Promise<boolean> {
+  const res = await apiRequest<{ ok: boolean }>(
+    `/properties/${propertyId}/checkins/match?bk=${encodeURIComponent(bk)}`,
+  );
+  return res.ok;
+}
+
 export async function submitCheckIn(propertyId: string, payload: {
   checkinToken: string;
   checkInDate: string;
@@ -46,6 +57,10 @@ export async function submitCheckIn(propertyId: string, payload: {
     acceptedAt: number;
     noticeVersion: string;
   };
+  // Present only when this submission came through a matched booking-specific
+  // link — triggers the post-checkin welcome email server-side.
+  bk?: string;
+  locale?: string;
 }): Promise<CheckInSubmission> {
   const response = await apiRequest<{ submission: CheckInSubmission }>(`/properties/${propertyId}/checkins/submit`, {
     method: 'POST',

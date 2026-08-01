@@ -51,6 +51,7 @@ import {
   buildHostCancellationEmail,
   buildHostConfirmationEmail,
 } from './domain/bookingEmails.js';
+import { buildCheckInWelcomeEmail } from './domain/checkinWelcomeEmail.js';
 
 const ALLOWED_ROLES: Role[] = ['ADMIN', 'HOST', 'GUEST'];
 // Declared once because the body-parser middleware and the route must agree
@@ -360,6 +361,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   const hostMailFallback = (process.env.MAIL_HOST_FALLBACK ?? '').trim();
   const ocrRateMap = new Map<string, { count: number; resetAt: number }>();
   const bookingRateMap = new Map<string, { count: number; resetAt: number }>();
+  const checkinMatchRateMap = new Map<string, { count: number; resetAt: number }>();
   const bookingRateLimitPerHour = Math.max(1, Number(process.env.BOOKING_RATE_LIMIT_PER_HOUR ?? 10));
   // Stripe Checkout sessions cannot expire sooner than 30 minutes, so the
   // internal hold outlives the payment page and is released by the sweeper.
@@ -428,6 +430,24 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     }
 
     if (current.count >= 20) {
+      return false;
+    }
+
+    current.count += 1;
+    return true;
+  }
+
+  // A booking-ID guess is cheap for an attacker to script, so this must be
+  // tighter than the OCR limit even though each request is far lighter.
+  function enforceCheckinMatchRateLimit(ipAddress: string): boolean {
+    const now = Date.now();
+    const current = checkinMatchRateMap.get(ipAddress);
+    if (!current || now > current.resetAt) {
+      checkinMatchRateMap.set(ipAddress, { count: 1, resetAt: now + 60_000 });
+      return true;
+    }
+
+    if (current.count >= 10) {
       return false;
     }
 
@@ -1773,7 +1793,11 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       propertyAddress: property.address,
       manageUrl: buildSiteUrl(publicSiteUrl, `/booking/result?id=${encodeURIComponent(booking.id)}`
         + `&token=${encodeURIComponent(booking.guestToken)}`),
-      checkInUrl: buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}/checkin`),
+      // Carries the confirmation number so the check-in form can pre-fill and
+      // auto-match it. The generic per-property link a host copies from the
+      // Check-in link picker has no such param and skips this gate entirely.
+      checkInUrl: buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}/checkin`
+        + (booking.confirmationNo ? `?bk=${encodeURIComponent(booking.confirmationNo)}` : '')),
       };
   }
 
@@ -1895,6 +1919,31 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       }
     } catch (error) {
       console.error(`Booking ${booking.id}: could not prepare ${kind} mail.`, error);
+    }
+  }
+
+  // Sent once, right after a guest submits the check-in form reached via a
+  // booking-specific link — never for the generic per-property link a host
+  // copies from the Check-in link picker, since that carries no confirmation
+  // to look up a guest email against.
+  async function sendCheckInWelcomeEmail(property: PropertyData & { id: string }, bk: string, locale: string): Promise<void> {
+    try {
+      const confirmation = await store.getBookingConfirmationByNo(property.id, bk);
+      if (!confirmation?.guestEmail) {
+        return;
+      }
+      const slug = property.metalink || property.id;
+      const mail = buildCheckInWelcomeEmail({
+        propertyName: property.name,
+        propertyAddress: property.address,
+        checkInInfo: property.checkInInfo ?? {},
+        manualUrl: buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}/manual`),
+        rulesUrl: buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}/rules`),
+        locale,
+      });
+      await mailer.send({ ...mail, to: confirmation.guestEmail });
+    } catch (error) {
+      console.error(`Check-in for booking ${bk}: could not send the welcome email.`, error);
     }
   }
 
@@ -2320,6 +2369,30 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return res.json({ received: true });
   });
 
+  // Gate for a booking-specific check-in link (see checkInUrl in bookingEmails.ts).
+  // A link with no `bk` at all — e.g. the generic per-property link a host copies
+  // from the Check-in link picker for OTA guests — never calls this; only a link
+  // carrying a confirmation number does.
+  app.get('/api/properties/:id/checkins/match', async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.id));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+
+    const ipAddress = getClientIp(req);
+    if (!enforceCheckinMatchRateLimit(ipAddress)) {
+      return res.status(429).json({ error: 'Too many attempts. Please try again in a minute.' });
+    }
+
+    const bk = normalizeText(req.query.bk);
+    if (!bk) {
+      return res.status(400).json({ error: 'bk is required.' });
+    }
+
+    const confirmation = await store.getBookingConfirmationByNo(property.id, bk);
+    return res.json({ ok: confirmation !== null });
+  });
+
   app.post('/api/properties/:id/checkins/start', async (req, res) => {
     const property = await store.getProperty(getParam(req.params.id));
     if (!property) {
@@ -2539,6 +2612,15 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
         userAgent: normalizeText(req.get('user-agent')).slice(0, 300) || 'unknown',
       },
     });
+
+    // Only present when this submission was reached via a booking-specific
+    // check-in link (already re-validated here rather than trusted from the
+    // earlier /checkins/match call).
+    const bk = normalizeText(req.body?.bk);
+    if (bk) {
+      const locale = normalizeText(req.body?.locale) || 'en';
+      await sendCheckInWelcomeEmail(property, bk, locale);
+    }
 
     return res.status(201).json({ submission });
   });
