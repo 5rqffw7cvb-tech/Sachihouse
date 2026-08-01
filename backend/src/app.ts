@@ -1985,7 +1985,23 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       return { ok: false, status: 409, error: `A booking in status "${booking.status}" cannot be cancelled.` };
     }
 
-    const outcome = calculateRefund(booking, Date.now(), { byHost: options.byHost });
+    // The fee is normally captured at confirm time, but Stripe occasionally
+    // hasn't finished computing the charge's balance_transaction the instant
+    // the checkout.session.completed webhook fires, so getChargeFee silently
+    // returns 0 with no error to log. A real ¥0 fee is not realistic for a
+    // card charge, so treat a stored 0 as "unknown" and re-check before a
+    // guest cancellation would otherwise short the deduction — a host
+    // cancellation refunds in full regardless, so this only matters here.
+    let stripeFeeAmount = booking.stripeFeeAmount;
+    if (!options.byHost && stripeFeeAmount === 0 && booking.stripePaymentIntentId) {
+      try {
+        stripeFeeAmount = await payments.getChargeFee(booking.stripePaymentIntentId);
+      } catch (error) {
+        console.error(`Could not re-check the Stripe fee for booking ${booking.id} at cancellation time.`, error);
+      }
+    }
+
+    const outcome = calculateRefund({ ...booking, stripeFeeAmount }, Date.now(), { byHost: options.byHost });
 
     // Money moves before the room is released. The reverse order risks leaving
     // the guest with neither their stay nor their refund if Stripe fails.

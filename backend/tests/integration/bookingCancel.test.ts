@@ -92,6 +92,23 @@ describe('guest cancellation', () => {
     expect(payments.refunds).toEqual([{ paymentIntentId: 'pi_test_123', amount: 33740 }]);
   });
 
+  it('re-checks the Stripe fee at cancellation time if it came back as 0 at confirm time', async () => {
+    // Simulates Stripe not having finished the charge's balance_transaction
+    // the instant checkout.session.completed fired, which makes getChargeFee
+    // silently return 0 with nothing thrown to log.
+    await enableDirectBooking();
+    payments.chargeFee = 0;
+    const { id, guestToken } = await bookAndPay({ daysAhead: 40 });
+    expect((await store.getBooking(id))?.stripeFeeAmount).toBe(0);
+
+    // By cancellation time the real fee is available.
+    payments.chargeFee = 1260;
+    const res = await request(app).post(`/api/bookings/${id}/cancel?token=${guestToken}`).expect(200);
+
+    expect(res.body.refundAmount).toBe(33740);
+    expect(payments.refunds).toEqual([{ paymentIntentId: 'pi_test_123', amount: 33740 }]);
+  });
+
   it('refunds nothing inside the 7-day window but still cancels', async () => {
     await enableDirectBooking();
     const { id, guestToken } = await bookAndPay({ daysAhead: 3 });
