@@ -76,9 +76,13 @@ describe('accounting mirror for a paid online booking', () => {
     const { id } = await bookAndPay({ daysAhead: 40 });
 
     const confirmation = await store.getBookingConfirmationBySourceBookingId(id);
+    const booking = await store.getBooking(id);
     expect(confirmation).not.toBeNull();
     expect(confirmation!.source).toBe('online');
     expect(confirmation!.propertyId).toBe('main');
+    // Must reuse the Booking's own number — that's what was already emailed
+    // to the guest and embedded in their check-in link (?bk=...).
+    expect(confirmation!.confirmationNo).toBe(booking!.confirmationNo);
     expect(confirmation!.guestName).toBe('Hanako Tanaka');
     // ¥35,000 total = roomFee + cleaningFee for a 2-adult, 3-night stay.
     expect(confirmation!.roomFee + confirmation!.cleaningFee - confirmation!.discountAmount).toBe(35000);

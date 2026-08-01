@@ -235,6 +235,11 @@ export function generateConfirmationNo(timestamp: number): string {
 }
 
 export interface BookingConfirmationInput {
+  // Online rows must reuse the Booking's own confirmationNo — that is the
+  // number already emailed to the guest and embedded in their check-in link
+  // (?bk=...), so generating a fresh one here would make that link stop
+  // matching anything. Manual rows leave this unset and get a fresh one.
+  confirmationNo?: string;
   propertyId: string;
   propertyName: string;
   propertyAddress: string;
@@ -359,6 +364,10 @@ export interface Booking {
   cancelReason?: string;
   refundAmount: number;
   locale: string;                    // en | vi | ja | zh | ko
+  // Times the guest has corrected their own email via the "wrong email?" flow
+  // on the booking result page. Capped (see MAX_GUEST_EMAIL_UPDATES in
+  // app.ts) so that flow can't be used to spam an arbitrary address.
+  emailUpdateCount: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -400,6 +409,8 @@ export interface BookingStatusPatch {
   cancelledAt?: number | null;
   cancelReason?: string;
   refundAmount?: number;
+  guestEmail?: string;
+  emailUpdateCount?: number;
 }
 
 // Either the hold was taken for every requested night, or none of it was and

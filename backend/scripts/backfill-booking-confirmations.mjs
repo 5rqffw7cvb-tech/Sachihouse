@@ -110,7 +110,9 @@ async function main() {
 
       const confirmation = {
         id: `bc_${Math.random().toString(36).slice(2, 10)}`,
-        confirmationNo: generateConfirmationNo(now),
+        // Reuse the number already emailed to the guest — a fresh one here
+        // would break the ?bk= match on their check-in link.
+        confirmationNo: booking.confirmationNo || generateConfirmationNo(now),
         propertyId: prop.id,
         propertyName: prop.name || prop.id,
         propertyAddress: prop.address || '',

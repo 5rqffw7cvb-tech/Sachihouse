@@ -38,6 +38,7 @@ const BookingGuestForm: React.FC<BookingGuestFormProps> = ({
 
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
+  const [guestEmailConfirm, setGuestEmailConfirm] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [consented, setConsented] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +54,10 @@ const BookingGuestForm: React.FC<BookingGuestFormProps> = ({
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.trim())) {
       setError(t('book_err_email'));
+      return;
+    }
+    if (guestEmail.trim().toLowerCase() !== guestEmailConfirm.trim().toLowerCase()) {
+      setError(t('book_err_email_mismatch'));
       return;
     }
     if (!consented) {
@@ -177,6 +182,24 @@ const BookingGuestForm: React.FC<BookingGuestFormProps> = ({
                 disabled={submitting}
               />
               <p className="text-xs text-gray-500 mt-1.5">{t('book_email_note')}</p>
+            </div>
+
+            <div>
+              <label htmlFor="booking-email-confirm" className="block text-sm font-bold text-gray-700 mb-1.5">
+                {t('book_guest_email_confirm')} <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="booking-email-confirm"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={guestEmailConfirm}
+                onChange={(e) => setGuestEmailConfirm(e.target.value)}
+                onPaste={(e) => e.preventDefault()}
+                className={inputClass}
+                disabled={submitting}
+              />
+              <p className="text-xs text-gray-500 mt-1.5">{t('book_email_confirm_note')}</p>
             </div>
 
             <div>

@@ -1758,6 +1758,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       // So the cancellation screen can state the amount before the guest
       // commits, rather than surprising them after the fact.
       refundIfCancelledNow: calculateRefund(booking, Date.now()).refundAmount,
+      emailUpdateCount: booking.emailUpdateCount,
       createdAt: booking.createdAt,
     };
   }
@@ -1819,6 +1820,10 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       const slug = property.metalink || property.id;
       const quote = booking.quote;
       await store.createBookingConfirmation({
+        // Reuse the number already emailed to the guest and embedded in
+        // their check-in link — generating a new one here would silently
+        // break that link's booking-ID match.
+        confirmationNo: booking.confirmationNo,
         propertyId: property.id,
         propertyName: property.name,
         propertyAddress: property.address,
@@ -1919,6 +1924,23 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       }
     } catch (error) {
       console.error(`Booking ${booking.id}: could not prepare ${kind} mail.`, error);
+    }
+  }
+
+  // Re-sends the confirmation to the guest only — used after the guest fixes
+  // a mistyped email themselves. The host already got their one notification
+  // when the booking was first confirmed and does not need another for a
+  // guest-side typo fix.
+  async function sendGuestConfirmationEmailOnly(booking: Booking): Promise<void> {
+    try {
+      const context = await buildBookingEmailContext(booking);
+      if (!context) {
+        console.error(`Cannot send corrected-email mail for booking ${booking.id}: property is missing.`);
+        return;
+      }
+      await mailer.send({ ...buildGuestConfirmationEmail(context), to: booking.guestEmail });
+    } catch (error) {
+      console.error(`Booking ${booking.id}: could not send mail to the corrected email.`, error);
     }
   }
 
@@ -2151,6 +2173,47 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       booking: toGuestBookingView(result.booking),
       refundAmount: result.refundAmount,
     });
+  });
+
+  // Lets a guest fix a mistyped email on the booking result page and get the
+  // confirmation resent there. Capped per booking (not per IP) so this can't
+  // be used as an open relay to spam an arbitrary address — a guest with a
+  // valid token already has one legitimate booking to send to.
+  const MAX_GUEST_EMAIL_UPDATES = 3;
+  app.post('/api/bookings/:id/email', async (req, res) => {
+    const booking = await loadBookingForGuest(getParam(req.params.id), req.query.token ?? req.body?.token);
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found.' });
+    }
+    if (booking.status !== 'confirmed') {
+      return res.status(409).json({ error: `Only a confirmed booking's email can be corrected (this one is ${booking.status}).` });
+    }
+    if (booking.emailUpdateCount >= MAX_GUEST_EMAIL_UPDATES) {
+      return res.status(429).json({ error: 'This booking has reached the limit for changing its email. Contact the host for help.' });
+    }
+
+    const email = normalizeText(req.body?.email).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'A valid email address is required.' });
+    }
+
+    const updated = await store.updateBooking(booking.id, {
+      guestEmail: email,
+      emailUpdateCount: booking.emailUpdateCount + 1,
+    });
+    if (!updated) {
+      return res.status(404).json({ error: 'Booking not found.' });
+    }
+
+    // Keeps the Direct booking revenue mirror showing the same address.
+    const mirrored = await store.getBookingConfirmationBySourceBookingId(updated.id);
+    if (mirrored) {
+      await store.updateBookingConfirmation(mirrored.id, { guestEmail: email });
+    }
+
+    await sendGuestConfirmationEmailOnly(updated);
+
+    return res.json({ booking: toGuestBookingView(updated), sentTo: email });
   });
 
   // Mail delivery is best-effort, so a confirmed booking can exist with no

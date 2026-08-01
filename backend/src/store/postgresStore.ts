@@ -1101,7 +1101,7 @@ export class PostgresStore implements DataStore {
     const now = Date.now();
     const row: BookingConfirmation = {
       id: `bc_${Math.random().toString(36).slice(2, 10)}`,
-      confirmationNo: generateConfirmationNo(now),
+      confirmationNo: input.confirmationNo || generateConfirmationNo(now),
       propertyId: input.propertyId,
       propertyName: input.propertyName,
       propertyAddress: input.propertyAddress,
@@ -1291,6 +1291,7 @@ export class PostgresStore implements DataStore {
       stripeFeeAmount: 0,
       holdExpiresAt: input.holdExpiresAt,
       refundAmount: 0,
+      emailUpdateCount: 0,
       locale: input.locale,
       createdAt: now,
       updatedAt: now,

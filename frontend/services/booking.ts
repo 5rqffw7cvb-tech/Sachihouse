@@ -28,6 +28,10 @@ export interface GuestBooking {
   refundAmount: number;
   cancelledAt?: number | null;
   refundIfCancelledNow: number;
+  // Times the guest has already corrected their own email via updateBookingEmail.
+  // The server caps this (see MAX_GUEST_EMAIL_UPDATES) to stop it becoming a
+  // way to spam an arbitrary address.
+  emailUpdateCount: number;
   createdAt: number;
 }
 
@@ -71,6 +75,21 @@ export async function cancelBooking(
   return apiRequest<{ booking: GuestBooking; refundAmount: number }>(
     `/bookings/${encodeURIComponent(id)}/cancel?token=${encodeURIComponent(token)}`,
     { method: 'POST' },
+  );
+}
+
+export const MAX_GUEST_EMAIL_UPDATES = 3;
+
+// Lets the guest correct a mistyped email themselves from the booking result
+// page and resends the confirmation there. Capped server-side per booking.
+export async function updateBookingEmail(
+  id: string,
+  token: string,
+  email: string,
+): Promise<{ booking: GuestBooking; sentTo: string }> {
+  return apiRequest<{ booking: GuestBooking; sentTo: string }>(
+    `/bookings/${encodeURIComponent(id)}/email?token=${encodeURIComponent(token)}`,
+    { method: 'POST', body: JSON.stringify({ email }) },
   );
 }
 

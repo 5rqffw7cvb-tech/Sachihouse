@@ -7,9 +7,11 @@ import { getDateFnsLocale } from '../utils/translations';
 import {
   BOOKING_POLL_INTERVAL_MS,
   BOOKING_POLL_TIMEOUT_MS,
+  MAX_GUEST_EMAIL_UPDATES,
   GuestBooking,
   cancelBooking,
   getBooking,
+  updateBookingEmail,
 } from '../services/booking';
 import { ApiError } from '../services/api';
 
@@ -33,6 +35,11 @@ const BookingResultPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [showEmailEdit, setShowEmailEdit] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailUpdating, setEmailUpdating] = useState(false);
+  const [emailUpdateError, setEmailUpdateError] = useState<string | null>(null);
+  const [emailUpdated, setEmailUpdated] = useState(false);
   const startedAt = useRef(Date.now());
 
   const load = useCallback(async () => {
@@ -82,6 +89,27 @@ const BookingResultPage: React.FC = () => {
       setCancelError(err instanceof ApiError ? err.message : t('result_err_generic'));
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleEmailUpdate = async () => {
+    if (!booking) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim())) {
+      setEmailUpdateError(t('book_err_email'));
+      return;
+    }
+    setEmailUpdating(true);
+    setEmailUpdateError(null);
+    try {
+      const result = await updateBookingEmail(booking.id, token, newEmail.trim());
+      setBooking(result.booking);
+      setEmailUpdated(true);
+      setShowEmailEdit(false);
+      setNewEmail('');
+    } catch (err) {
+      setEmailUpdateError(err instanceof ApiError ? err.message : t('result_err_generic'));
+    } finally {
+      setEmailUpdating(false);
     }
   };
 
@@ -158,6 +186,69 @@ const BookingResultPage: React.FC = () => {
               {t('result_confirmation_no')}
             </div>
             <div className="font-mono font-bold text-lg text-gray-900">{booking.confirmationNo}</div>
+          </div>
+        )}
+
+        {isConfirmed && (
+          <div className="mt-5 text-sm text-gray-600">
+            {emailUpdated ? (
+              <p className="text-green-700 font-medium">{t('result_email_updated')}: {booking.guestEmail}</p>
+            ) : (
+              <p>{t('result_sent_to')}: <span className="font-semibold text-gray-900">{booking.guestEmail}</span></p>
+            )}
+
+            {!showEmailEdit && booking.emailUpdateCount < MAX_GUEST_EMAIL_UPDATES && (
+              <button
+                type="button"
+                onClick={() => { setShowEmailEdit(true); setNewEmail(booking.guestEmail); }}
+                className="mt-1 text-xs font-semibold text-[var(--color-primary-600)] hover:underline"
+              >
+                {t('result_wrong_email')}
+              </button>
+            )}
+            {booking.emailUpdateCount >= MAX_GUEST_EMAIL_UPDATES && !showEmailEdit && (
+              <p className="mt-1 text-xs text-gray-400">{t('result_email_limit_reached')}</p>
+            )}
+
+            {showEmailEdit && (
+              <div className="mt-3 text-left bg-gray-50 border border-gray-200 rounded-xl p-4">
+                <label htmlFor="result-new-email" className="block text-xs font-bold text-gray-700 mb-1.5">
+                  {t('result_wrong_email')}
+                </label>
+                <input
+                  id="result-new-email"
+                  type="email"
+                  inputMode="email"
+                  value={newEmail}
+                  onChange={(e) => { setNewEmail(e.target.value); setEmailUpdateError(null); }}
+                  disabled={emailUpdating}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                />
+                <p className="mt-1.5 text-[11px] text-gray-400">
+                  {t('result_email_attempts_left')}: {Math.max(0, MAX_GUEST_EMAIL_UPDATES - booking.emailUpdateCount)}
+                </p>
+                {emailUpdateError && <p className="mt-1.5 text-xs text-red-600">{emailUpdateError}</p>}
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleEmailUpdate()}
+                    disabled={emailUpdating}
+                    className="flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-60"
+                  >
+                    {emailUpdating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    {t('result_email_resend')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowEmailEdit(false); setEmailUpdateError(null); }}
+                    disabled={emailUpdating}
+                    className="text-xs font-semibold text-gray-500 hover:text-gray-800"
+                  >
+                    {t('book_close')}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
