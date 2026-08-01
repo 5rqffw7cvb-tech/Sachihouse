@@ -1,12 +1,30 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Home, RotateCcw } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { abandonBooking } from '../services/booking';
 
 // Where Stripe sends a guest who backed out of the payment page. Nothing was
-// charged; the hold simply lapses on its own, so this page only reassures.
+// charged. The hold would lapse on its own anyway, but landing here is proof
+// the guest is done, so it is released right away instead of making the
+// nights wait out the rest of the hold window.
 const BookingCancelledPage: React.FC = () => {
   const { t } = useLanguage();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const bookingId = searchParams.get('id');
+    if (!bookingId) {
+      return;
+    }
+    const token = window.localStorage.getItem(`booking_token_${bookingId}`);
+    if (!token) {
+      return;
+    }
+    abandonBooking(bookingId, token).catch(() => {
+      // Nothing actionable for the guest — the hold's own expiry still covers this.
+    });
+  }, [searchParams]);
 
   return (
     <div className="min-h-screen bg-[#e8e5e6] py-10 px-4">

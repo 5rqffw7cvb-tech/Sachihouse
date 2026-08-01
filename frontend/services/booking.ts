@@ -78,6 +78,18 @@ export async function cancelBooking(
   );
 }
 
+// Called from the page Stripe sends a guest back to after they back out of
+// Checkout, so the nights go back on sale immediately instead of waiting out
+// the hold. Best-effort: swallow failures, since the hold's own expiry is
+// still there as a fallback and this must never block the "you're fine,
+// nothing was charged" screen the guest is looking at.
+export async function abandonBooking(id: string, token: string): Promise<void> {
+  await apiRequest<{ ok: true }>(
+    `/bookings/${encodeURIComponent(id)}/abandon?token=${encodeURIComponent(token)}`,
+    { method: 'POST' },
+  );
+}
+
 export const MAX_GUEST_EMAIL_UPDATES = 3;
 
 // Lets the guest correct a mistyped email themselves from the booking result

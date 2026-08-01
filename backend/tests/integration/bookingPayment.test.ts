@@ -141,6 +141,47 @@ describe('checkout session creation', () => {
   });
 });
 
+describe('guest abandons checkout', () => {
+  it('releases the hold immediately instead of waiting out the timer', async () => {
+    await enableDirectBooking();
+    const body = await createBooking();
+    expect(await store.listHeldDates('main')).toEqual(STAY_NIGHTS);
+
+    await request(app)
+      .post(`/api/bookings/${body.booking.id}/abandon?token=${body.guestToken}`)
+      .expect(200);
+
+    expect((await store.getBooking(body.booking.id))?.status).toBe('expired');
+    expect(await store.listHeldDates('main')).toEqual([]);
+    const res = await request(app)
+      .get(`/api/properties/availability?checkIn=${CHECK_IN}&checkOut=${CHECK_OUT}`)
+      .expect(200);
+    expect(res.body.available.map((item: { id: string }) => item.id)).toContain('main');
+  });
+
+  it('is a no-op once the booking already paid, so a stray call cannot undo a real payment', async () => {
+    await enableDirectBooking();
+    const body = await createBooking();
+    await postWebhook(checkoutCompleted(body.booking.id)).expect(200);
+
+    await request(app)
+      .post(`/api/bookings/${body.booking.id}/abandon?token=${body.guestToken}`)
+      .expect(200);
+
+    expect((await store.getBooking(body.booking.id))?.status).toBe('confirmed');
+    expect(await store.listHeldDates('main')).toEqual(STAY_NIGHTS);
+  });
+
+  it('refuses without the right token', async () => {
+    await enableDirectBooking();
+    const body = await createBooking();
+
+    await request(app).post(`/api/bookings/${body.booking.id}/abandon`).expect(404);
+    await request(app).post(`/api/bookings/${body.booking.id}/abandon?token=wrong`).expect(404);
+    expect((await store.getBooking(body.booking.id))?.status).toBe('pending_payment');
+  });
+});
+
 describe('webhook signature', () => {
   it('rejects a request with no signature header', async () => {
     await request(app).post('/api/stripe/webhook').send({ id: 'evt_1' }).expect(400);

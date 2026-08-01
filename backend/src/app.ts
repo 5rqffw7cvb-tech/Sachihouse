@@ -2191,6 +2191,24 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     });
   });
 
+  // Releases the hold the moment a guest backs out of Stripe Checkout, instead
+  // of making the nights wait out the full hold window. Stripe redirects the
+  // browser to cancelUrl in that case, which is the only signal we ever get —
+  // a guest who just closes the tab produces no request at all, and that case
+  // still falls back to the hold's own expiry. A no-op (not an error) if the
+  // booking already moved on, since the guest's browser can call this more
+  // than once (e.g. a retry) or after the sweeper already released it.
+  app.post('/api/bookings/:id/abandon', async (req, res) => {
+    const booking = await loadBookingForGuest(getParam(req.params.id), req.query.token ?? req.body?.token);
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found.' });
+    }
+    if (booking.status === 'pending_payment') {
+      await store.updateBooking(booking.id, { status: 'expired', holdExpiresAt: null });
+    }
+    return res.json({ ok: true });
+  });
+
   // Lets a guest fix a mistyped email on the booking result page and get the
   // confirmation resent there. Capped per booking (not per IP) so this can't
   // be used as an open relay to spam an arbitrary address — a guest with a
