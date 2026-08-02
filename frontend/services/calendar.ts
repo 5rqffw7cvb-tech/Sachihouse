@@ -39,6 +39,15 @@ export async function getPropertyCalendar(propertyId: string): Promise<PropertyC
   return apiRequest<PropertyCalendar>(`/properties/${propertyId}/calendar`);
 }
 
+// The full effective calendar (manual blocks + iCal imports from other
+// platforms + direct-booking holds), flattened to individual dates. Used to
+// stop a host from recording a manual booking on a night another platform
+// already has.
+export async function getBlockedDatesForProperty(propertyId: string): Promise<string[]> {
+  const res = await apiRequest<{ blockedDates: string[] }>(`/properties/${propertyId}/blocked-dates`);
+  return res.blockedDates;
+}
+
 export async function addBlockedDates(propertyId: string, dates: string[]): Promise<string[]> {
   const res = await apiRequest<{ manualBlockedDates: string[] }>(`/properties/${propertyId}/blocked-dates`, {
     method: 'POST',

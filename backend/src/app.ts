@@ -52,6 +52,7 @@ import {
   buildGuestConfirmationEmail,
   buildHostCancellationEmail,
   buildHostConfirmationEmail,
+  buildManualBookingConfirmationEmail,
 } from './domain/bookingEmails.js';
 import { buildCheckInWelcomeEmail } from './domain/checkinWelcomeEmail.js';
 
@@ -3122,6 +3123,16 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       return res.status(400).json({ error: 'checkOutDate must be after checkInDate.' });
     }
 
+    // A manual entry must not silently double-book a night another platform
+    // already holds — sync against the same effective calendar (manual
+    // blocks + iCal imports + direct-booking holds) that guest availability
+    // checks use, not just what is already in this table.
+    const blockedSet = new Set(await getEffectiveBlockedDates(property, 'fresh-if-stale'));
+    const conflictDates = getStayDates(checkInDate, checkOutDate).filter((date) => blockedSet.has(date));
+    if (conflictDates.length > 0) {
+      return res.status(409).json({ error: 'Selected dates are not available.', conflictDates });
+    }
+
     const checkInTime = isHmTime(body.checkInTime) ? body.checkInTime : '15:00';
     const checkOutTime = isHmTime(body.checkOutTime) ? body.checkOutTime : '10:00';
 
@@ -3170,6 +3181,22 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       createdByUserId: actor.id,
       createdByName: actor.name,
     });
+
+    // Best-effort, like every other booking mail: a guest not being emailed
+    // must never undo a confirmation the host already recorded and may have
+    // already handed a PDF for.
+    if (confirmation.guestEmail) {
+      try {
+        const slug = property.metalink || property.id;
+        const checkInUrl = buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}/checkin`
+          + `?bk=${encodeURIComponent(confirmation.confirmationNo)}`);
+        const locale = toLanguageCode(body.locale) ?? 'en';
+        const mail = buildManualBookingConfirmationEmail({ confirmation, checkInUrl }, locale);
+        await mailer.send({ ...mail, to: confirmation.guestEmail });
+      } catch (error) {
+        console.error(`Could not send manual booking confirmation mail for ${confirmation.id}.`, error);
+      }
+    }
 
     return res.status(201).json({ confirmation });
   });

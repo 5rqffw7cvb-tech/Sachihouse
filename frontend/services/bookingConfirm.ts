@@ -28,6 +28,9 @@ export interface CreateBookingConfirmationPayload {
   balanceDue: number;
   notes?: string;
   includeInAccounting: boolean;
+  // Language for the guest confirmation email. Only meaningful when
+  // guestEmail is set; defaults to English server-side otherwise.
+  locale?: string;
 }
 
 export interface BookingConfirmationListFilters {

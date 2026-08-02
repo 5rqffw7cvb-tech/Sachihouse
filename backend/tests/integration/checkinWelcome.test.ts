@@ -112,6 +112,9 @@ describe('post-checkin welcome email', () => {
   it('sends house info to the guest when the check-in was reached via a matched booking link', async () => {
     await setCheckInInfo();
     const confirmation = await createManualConfirmation('hanako@example.com');
+    // Creating the manual confirmation itself already emailed the guest;
+    // isolate what the check-in submission sends on top of that.
+    mailer.sent.length = 0;
 
     const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
     await request(app)
@@ -138,6 +141,9 @@ describe('post-checkin welcome email', () => {
   it('sends nothing for the generic per-property link (no bk at all)', async () => {
     await setCheckInInfo();
     await createManualConfirmation('hanako@example.com');
+    // Creating the manual confirmation itself already emailed the guest;
+    // isolate what the check-in submission sends on top of that.
+    mailer.sent.length = 0;
 
     const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
     await request(app)

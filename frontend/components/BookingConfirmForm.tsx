@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-react';
 import { getAllProperties } from '../services/storage';
 import { createBookingConfirmation } from '../services/bookingConfirm';
+import { getBlockedDatesForProperty } from '../services/calendar';
 import { downloadBookingConfirmationPdf } from '../utils/bookingConfirmPdf';
 import { calculateHomestayPrice } from '../utils/pricing';
 import { BookingConfirmation, PropertyData } from '../types';
-import { ApiUser } from '../services/api';
+import { ApiError, ApiUser } from '../services/api';
 
 type PropertyItem = PropertyData & { id: string };
 
@@ -24,6 +25,28 @@ function nightsBetween(checkIn: string, checkOut: string): number {
   if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 0;
   return Math.round((end - start) / (1000 * 60 * 60 * 24));
 }
+
+// Every night of the stay as YYYY-MM-DD, check-out excluded — mirrors the
+// backend's getStayDates so the two never disagree about what "blocked" means.
+function stayDates(checkIn: string, checkOut: string): string[] {
+  if (!checkIn || !checkOut) return [];
+  const start = new Date(`${checkIn}T00:00:00`).getTime();
+  const end = new Date(`${checkOut}T00:00:00`).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return [];
+  const dates: string[] = [];
+  for (let cursor = start; cursor < end; cursor += 24 * 60 * 60 * 1000) {
+    dates.push(new Date(cursor).toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+const LOCALE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'vi', label: 'Tiếng Việt' },
+  { value: 'zh', label: '中文' },
+  { value: 'ko', label: '한국어' },
+];
 
 function formatMoney(amount: number, currency: string): string {
   try {
@@ -79,11 +102,17 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
   const [depositAmount, setDepositAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [includeInAccounting, setIncludeInAccounting] = useState(false);
+  const [guestLocale, setGuestLocale] = useState('en');
 
   // Track whether the host has manually edited the auto-filled amounts so the
   // pricing recompute never clobbers their typed values.
   const [roomFeeTouched, setRoomFeeTouched] = useState(false);
   const [cleaningFeeTouched, setCleaningFeeTouched] = useState(false);
+
+  // The effective calendar for the selected property (manual blocks + iCal
+  // imports from other platforms + direct-booking holds), so a manual entry
+  // can't silently double-book a night another channel already has.
+  const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
 
   const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
 
@@ -119,8 +148,28 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
     [scopedProperties, propertyId],
   );
 
+  useEffect(() => {
+    if (!propertyId) {
+      setBlockedDates(new Set());
+      return;
+    }
+    let cancelled = false;
+    getBlockedDatesForProperty(propertyId)
+      .then((dates) => { if (!cancelled) setBlockedDates(new Set(dates)); })
+      .catch(() => { if (!cancelled) setBlockedDates(new Set()); });
+    return () => { cancelled = true; };
+  }, [propertyId]);
+
   const nights = nightsBetween(checkInDate, checkOutDate);
   const numGuests = adults + children + infants;
+
+  // Nights in the chosen range another platform (or booking) already holds.
+  // Checked client-side for immediate feedback; the server re-checks this
+  // itself and is the actual guard against a double-booked night.
+  const conflictDates = useMemo(
+    () => stayDates(checkInDate, checkOutDate).filter((date) => blockedDates.has(date)),
+    [checkInDate, checkOutDate, blockedDates],
+  );
 
   // Suggested amounts from the property's pricing config.
   const pricingSuggestion = useMemo(() => {
@@ -168,6 +217,9 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
     if (!checkInDate || !checkOutDate) return 'Check-in and check-out dates are required.';
     if (nights <= 0) return 'Check-out must be after check-in.';
     if (numGuests < 1) return 'At least one guest is required.';
+    if (conflictDates.length > 0) {
+      return `These dates are already blocked on the calendar: ${conflictDates.join(', ')}.`;
+    }
     return null;
   };
 
@@ -187,6 +239,7 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
         guestName: guestName.trim(),
         guestEmail: guestEmail.trim() || undefined,
         guestPhone: guestPhone.trim() || undefined,
+        locale: guestLocale,
         numGuests,
         checkInDate,
         checkOutDate,
@@ -209,7 +262,19 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
       onCreated?.(confirmation);
       await downloadBookingConfirmationPdf(confirmation);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to create booking confirmation.');
+      if (err instanceof ApiError && err.status === 409) {
+        const dates = (err.body as { conflictDates?: string[] } | undefined)?.conflictDates;
+        setErrorMsg(dates?.length
+          ? `These dates are already blocked on the calendar: ${dates.join(', ')}.`
+          : err.message);
+        // The client-side check missed this (e.g. another tab just imported
+        // new iCal blocks) — refresh so the warning below reflects reality.
+        getBlockedDatesForProperty(selectedProperty.id)
+          .then((d) => setBlockedDates(new Set(d)))
+          .catch(() => {});
+      } else {
+        setErrorMsg(err instanceof Error ? err.message : 'Failed to create booking confirmation.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -220,6 +285,7 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
     setGuestName('');
     setGuestEmail('');
     setGuestPhone('');
+    setGuestLocale('en');
     setCheckInDate('');
     setCheckOutDate('');
     setRoomFee('');
@@ -317,11 +383,24 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
               <div>
                 <label className={labelClass}>Email</label>
                 <input className={inputClass} value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} placeholder="guest@email.com" />
+                {guestEmail.trim() && (
+                  <p className="mt-1 text-[11px] text-[#74777d]">A confirmation email will be sent to this address on creation.</p>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Phone</label>
                 <input className={inputClass} value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} placeholder="+81…" />
               </div>
+              {guestEmail.trim() && (
+                <div>
+                  <label className={labelClass}>Confirmation email language</label>
+                  <select className={inputClass} value={guestLocale} onChange={(e) => setGuestLocale(e.target.value)}>
+                    {LOCALE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className={labelClass}>Adults</label>
                 <input type="number" min={0} className={inputClass} value={adults} onChange={(e) => setAdults(Math.max(0, Number(e.target.value) || 0))} />
@@ -361,6 +440,14 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
               </div>
             </div>
             {nights > 0 && <p className="mt-2 text-[12px] text-[#74777d]">{nights} night{nights === 1 ? '' : 's'} · {numGuests} guest{numGuests === 1 ? '' : 's'}</p>}
+            {conflictDates.length > 0 && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#f5c2c7] bg-[#fdeef0] px-3.5 py-2.5">
+                <AlertTriangle className="h-4 w-4 text-[#ba1a1a] shrink-0 mt-0.5" />
+                <p className="text-[12px] text-[#ba1a1a] leading-relaxed">
+                  Already blocked on the calendar (another platform or booking): {conflictDates.join(', ')}.
+                </p>
+              </div>
+            )}
           </section>
 
           {/* Amounts */}
@@ -438,7 +525,7 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || conflictDates.length > 0}
               className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-[#1b1c1d] px-4 py-3 text-[14px] font-bold text-white hover:bg-[#333] disabled:opacity-60 transition-colors"
             >
               {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><Download className="h-4 w-4" /> Generate PDF</>}

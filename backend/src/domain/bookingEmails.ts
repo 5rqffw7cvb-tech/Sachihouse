@@ -1,4 +1,4 @@
-import { Booking } from '../store/types.js';
+import { Booking, BookingConfirmation } from '../store/types.js';
 
 export interface EmailContent {
   subject: string;
@@ -217,6 +217,17 @@ function yen(amount: number): string {
   return `¥${amount.toLocaleString('en-US')}`;
 }
 
+function formatMoney(amount: number, currency: string): string {
+  if (currency === 'JPY') {
+    return yen(amount);
+  }
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+  } catch {
+    return `${currency} ${amount.toLocaleString('en-US')}`;
+  }
+}
+
 function guestSummary(booking: Booking, labels: Labels): string {
   const parts = [`${booking.adults} ${labels.adults}`];
   if (booking.children > 0) {
@@ -378,5 +389,45 @@ export function buildHostCancellationEmail(
     text: renderText(labels.hostCancelSubject, ctx.propertyName, rows, hostTopUp > 0 ? [labels.hostTopUpNote] : []),
     html: renderHtml(labels.hostCancelSubject, ctx.propertyName, rows,
       hostTopUp > 0 ? [escapeHtml(labels.hostTopUpNote)] : [], labels.footer),
+  };
+}
+
+export interface ManualConfirmationEmailContext {
+  confirmation: Pick<
+    BookingConfirmation,
+    'confirmationNo' | 'propertyName' | 'propertyAddress' | 'checkInDate' | 'checkOutDate'
+    | 'checkInTime' | 'checkOutTime' | 'numGuests' | 'currency' | 'totalAmount'
+  >;
+  // The Minpaku check-in form for this stay. Carries the confirmation number
+  // so it auto-matches the same way an online booking's link does.
+  checkInUrl: string;
+}
+
+// Sent when a host records an off-platform (OTA, phone, walk-in) booking by
+// hand. Deliberately lighter than buildGuestConfirmationEmail: there is no
+// online self-service cancellation or Stripe fee to disclose here, since the
+// guest did not pay through us.
+export function buildManualBookingConfirmationEmail(ctx: ManualConfirmationEmailContext, locale: string): EmailContent {
+  const labels = getLabels(locale);
+  const { confirmation } = ctx;
+  const rows: Row[] = [
+    [labels.confirmationNo, confirmation.confirmationNo],
+    [labels.property, confirmation.propertyName],
+    [labels.address, confirmation.propertyAddress],
+    [labels.checkIn, `${confirmation.checkInDate} ${confirmation.checkInTime}`],
+    [labels.checkOut, `${confirmation.checkOutDate} ${confirmation.checkOutTime}`],
+    [labels.guests, String(confirmation.numGuests)],
+    [labels.total, formatMoney(confirmation.totalAmount, confirmation.currency)],
+  ];
+
+  return {
+    subject: `${labels.confirmSubject} — ${confirmation.propertyName} (${confirmation.confirmationNo})`,
+    text: renderText(labels.confirmHeading, labels.confirmIntro, rows, [
+      `${labels.checkInCta}: ${ctx.checkInUrl}`,
+      labels.checkInNote,
+    ]),
+    html: renderHtml(labels.confirmHeading, labels.confirmIntro, rows, [
+      `${link(ctx.checkInUrl, labels.checkInCta)}<br>${escapeHtml(labels.checkInNote)}`,
+    ], labels.footer),
   };
 }
