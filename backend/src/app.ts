@@ -728,6 +728,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       || req.path.endsWith('/finance/pending/batch-upload')
       || req.path.endsWith('/finance/receipts/upload')
       || req.path.endsWith('/finance/ingest/email-receipt')
+      || /\/booking-confirmations\/[^/]+\/email$/.test(req.path)
       || /\/properties\/[^/]+\/images$/.test(req.path);
     return (isImageRoute ? imageJson : standardJson)(req, res, next);
   });
