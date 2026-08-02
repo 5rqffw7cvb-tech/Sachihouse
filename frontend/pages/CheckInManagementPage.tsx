@@ -820,7 +820,9 @@ const CheckInManagementPage: React.FC = () => {
                           <div className="text-[11px] text-[#9a9ca1] truncate" title={travelLine}>{travelLine}</div>
                         </td>
                         <td className="px-2 pr-5 py-3">
-                          {guest.evidenceUrl ? (
+                          {submission.residency === 'resident' ? (
+                            <span className="text-[12px] font-medium text-[#44474c]">日本居住者</span>
+                          ) : guest.evidenceUrl ? (
                             <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center rounded-md px-2 py-1 text-[12px] font-semibold text-[#041627] transition-colors hover:bg-[#041627]/[0.06]">View</a>
                           ) : (
                             <span className="text-[#c4c6cd]">—</span>

@@ -361,6 +361,7 @@ export interface CheckInSubmission {
   guests: CheckInGuest[];
   consent: CheckInConsent;
   audit: CheckInAuditInfo;
+  residency?: 'resident' | 'foreign';
   createdAt: number;
   updatedAt: number;
 }
