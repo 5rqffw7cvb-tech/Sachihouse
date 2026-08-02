@@ -205,6 +205,12 @@ export interface BookingConfirmation {
   depositAmount: number;
   balanceDue: number;
   notes?: string;
+  // Snapshotted at creation from the property's directBooking config (see
+  // resolveFreeCancellationDays) — the PDF export shows this exact number
+  // rather than always assuming 7, and rather than a value that could later
+  // drift if the host changes the property's policy. Undefined on rows
+  // created before this field existed; readers should fall back to 7.
+  freeCancellationDays?: number;
   // When true the host has opted this direct-booking revenue into accounting.
   // Currently informational only — it is NOT auto-posted to the double-entry
   // journal, but it drives the direct-booking revenue report.
@@ -263,6 +269,7 @@ export interface BookingConfirmationInput {
   depositAmount: number;
   balanceDue: number;
   notes?: string;
+  freeCancellationDays?: number;
   includeInAccounting: boolean;
   source: 'online' | 'manual';
   sourceBookingId?: string;

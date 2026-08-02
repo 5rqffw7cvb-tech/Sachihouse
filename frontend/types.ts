@@ -280,6 +280,9 @@ export interface BookingConfirmation {
   depositAmount: number;
   balanceDue: number;
   notes?: string;
+  // Snapshotted from the property's cancellation policy at creation time.
+  // Undefined on older rows — fall back to 7.
+  freeCancellationDays?: number;
   includeInAccounting: boolean;
   // 'online' rows are created automatically from a paid Stripe booking;
   // 'manual' rows are host-entered for off-platform stays.

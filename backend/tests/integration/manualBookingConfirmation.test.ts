@@ -194,6 +194,51 @@ describe('manual booking confirmation: guest email', () => {
   });
 });
 
+describe('manual booking confirmation: freeCancellationDays snapshot', () => {
+  it('defaults to 7 when the property has no custom policy', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+
+    const res = await request(app)
+      .post('/api/properties/main/booking-confirmations')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(manualPayload())
+      .expect(201);
+
+    expect(res.body.confirmation.freeCancellationDays).toBe(7);
+  });
+
+  it('snapshots the property\'s configured free-cancellation window at creation time', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const current = await request(app).get('/api/properties/main').expect(200);
+    await request(app)
+      .put('/api/properties/main')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ ...current.body.property, directBooking: { enabled: true, freeCancellationDays: 3 } })
+      .expect(200);
+
+    const created = await request(app)
+      .post('/api/properties/main/booking-confirmations')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(manualPayload())
+      .expect(201);
+    expect(created.body.confirmation.freeCancellationDays).toBe(3);
+
+    // Changing the property's policy afterwards must not retroactively alter
+    // an already-created confirmation (and its PDF).
+    await request(app)
+      .put('/api/properties/main')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ ...current.body.property, directBooking: { enabled: true, freeCancellationDays: 14 } })
+      .expect(200);
+
+    const fetched = await request(app)
+      .get(`/api/booking-confirmations/${created.body.confirmation.id}`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(200);
+    expect(fetched.body.confirmation.freeCancellationDays).toBe(3);
+  });
+});
+
 describe('manual booking confirmation: PDF-attached email', () => {
   const fakePdfBase64 = Buffer.from('%PDF-1.4 fake pdf content for tests').toString('base64');
 

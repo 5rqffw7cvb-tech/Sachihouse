@@ -716,6 +716,7 @@ export class MemoryStore implements DataStore {
       depositAmount: input.depositAmount,
       balanceDue: input.balanceDue,
       notes: input.notes,
+      freeCancellationDays: input.freeCancellationDays,
       includeInAccounting: input.includeInAccounting,
       source: input.source,
       sourceBookingId: input.sourceBookingId,

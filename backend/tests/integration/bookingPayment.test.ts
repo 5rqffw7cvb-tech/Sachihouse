@@ -443,6 +443,25 @@ describe('guest confirmation-PDF data', () => {
     expect(res.body.confirmation.source).toBe('online');
   });
 
+  it('snapshots the property\'s free-cancellation window, for the PDF cancellation-policy note', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const current = await request(app).get('/api/properties/main').expect(200);
+    await request(app)
+      .put('/api/properties/main')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ ...current.body.property, directBooking: { enabled: true, freeCancellationDays: 10 } })
+      .expect(200);
+
+    const body = await createBooking();
+    await postWebhook(checkoutCompleted(body.booking.id)).expect(200);
+
+    const res = await request(app)
+      .get(`/api/bookings/${body.booking.id}/confirmation?token=${body.guestToken}`)
+      .expect(200);
+
+    expect(res.body.confirmation.freeCancellationDays).toBe(10);
+  });
+
   it('rejects a wrong or missing token', async () => {
     await enableDirectBooking();
     const body = await createBooking();

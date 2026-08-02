@@ -10,9 +10,9 @@ import { BookingConfirmation } from '../types';
 
 const A4_WIDTH_PX = 794;   // 210mm at ~96dpi
 
-// Free-cancellation window: guests may cancel up to this many days before
-// check-in. After the deadline the full total is charged (non-refundable).
-const FREE_CANCEL_DAYS = 7;
+// Fallback free-cancellation window for confirmations saved before this field
+// existed. Current rows carry their own snapshotted freeCancellationDays.
+const DEFAULT_FREE_CANCEL_DAYS = 7;
 
 function formatMoney(amount: number, currency: string): string {
   const safeCurrency = currency || 'JPY';
@@ -52,14 +52,14 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-// Deadline for free cancellation: FREE_CANCEL_DAYS before the check-in date/time.
-function cancellationDeadline(checkInDate: string, checkInTime: string): Date | null {
+// Deadline for free cancellation: freeCancelDays before the check-in date/time.
+function cancellationDeadline(checkInDate: string, checkInTime: string, freeCancelDays: number): Date | null {
   const time = /^\d{2}:\d{2}$/.test(checkInTime) ? checkInTime : '15:00';
   const dt = new Date(`${checkInDate}T${time}:00`);
   if (Number.isNaN(dt.getTime())) {
     return null;
   }
-  dt.setDate(dt.getDate() - FREE_CANCEL_DAYS);
+  dt.setDate(dt.getDate() - freeCancelDays);
   return dt;
 }
 
@@ -129,12 +129,13 @@ function buildDocumentHtml(confirmation: BookingConfirmation): string {
     ? `<div style="font-size:11.5px;color:#2563EB;margin-top:4px;word-break:break-all;">${escapeHtml(confirmation.propertyUrl.trim())}</div>`
     : '';
 
-  const deadline = cancellationDeadline(confirmation.checkInDate, confirmation.checkInTime);
+  const freeCancelDays = confirmation.freeCancellationDays ?? DEFAULT_FREE_CANCEL_DAYS;
+  const deadline = cancellationDeadline(confirmation.checkInDate, confirmation.checkInTime, freeCancelDays);
   const cancellationHtml = deadline
     ? `<div style="margin-top:22px;border:1px solid #e4e2e3;border-radius:12px;padding:14px 16px;">
          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#74777d;margin-bottom:6px;">Cancellation policy</div>
          <div style="font-size:12.5px;color:#1b1c1d;line-height:1.55;">
-           Free cancellation until <strong>${escapeHtml(formatDateTime(deadline))}</strong> — up to ${FREE_CANCEL_DAYS} days before check-in.
+           Free cancellation until <strong>${escapeHtml(formatDateTime(deadline))}</strong> — up to ${freeCancelDays} days before check-in.
            Cancellations after this time are charged <strong>100% of the total</strong> (${money(confirmation.totalAmount)}) and are non-refundable.
          </div>
        </div>`
