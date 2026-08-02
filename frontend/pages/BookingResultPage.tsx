@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
-import { CheckCircle2, Loader2, AlertCircle, XCircle, CalendarDays, Users, Home } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertCircle, XCircle, CalendarDays, Users, Home, Download } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
 import {
@@ -11,8 +11,10 @@ import {
   GuestBooking,
   cancelBooking,
   getBooking,
+  getBookingConfirmationForPdf,
   updateBookingEmail,
 } from '../services/booking';
+import { downloadBookingConfirmationPdf } from '../utils/bookingConfirmPdf';
 import { ApiError } from '../services/api';
 
 type Phase = 'loading' | 'waiting' | 'ready' | 'timeout' | 'error';
@@ -40,7 +42,14 @@ const BookingResultPage: React.FC = () => {
   const [emailUpdating, setEmailUpdating] = useState(false);
   const [emailUpdateError, setEmailUpdateError] = useState<string | null>(null);
   const [emailUpdated, setEmailUpdated] = useState(false);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const startedAt = useRef(Date.now());
+  const autoDownloadedRef = useRef(false);
+  // Present when the guest arrived via the confirmation email's "Download PDF"
+  // button, so the download can fire on its own once the booking has loaded —
+  // the button below still works as a manual fallback either way.
+  const autoDownloadPdf = searchParams.get('downloadPdf') === '1';
 
   const load = useCallback(async () => {
     if (!bookingId || !token) {
@@ -112,6 +121,27 @@ const BookingResultPage: React.FC = () => {
       setEmailUpdating(false);
     }
   };
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (!booking) return;
+    setPdfDownloading(true);
+    setPdfError(null);
+    try {
+      const confirmation = await getBookingConfirmationForPdf(booking.id, token);
+      await downloadBookingConfirmationPdf(confirmation);
+    } catch (err) {
+      setPdfError(err instanceof ApiError ? err.message : t('result_err_generic'));
+    } finally {
+      setPdfDownloading(false);
+    }
+  }, [booking, token, t]);
+
+  useEffect(() => {
+    if (autoDownloadPdf && phase === 'ready' && booking?.status === 'confirmed' && !autoDownloadedRef.current) {
+      autoDownloadedRef.current = true;
+      void handleDownloadPdf();
+    }
+  }, [autoDownloadPdf, phase, booking, handleDownloadPdf]);
 
   const formatDate = (iso: string) => format(parseISO(iso), 'MMM dd, yyyy', { locale: dateLocale });
 
@@ -186,6 +216,21 @@ const BookingResultPage: React.FC = () => {
               {t('result_confirmation_no')}
             </div>
             <div className="font-mono font-bold text-lg text-gray-900">{booking.confirmationNo}</div>
+          </div>
+        )}
+
+        {isConfirmed && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => void handleDownloadPdf()}
+              disabled={pdfDownloading}
+              className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-60 transition-colors"
+            >
+              {pdfDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {t('result_download_pdf')}
+            </button>
+            {pdfError && <p className="mt-2 text-xs text-red-600">{pdfError}</p>}
           </div>
         )}
 

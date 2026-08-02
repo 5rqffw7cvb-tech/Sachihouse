@@ -1,4 +1,5 @@
 import { apiRequest } from './api';
+import { BookingConfirmation } from '../types';
 
 export type BookingStatus =
   | 'pending_payment'
@@ -69,6 +70,16 @@ export async function getBooking(id: string, token: string): Promise<GuestBookin
     `/bookings/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`,
   );
   return res.booking;
+}
+
+// Backs the "Download PDF" button on the result page and the confirmation
+// email — the same BookingConfirmation-shaped record the host's manual
+// bookings use, rendered into a PDF client-side (see utils/bookingConfirmPdf).
+export async function getBookingConfirmationForPdf(id: string, token: string): Promise<BookingConfirmation> {
+  const res = await apiRequest<{ confirmation: BookingConfirmation }>(
+    `/bookings/${encodeURIComponent(id)}/confirmation?token=${encodeURIComponent(token)}`,
+  );
+  return res.confirmation;
 }
 
 export async function cancelBooking(

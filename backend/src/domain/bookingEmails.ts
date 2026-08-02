@@ -12,6 +12,10 @@ export interface BookingEmailContext {
   propertyAddress: string;
   // Where the guest manages or cancels the booking (carries their token).
   manageUrl: string;
+  // Same page, with a query flag that auto-triggers the confirmation PDF
+  // download once the booking has loaded — the PDF itself is rendered
+  // client-side, so there is nothing to attach server-side.
+  pdfUrl: string;
   // The Minpaku check-in form guests must complete before arrival.
   checkInUrl: string;
   // How many days before check-in a guest can still cancel for a refund.
@@ -40,6 +44,7 @@ interface Labels {
   children: string;
   infants: string;
   manageCta: string;
+  downloadPdfCta: string;
   checkInCta: string;
   checkInNote: string;
   policyNote: string;
@@ -73,6 +78,7 @@ const LABELS: Record<string, Labels> = {
     children: 'children',
     infants: 'infants',
     manageCta: 'View or cancel this booking',
+    downloadPdfCta: 'Download booking confirmation (PDF)',
     checkInCta: 'Complete online check-in',
     checkInNote: 'Japanese law requires us to record every guest before arrival. Please complete check-in in advance.',
     policyNote: 'Cancel {days} or more days before check-in for a refund, less the payment processing fee. Within {days} days the booking is non-refundable.',
@@ -104,6 +110,7 @@ const LABELS: Record<string, Labels> = {
     children: 'trẻ em',
     infants: 'em bé',
     manageCta: 'Xem hoặc hủy đặt phòng',
+    downloadPdfCta: 'Tải xác nhận đặt phòng (PDF)',
     checkInCta: 'Hoàn tất check-in trực tuyến',
     checkInNote: 'Luật Nhật Bản yêu cầu ghi nhận thông tin mọi khách trước khi nhận phòng. Vui lòng hoàn tất check-in trước.',
     policyNote: 'Hủy trước ngày nhận phòng từ {days} ngày trở lên được hoàn tiền sau khi trừ phí xử lý thanh toán. Trong vòng {days} ngày sẽ không được hoàn tiền.',
@@ -135,6 +142,7 @@ const LABELS: Record<string, Labels> = {
     children: '子供',
     infants: '幼児',
     manageCta: '予約を確認・キャンセルする',
+    downloadPdfCta: '予約確認書をダウンロード（PDF）',
     checkInCta: 'オンラインチェックインを行う',
     checkInNote: '日本の法令により、ご到着前に全宿泊者の情報を記録する必要があります。事前にチェックインをお済ませください。',
     policyNote: 'チェックイン日の{days}日前までのキャンセルは、決済手数料を差し引いた金額を返金いたします。{days}日前以降は返金いたしかねます。',
@@ -166,6 +174,7 @@ const LABELS: Record<string, Labels> = {
     children: '儿童',
     infants: '婴儿',
     manageCta: '查看或取消此预订',
+    downloadPdfCta: '下载预订确认书（PDF）',
     checkInCta: '完成在线登记',
     checkInNote: '日本法律要求我们在客人到达前登记所有住客信息，请提前完成在线登记。',
     policyNote: '入住日前{days}天或更早取消可获退款，需扣除支付手续费。入住日前{days}天内恕不退款。',
@@ -197,6 +206,7 @@ const LABELS: Record<string, Labels> = {
     children: '어린이',
     infants: '유아',
     manageCta: '예약 확인 또는 취소',
+    downloadPdfCta: '예약 확인서 다운로드 (PDF)',
     checkInCta: '온라인 체크인 완료하기',
     checkInNote: '일본 법령에 따라 도착 전 모든 숙박객 정보를 기록해야 합니다. 미리 체크인을 완료해 주세요.',
     policyNote: '체크인 {days}일 전까지 취소하시면 결제 수수료를 제외한 금액을 환불해 드립니다. {days}일 이내에는 환불이 불가합니다.',
@@ -286,6 +296,16 @@ function link(url: string, text: string): string {
   return `<a href="${escapeHtml(url)}" style="color:#2563eb;">${escapeHtml(text)}</a>`;
 }
 
+// A real button (not just a coloured link) for the one action we most want a
+// guest to notice and tap without hunting for a plain-text link — filling in
+// the PDF gap left by mail providers that strip attachments or hold them for
+// scanning.
+function button(url: string, text: string): string {
+  return `<a href="${escapeHtml(url)}" style="display:inline-block;background:#111827;color:#ffffff;` +
+    'text-decoration:none;font-weight:700;font-size:14px;padding:12px 20px;border-radius:10px;">' +
+    `${escapeHtml(text)}</a>`;
+}
+
 function bookingRows(ctx: BookingEmailContext, labels: Labels): Row[] {
   const { booking } = ctx;
   const rows: Row[] = [];
@@ -318,6 +338,8 @@ export function buildGuestConfirmationEmail(ctx: BookingEmailContext): EmailCont
   return {
     subject,
     text: renderText(labels.confirmHeading, labels.confirmIntro, rows, [
+      `${labels.downloadPdfCta}: ${ctx.pdfUrl}`,
+      '',
       `${labels.checkInCta}: ${ctx.checkInUrl}`,
       labels.checkInNote,
       '',
@@ -326,6 +348,7 @@ export function buildGuestConfirmationEmail(ctx: BookingEmailContext): EmailCont
       policyNote,
     ]),
     html: renderHtml(labels.confirmHeading, labels.confirmIntro, rows, [
+      button(ctx.pdfUrl, labels.downloadPdfCta),
       `${link(ctx.checkInUrl, labels.checkInCta)}<br>${escapeHtml(labels.checkInNote)}`,
       link(ctx.manageUrl, labels.manageCta),
       escapeHtml(policyNote),

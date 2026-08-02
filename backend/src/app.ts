@@ -1816,6 +1816,8 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       propertyAddress: property.address,
       manageUrl: buildSiteUrl(publicSiteUrl, `/booking/result?id=${encodeURIComponent(booking.id)}`
         + `&token=${encodeURIComponent(booking.guestToken)}`),
+      pdfUrl: buildSiteUrl(publicSiteUrl, `/booking/result?id=${encodeURIComponent(booking.id)}`
+        + `&token=${encodeURIComponent(booking.guestToken)}&downloadPdf=1`),
       // Carries the confirmation number so the check-in form can pre-fill and
       // auto-match it. The generic per-property link a host copies from the
       // Check-in link picker has no such param and skips this gate entirely.
@@ -2233,6 +2235,23 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       return res.status(404).json({ error: 'Booking not found.' });
     }
     return res.json({ booking: await toGuestBookingView(booking) });
+  });
+
+  // Backs the "Download PDF" button on the confirmation email and result page.
+  // The PDF itself is rendered client-side (same code the host uses for manual
+  // confirmations), so this just hands the guest the same BookingConfirmation
+  // row the online-booking flow already mirrors on payment (see
+  // syncBookingConfirmationForBooking) — same auth as the booking lookup above.
+  app.get('/api/bookings/:id/confirmation', async (req, res) => {
+    const booking = await loadBookingForGuest(getParam(req.params.id), req.query.token);
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found.' });
+    }
+    const confirmation = await store.getBookingConfirmationBySourceBookingId(booking.id);
+    if (!confirmation) {
+      return res.status(404).json({ error: 'No confirmation record for this booking yet.' });
+    }
+    return res.json({ confirmation });
   });
 
   // Guest self-service cancellation, authorised by the same token as the lookup.

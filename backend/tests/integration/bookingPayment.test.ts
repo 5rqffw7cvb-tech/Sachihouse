@@ -414,3 +414,42 @@ describe('guest status polling', () => {
     expect(after.body.booking.confirmationNo).toBeTruthy();
   });
 });
+
+describe('guest confirmation-PDF data', () => {
+  it('404s before payment confirms — nothing has been mirrored yet', async () => {
+    await enableDirectBooking();
+    const body = await createBooking();
+
+    await request(app)
+      .get(`/api/bookings/${body.booking.id}/confirmation?token=${body.guestToken}`)
+      .expect(404);
+  });
+
+  it('serves the mirrored confirmation record once payment completes, for the PDF renderer', async () => {
+    await enableDirectBooking();
+    const body = await createBooking();
+    await postWebhook(checkoutCompleted(body.booking.id)).expect(200);
+
+    const after = await request(app)
+      .get(`/api/bookings/${body.booking.id}?token=${body.guestToken}`)
+      .expect(200);
+
+    const res = await request(app)
+      .get(`/api/bookings/${body.booking.id}/confirmation?token=${body.guestToken}`)
+      .expect(200);
+
+    expect(res.body.confirmation.confirmationNo).toBe(after.body.booking.confirmationNo);
+    expect(res.body.confirmation.guestName).toBe('Hanako Tanaka');
+    expect(res.body.confirmation.source).toBe('online');
+  });
+
+  it('rejects a wrong or missing token', async () => {
+    await enableDirectBooking();
+    const body = await createBooking();
+    await postWebhook(checkoutCompleted(body.booking.id)).expect(200);
+
+    await request(app)
+      .get(`/api/bookings/${body.booking.id}/confirmation?token=wrong-token`)
+      .expect(404);
+  });
+});
