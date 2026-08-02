@@ -12,6 +12,7 @@ import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { getSiteSettings } from '../services/storage';
 import { getCapitalWithCountry } from '../utils/countryCapitals';
 import { TranslationKey } from '../utils/translations';
+import { clearCheckInPhotos, deleteCheckInPhoto, getCheckInPhoto, saveCheckInPhoto } from '../utils/checkinPhotoStore';
 
 interface CheckInPageProps {
   data: PropertyData;
@@ -457,9 +458,10 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       const guestsWithoutImages = guests.map((guest) =>
         guest.evidenceUrl.startsWith('data:') ? { ...guest, evidenceUrl: '' } : guest,
       );
-      const imagelessGuestIds = isResident
-        ? new Set<string>()
-        : new Set(guestsWithoutImages.filter((guest) => !guest.evidenceUrl).map((guest) => guest.id));
+      // The photo itself is persisted separately in IndexedDB (see
+      // handleImageChange) and reattached on restore, so reviewedGuestIds is
+      // saved as-is here — restoreDraft is what decides whether a guest is
+      // still complete, based on whether that reattach actually succeeds.
       const draft: CheckInDraft = {
         savedAt: Date.now(),
         checkInDate,
@@ -467,7 +469,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         checkInTime,
         checkOutTime,
         guests: guestsWithoutImages,
-        reviewedGuestIds: reviewedGuestIds.filter((id) => !imagelessGuestIds.has(id)),
+        reviewedGuestIds,
         sameAsLeadByGuest,
         residency,
       };
@@ -478,7 +480,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       }
     }, 400);
     return () => window.clearTimeout(timeoutId);
-  }, [draftCheckDone, pendingDraft, propertyId, checkInDate, checkOutDate, checkInTime, checkOutTime, guests, reviewedGuestIds, sameAsLeadByGuest, residency, isResident]);
+  }, [draftCheckDone, pendingDraft, propertyId, checkInDate, checkOutDate, checkInTime, checkOutTime, guests, reviewedGuestIds, sameAsLeadByGuest, residency]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -528,20 +530,47 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         ? t('checkin_step_ready_desc')
         : t('checkin_step_start_desc');
 
-  const restoreDraft = () => {
+  const restoreDraft = async () => {
     if (!pendingDraft) return;
-    setCheckInDate(pendingDraft.checkInDate);
-    setCheckOutDate(pendingDraft.checkOutDate);
-    setCheckInTime(pendingDraft.checkInTime);
-    setCheckOutTime(pendingDraft.checkOutTime);
-    setGuests(pendingDraft.guests.length > 0 ? pendingDraft.guests : [createEmptyGuest('guest_1')]);
-    setReviewedGuestIds(pendingDraft.reviewedGuestIds);
-    setSameAsLeadByGuest(pendingDraft.sameAsLeadByGuest ?? {});
-    setResidency(pendingDraft.residency ?? 'unset');
+    const draft = pendingDraft;
+    setCheckInDate(draft.checkInDate);
+    setCheckOutDate(draft.checkOutDate);
+    setCheckInTime(draft.checkInTime);
+    setCheckOutTime(draft.checkOutTime);
+    setSameAsLeadByGuest(draft.sameAsLeadByGuest ?? {});
+    setResidency(draft.residency ?? 'unset');
+
+    // Photos are stripped before the rest of the draft is written to
+    // localStorage (too large for its quota) but kept separately in
+    // IndexedDB — reattach them here so a guest who was already reviewed
+    // stays reviewed, instead of being stuck with no way to re-attach one.
+    const restoredGuests = await Promise.all(
+      draft.guests.map(async (guest) => {
+        if (guest.evidenceUrl) {
+          return guest;
+        }
+        const photo = await getCheckInPhoto(propertyId, guest.id);
+        if (!photo) {
+          return guest;
+        }
+        setPhotoPreviewByGuest((prev) => ({ ...prev, [guest.id]: photo }));
+        return { ...guest, evidenceUrl: photo, evidenceMimeType: guest.evidenceMimeType || 'image/jpeg' };
+      }),
+    );
+    const finalGuests = restoredGuests.length > 0 ? restoredGuests : [createEmptyGuest('guest_1')];
+    setGuests(finalGuests);
+    setReviewedGuestIds(
+      draft.reviewedGuestIds.filter((id) => {
+        const guest = finalGuests.find((candidate) => candidate.id === id);
+        if (!guest || !guest.fullName.trim()) return false;
+        return draft.residency === 'resident' || Boolean(guest.evidenceUrl);
+      }),
+    );
     setPendingDraft(null);
   };
 
   const discardDraft = () => {
+    void clearCheckInPhotos(propertyId, (pendingDraft?.guests ?? []).map((guest) => guest.id));
     clearCheckInDraft(propertyId);
     setPendingDraft(null);
   };
@@ -597,6 +626,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       delete next[guestId];
       return next;
     });
+    void deleteCheckInPhoto(propertyId, guestId);
     clearGuestFeedback(guestId);
     if (editorGuestId === guestId) {
       closeEditor();
@@ -617,6 +647,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       delete next[guestId];
       return next;
     });
+    void deleteCheckInPhoto(propertyId, guestId);
     clearGuestFeedback(guestId);
     if (editorGuestId === guestId) {
       closeEditor();
@@ -683,6 +714,9 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     try {
       const base64 = await prepareCheckInImage(file);
       setPhotoPreviewByGuest((prev) => ({ ...prev, [guestId]: base64 }));
+      // Best-effort: also keep a copy in IndexedDB so a reload can restore it
+      // (the localStorage draft itself only ever holds the text fields).
+      void saveCheckInPhoto(propertyId, guestId, base64);
 
       const extracted = await ocrGuestDocument(propertyId, {
         imageBase64: base64,
@@ -816,6 +850,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       setSubmitSuccess(submission.id);
       setSubmitEmailsSent(emailsSent);
       clearCheckInDraft(propertyId);
+      void clearCheckInPhotos(propertyId, guests.map((guest) => guest.id));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to submit check-in.';
       setSubmitError(message);
@@ -992,7 +1027,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
               </button>
               <button
                 type="button"
-                onClick={restoreDraft}
+                onClick={() => void restoreDraft()}
                 className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
               >
                 {t('checkin_draft_restore')}
@@ -1315,7 +1350,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         onClick={() => resetGuestCapture(guest.id)}
                         className="text-xs text-gray-400 hover:text-gray-700"
                       >
-                        {t('checkin_popup_another')}
+                        {isResident ? t('checkin_popup_clear') : t('checkin_popup_another')}
                       </button>
                       <button
                         type="button"
