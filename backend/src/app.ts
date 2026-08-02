@@ -9,10 +9,12 @@ import { calculateQuote } from './domain/pricing.js';
 import {
   calculateRefund,
   canTransition,
+  daysBetweenDates,
   FREE_CANCELLATION_DAYS,
   getStayDates,
   isDirectBookingEnabled,
   resolveFreeCancellationDays,
+  toJstDateString,
   validateBookingWindow,
 } from './domain/booking.js';
 import { signCheckInToken, verifyCheckInToken, verifyToken, signToken } from './auth/jwt.js';
@@ -372,6 +374,19 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   const retentionDaysRaw = Number(process.env.CHECKIN_RETENTION_DAYS ?? 7);
   const checkInRetentionDays = Number.isFinite(retentionDaysRaw) && retentionDaysRaw > 0 ? Math.trunc(retentionDaysRaw) : 7;
   const checkInRetentionNoticeVersion = (process.env.CHECKIN_RETENTION_NOTICE_VERSION ?? 'v1').trim() || 'v1';
+  // How long a booking-specific check-in link (?bk=...) keeps matching after
+  // the stay is over. It gates only whether the house-access welcome email
+  // (wifi, entry code) gets sent — and always to whatever email is currently
+  // on the booking, which a guest can self-update — so an old confirmation
+  // number must not stay usable indefinitely once the stay has clearly ended.
+  const checkinLinkGraceDaysRaw = Number(process.env.CHECKIN_LINK_GRACE_DAYS ?? 2);
+  const checkinLinkGraceDays = Number.isFinite(checkinLinkGraceDaysRaw) && checkinLinkGraceDaysRaw >= 0
+    ? checkinLinkGraceDaysRaw
+    : 2;
+
+  function isCheckInLinkExpired(checkOutDate: string, now: number): boolean {
+    return daysBetweenDates(checkOutDate, toJstDateString(now)) > checkinLinkGraceDays;
+  }
   const loginAttemptMap = new Map<string, { fails: number; lockUntil: number }>();
   const loginMaxFails = Math.max(3, Number(process.env.LOGIN_MAX_FAILS ?? 5));
   const loginLockMs = Math.max(30_000, Number(process.env.LOGIN_LOCK_SECONDS ?? 120) * 1000);
@@ -1961,6 +1976,10 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       if (!confirmation?.guestEmail) {
         return;
       }
+      if (isCheckInLinkExpired(confirmation.checkOutDate, Date.now())) {
+        console.warn(`Check-in link for booking ${bk} has expired (checked out ${confirmation.checkOutDate}); skipping the welcome email.`);
+        return;
+      }
       const slug = property.metalink || property.id;
       const mail = buildCheckInWelcomeEmail({
         propertyName: property.name,
@@ -2501,7 +2520,8 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     }
 
     const confirmation = await store.getBookingConfirmationByNo(property.id, bk);
-    return res.json({ ok: confirmation !== null });
+    const matched = confirmation !== null && !isCheckInLinkExpired(confirmation.checkOutDate, Date.now());
+    return res.json({ ok: matched });
   });
 
   app.post('/api/properties/:id/checkins/start', async (req, res) => {

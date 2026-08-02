@@ -8,6 +8,10 @@ let app: ReturnType<typeof createApp>;
 let store: MemoryStore;
 let mailer: FakeMailer;
 
+function isoDaysFromNow(days: number): string {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 async function login(email: string, password: string): Promise<string> {
   const res = await request(app).post('/api/auth/login').send({ email, password }).expect(200);
   return res.body.token as string;
@@ -32,7 +36,10 @@ async function setCheckInInfo() {
     .expect(200);
 }
 
-async function createManualConfirmation(guestEmail: string) {
+async function createManualConfirmation(
+  guestEmail: string,
+  dates: { checkInDate: string; checkOutDate: string } = { checkInDate: '2026-09-01', checkOutDate: '2026-09-03' },
+) {
   const token = await login('admin@sachihouse.com', 'admin123');
   const res = await request(app)
     .post('/api/properties/main/booking-confirmations')
@@ -44,8 +51,7 @@ async function createManualConfirmation(guestEmail: string) {
       guestName: 'Hanako Tanaka',
       guestEmail,
       numGuests: 2,
-      checkInDate: '2026-09-01',
-      checkOutDate: '2026-09-03',
+      ...dates,
       checkInTime: '15:00',
       checkOutTime: '10:00',
       currency: 'JPY',
@@ -105,6 +111,28 @@ describe('booking-specific check-in link matching', () => {
 
   it('404s for an unknown property', async () => {
     await request(app).get('/api/properties/does-not-exist/checkins/match?bk=BC-99999999-ZZZZ').expect(404);
+  });
+
+  it('stops matching once the stay is well past checkout (default 2-day grace)', async () => {
+    const confirmation = await createManualConfirmation('hanako@example.com', {
+      checkInDate: isoDaysFromNow(-6),
+      checkOutDate: isoDaysFromNow(-3),
+    });
+    const res = await request(app)
+      .get(`/api/properties/main/checkins/match?bk=${confirmation.confirmationNo}`)
+      .expect(200);
+    expect(res.body).toEqual({ ok: false });
+  });
+
+  it('still matches within the grace window right after checkout', async () => {
+    const confirmation = await createManualConfirmation('hanako@example.com', {
+      checkInDate: isoDaysFromNow(-3),
+      checkOutDate: isoDaysFromNow(-1),
+    });
+    const res = await request(app)
+      .get(`/api/properties/main/checkins/match?bk=${confirmation.confirmationNo}`)
+      .expect(200);
+    expect(res.body).toEqual({ ok: true });
   });
 });
 
@@ -173,6 +201,31 @@ describe('post-checkin welcome email', () => {
         guests: [minimalGuest('g1')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
         bk: 'BC-99999999-ZZZZ',
+        locale: 'en',
+      })
+      .expect(201);
+
+    expect(mailer.sent).toHaveLength(0);
+  });
+
+  it('does not send the welcome email for an expired bk, even if the match check was bypassed', async () => {
+    await setCheckInInfo();
+    const confirmation = await createManualConfirmation('hanako@example.com', {
+      checkInDate: isoDaysFromNow(-6),
+      checkOutDate: isoDaysFromNow(-3),
+    });
+    mailer.sent.length = 0;
+
+    const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
+    await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: session.body.checkinToken,
+        checkInDate: isoDaysFromNow(-6),
+        checkOutDate: isoDaysFromNow(-3),
+        guests: [minimalGuest('g1')],
+        consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
+        bk: confirmation.confirmationNo,
         locale: 'en',
       })
       .expect(201);
