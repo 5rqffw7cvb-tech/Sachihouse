@@ -1981,21 +1981,45 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     await mailer.send({ ...mail, to: email });
   }
 
+  // Wraps sendCheckInWelcomeEmailTo so a mail-server failure on one recipient
+  // never blocks the other, and the caller can report back exactly which
+  // addresses actually received the mail.
+  async function trySendCheckInWelcomeEmailTo(property: PropertyData & { id: string }, email: string, locale: string): Promise<string | null> {
+    try {
+      await sendCheckInWelcomeEmailTo(property, email, locale);
+      return email;
+    } catch (error) {
+      console.error(`Check-in at ${property.id}: could not send the welcome email to ${email}.`, error);
+      return null;
+    }
+  }
+
   // Sent once, right after a guest submits the check-in form reached via a
-  // booking-specific link, using the email already on file for that booking.
-  async function sendCheckInWelcomeEmail(property: PropertyData & { id: string }, bk: string, locale: string): Promise<void> {
+  // booking-specific link. Always goes to the email on file for the booking
+  // (the one used at payment/manual-entry time); if the guest also typed a
+  // different address into the check-in form itself, that address gets its
+  // own copy too, since either inbox might be the one they actually check.
+  // Returns the address(es) that actually received the mail.
+  async function sendCheckInWelcomeEmail(property: PropertyData & { id: string }, bk: string, locale: string, extraEmail?: string): Promise<string[]> {
     try {
       const confirmation = await store.getBookingConfirmationByNo(property.id, bk);
       if (!confirmation?.guestEmail) {
-        return;
+        return [];
       }
       if (isCheckInLinkExpired(confirmation.checkOutDate, Date.now())) {
         console.warn(`Check-in link for booking ${bk} has expired (checked out ${confirmation.checkOutDate}); skipping the welcome email.`);
-        return;
+        return [];
       }
-      await sendCheckInWelcomeEmailTo(property, confirmation.guestEmail, locale);
+      const targets = [confirmation.guestEmail];
+      const normalizedExtra = extraEmail?.trim();
+      if (normalizedExtra && normalizedExtra.toLowerCase() !== confirmation.guestEmail.trim().toLowerCase()) {
+        targets.push(normalizedExtra);
+      }
+      const sent = await Promise.all(targets.map((email) => trySendCheckInWelcomeEmailTo(property, email, locale)));
+      return sent.filter((email): email is string => email !== null);
     } catch (error) {
       console.error(`Check-in for booking ${bk}: could not send the welcome email.`, error);
+      return [];
     }
   }
 
@@ -2679,12 +2703,12 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     }
 
     const bk = normalizeText(req.body?.bk);
-    // A booking-specific link already has a real email on file from the
-    // booking itself, so the lead guest's own contact field can stay "phone
-    // or email" there. The generic per-property link has no such record —
-    // the lead guest's contact field is the only place a house-access email
-    // could ever come from, so it must actually be one, not a phone number.
-    if (!bk && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guests[0]?.contactInfo ?? '')) {
+    // The lead guest's contact field is always required to be a real email:
+    // on the generic per-property link it's the only place a house-access
+    // email could ever come from, and on a booking-specific link it may
+    // differ from the email on file for the booking, in which case both
+    // addresses get the welcome email below.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guests[0]?.contactInfo ?? '')) {
       return res.status(400).json({ error: 'The first guest must provide a valid email address to receive check-in info.' });
     }
 
@@ -2759,24 +2783,24 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     });
 
     const locale = normalizeText(req.body?.locale) || 'en';
+    const leadEmail = guests[0]?.contactInfo ?? '';
+    let emailsSent: string[];
     if (bk) {
       // Re-validated here rather than trusted from the earlier /checkins/match
       // call — that call only proves the link wasn't stale at click time.
-      await sendCheckInWelcomeEmail(property, bk, locale);
+      // Also carries the lead guest's own contact email so it gets a copy
+      // too whenever it differs from the one on file for the booking.
+      emailsSent = await sendCheckInWelcomeEmail(property, bk, locale, leadEmail);
     } else {
       // The generic per-property link carries no confirmation to look an
       // email up against, so the lead guest's own contact field — already
       // required above to be a real email for exactly this reason — is the
       // only address there is.
-      const leadEmail = guests[0]?.contactInfo ?? '';
-      try {
-        await sendCheckInWelcomeEmailTo(property, leadEmail, locale);
-      } catch (error) {
-        console.error(`Check-in at ${property.id}: could not send the welcome email to ${leadEmail}.`, error);
-      }
+      const sent = await trySendCheckInWelcomeEmailTo(property, leadEmail, locale);
+      emailsSent = sent ? [sent] : [];
     }
 
-    return res.status(201).json({ submission });
+    return res.status(201).json({ submission, emailsSent });
   });
 
   app.get('/api/checkins', requireAuth, requireHostOrAdmin, async (req, res) => {

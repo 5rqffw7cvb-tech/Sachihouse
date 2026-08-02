@@ -106,10 +106,10 @@ const REQUIRED_GUEST_FIELDS: Array<{ key: GuestValidationField; labelKey: Transl
   { key: 'evidenceUrl', labelKey: 'checkin_field_id_image' },
 ];
 
-// requireEmail is true only for the lead guest on the generic per-property
-// link: with no matched booking to supply an email, their own contact field
-// is the sole place a house-access email could ever be sent to, so it has to
-// actually be one — a phone number alone can't receive that email.
+// requireEmail is true only for the lead guest: that field is always where
+// the check-in welcome email gets sent (on top of the booking's own email,
+// when there is one), so it has to actually be an email — a phone number
+// alone can't receive that mail.
 const validateGuestFields = (guest: CheckInGuest, requireEmail = false): Record<GuestValidationField, boolean> => ({
   fullName: !isFilledString(guest.fullName),
   birthYear: guest.birthYear == null,
@@ -295,6 +295,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [submitEmailsSent, setSubmitEmailsSent] = useState<string[]>([]);
   const [checkinToken, setCheckinToken] = useState<string>('');
   const [consentPolicy, setConsentPolicy] = useState<CheckInConsentPolicy | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
@@ -741,7 +742,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     };
 
     const isLeadGuest = guests[0]?.id === editorGuestId;
-    const requireEmailForContact = isLeadGuest && gateState === 'none';
+    const requireEmailForContact = isLeadGuest;
     const fieldErrors = validateGuestFields(normalizedGuest, requireEmailForContact);
     setEditorFieldErrors(fieldErrors);
 
@@ -777,7 +778,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     setIsSubmitting(true);
 
     try {
-      const submission = await submitCheckIn(propertyId, {
+      const { submission, emailsSent } = await submitCheckIn(propertyId, {
         checkinToken,
         checkInDate,
         checkOutDate,
@@ -789,9 +790,11 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           acceptedAt: Date.now(),
           noticeVersion: consentPolicy?.noticeVersion ?? 'v1',
         },
-        ...(gateState === 'matched' ? { bk: matchedBk, locale: language } : {}),
+        locale: language,
+        ...(gateState === 'matched' ? { bk: matchedBk } : {}),
       });
       setSubmitSuccess(submission.id);
+      setSubmitEmailsSent(emailsSent);
       clearCheckInDraft(propertyId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to submit check-in.';
@@ -1171,21 +1174,21 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                           </label>
                         </div>
                       )}
-                      <div className="col-span-2">
+                      <div className={index === 0 ? 'col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-2.5' : 'col-span-2'}>
                         <RequiredLabel
-                          text={index === 0 && gateState === 'none' ? t('checkin_popup_contact_email') : t('checkin_popup_contact')}
+                          text={index === 0 ? t('checkin_popup_contact_email') : t('checkin_popup_contact')}
                           required
                         />
                         <input
-                          type={index === 0 && gateState === 'none' ? 'email' : 'text'}
+                          type={index === 0 ? 'email' : 'text'}
                           value={editorDraft.contactInfo ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, contactInfo: event.target.value } : prev)); setEditorError(null); }}
                           disabled={index > 0 && Boolean(sameAsLeadByGuest[guest.id])}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 ${editorFieldErrors.contactInfo ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                          placeholder={index === 0 && gateState === 'none' ? t('checkin_contact_email_placeholder') : t('checkin_contact_placeholder')}
+                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 ${editorFieldErrors.contactInfo ? 'border-red-500 bg-red-50' : index === 0 ? 'border-blue-300' : 'border-gray-200'}`}
+                          placeholder={index === 0 ? t('checkin_contact_email_placeholder') : t('checkin_contact_placeholder')}
                         />
-                        {index === 0 && gateState === 'none' && (
-                          <p className="mt-1 text-[11px] text-gray-400">{t('checkin_contact_email_note')}</p>
+                        {index === 0 && (
+                          <p className="mt-1 text-[11px] font-medium text-blue-600">{t('checkin_contact_email_note')}</p>
                         )}
                       </div>
                       <div className="col-span-2">
@@ -1318,6 +1321,14 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
             </div>
             <h2 className="text-xl font-bold text-gray-900">{t('checkin_success_title')}</h2>
             <p className="mt-2 text-sm text-gray-400">{t('checkin_success_ref')}: {submitSuccess}</p>
+            {submitEmailsSent.length > 0 && (
+              <div className="mt-4 rounded-xl bg-blue-50 px-4 py-3 text-left">
+                <p className="text-xs text-blue-700">
+                  {t('checkin_success_email_sent').replace('{email}', submitEmailsSent.join(', '))}
+                </p>
+                <p className="mt-1 text-[11px] text-blue-500">{t('checkin_success_email_hint')}</p>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => window.location.reload()}

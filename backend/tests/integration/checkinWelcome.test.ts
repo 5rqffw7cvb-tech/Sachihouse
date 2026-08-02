@@ -151,7 +151,7 @@ describe('post-checkin welcome email', () => {
         checkinToken: session.body.checkinToken,
         checkInDate: '2026-09-01',
         checkOutDate: '2026-09-03',
-        guests: [minimalGuest('g1')],
+        guests: [minimalGuest('g1', 'hanako@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
         bk: confirmation.confirmationNo,
         locale: 'en',
@@ -164,6 +164,52 @@ describe('post-checkin welcome email', () => {
     expect(mail[0].text).toContain('Keybox code: 4821');
     expect(mail[0].text).toContain('+81 90 1234 5678');
     expect(mail[0].text).toContain('maps.app.goo.gl');
+  });
+
+  it('also emails the check-in form address when it differs from the booking email on file', async () => {
+    await setCheckInInfo();
+    const confirmation = await createManualConfirmation('hanako@example.com');
+    mailer.sent.length = 0;
+
+    const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
+    await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: session.body.checkinToken,
+        checkInDate: '2026-09-01',
+        checkOutDate: '2026-09-03',
+        guests: [minimalGuest('g1', 'guest-personal@example.com')],
+        consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
+        bk: confirmation.confirmationNo,
+        locale: 'en',
+      })
+      .expect(201);
+
+    expect(mailer.to('hanako@example.com')).toHaveLength(1);
+    expect(mailer.to('guest-personal@example.com')).toHaveLength(1);
+    expect(mailer.sent).toHaveLength(2);
+  });
+
+  it('sends only once when the check-in form email matches the booking email, ignoring case', async () => {
+    await setCheckInInfo();
+    const confirmation = await createManualConfirmation('hanako@example.com');
+    mailer.sent.length = 0;
+
+    const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
+    await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: session.body.checkinToken,
+        checkInDate: '2026-09-01',
+        checkOutDate: '2026-09-03',
+        guests: [minimalGuest('g1', 'HANAKO@example.com')],
+        consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
+        bk: confirmation.confirmationNo,
+        locale: 'en',
+      })
+      .expect(201);
+
+    expect(mailer.sent).toHaveLength(1);
   });
 
   it('rejects a generic-link submission whose lead guest gave no valid email', async () => {
@@ -218,7 +264,7 @@ describe('post-checkin welcome email', () => {
         checkinToken: session.body.checkinToken,
         checkInDate: '2026-09-01',
         checkOutDate: '2026-09-03',
-        guests: [minimalGuest('g1')],
+        guests: [minimalGuest('g1', 'nomatch-guest@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
         bk: 'BC-99999999-ZZZZ',
         locale: 'en',
@@ -243,7 +289,7 @@ describe('post-checkin welcome email', () => {
         checkinToken: session.body.checkinToken,
         checkInDate: isoDaysFromNow(-6),
         checkOutDate: isoDaysFromNow(-3),
-        guests: [minimalGuest('g1')],
+        guests: [minimalGuest('g1', 'hanako@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
         bk: confirmation.confirmationNo,
         locale: 'en',

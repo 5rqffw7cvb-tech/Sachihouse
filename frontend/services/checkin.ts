@@ -61,12 +61,11 @@ export async function submitCheckIn(propertyId: string, payload: {
   // link — triggers the post-checkin welcome email server-side.
   bk?: string;
   locale?: string;
-}): Promise<CheckInSubmission> {
-  const response = await apiRequest<{ submission: CheckInSubmission }>(`/properties/${propertyId}/checkins/submit`, {
+}): Promise<{ submission: CheckInSubmission; emailsSent: string[] }> {
+  return apiRequest<{ submission: CheckInSubmission; emailsSent: string[] }>(`/properties/${propertyId}/checkins/submit`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
-  return response.submission;
 }
 
 export async function listCheckIns(filters?: CheckInListFilters): Promise<CheckInSubmission[]> {
