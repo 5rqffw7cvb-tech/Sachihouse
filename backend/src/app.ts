@@ -14,7 +14,6 @@ import {
   getStayDates,
   isDirectBookingEnabled,
   resolveFreeCancellationDays,
-  resolveGuestFacingAddress,
   toJstDateString,
   validateBookingWindow,
 } from './domain/booking.js';
@@ -1814,7 +1813,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return {
       booking,
       propertyName: property.name,
-      propertyAddress: resolveGuestFacingAddress(property),
+      propertyAddress: property.address,
       manageUrl: buildSiteUrl(publicSiteUrl, `/booking/result?id=${encodeURIComponent(booking.id)}`
         + `&token=${encodeURIComponent(booking.guestToken)}`),
       pdfUrl: buildSiteUrl(publicSiteUrl, `/booking/result?id=${encodeURIComponent(booking.id)}`
@@ -1852,7 +1851,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
         confirmationNo: booking.confirmationNo,
         propertyId: property.id,
         propertyName: property.name,
-        propertyAddress: resolveGuestFacingAddress(property),
+        propertyAddress: property.address,
         propertyUrl: buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}`),
         guestName: booking.guestName,
         guestEmail: booking.guestEmail,
@@ -3267,10 +3266,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     const confirmation = await store.createBookingConfirmation({
       propertyId: property.id,
       propertyName: normalizeText(body.propertyName) || property.name,
-      // Always resolved from the property record (exact address if the host
-      // set one, else the public one) rather than trusted from the request —
-      // this is the one field a client-sent override must not win on.
-      propertyAddress: resolveGuestFacingAddress(property),
+      propertyAddress: normalizeText(body.propertyAddress) || property.address,
       propertyUrl: normalizeText(body.propertyUrl),
       guestName,
       guestEmail: normalizeText(body.guestEmail) || undefined,

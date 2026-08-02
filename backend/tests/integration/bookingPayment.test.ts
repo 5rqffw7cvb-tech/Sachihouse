@@ -462,25 +462,6 @@ describe('guest confirmation-PDF data', () => {
     expect(res.body.confirmation.freeCancellationDays).toBe(10);
   });
 
-  it('uses the property\'s exact address instead of the vague public one', async () => {
-    const token = await login('admin@sachihouse.com', 'admin123');
-    const current = await request(app).get('/api/properties/main').expect(200);
-    await request(app)
-      .put('/api/properties/main')
-      .set({ Authorization: `Bearer ${token}` })
-      .send({ ...current.body.property, directBooking: { enabled: true, exactAddress: '1-2-3 Ojima, Koto-ku, Tokyo 136-0072' } })
-      .expect(200);
-
-    const body = await createBooking();
-    await postWebhook(checkoutCompleted(body.booking.id)).expect(200);
-
-    const res = await request(app)
-      .get(`/api/bookings/${body.booking.id}/confirmation?token=${body.guestToken}`)
-      .expect(200);
-
-    expect(res.body.confirmation.propertyAddress).toBe('1-2-3 Ojima, Koto-ku, Tokyo 136-0072');
-  });
-
   it('rejects a wrong or missing token', async () => {
     await enableDirectBooking();
     const body = await createBooking();

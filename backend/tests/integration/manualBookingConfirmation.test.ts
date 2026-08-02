@@ -239,39 +239,6 @@ describe('manual booking confirmation: freeCancellationDays snapshot', () => {
   });
 });
 
-describe('manual booking confirmation: guest-facing exact address', () => {
-  it('falls back to the public address when no exact address is set', async () => {
-    const token = await login('admin@sachihouse.com', 'admin123');
-
-    const res = await request(app)
-      .post('/api/properties/main/booking-confirmations')
-      .set({ Authorization: `Bearer ${token}` })
-      .send(manualPayload({ propertyAddress: 'whatever the client sent' }))
-      .expect(201);
-
-    const property = await request(app).get('/api/properties/main').expect(200);
-    expect(res.body.confirmation.propertyAddress).toBe(property.body.property.address);
-  });
-
-  it('uses the exact address once the host sets one, ignoring whatever the client sent', async () => {
-    const token = await login('admin@sachihouse.com', 'admin123');
-    const current = await request(app).get('/api/properties/main').expect(200);
-    await request(app)
-      .put('/api/properties/main')
-      .set({ Authorization: `Bearer ${token}` })
-      .send({ ...current.body.property, directBooking: { enabled: true, exactAddress: '1-2-3 Ojima, Koto-ku, Tokyo 136-0072' } })
-      .expect(200);
-
-    const res = await request(app)
-      .post('/api/properties/main/booking-confirmations')
-      .set({ Authorization: `Bearer ${token}` })
-      .send(manualPayload({ propertyAddress: 'a client-sent address that must be ignored' }))
-      .expect(201);
-
-    expect(res.body.confirmation.propertyAddress).toBe('1-2-3 Ojima, Koto-ku, Tokyo 136-0072');
-  });
-});
-
 describe('manual booking confirmation: PDF-attached email', () => {
   const fakePdfBase64 = Buffer.from('%PDF-1.4 fake pdf content for tests').toString('base64');
 

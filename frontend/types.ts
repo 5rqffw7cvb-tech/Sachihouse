@@ -238,9 +238,6 @@ export interface PropertyData {
     maxAdvanceDays?: number;
     sameDayCutoffHour?: number;
     freeCancellationDays?: number;
-    // Precise street address for booking-confirmation emails/PDFs only —
-    // never shown on the public site. Falls back to `address` when unset.
-    exactAddress?: string;
   };
   amenities: string[];
   
