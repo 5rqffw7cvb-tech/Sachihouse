@@ -258,4 +258,32 @@ describe('cancellation email', () => {
     expect(mailer.to(GUEST_EMAIL)).toHaveLength(1);
     expect(mailer.to('host@sachihouse.com')).toHaveLength(1);
   });
+
+  it('tells the host the Stripe fee they are absorbing on a host cancellation', async () => {
+    await enableDirectBooking({ adminEmail: 'host@sachihouse.com' });
+    const { id } = await bookAndPay();
+    mailer.sent.length = 0;
+
+    const token = await login('admin@sachihouse.com', 'admin123');
+    await request(app)
+      .post(`/api/bookings/${id}/cancel-by-host`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(200);
+
+    // ¥35,000 full refund, ¥1,260 of which Stripe keeps and the host must cover.
+    const [hostMail] = mailer.to('host@sachihouse.com');
+    expect(hostMail.text).toContain('¥1,260');
+  });
+
+  it('does not mention a Stripe top-up when the guest cancelled themselves', async () => {
+    await enableDirectBooking({ adminEmail: 'host@sachihouse.com' });
+    const { id, guestToken } = await bookAndPay({ daysAhead: 40 });
+    mailer.sent.length = 0;
+
+    await request(app).post(`/api/bookings/${id}/cancel?token=${guestToken}`).expect(200);
+
+    // The guest's own refund already nets the fee out, so the host is whole.
+    const [hostMail] = mailer.to('host@sachihouse.com');
+    expect(hostMail.text).not.toContain('¥1,260');
+  });
 });

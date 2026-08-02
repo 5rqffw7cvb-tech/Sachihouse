@@ -1989,11 +1989,12 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     // hasn't finished computing the charge's balance_transaction the instant
     // the checkout.session.completed webhook fires, so getChargeFee silently
     // returns 0 with no error to log. A real ¥0 fee is not realistic for a
-    // card charge, so treat a stored 0 as "unknown" and re-check before a
-    // guest cancellation would otherwise short the deduction — a host
-    // cancellation refunds in full regardless, so this only matters here.
+    // card charge, so treat a stored 0 as "unknown" and re-check here. This
+    // matters for a guest cancellation (it is deducted from their refund) and
+    // for a host cancellation too, since the host-cancellation email reports
+    // this fee as the amount the host is absorbing.
     let stripeFeeAmount = booking.stripeFeeAmount;
-    if (!options.byHost && stripeFeeAmount === 0 && booking.stripePaymentIntentId) {
+    if (stripeFeeAmount === 0 && booking.stripePaymentIntentId) {
       try {
         stripeFeeAmount = await payments.getChargeFee(booking.stripePaymentIntentId);
       } catch (error) {
@@ -2022,6 +2023,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       cancelReason: options.reason,
       refundAmount: booking.refundAmount + refunded,
       holdExpiresAt: null,
+      stripeFeeAmount,
     });
 
     if (!updated) {

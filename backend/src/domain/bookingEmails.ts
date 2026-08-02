@@ -43,6 +43,8 @@ interface Labels {
   hostConfirmSubject: string;
   hostCancelSubject: string;
   hostContact: string;
+  hostTopUpLabel: string;
+  hostTopUpNote: string;
   footer: string;
 }
 
@@ -74,6 +76,8 @@ const LABELS: Record<string, Labels> = {
     hostConfirmSubject: 'New direct booking',
     hostCancelSubject: 'Direct booking cancelled',
     hostContact: 'Guest contact',
+    hostTopUpLabel: 'Stripe fee (not refunded to you)',
+    hostTopUpNote: 'This refund returns 100% of what the guest paid. Stripe does not refund its processing fee, so this amount comes out of your own balance.',
     footer: 'Sachi House',
   },
   vi: {
@@ -103,6 +107,8 @@ const LABELS: Record<string, Labels> = {
     hostConfirmSubject: 'Đặt phòng trực tiếp mới',
     hostCancelSubject: 'Đặt phòng trực tiếp đã hủy',
     hostContact: 'Liên hệ khách',
+    hostTopUpLabel: 'Phí Stripe (không được hoàn lại)',
+    hostTopUpNote: 'Khoản hoàn tiền này trả lại 100% số tiền khách đã thanh toán. Stripe không hoàn lại phí xử lý, nên bạn sẽ phải tự bù khoản này từ số dư của mình.',
     footer: 'Sachi House',
   },
   ja: {
@@ -132,6 +138,8 @@ const LABELS: Record<string, Labels> = {
     hostConfirmSubject: '直販の新規予約',
     hostCancelSubject: '直販予約のキャンセル',
     hostContact: 'ゲスト連絡先',
+    hostTopUpLabel: 'Stripe手数料（返金されません）',
+    hostTopUpNote: 'この返金はゲストが支払った金額の100%を返すものです。Stripeの決済手数料は返金されないため、この金額はホスト様の残高からご負担いただくことになります。',
     footer: 'Sachi House',
   },
   zh: {
@@ -161,6 +169,8 @@ const LABELS: Record<string, Labels> = {
     hostConfirmSubject: '新的直接预订',
     hostCancelSubject: '直接预订已取消',
     hostContact: '客人联系方式',
+    hostTopUpLabel: 'Stripe手续费（不予退还）',
+    hostTopUpNote: '此次退款将全额退还客人支付的金额。由于Stripe不会退还其手续费，这笔费用需要从您的余额中自行承担。',
     footer: 'Sachi House',
   },
   ko: {
@@ -190,6 +200,8 @@ const LABELS: Record<string, Labels> = {
     hostConfirmSubject: '신규 직접 예약',
     hostCancelSubject: '직접 예약 취소',
     hostContact: '게스트 연락처',
+    hostTopUpLabel: 'Stripe 수수료 (환불되지 않음)',
+    hostTopUpNote: '이번 환불은 게스트가 결제한 금액의 100%를 돌려드리는 것입니다. Stripe는 결제 수수료를 환불하지 않으므로, 이 금액은 호스트님의 잔액에서 부담하셔야 합니다.',
     footer: 'Sachi House',
   },
 };
@@ -340,11 +352,23 @@ export function buildHostCancellationEmail(
   const labels = getLabels(hostLocale);
   const rows = bookingRows(ctx, labels);
   rows.push([labels.refundLine, yen(refundAmount)]);
+
+  // A guest's own free cancellation already nets the Stripe fee out of their
+  // refund, so the host is made whole. A host cancellation refunds the guest
+  // in full instead, so whatever this refund pays out beyond that net amount
+  // is money Stripe is not returning — the host has to cover it themselves.
+  const netOfFee = Math.max(0, ctx.booking.amountTotal - ctx.booking.stripeFeeAmount);
+  const hostTopUp = Math.max(0, refundAmount - netOfFee);
+  if (hostTopUp > 0) {
+    rows.push([labels.hostTopUpLabel, yen(hostTopUp)]);
+  }
+
   rows.push([labels.hostContact, `${ctx.booking.guestName} <${ctx.booking.guestEmail}>`]);
 
   return {
     subject: `${labels.hostCancelSubject} — ${ctx.propertyName} ${ctx.booking.checkInDate}`,
-    text: renderText(labels.hostCancelSubject, ctx.propertyName, rows, []),
-    html: renderHtml(labels.hostCancelSubject, ctx.propertyName, rows, [], labels.footer),
+    text: renderText(labels.hostCancelSubject, ctx.propertyName, rows, hostTopUp > 0 ? [labels.hostTopUpNote] : []),
+    html: renderHtml(labels.hostCancelSubject, ctx.propertyName, rows,
+      hostTopUp > 0 ? [escapeHtml(labels.hostTopUpNote)] : [], labels.footer),
   };
 }
