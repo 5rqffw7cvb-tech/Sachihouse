@@ -61,6 +61,10 @@ export async function submitCheckIn(propertyId: string, payload: {
   // link — triggers the post-checkin welcome email server-side.
   bk?: string;
   locale?: string;
+  // 'resident' relaxes the server-side requirement for an ID evidence photo
+  // on every guest — the Hotel Business Act only mandates that for guests
+  // without a Japan address.
+  residency?: 'unset' | 'resident' | 'foreign';
 }): Promise<{ submission: CheckInSubmission; emailsSent: string[] }> {
   return apiRequest<{ submission: CheckInSubmission; emailsSent: string[] }>(`/properties/${propertyId}/checkins/submit`, {
     method: 'POST',

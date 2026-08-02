@@ -299,3 +299,84 @@ describe('post-checkin welcome email', () => {
     expect(mailer.sent).toHaveLength(0);
   });
 });
+
+function residentGuest(id: string, contactInfo?: string) {
+  // No evidenceUrl at all — residents of Japan are exempt from the
+  // ID-evidence requirement under the Hotel Business Act.
+  return { id, fullName: 'Taro Yamada', address: '1-2-3 Shibuya, Tokyo', contactInfo };
+}
+
+describe('resident check-in (no ID evidence)', () => {
+  it('rejects a guest with no ID evidence when residency is unspecified', async () => {
+    const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
+
+    const res = await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: session.body.checkinToken,
+        checkInDate: '2026-09-01',
+        checkOutDate: '2026-09-03',
+        guests: [residentGuest('g1', 'guest@example.com')],
+        consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
+      })
+      .expect(400);
+
+    expect(res.body.error).toMatch(/ID evidence image/i);
+  });
+
+  it('rejects a guest with no ID evidence when residency is "foreign"', async () => {
+    const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
+
+    await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: session.body.checkinToken,
+        checkInDate: '2026-09-01',
+        checkOutDate: '2026-09-03',
+        guests: [residentGuest('g1', 'guest@example.com')],
+        consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
+        residency: 'foreign',
+      })
+      .expect(400);
+  });
+
+  it('accepts a guest with no ID evidence when residency is "resident"', async () => {
+    const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
+
+    const res = await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: session.body.checkinToken,
+        checkInDate: '2026-09-01',
+        checkOutDate: '2026-09-03',
+        guests: [residentGuest('g1', 'guest@example.com')],
+        consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
+        residency: 'resident',
+      })
+      .expect(201);
+
+    expect(res.body.submission.residency).toBe('resident');
+    expect(res.body.submission.guests[0].fullName).toBe('Taro Yamada');
+  });
+
+  it('still sends the welcome email to a resident lead guest on the generic link', async () => {
+    await setCheckInInfo();
+    const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
+
+    await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: session.body.checkinToken,
+        checkInDate: '2026-09-01',
+        checkOutDate: '2026-09-03',
+        guests: [residentGuest('g1', 'resident-guest@example.com')],
+        consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
+        residency: 'resident',
+      })
+      .expect(201);
+
+    const mail = mailer.to('resident-guest@example.com');
+    expect(mail).toHaveLength(1);
+    expect(mail[0].text).toContain('welcome2026');
+  });
+});

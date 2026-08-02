@@ -152,6 +152,10 @@ export interface CheckInSubmission {
   guests: CheckInGuest[];
   consent: CheckInConsent;
   audit: CheckInAuditInfo;
+  // 'resident' means the whole group self-declared as living in Japan and
+  // skipped the ID-evidence requirement (see /checkins/submit). Undefined on
+  // submissions made before this field existed.
+  residency?: 'resident' | 'foreign';
   createdAt: number;
   updatedAt: number;
 }
@@ -165,6 +169,7 @@ export interface CheckInSubmissionInput {
   guests: CheckInGuest[];
   consent: CheckInConsent;
   audit: CheckInAuditInfo;
+  residency?: 'resident' | 'foreign';
 }
 
 export interface CheckInListFilters {

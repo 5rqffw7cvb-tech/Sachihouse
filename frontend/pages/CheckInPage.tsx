@@ -1,5 +1,5 @@
 import React, { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Check, ChevronUp, EyeOff, FileBadge2, Lock, Loader2, Menu, PencilLine, Plus, ShieldCheck, Upload, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronUp, EyeOff, FileBadge2, Globe, Lock, Loader2, Menu, PencilLine, Plus, ShieldCheck, Upload, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PropertyData, CheckInGuest } from '../types';
 import { CheckInConsentPolicy, matchCheckInBooking, ocrGuestDocument, startCheckInSession, submitCheckIn } from '../services/checkin';
@@ -110,18 +110,26 @@ const REQUIRED_GUEST_FIELDS: Array<{ key: GuestValidationField; labelKey: Transl
 // the check-in welcome email gets sent (on top of the booking's own email,
 // when there is one), so it has to actually be an email — a phone number
 // alone can't receive that mail.
-const validateGuestFields = (guest: CheckInGuest, requireEmail = false): Record<GuestValidationField, boolean> => ({
+//
+// isResident (a guest living in Japan, as opposed to a foreign visitor) drops
+// every field the Hotel Business Act (旅館業法) does not require for them —
+// only full name, address, and (for the lead guest) email stay mandatory.
+const validateGuestFields = (
+  guest: CheckInGuest,
+  requireEmail = false,
+  isResident = false,
+): Record<GuestValidationField, boolean> => ({
   fullName: !isFilledString(guest.fullName),
-  birthYear: guest.birthYear == null,
-  gender: !isFilledString(guest.gender),
-  nationality: !isFilledString(guest.nationality),
+  birthYear: isResident ? false : guest.birthYear == null,
+  gender: isResident ? false : !isFilledString(guest.gender),
+  nationality: isResident ? false : !isFilledString(guest.nationality),
   address: !isFilledString(guest.address),
-  contactInfo: requireEmail ? !EMAIL_REGEX.test((guest.contactInfo ?? '').trim()) : !isFilledString(guest.contactInfo),
-  previousLocation: !isFilledString(guest.previousLocation),
-  nextLocation: !isFilledString(guest.nextLocation),
-  documentNumber: !isFilledString(guest.documentNumber),
-  documentType: !guest.documentType || guest.documentType === 'unknown',
-  evidenceUrl: !isFilledString(guest.evidenceUrl),
+  contactInfo: requireEmail ? !EMAIL_REGEX.test((guest.contactInfo ?? '').trim()) : isResident ? false : !isFilledString(guest.contactInfo),
+  previousLocation: isResident ? false : !isFilledString(guest.previousLocation),
+  nextLocation: isResident ? false : !isFilledString(guest.nextLocation),
+  documentNumber: isResident ? false : !isFilledString(guest.documentNumber),
+  documentType: isResident ? false : !guest.documentType || guest.documentType === 'unknown',
+  evidenceUrl: isResident ? false : !isFilledString(guest.evidenceUrl),
 });
 
 const toDateInput = (offsetDays = 0): string => {
@@ -142,6 +150,8 @@ const isGuestEmpty = (guest: CheckInGuest): boolean => {
     && !guest.documentNumber.trim();
 };
 
+type ResidencyStatus = 'unset' | 'resident' | 'foreign';
+
 interface CheckInDraft {
   savedAt: number;
   checkInDate: string;
@@ -151,6 +161,7 @@ interface CheckInDraft {
   guests: CheckInGuest[];
   reviewedGuestIds: string[];
   sameAsLeadByGuest: Record<string, boolean>;
+  residency?: ResidencyStatus;
 }
 
 const CHECKIN_DRAFT_TTL_MS = 6 * 60 * 60 * 1000;
@@ -309,6 +320,11 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const [sameAsLeadByGuest, setSameAsLeadByGuest] = useState<Record<string, boolean>>({});
   const [pendingDraft, setPendingDraft] = useState<CheckInDraft | null>(null);
   const [draftCheckDone, setDraftCheckDone] = useState(false);
+  // Asked once per session, before the guest list: living in Japan drops the
+  // ID-photo step and most fields (see validateGuestFields) since the Hotel
+  // Business Act only requires those for guests without a Japan address.
+  const [residency, setResidency] = useState<ResidencyStatus>('unset');
+  const isResident = residency === 'resident';
 
   useEffect(() => {
     if (!urlBk) {
@@ -437,12 +453,13 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     const timeoutId = window.setTimeout(() => {
       // Strip inline image data URIs before persisting — they are large and would blow
       // the localStorage quota. Text fields persist; images must be re-scanned on reload.
+      // Residents never have an image to begin with, so nothing needs re-review for them.
       const guestsWithoutImages = guests.map((guest) =>
         guest.evidenceUrl.startsWith('data:') ? { ...guest, evidenceUrl: '' } : guest,
       );
-      const imagelessGuestIds = new Set(
-        guestsWithoutImages.filter((guest) => !guest.evidenceUrl).map((guest) => guest.id),
-      );
+      const imagelessGuestIds = isResident
+        ? new Set<string>()
+        : new Set(guestsWithoutImages.filter((guest) => !guest.evidenceUrl).map((guest) => guest.id));
       const draft: CheckInDraft = {
         savedAt: Date.now(),
         checkInDate,
@@ -452,6 +469,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         guests: guestsWithoutImages,
         reviewedGuestIds: reviewedGuestIds.filter((id) => !imagelessGuestIds.has(id)),
         sameAsLeadByGuest,
+        residency,
       };
       if (draftHasContent(draft)) {
         writeCheckInDraft(propertyId, draft);
@@ -460,7 +478,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       }
     }, 400);
     return () => window.clearTimeout(timeoutId);
-  }, [draftCheckDone, pendingDraft, propertyId, checkInDate, checkOutDate, checkInTime, checkOutTime, guests, reviewedGuestIds, sameAsLeadByGuest]);
+  }, [draftCheckDone, pendingDraft, propertyId, checkInDate, checkOutDate, checkInTime, checkOutTime, guests, reviewedGuestIds, sameAsLeadByGuest, residency, isResident]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -477,8 +495,8 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const guestsForSubmission = useMemo(() => guests.filter((guest) => !isGuestEmpty(guest)), [guests]);
   const processingGuestCount = useMemo(() => Object.values(processingByGuest).filter(Boolean).length, [processingByGuest]);
   const confirmedGuestCount = useMemo(() => {
-    return guestsForSubmission.filter((guest) => reviewedGuestIds.includes(guest.id) && guest.evidenceUrl && guest.fullName.trim()).length;
-  }, [guestsForSubmission, reviewedGuestIds]);
+    return guestsForSubmission.filter((guest) => reviewedGuestIds.includes(guest.id) && (isResident || guest.evidenceUrl) && guest.fullName.trim()).length;
+  }, [guestsForSubmission, reviewedGuestIds, isResident]);
 
   const canSubmit = useMemo(() => {
     if (!checkInDate || !checkOutDate || checkInDate >= checkOutDate) {
@@ -490,8 +508,8 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     if (guestsForSubmission.length === 0 || processingGuestCount > 0 || editorDraft) {
       return false;
     }
-    return guestsForSubmission.every((guest) => guest.evidenceUrl && guest.fullName.trim() && reviewedGuestIds.includes(guest.id));
-  }, [checkInDate, checkOutDate, checkinToken, consentPolicy, guestsForSubmission, processingGuestCount, editorDraft, reviewedGuestIds]);
+    return guestsForSubmission.every((guest) => (isResident || guest.evidenceUrl) && guest.fullName.trim() && reviewedGuestIds.includes(guest.id));
+  }, [checkInDate, checkOutDate, checkinToken, consentPolicy, guestsForSubmission, processingGuestCount, editorDraft, reviewedGuestIds, isResident]);
 
   const pendingReviewCount = Math.max(0, guestsForSubmission.length - confirmedGuestCount);
   const datesReady = Boolean(checkInDate && checkOutDate && checkInDate < checkOutDate);
@@ -519,6 +537,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     setGuests(pendingDraft.guests.length > 0 ? pendingDraft.guests : [createEmptyGuest('guest_1')]);
     setReviewedGuestIds(pendingDraft.reviewedGuestIds);
     setSameAsLeadByGuest(pendingDraft.sameAsLeadByGuest ?? {});
+    setResidency(pendingDraft.residency ?? 'unset');
     setPendingDraft(null);
   };
 
@@ -610,7 +629,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       return;
     }
     const guest = guests.find((candidate) => candidate.id === guestId);
-    if (!guest || isGuestEmpty(guest)) {
+    if (!guest) {
       return;
     }
     const index = guestIndexById[guestId] ?? -1;
@@ -743,7 +762,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
 
     const isLeadGuest = guests[0]?.id === editorGuestId;
     const requireEmailForContact = isLeadGuest;
-    const fieldErrors = validateGuestFields(normalizedGuest, requireEmailForContact);
+    const fieldErrors = validateGuestFields(normalizedGuest, requireEmailForContact, isResident);
     setEditorFieldErrors(fieldErrors);
 
     if (requireEmailForContact && fieldErrors.contactInfo && normalizedGuest.contactInfo) {
@@ -791,6 +810,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           noticeVersion: consentPolicy?.noticeVersion ?? 'v1',
         },
         locale: language,
+        residency,
         ...(gateState === 'matched' ? { bk: matchedBk } : {}),
       });
       setSubmitSuccess(submission.id);
@@ -859,6 +879,38 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
             >
               {gateSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {t('checkin_gate_confirm')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Asked once, before the guest list itself — the answer decides how much of
+  // that list residents even see (see validateGuestFields/isResident above).
+  if (residency === 'unset') {
+    return (
+      <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center px-6">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
+            <Globe className="h-6 w-6 text-blue-600" />
+          </div>
+          <h1 className="text-lg font-bold text-gray-900">{t('checkin_residency_title')}</h1>
+          <p className="mt-2 text-sm text-gray-500">{t('checkin_residency_body')}</p>
+          <div className="mt-5 space-y-2.5">
+            <button
+              type="button"
+              onClick={() => setResidency('resident')}
+              className="w-full rounded-xl bg-gray-900 py-3 text-sm font-bold text-white hover:bg-gray-800"
+            >
+              {t('checkin_residency_resident')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setResidency('foreign')}
+              className="w-full rounded-xl border border-gray-300 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50"
+            >
+              {t('checkin_residency_foreign')}
             </button>
           </div>
         </div>
@@ -996,7 +1048,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
             const isEmpty = isGuestEmpty(guest);
             const isProcessing = Boolean(processingByGuest[guest.id]);
             const hasPreview = Boolean(photoPreviewByGuest[guest.id]);
-            const isConfirmed = reviewedGuestIds.includes(guest.id) && Boolean(guest.evidenceUrl) && Boolean(guest.fullName.trim());
+            const isConfirmed = reviewedGuestIds.includes(guest.id) && (isResident || Boolean(guest.evidenceUrl)) && Boolean(guest.fullName.trim());
             const needsReview = !isEmpty && !isConfirmed && !isProcessing;
             const guestError = errorByGuest[guest.id];
 
@@ -1041,7 +1093,9 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                           ? t('checkin_confirmed')
                           : needsReview
                             ? t('checkin_needs_review')
-                            : t('checkin_upload_prompt')}
+                            : isResident
+                              ? t('checkin_enter_info_prompt')
+                              : t('checkin_upload_prompt')}
                     </p>
                   </div>
 
@@ -1064,6 +1118,14 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                       aria-label={t('checkin_edit_aria')}
                     >
                       {isExpanded ? <ChevronUp className="h-4 w-4" /> : <PencilLine className="h-4 w-4" />}
+                    </button>
+                  ) : isResident ? (
+                    <button
+                      type="button"
+                      onClick={() => openEditor(guest.id)}
+                      className="shrink-0 rounded-xl bg-gray-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-gray-700"
+                    >
+                      {t('checkin_enter_info_btn')}
                     </button>
                   ) : (
                     <label
@@ -1119,39 +1181,47 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                           className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.fullName ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
                         />
                       </div>
-                      <div>
-                        <RequiredLabel text={t('checkin_popup_birthyear')} required />
-                        <input
-                          type="number"
-                          value={editorDraft.birthYear ?? ''}
-                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, birthYear: event.target.value ? Number(event.target.value) : null } : prev)); setEditorError(null); }}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.birthYear ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                        />
-                      </div>
-                      <div>
-                        <RequiredLabel text={t('checkin_popup_gender')} required />
-                        <input
-                          value={editorDraft.gender}
-                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, gender: event.target.value } : prev)); setEditorError(null); }}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.gender ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                        />
-                      </div>
-                      <div>
-                        <RequiredLabel text={t('checkin_popup_nationality')} required />
-                        <input
-                          value={editorDraft.nationality}
-                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, nationality: event.target.value } : prev)); setEditorError(null); }}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.nationality ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                        />
-                      </div>
-                      <div>
-                        <RequiredLabel text={t('checkin_popup_occupation')} />
-                        <input
-                          value={editorDraft.occupation}
-                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, occupation: event.target.value } : prev)); setEditorError(null); }}
-                          className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
-                        />
-                      </div>
+                      {!isResident && (
+                        <div>
+                          <RequiredLabel text={t('checkin_popup_birthyear')} required />
+                          <input
+                            type="number"
+                            value={editorDraft.birthYear ?? ''}
+                            onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, birthYear: event.target.value ? Number(event.target.value) : null } : prev)); setEditorError(null); }}
+                            className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.birthYear ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                          />
+                        </div>
+                      )}
+                      {!isResident && (
+                        <div>
+                          <RequiredLabel text={t('checkin_popup_gender')} required />
+                          <input
+                            value={editorDraft.gender}
+                            onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, gender: event.target.value } : prev)); setEditorError(null); }}
+                            className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.gender ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                          />
+                        </div>
+                      )}
+                      {!isResident && (
+                        <div>
+                          <RequiredLabel text={t('checkin_popup_nationality')} required />
+                          <input
+                            value={editorDraft.nationality}
+                            onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, nationality: event.target.value } : prev)); setEditorError(null); }}
+                            className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.nationality ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                          />
+                        </div>
+                      )}
+                      {!isResident && (
+                        <div>
+                          <RequiredLabel text={t('checkin_popup_occupation')} />
+                          <input
+                            value={editorDraft.occupation}
+                            onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, occupation: event.target.value } : prev)); setEditorError(null); }}
+                            className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm text-gray-900"
+                          />
+                        </div>
+                      )}
                       <div className="col-span-2">
                         <RequiredLabel text={t('checkin_popup_address')} required />
                         <input
@@ -1191,44 +1261,52 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                           <p className="mt-1 text-[11px] font-medium text-blue-600">{t('checkin_contact_email_note')}</p>
                         )}
                       </div>
-                      <div className="col-span-2">
-                        <RequiredLabel text={t('checkin_popup_prev_location')} required />
-                        <input
-                          value={editorDraft.previousLocation ?? ''}
-                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, previousLocation: event.target.value } : prev)); setEditorError(null); }}
-                          disabled={index > 0 && Boolean(sameAsLeadByGuest[guest.id])}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 ${editorFieldErrors.previousLocation ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <RequiredLabel text={t('checkin_popup_next_location')} required />
-                        <input
-                          value={editorDraft.nextLocation ?? ''}
-                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, nextLocation: event.target.value } : prev)); setEditorError(null); }}
-                          disabled={index > 0 && Boolean(sameAsLeadByGuest[guest.id])}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 ${editorFieldErrors.nextLocation ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                        />
-                      </div>
-                      <div>
-                        <RequiredLabel text={t('checkin_popup_docnum')} required />
-                        <input
-                          value={editorDraft.documentNumber}
-                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, documentNumber: event.target.value } : prev)); setEditorError(null); }}
-                          className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.documentNumber ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                        />
-                      </div>
-                      <div>
-                        <RequiredLabel text={t('checkin_popup_doctype')} required />
-                        <select
-                          value={editorDraft.documentType}
-                          onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, documentType: event.target.value as CheckInGuest['documentType'] } : prev)); setEditorError(null); }}
-                          className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.documentType ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                        >
-                          {Object.entries(DOCUMENT_TYPE_LABEL_KEYS).map(([value, labelKey]) => (
-                            <option key={value} value={value}>{t(labelKey)}</option>
-                          ))}
-                        </select>
-                      </div>
+                      {!isResident && (
+                        <div className="col-span-2">
+                          <RequiredLabel text={t('checkin_popup_prev_location')} required />
+                          <input
+                            value={editorDraft.previousLocation ?? ''}
+                            onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, previousLocation: event.target.value } : prev)); setEditorError(null); }}
+                            disabled={index > 0 && Boolean(sameAsLeadByGuest[guest.id])}
+                            className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 ${editorFieldErrors.previousLocation ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                          />
+                        </div>
+                      )}
+                      {!isResident && (
+                        <div className="col-span-2">
+                          <RequiredLabel text={t('checkin_popup_next_location')} required />
+                          <input
+                            value={editorDraft.nextLocation ?? ''}
+                            onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, nextLocation: event.target.value } : prev)); setEditorError(null); }}
+                            disabled={index > 0 && Boolean(sameAsLeadByGuest[guest.id])}
+                            className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 ${editorFieldErrors.nextLocation ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                          />
+                        </div>
+                      )}
+                      {!isResident && (
+                        <div>
+                          <RequiredLabel text={t('checkin_popup_docnum')} required />
+                          <input
+                            value={editorDraft.documentNumber}
+                            onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, documentNumber: event.target.value } : prev)); setEditorError(null); }}
+                            className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.documentNumber ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                          />
+                        </div>
+                      )}
+                      {!isResident && (
+                        <div>
+                          <RequiredLabel text={t('checkin_popup_doctype')} required />
+                          <select
+                            value={editorDraft.documentType}
+                            onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, documentType: event.target.value as CheckInGuest['documentType'] } : prev)); setEditorError(null); }}
+                            className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-sm text-gray-900 ${editorFieldErrors.documentType ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                          >
+                            {Object.entries(DOCUMENT_TYPE_LABEL_KEYS).map(([value, labelKey]) => (
+                              <option key={value} value={value}>{t(labelKey)}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">

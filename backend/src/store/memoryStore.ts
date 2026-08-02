@@ -599,6 +599,7 @@ export class MemoryStore implements DataStore {
       guests: structuredClone(input.guests),
       consent: structuredClone(input.consent),
       audit: structuredClone(input.audit),
+      residency: input.residency,
       createdAt: now,
       updatedAt: now,
     };

@@ -2719,7 +2719,13 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     }
 
     const guests = guestsRaw.map((guest: unknown, index: number) => toNormalizedGuest(guest, index));
-    if (guests.some((guest) => !guest.evidenceUrl)) {
+    // Guests living in Japan are exempt from the ID-evidence requirement (the
+    // Hotel Business Act only mandates it for guests without a Japan address);
+    // anything else (including a missing/unrecognised value) keeps the
+    // stricter default.
+    const residency = normalizeText(req.body?.residency);
+    const isResident = residency === 'resident';
+    if (!isResident && guests.some((guest) => !guest.evidenceUrl)) {
       return res.status(400).json({ error: 'Every guest must include an ID evidence image.' });
     }
 
@@ -2801,6 +2807,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
         ipAddress: getClientIp(req),
         userAgent: normalizeText(req.get('user-agent')).slice(0, 300) || 'unknown',
       },
+      residency: isResident ? 'resident' : 'foreign',
     });
 
     const locale = normalizeText(req.body?.locale) || 'en';
