@@ -48,6 +48,10 @@ interface Labels {
   checkInCta: string;
   checkInNote: string;
   policyNote: string;
+  // Shown as a short tag in the subject line and a fuller banner above the
+  // heading in the body — this address is not monitored for guest replies.
+  noReplyTag: string;
+  noReplyNotice: string;
   hostConfirmSubject: string;
   hostCancelSubject: string;
   hostContact: string;
@@ -82,6 +86,8 @@ const LABELS: Record<string, Labels> = {
     checkInCta: 'Complete online check-in',
     checkInNote: 'Japanese law requires us to record every guest before arrival. Please complete check-in in advance.',
     policyNote: 'Cancel {days} or more days before check-in for a refund, less the payment processing fee. Within {days} days the booking is non-refundable.',
+    noReplyTag: 'No reply',
+    noReplyNotice: 'This is an automated message and this inbox is not monitored — please do not reply directly. If you need help, use the links below or contact the property.',
     hostConfirmSubject: 'New direct booking',
     hostCancelSubject: 'Direct booking cancelled',
     hostContact: 'Guest contact',
@@ -114,6 +120,8 @@ const LABELS: Record<string, Labels> = {
     checkInCta: 'Hoàn tất check-in trực tuyến',
     checkInNote: 'Luật Nhật Bản yêu cầu ghi nhận thông tin mọi khách trước khi nhận phòng. Vui lòng hoàn tất check-in trước.',
     policyNote: 'Hủy trước ngày nhận phòng từ {days} ngày trở lên được hoàn tiền sau khi trừ phí xử lý thanh toán. Trong vòng {days} ngày sẽ không được hoàn tiền.',
+    noReplyTag: 'Không trả lời',
+    noReplyNotice: 'Đây là email tự động và hộp thư này không được theo dõi — vui lòng không trả lời trực tiếp email này. Nếu cần hỗ trợ, hãy dùng các liên kết bên dưới hoặc liên hệ trực tiếp với căn hộ.',
     hostConfirmSubject: 'Đặt phòng trực tiếp mới',
     hostCancelSubject: 'Đặt phòng trực tiếp đã hủy',
     hostContact: 'Liên hệ khách',
@@ -146,6 +154,8 @@ const LABELS: Record<string, Labels> = {
     checkInCta: 'オンラインチェックインを行う',
     checkInNote: '日本の法令により、ご到着前に全宿泊者の情報を記録する必要があります。事前にチェックインをお済ませください。',
     policyNote: 'チェックイン日の{days}日前までのキャンセルは、決済手数料を差し引いた金額を返金いたします。{days}日前以降は返金いたしかねます。',
+    noReplyTag: '返信不要',
+    noReplyNotice: 'このメールは自動送信されており、このアドレス宛のメールは確認しておりません。直接返信されないようお願いいたします。ご不明な点は下記のリンク、または施設まで直接お問い合わせください。',
     hostConfirmSubject: '直販の新規予約',
     hostCancelSubject: '直販予約のキャンセル',
     hostContact: 'ゲスト連絡先',
@@ -178,6 +188,8 @@ const LABELS: Record<string, Labels> = {
     checkInCta: '完成在线登记',
     checkInNote: '日本法律要求我们在客人到达前登记所有住客信息，请提前完成在线登记。',
     policyNote: '入住日前{days}天或更早取消可获退款，需扣除支付手续费。入住日前{days}天内恕不退款。',
+    noReplyTag: '无需回复',
+    noReplyNotice: '这是一封自动发送的邮件，此邮箱不会被查看，请勿直接回复。如需帮助，请使用下方链接或直接联系房源。',
     hostConfirmSubject: '新的直接预订',
     hostCancelSubject: '直接预订已取消',
     hostContact: '客人联系方式',
@@ -210,6 +222,8 @@ const LABELS: Record<string, Labels> = {
     checkInCta: '온라인 체크인 완료하기',
     checkInNote: '일본 법령에 따라 도착 전 모든 숙박객 정보를 기록해야 합니다. 미리 체크인을 완료해 주세요.',
     policyNote: '체크인 {days}일 전까지 취소하시면 결제 수수료를 제외한 금액을 환불해 드립니다. {days}일 이내에는 환불이 불가합니다.',
+    noReplyTag: '답장 불필요',
+    noReplyNotice: '이 메일은 자동으로 발송되었으며 이 메일함은 확인하지 않습니다. 직접 답장하지 마시고, 도움이 필요하시면 아래 링크를 이용하거나 숙소로 직접 문의해 주세요.',
     hostConfirmSubject: '신규 직접 예약',
     hostCancelSubject: '직접 예약 취소',
     hostContact: '게스트 연락처',
@@ -262,12 +276,21 @@ function escapeHtml(value: string): string {
 
 type Row = [string, string];
 
-function renderText(heading: string, intro: string, rows: Row[], extras: string[]): string {
+function renderText(heading: string, intro: string, rows: Row[], extras: string[], noReplyNotice?: string): string {
   const body = rows.map(([label, value]) => `${label}: ${value}`).join('\n');
-  return [heading, '', intro, '', body, '', ...extras].join('\n').trim();
+  return [...(noReplyNotice ? [noReplyNotice, ''] : []), heading, '', intro, '', body, '', ...extras]
+    .join('\n')
+    .trim();
 }
 
-function renderHtml(heading: string, intro: string, rows: Row[], extras: string[], footer: string): string {
+function renderHtml(
+  heading: string,
+  intro: string,
+  rows: Row[],
+  extras: string[],
+  footer: string,
+  noReplyNotice?: string,
+): string {
   const cells = rows
     .map(([label, value]) => `
       <tr>
@@ -280,9 +303,14 @@ function renderHtml(heading: string, intro: string, rows: Row[], extras: string[
     .map((extra) => `<p style="margin:0 0 12px;color:#4b5563;font-size:13px;line-height:1.6;">${extra}</p>`)
     .join('');
 
+  const noReplyBanner = noReplyNotice
+    ? `<div style="margin:0 0 20px;padding:10px 14px;background:#f3f4f6;border-radius:8px;color:#6b7280;font-size:12px;line-height:1.5;">${escapeHtml(noReplyNotice)}</div>`
+    : '';
+
   return `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;padding:32px;">
+    ${noReplyBanner}
     <h1 style="margin:0 0 16px;font-size:20px;color:#111827;">${escapeHtml(heading)}</h1>
     <p style="margin:0 0 24px;color:#4b5563;font-size:14px;line-height:1.6;">${escapeHtml(intro)}</p>
     <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">${cells}</table>
@@ -331,7 +359,7 @@ function formatPolicyNote(labels: Labels, freeCancellationDays: number): string 
 export function buildGuestConfirmationEmail(ctx: BookingEmailContext): EmailContent {
   const labels = getLabels(ctx.booking.locale);
   const rows = bookingRows(ctx, labels);
-  const subject = `${labels.confirmSubject} — ${ctx.propertyName}`
+  const subject = `[${labels.noReplyTag}] ${labels.confirmSubject} — ${ctx.propertyName}`
     + (ctx.booking.confirmationNo ? ` (${ctx.booking.confirmationNo})` : '');
   const policyNote = formatPolicyNote(labels, ctx.freeCancellationDays);
 
@@ -346,13 +374,13 @@ export function buildGuestConfirmationEmail(ctx: BookingEmailContext): EmailCont
       `${labels.manageCta}: ${ctx.manageUrl}`,
       '',
       policyNote,
-    ]),
+    ], labels.noReplyNotice),
     html: renderHtml(labels.confirmHeading, labels.confirmIntro, rows, [
       button(ctx.pdfUrl, labels.downloadPdfCta),
       `${link(ctx.checkInUrl, labels.checkInCta)}<br>${escapeHtml(labels.checkInNote)}`,
       link(ctx.manageUrl, labels.manageCta),
       escapeHtml(policyNote),
-    ], labels.footer),
+    ], labels.footer, labels.noReplyNotice),
   };
 }
 
@@ -364,12 +392,12 @@ export function buildGuestCancellationEmail(ctx: BookingEmailContext, refundAmou
   }
 
   return {
-    subject: `${labels.cancelSubject} — ${ctx.propertyName}`
+    subject: `[${labels.noReplyTag}] ${labels.cancelSubject} — ${ctx.propertyName}`
       + (ctx.booking.confirmationNo ? ` (${ctx.booking.confirmationNo})` : ''),
     text: renderText(labels.cancelHeading, labels.cancelIntro, rows,
-      refundAmount > 0 ? [] : [labels.noRefund]),
+      refundAmount > 0 ? [] : [labels.noRefund], labels.noReplyNotice),
     html: renderHtml(labels.cancelHeading, labels.cancelIntro, rows,
-      refundAmount > 0 ? [] : [escapeHtml(labels.noRefund)], labels.footer),
+      refundAmount > 0 ? [] : [escapeHtml(labels.noRefund)], labels.footer, labels.noReplyNotice),
   };
 }
 
@@ -444,13 +472,13 @@ export function buildManualBookingConfirmationEmail(ctx: ManualConfirmationEmail
   ];
 
   return {
-    subject: `${labels.confirmSubject} — ${confirmation.propertyName} (${confirmation.confirmationNo})`,
+    subject: `[${labels.noReplyTag}] ${labels.confirmSubject} — ${confirmation.propertyName} (${confirmation.confirmationNo})`,
     text: renderText(labels.confirmHeading, labels.confirmIntro, rows, [
       `${labels.checkInCta}: ${ctx.checkInUrl}`,
       labels.checkInNote,
-    ]),
+    ], labels.noReplyNotice),
     html: renderHtml(labels.confirmHeading, labels.confirmIntro, rows, [
       `${link(ctx.checkInUrl, labels.checkInCta)}<br>${escapeHtml(labels.checkInNote)}`,
-    ], labels.footer),
+    ], labels.footer, labels.noReplyNotice),
   };
 }
