@@ -1,11 +1,10 @@
 import React, { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, ChevronUp, EyeOff, FileBadge2, Globe, Lock, Loader2, Menu, PencilLine, Plus, ShieldCheck, Upload, X } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PropertyData, CheckInGuest } from '../types';
 import { CheckInConsentPolicy, matchCheckInBooking, ocrGuestDocument, startCheckInSession, submitCheckIn } from '../services/checkin';
 import { ApiError, ApiUser } from '../services/api';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
-import { HoldToSubmitButton } from '../components/HoldToSubmitButton';
 import { TopNavBar } from '../components/TopNavBar';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
@@ -281,6 +280,7 @@ type BookingGateState = 'none' | 'checking' | 'matched' | 'mismatch';
 const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const { t, language } = useLanguage();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   // A link with no `bk` at all (the generic per-property link a host copies
   // from the Check-in link picker) skips this gate entirely — 'none' renders
   // the form exactly as before. A link carrying `bk` (from a booking
@@ -305,6 +305,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const [editorError, setEditorError] = useState<string | null>(null);
   const [editorFieldErrors, setEditorFieldErrors] = useState<Partial<Record<GuestValidationField, boolean>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [submitEmailsSent, setSubmitEmailsSent] = useState<string[]>([]);
@@ -849,6 +850,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       });
       setSubmitSuccess(submission.id);
       setSubmitEmailsSent(emailsSent);
+      setShowSubmitConfirm(false);
       clearCheckInDraft(propertyId);
       void clearCheckInPhotos(propertyId, guests.map((guest) => guest.id));
     } catch (error) {
@@ -1376,7 +1378,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           type="button"
           onClick={addGuest}
           disabled={guests.some((g) => isGuestEmpty(g))}
-          className="mt-3 flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 disabled:opacity-30"
+          className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-gray-900 hover:text-gray-700 disabled:opacity-30"
         >
           <Plus className="h-4 w-4" /> {t('checkin_add_guest')}
         </button>
@@ -1398,32 +1400,60 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
 
         {/* Submit — desktop in-flow */}
         <div className="mt-6 hidden md:block">
-          {submitError && (
-            <p className="mb-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{submitError}</p>
-          )}
-          <HoldToSubmitButton
+          <button
+            type="button"
             disabled={!canSubmit || isSubmitting}
-            holdMs={1000}
-            label={isSubmitting ? t('checkin_submitting') : t('checkin_hold_send')}
-            holdingLabel={(percent) => t('checkin_holding_progress').replace('{percent}', String(percent))}
-            onComplete={handleSubmit}
-          />
+            onClick={() => setShowSubmitConfirm(true)}
+            className="w-full rounded-xl bg-gray-900 py-3 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50"
+          >
+            {t('checkin_submit_btn')}
+          </button>
         </div>
       </main>
 
       {/* Fixed bottom bar — mobile */}
       <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-gray-100 bg-white px-4 pb-4 pt-3 md:hidden">
-        {submitError && (
-          <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{submitError}</p>
-        )}
-        <HoldToSubmitButton
+        <button
+          type="button"
           disabled={!canSubmit || isSubmitting}
-          holdMs={1000}
-          label={isSubmitting ? t('checkin_submitting') : t('checkin_hold_send')}
-          holdingLabel={(percent) => t('checkin_holding_progress').replace('{percent}', String(percent))}
-          onComplete={handleSubmit}
-        />
+          onClick={() => setShowSubmitConfirm(true)}
+          className="w-full rounded-xl bg-gray-900 py-3 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50"
+        >
+          {t('checkin_submit_btn')}
+        </button>
       </div>
+
+      {/* Submit confirmation */}
+      {showSubmitConfirm && !submitSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <h2 className="text-lg font-bold text-gray-900">{t('checkin_confirm_submit_title')}</h2>
+            <p className="mt-2 text-sm text-gray-500">{t('checkin_confirm_submit_body')}</p>
+            {submitError && (
+              <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-left text-xs text-red-700">{submitError}</p>
+            )}
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => setShowSubmitConfirm(false)}
+                className="flex-1 rounded-xl border border-gray-300 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              >
+                {t('checkin_confirm_cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => void handleSubmit()}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gray-900 py-3 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-60"
+              >
+                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isSubmitting ? t('checkin_submitting') : t('checkin_confirm_submit_btn')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Success popup */}
       {submitSuccess && (
@@ -1444,7 +1474,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
             )}
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={() => navigate('/')}
               className="mt-6 w-full rounded-2xl bg-gray-900 py-3 text-sm font-semibold text-white hover:bg-gray-700"
             >
               {t('checkin_success_done')}
