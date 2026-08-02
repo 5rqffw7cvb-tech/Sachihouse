@@ -5,6 +5,7 @@ import {
   daysBetweenDates,
   getStayDates,
   isIsoDateString,
+  resolveFreeCancellationDays,
   toJstDateString,
   toJstHour,
   validateBookingWindow,
@@ -222,5 +223,40 @@ describe('calculateRefund', () => {
     const now = utc('2026-08-01T00:00:00Z');
     const booking = confirmedBooking({ amountTotal: 1000, stripeFeeAmount: 1500 });
     expect(calculateRefund(booking, now).refundAmount).toBe(0);
+  });
+
+  it('honours a property-specific free-cancellation window instead of the 7-day default', () => {
+    // 5 days out: refundable under a 3-day policy, not under the 7-day default.
+    const now = utc('2026-08-05T00:00:00Z');
+    const booking = confirmedBooking();
+    expect(calculateRefund(booking, now)).toMatchObject({ refundAmount: 0, reason: 'too_late' });
+    expect(calculateRefund(booking, now, { freeCancellationDays: 3 })).toMatchObject({
+      refundAmount: 28920,
+      reason: 'free_cancellation',
+    });
+  });
+
+  it('a 0-day policy only blocks a refund once check-in has actually passed', () => {
+    const dayOfCheckIn = utc('2026-08-10T00:00:00Z');
+    expect(calculateRefund(confirmedBooking(), dayOfCheckIn, { freeCancellationDays: 0 })).toMatchObject({
+      refundAmount: 28920,
+      reason: 'free_cancellation',
+    });
+  });
+});
+
+describe('resolveFreeCancellationDays', () => {
+  it('defaults to 7 when the property has not set one', () => {
+    expect(resolveFreeCancellationDays(enabledProperty)).toBe(7);
+  });
+
+  it('uses the property-specific value when set', () => {
+    const property = { directBooking: { enabled: true, freeCancellationDays: 14 } };
+    expect(resolveFreeCancellationDays(property)).toBe(14);
+  });
+
+  it('falls back to the default for a nonsensical stored value', () => {
+    const property = { directBooking: { enabled: true, freeCancellationDays: -3 } };
+    expect(resolveFreeCancellationDays(property)).toBe(7);
   });
 });

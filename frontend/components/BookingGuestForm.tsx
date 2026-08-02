@@ -15,6 +15,9 @@ interface BookingGuestFormProps {
   children: number;
   infants: number;
   estimatedTotal: number;
+  // Days before check-in a cancellation still qualifies for a refund. Set per
+  // property by the host; defaults to 7 when the property has not set one.
+  freeCancellationDays?: number;
   onClose: () => void;
   // Raised when the requested nights were taken while the guest was deciding,
   // so the widget can send them back to the calendar.
@@ -30,6 +33,7 @@ const BookingGuestForm: React.FC<BookingGuestFormProps> = ({
   children,
   infants,
   estimatedTotal,
+  freeCancellationDays = 7,
   onClose,
   onDatesUnavailable,
 }) => {
@@ -222,8 +226,8 @@ const BookingGuestForm: React.FC<BookingGuestFormProps> = ({
           <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-4">
             <h3 className="text-sm font-bold text-gray-900 mb-2">{t('book_policy_title')}</h3>
             <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
-              <li>{t('book_policy_free')}</li>
-              <li>{t('book_policy_late')}</li>
+              <li>{t('book_policy_free').replace(/\{days\}/g, String(freeCancellationDays))}</li>
+              <li>{t('book_policy_late').replace(/\{days\}/g, String(freeCancellationDays))}</li>
             </ul>
           </div>
 

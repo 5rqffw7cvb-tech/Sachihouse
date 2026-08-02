@@ -17,13 +17,13 @@ async function login(email: string, password: string): Promise<string> {
   return res.body.token as string;
 }
 
-async function enableDirectBooking(propertyId = 'main') {
+async function enableDirectBooking(propertyId = 'main', directBookingOverrides: Record<string, unknown> = {}) {
   const token = await login('admin@sachihouse.com', 'admin123');
   const current = await request(app).get(`/api/properties/${propertyId}`).expect(200);
   await request(app)
     .put(`/api/properties/${propertyId}`)
     .set({ Authorization: `Bearer ${token}` })
-    .send({ ...current.body.property, directBooking: { enabled: true } })
+    .send({ ...current.body.property, directBooking: { enabled: true, ...directBookingOverrides } })
     .expect(200);
 }
 
@@ -90,6 +90,30 @@ describe('guest cancellation', () => {
     expect(res.body.refundAmount).toBe(33740);
     expect(res.body.booking.status).toBe('cancelled_by_guest');
     expect(payments.refunds).toEqual([{ paymentIntentId: 'pi_test_123', amount: 33740 }]);
+  });
+
+  it('honours a shorter free-cancellation window set on the property', async () => {
+    await enableDirectBooking('main', { freeCancellationDays: 3 });
+    // 5 days out: refundable under this property's 3-day policy, unlike the
+    // 7-day default the rest of this file relies on.
+    const { id, guestToken } = await bookAndPay({ daysAhead: 5 });
+
+    const res = await request(app).post(`/api/bookings/${id}/cancel?token=${guestToken}`).expect(200);
+
+    expect(res.body.refundAmount).toBe(33740);
+    expect(res.body.booking.status).toBe('cancelled_by_guest');
+  });
+
+  it('honours a longer free-cancellation window set on the property', async () => {
+    await enableDirectBooking('main', { freeCancellationDays: 14 });
+    // 10 days out: non-refundable under the 7-day default, but this property
+    // requires 14.
+    const { id, guestToken } = await bookAndPay({ daysAhead: 10 });
+
+    const res = await request(app).post(`/api/bookings/${id}/cancel?token=${guestToken}`).expect(200);
+
+    expect(res.body.refundAmount).toBe(0);
+    expect(res.body.booking.status).toBe('cancelled_by_guest');
   });
 
   it('re-checks the Stripe fee at cancellation time if it came back as 0 at confirm time', async () => {
@@ -213,6 +237,16 @@ describe('refund preview', () => {
 
     const near = await request(app).get(`/api/bookings/${id}?token=${guestToken}`).expect(200);
     expect(near.body.booking.refundIfCancelledNow).toBe(0);
+  });
+
+  it('reports the property-specific free-cancellation window, not always 7', async () => {
+    await enableDirectBooking('main', { freeCancellationDays: 3 });
+    const { id, guestToken } = await bookAndPay({ daysAhead: 5 });
+
+    const res = await request(app).get(`/api/bookings/${id}?token=${guestToken}`).expect(200);
+    expect(res.body.booking.freeCancellationDays).toBe(3);
+    // 5 days out is refundable under a 3-day policy, unlike the 7-day default.
+    expect(res.body.booking.refundIfCancelledNow).toBe(33740);
   });
 });
 

@@ -478,9 +478,10 @@ export interface PropertyData {
   // `enabled: false` keeps the legacy "email the host for a quote" flow.
   directBooking?: {
     enabled: boolean;
-    minNights?: number;           // default 1
-    maxAdvanceDays?: number;      // default 365
-    sameDayCutoffHour?: number;   // default 12, Asia/Tokyo
+    minNights?: number;              // default 1
+    maxAdvanceDays?: number;         // default 365
+    sameDayCutoffHour?: number;      // default 12, Asia/Tokyo
+    freeCancellationDays?: number;   // default 7 (FREE_CANCELLATION_DAYS)
   };
   amenities: string[];
   galleryCategories: Array<{ id: string; label: string }>;

@@ -133,15 +133,20 @@ export interface RefundOutcome {
 }
 
 // Refund rules:
-//   - guest cancels 7+ days out  → full amount minus the Stripe processing fee,
+//   - guest cancels N+ days out  → full amount minus the Stripe processing fee,
 //     which Stripe keeps even on a refund (disclosed in the cancellation policy);
-//   - guest cancels inside 7 days → nothing;
-//   - host cancels               → full amount, we absorb the fee ourselves.
+//   - guest cancels inside N days → nothing;
+//   - host cancels                → full amount, we absorb the fee ourselves.
+// N defaults to FREE_CANCELLATION_DAYS but each property can set its own via
+// directBooking.freeCancellationDays.
 export function calculateRefund(
   booking: Pick<Booking, 'status' | 'amountTotal' | 'stripeFeeAmount' | 'checkInDate' | 'refundAmount'>,
   now: number,
-  options: { byHost?: boolean } = {},
+  options: { byHost?: boolean; freeCancellationDays?: number } = {},
 ): RefundOutcome {
+  const freeCancellationDays = Number.isFinite(options.freeCancellationDays) && options.freeCancellationDays! >= 0
+    ? options.freeCancellationDays!
+    : FREE_CANCELLATION_DAYS;
   const daysUntilCheckIn = daysBetweenDates(toJstDateString(now), booking.checkInDate);
   const alreadyRefunded = booking.refundAmount ?? 0;
   const remaining = Math.max(0, booking.amountTotal - alreadyRefunded);
@@ -154,12 +159,17 @@ export function calculateRefund(
     return { refundAmount: remaining, daysUntilCheckIn, reason: 'host_cancellation' };
   }
 
-  if (daysUntilCheckIn >= FREE_CANCELLATION_DAYS) {
+  if (daysUntilCheckIn >= freeCancellationDays) {
     const net = Math.max(0, booking.amountTotal - booking.stripeFeeAmount - alreadyRefunded);
     return { refundAmount: net, daysUntilCheckIn, reason: 'free_cancellation' };
   }
 
   return { refundAmount: 0, daysUntilCheckIn, reason: 'too_late' };
+}
+
+export function resolveFreeCancellationDays(property: Pick<PropertyData, 'directBooking'>): number {
+  const configured = property.directBooking?.freeCancellationDays;
+  return Number.isFinite(configured) && configured! >= 0 ? configured! : FREE_CANCELLATION_DAYS;
 }
 
 export function isDirectBookingEnabled(property: Pick<PropertyData, 'directBooking'>): boolean {

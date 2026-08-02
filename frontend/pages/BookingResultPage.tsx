@@ -307,7 +307,7 @@ const BookingResultPage: React.FC = () => {
                   <p className="mt-1.5 text-[11px] text-gray-400">{t('manage_refund_disclaimer')}</p>
                 </>
               ) : (
-                t('manage_no_refund_now')
+                t('manage_no_refund_now').replace(/\{days\}/g, String(booking.freeCancellationDays))
               )}
             </div>
 

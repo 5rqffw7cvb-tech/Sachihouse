@@ -541,6 +541,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
           children={children}
           infants={infants}
           estimatedTotal={calculation.total}
+          freeCancellationDays={directBooking?.freeCancellationDays}
           onClose={() => setIsBookingFormOpen(false)}
           onDatesUnavailable={(conflicts) => {
             // Someone else paid for these nights first. Close the form, surface

@@ -9,8 +9,10 @@ import { calculateQuote } from './domain/pricing.js';
 import {
   calculateRefund,
   canTransition,
+  FREE_CANCELLATION_DAYS,
   getStayDates,
   isDirectBookingEnabled,
+  resolveFreeCancellationDays,
   validateBookingWindow,
 } from './domain/booking.js';
 import { signCheckInToken, verifyCheckInToken, verifyToken, signToken } from './auth/jwt.js';
@@ -1735,7 +1737,9 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
 
   // What the guest is allowed to see about their own booking. `guestToken` is
   // deliberately absent: it is the credential, not part of the record.
-  function toGuestBookingView(booking: Booking) {
+  async function toGuestBookingView(booking: Booking) {
+    const property = await store.getProperty(booking.propertyId);
+    const freeCancellationDays = property ? resolveFreeCancellationDays(property) : FREE_CANCELLATION_DAYS;
     return {
       id: booking.id,
       confirmationNo: booking.confirmationNo,
@@ -1757,7 +1761,8 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       cancelledAt: booking.cancelledAt,
       // So the cancellation screen can state the amount before the guest
       // commits, rather than surprising them after the fact.
-      refundIfCancelledNow: calculateRefund(booking, Date.now()).refundAmount,
+      refundIfCancelledNow: calculateRefund(booking, Date.now(), { freeCancellationDays }).refundAmount,
+      freeCancellationDays,
       emailUpdateCount: booking.emailUpdateCount,
       createdAt: booking.createdAt,
     };
@@ -1799,6 +1804,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       // Check-in link picker has no such param and skips this gate entirely.
       checkInUrl: buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}/checkin`
         + (booking.confirmationNo ? `?bk=${encodeURIComponent(booking.confirmationNo)}` : '')),
+      freeCancellationDays: resolveFreeCancellationDays(property),
       };
   }
 
@@ -2002,7 +2008,12 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       }
     }
 
-    const outcome = calculateRefund({ ...booking, stripeFeeAmount }, Date.now(), { byHost: options.byHost });
+    const property = await store.getProperty(booking.propertyId);
+    const freeCancellationDays = property ? resolveFreeCancellationDays(property) : FREE_CANCELLATION_DAYS;
+    const outcome = calculateRefund({ ...booking, stripeFeeAmount }, Date.now(), {
+      byHost: options.byHost,
+      freeCancellationDays,
+    });
 
     // Money moves before the room is released. The reverse order risks leaving
     // the guest with neither their stay nor their refund if Stripe fails.
@@ -2159,7 +2170,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     const withSession = await store.updateBooking(booking.id, { stripeSessionId: checkout.id });
 
     return res.status(201).json({
-      booking: toGuestBookingView(withSession ?? booking),
+      booking: await toGuestBookingView(withSession ?? booking),
       guestToken: booking.guestToken,
       checkoutUrl: checkout.url,
     });
@@ -2172,7 +2183,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     if (!booking) {
       return res.status(404).json({ error: 'Booking not found.' });
     }
-    return res.json({ booking: toGuestBookingView(booking) });
+    return res.json({ booking: await toGuestBookingView(booking) });
   });
 
   // Guest self-service cancellation, authorised by the same token as the lookup.
@@ -2188,7 +2199,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     }
 
     return res.json({
-      booking: toGuestBookingView(result.booking),
+      booking: await toGuestBookingView(result.booking),
       refundAmount: result.refundAmount,
     });
   });
@@ -2249,7 +2260,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
 
     await sendGuestConfirmationEmailOnly(updated);
 
-    return res.json({ booking: toGuestBookingView(updated), sentTo: email });
+    return res.json({ booking: await toGuestBookingView(updated), sentTo: email });
   });
 
   // Mail delivery is best-effort, so a confirmed booking can exist with no

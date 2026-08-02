@@ -626,6 +626,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
       }));
   };
 
+  const updateFreeCancellationDays = (value: number) => {
+      setFormData(prev => ({
+          ...prev,
+          directBooking: { ...(prev.directBooking ?? { enabled: false }), freeCancellationDays: value }
+      }));
+  };
+
   // iCal Handlers
   const addIcal = () => {
     const newFeed: ICalFeed = {
@@ -1856,6 +1863,28 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                                 onChange={e => updateDiscount('childAgeMax', parseInt(e.target.value) || 0)} 
                                             />
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50/50 p-5 rounded-2xl border border-[#ccc9ca] space-y-4 shadow-sm">
+                                <h4 className="font-extrabold text-gray-800 text-xs uppercase tracking-wider border-b border-gray-200 pb-2 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
+                                    Cancellation Policy (キャンセルポリシー)
+                                </h4>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Free Cancellation Window (Days)</label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                            value={formData.directBooking?.freeCancellationDays ?? 7}
+                                            onChange={e => updateFreeCancellationDays(Math.max(0, parseInt(e.target.value) || 0))}
+                                        />
+                                        <p className="text-[11px] text-gray-400 mt-1.5">
+                                            Guests who cancel this many days or more before check-in get a refund (minus the Stripe processing fee). Default is 7.
+                                        </p>
                                     </div>
                                 </div>
                             </div>

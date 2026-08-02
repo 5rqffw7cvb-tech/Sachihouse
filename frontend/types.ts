@@ -237,6 +237,7 @@ export interface PropertyData {
     minNights?: number;
     maxAdvanceDays?: number;
     sameDayCutoffHour?: number;
+    freeCancellationDays?: number;
   };
   amenities: string[];
   

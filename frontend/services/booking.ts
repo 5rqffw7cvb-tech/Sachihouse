@@ -28,6 +28,9 @@ export interface GuestBooking {
   refundAmount: number;
   cancelledAt?: number | null;
   refundIfCancelledNow: number;
+  // Days before check-in a cancellation still qualifies for a refund. Set per
+  // property by the host; falls back to 7 when unset.
+  freeCancellationDays: number;
   // Times the guest has already corrected their own email via updateBookingEmail.
   // The server caps this (see MAX_GUEST_EMAIL_UPDATES) to stop it becoming a
   // way to spam an arbitrary address.

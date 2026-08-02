@@ -14,6 +14,9 @@ export interface BookingEmailContext {
   manageUrl: string;
   // The Minpaku check-in form guests must complete before arrival.
   checkInUrl: string;
+  // How many days before check-in a guest can still cancel for a refund.
+  // Configurable per property; policyNote is a template interpolated with it.
+  freeCancellationDays: number;
 }
 
 interface Labels {
@@ -72,7 +75,7 @@ const LABELS: Record<string, Labels> = {
     manageCta: 'View or cancel this booking',
     checkInCta: 'Complete online check-in',
     checkInNote: 'Japanese law requires us to record every guest before arrival. Please complete check-in in advance.',
-    policyNote: 'Cancel 7 or more days before check-in for a refund, less the payment processing fee. Within 7 days the booking is non-refundable.',
+    policyNote: 'Cancel {days} or more days before check-in for a refund, less the payment processing fee. Within {days} days the booking is non-refundable.',
     hostConfirmSubject: 'New direct booking',
     hostCancelSubject: 'Direct booking cancelled',
     hostContact: 'Guest contact',
@@ -103,7 +106,7 @@ const LABELS: Record<string, Labels> = {
     manageCta: 'Xem hoặc hủy đặt phòng',
     checkInCta: 'Hoàn tất check-in trực tuyến',
     checkInNote: 'Luật Nhật Bản yêu cầu ghi nhận thông tin mọi khách trước khi nhận phòng. Vui lòng hoàn tất check-in trước.',
-    policyNote: 'Hủy trước ngày nhận phòng từ 7 ngày trở lên được hoàn tiền sau khi trừ phí xử lý thanh toán. Trong vòng 7 ngày sẽ không được hoàn tiền.',
+    policyNote: 'Hủy trước ngày nhận phòng từ {days} ngày trở lên được hoàn tiền sau khi trừ phí xử lý thanh toán. Trong vòng {days} ngày sẽ không được hoàn tiền.',
     hostConfirmSubject: 'Đặt phòng trực tiếp mới',
     hostCancelSubject: 'Đặt phòng trực tiếp đã hủy',
     hostContact: 'Liên hệ khách',
@@ -134,7 +137,7 @@ const LABELS: Record<string, Labels> = {
     manageCta: '予約を確認・キャンセルする',
     checkInCta: 'オンラインチェックインを行う',
     checkInNote: '日本の法令により、ご到着前に全宿泊者の情報を記録する必要があります。事前にチェックインをお済ませください。',
-    policyNote: 'チェックイン日の7日前までのキャンセルは、決済手数料を差し引いた金額を返金いたします。7日前以降は返金いたしかねます。',
+    policyNote: 'チェックイン日の{days}日前までのキャンセルは、決済手数料を差し引いた金額を返金いたします。{days}日前以降は返金いたしかねます。',
     hostConfirmSubject: '直販の新規予約',
     hostCancelSubject: '直販予約のキャンセル',
     hostContact: 'ゲスト連絡先',
@@ -165,7 +168,7 @@ const LABELS: Record<string, Labels> = {
     manageCta: '查看或取消此预订',
     checkInCta: '完成在线登记',
     checkInNote: '日本法律要求我们在客人到达前登记所有住客信息，请提前完成在线登记。',
-    policyNote: '入住日前7天或更早取消可获退款，需扣除支付手续费。入住日前7天内恕不退款。',
+    policyNote: '入住日前{days}天或更早取消可获退款，需扣除支付手续费。入住日前{days}天内恕不退款。',
     hostConfirmSubject: '新的直接预订',
     hostCancelSubject: '直接预订已取消',
     hostContact: '客人联系方式',
@@ -196,7 +199,7 @@ const LABELS: Record<string, Labels> = {
     manageCta: '예약 확인 또는 취소',
     checkInCta: '온라인 체크인 완료하기',
     checkInNote: '일본 법령에 따라 도착 전 모든 숙박객 정보를 기록해야 합니다. 미리 체크인을 완료해 주세요.',
-    policyNote: '체크인 7일 전까지 취소하시면 결제 수수료를 제외한 금액을 환불해 드립니다. 7일 이내에는 환불이 불가합니다.',
+    policyNote: '체크인 {days}일 전까지 취소하시면 결제 수수료를 제외한 금액을 환불해 드립니다. {days}일 이내에는 환불이 불가합니다.',
     hostConfirmSubject: '신규 직접 예약',
     hostCancelSubject: '직접 예약 취소',
     hostContact: '게스트 연락처',
@@ -290,11 +293,16 @@ function bookingRows(ctx: BookingEmailContext, labels: Labels): Row[] {
   return rows;
 }
 
+function formatPolicyNote(labels: Labels, freeCancellationDays: number): string {
+  return labels.policyNote.replace(/\{days\}/g, String(freeCancellationDays));
+}
+
 export function buildGuestConfirmationEmail(ctx: BookingEmailContext): EmailContent {
   const labels = getLabels(ctx.booking.locale);
   const rows = bookingRows(ctx, labels);
   const subject = `${labels.confirmSubject} — ${ctx.propertyName}`
     + (ctx.booking.confirmationNo ? ` (${ctx.booking.confirmationNo})` : '');
+  const policyNote = formatPolicyNote(labels, ctx.freeCancellationDays);
 
   return {
     subject,
@@ -304,12 +312,12 @@ export function buildGuestConfirmationEmail(ctx: BookingEmailContext): EmailCont
       '',
       `${labels.manageCta}: ${ctx.manageUrl}`,
       '',
-      labels.policyNote,
+      policyNote,
     ]),
     html: renderHtml(labels.confirmHeading, labels.confirmIntro, rows, [
       `${link(ctx.checkInUrl, labels.checkInCta)}<br>${escapeHtml(labels.checkInNote)}`,
       link(ctx.manageUrl, labels.manageCta),
-      escapeHtml(labels.policyNote),
+      escapeHtml(policyNote),
     ], labels.footer),
   };
 }
