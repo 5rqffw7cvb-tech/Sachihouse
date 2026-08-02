@@ -1,3 +1,4 @@
+import type { jsPDF as JsPDF } from 'jspdf';
 import { BookingConfirmation } from '../types';
 
 // Generates a single-page A4 PDF booking confirmation and triggers a download.
@@ -210,7 +211,13 @@ function buildDocumentHtml(confirmation: BookingConfirmation): string {
   `;
 }
 
-export async function downloadBookingConfirmationPdf(confirmation: BookingConfirmation): Promise<void> {
+// Renders the confirmation document and returns the assembled jsPDF instance
+// plus a suggested file name. Shared by the download and the base64 (email
+// attachment) exports below so the rasterization only ever runs once.
+async function renderBookingConfirmationPdf(confirmation: BookingConfirmation): Promise<{
+  pdf: JsPDF;
+  fileName: string;
+}> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import('html2canvas'),
     import('jspdf'),
@@ -276,8 +283,40 @@ export async function downloadBookingConfirmationPdf(confirmation: BookingConfir
     }
 
     const safeGuest = confirmation.guestName.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '') || 'guest';
-    pdf.save(`BookingConfirmation_${confirmation.confirmationNo}_${safeGuest}.pdf`);
+    return { pdf, fileName: `BookingConfirmation_${confirmation.confirmationNo}_${safeGuest}.pdf` };
   } finally {
     document.body.removeChild(container);
   }
+}
+
+export async function downloadBookingConfirmationPdf(confirmation: BookingConfirmation): Promise<void> {
+  const { pdf, fileName } = await renderBookingConfirmationPdf(confirmation);
+  pdf.save(fileName);
+}
+
+function toBase64(pdf: JsPDF): string {
+  const dataUri: string = pdf.output('datauristring');
+  return dataUri.slice(dataUri.indexOf(',') + 1);
+}
+
+// Renders and downloads the document exactly like downloadBookingConfirmationPdf
+// (same single render), but also returns it as base64 so the caller can attach
+// the very same file to the guest confirmation email — used right after a
+// confirmation is created, once its real confirmationNo is known.
+export async function downloadAndAttachBookingConfirmationPdf(
+  confirmation: BookingConfirmation,
+): Promise<{ base64: string; fileName: string }> {
+  const { pdf, fileName } = await renderBookingConfirmationPdf(confirmation);
+  const base64 = toBase64(pdf);
+  pdf.save(fileName);
+  return { base64, fileName };
+}
+
+// Base64 only, no download prompt — used when re-sending the confirmation
+// email (the host already has the PDF from the initial creation).
+export async function generateBookingConfirmationPdfAttachment(
+  confirmation: BookingConfirmation,
+): Promise<{ base64: string; fileName: string }> {
+  const { pdf, fileName } = await renderBookingConfirmationPdf(confirmation);
+  return { base64: toBase64(pdf), fileName };
 }

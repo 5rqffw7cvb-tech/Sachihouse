@@ -31,6 +31,10 @@ export interface CreateBookingConfirmationPayload {
   // Language for the guest confirmation email. Only meaningful when
   // guestEmail is set; defaults to English server-side otherwise.
   locale?: string;
+  // When true, the server skips its own attachment-less confirmation email —
+  // the caller will send it via sendBookingConfirmationEmail() below once it
+  // has rendered a PDF using this confirmation's real confirmationNo.
+  attachPdf?: boolean;
 }
 
 export interface BookingConfirmationListFilters {
@@ -83,4 +87,16 @@ export async function updateBookingConfirmation(
 
 export async function deleteBookingConfirmation(id: string): Promise<void> {
   await apiRequest<void>(`/booking-confirmations/${id}`, { method: 'DELETE' });
+}
+
+// Sends (or re-sends) the guest confirmation email for an already-created
+// booking confirmation, optionally with a PDF attachment.
+export async function sendBookingConfirmationEmail(
+  id: string,
+  payload: { pdfBase64?: string; pdfFileName?: string; locale?: string },
+): Promise<void> {
+  await apiRequest<{ ok: true }>(`/booking-confirmations/${id}/email`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }

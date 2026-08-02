@@ -193,3 +193,108 @@ describe('manual booking confirmation: guest email', () => {
     expect(res.body.confirmation.guestName).toBe('Airbnb Guest');
   });
 });
+
+describe('manual booking confirmation: PDF-attached email', () => {
+  const fakePdfBase64 = Buffer.from('%PDF-1.4 fake pdf content for tests').toString('base64');
+
+  it('skips the create-time email when attachPdf is true', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+
+    await request(app)
+      .post('/api/properties/main/booking-confirmations')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(manualPayload({ attachPdf: true }))
+      .expect(201);
+
+    expect(mailer.sent).toHaveLength(0);
+  });
+
+  it('sends the confirmation email with the PDF attached', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+
+    const created = await request(app)
+      .post('/api/properties/main/booking-confirmations')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(manualPayload({ attachPdf: true }))
+      .expect(201);
+
+    await request(app)
+      .post(`/api/booking-confirmations/${created.body.confirmation.id}/email`)
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ pdfBase64: fakePdfBase64, pdfFileName: 'confirmation.pdf', locale: 'en' })
+      .expect(200);
+
+    const mail = mailer.to('guest@example.com');
+    expect(mail).toHaveLength(1);
+    expect(mail[0].attachments).toHaveLength(1);
+    expect(mail[0].attachments?.[0].filename).toBe('confirmation.pdf');
+    expect(mail[0].attachments?.[0].content).toBe(fakePdfBase64);
+  });
+
+  it('rejects a payload that is not actually a PDF', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+
+    const created = await request(app)
+      .post('/api/properties/main/booking-confirmations')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(manualPayload({ attachPdf: true }))
+      .expect(201);
+
+    const res = await request(app)
+      .post(`/api/booking-confirmations/${created.body.confirmation.id}/email`)
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ pdfBase64: Buffer.from('not a pdf').toString('base64') })
+      .expect(400);
+
+    expect(res.body.error).toMatch(/not a pdf/i);
+    expect(mailer.sent).toHaveLength(0);
+  });
+
+  it('sends without an attachment when no pdfBase64 is given (plain resend)', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+
+    const created = await request(app)
+      .post('/api/properties/main/booking-confirmations')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(manualPayload({ attachPdf: true }))
+      .expect(201);
+
+    await request(app)
+      .post(`/api/booking-confirmations/${created.body.confirmation.id}/email`)
+      .set({ Authorization: `Bearer ${token}` })
+      .send({})
+      .expect(200);
+
+    const mail = mailer.to('guest@example.com');
+    expect(mail).toHaveLength(1);
+    expect(mail[0].attachments).toBeUndefined();
+  });
+
+  it('rejects sending for a confirmation with no guest email on file', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+
+    const created = await request(app)
+      .post('/api/properties/main/booking-confirmations')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(manualPayload({ guestEmail: undefined }))
+      .expect(201);
+
+    const res = await request(app)
+      .post(`/api/booking-confirmations/${created.body.confirmation.id}/email`)
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ pdfBase64: fakePdfBase64 })
+      .expect(400);
+
+    expect(res.body.error).toMatch(/no guest email/i);
+  });
+
+  it('404s for an unknown confirmation id', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+
+    await request(app)
+      .post('/api/booking-confirmations/does-not-exist/email')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ pdfBase64: fakePdfBase64 })
+      .expect(404);
+  });
+});

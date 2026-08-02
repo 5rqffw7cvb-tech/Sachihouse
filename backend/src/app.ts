@@ -47,7 +47,7 @@ import { ObjectStorageService } from './services/objectStorage.js';
 import { ReceiptProcessingService } from './services/receiptProcessing.js';
 import { TranslationService } from './services/translationService.js';
 import { PaymentGateway, StripeService } from './services/stripe.js';
-import { Mailer, ResendMailer } from './services/mailer.js';
+import { Mailer, MailAttachment, ResendMailer } from './services/mailer.js';
 import {
   BookingEmailContext,
   buildGuestCancellationEmail,
@@ -3164,6 +3164,29 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
   }
 
+  // Decodes and sanity-checks a base64 PDF the host's browser rendered
+  // (the confirmation-PDF export), so it can ride along as an email
+  // attachment. Same checks as the email-ingest receipt upload: valid
+  // base64, a sane size ceiling, and an actual PDF magic number.
+  function parsePdfAttachment(value: unknown): { buffer: Buffer } | { error: string } {
+    if (typeof value !== 'string' || !value) {
+      return { error: 'pdfBase64 is required.' };
+    }
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.from(value, 'base64');
+    } catch {
+      return { error: 'pdfBase64 is not valid base64.' };
+    }
+    if (!buffer.length || buffer.length > 10 * 1024 * 1024) {
+      return { error: 'PDF must be non-empty and under 10MB.' };
+    }
+    if (!buffer.subarray(0, 5).toString('latin1').startsWith('%PDF')) {
+      return { error: 'Attachment is not a PDF.' };
+    }
+    return { buffer };
+  }
+
   app.post('/api/properties/:id/booking-confirmations', requireAuth, requireHostOrAdmin, async (req, res) => {
     const actor = req.authUser!;
     const propertyId = getParam(req.params.id);
@@ -3249,10 +3272,16 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       createdByName: actor.name,
     });
 
+    // attachPdf: true means the caller (the confirmation form) is about to
+    // render the PDF client-side using this confirmation's real number and
+    // will send the guest email itself via POST /booking-confirmations/:id/email
+    // — skip sending a second, attachment-less email here.
+    const attachPdf = body.attachPdf === true;
+
     // Best-effort, like every other booking mail: a guest not being emailed
     // must never undo a confirmation the host already recorded and may have
     // already handed a PDF for.
-    if (confirmation.guestEmail) {
+    if (confirmation.guestEmail && !attachPdf) {
       try {
         const slug = property.metalink || property.id;
         const checkInUrl = buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}/checkin`
@@ -3266,6 +3295,54 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     }
 
     return res.status(201).json({ confirmation });
+  });
+
+  // Sends (or re-sends) the manual-booking guest confirmation email, optionally
+  // with a PDF attachment. Split out from the create endpoint above because the
+  // PDF is rendered client-side and needs the real confirmationNo, which only
+  // exists once the confirmation row above has already been created.
+  app.post('/api/booking-confirmations/:id/email', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const confirmation = await store.getBookingConfirmation(getParam(req.params.id));
+    if (!confirmation) {
+      return res.status(404).json({ error: 'Booking confirmation not found.' });
+    }
+    if (!canPerformAction(actor, 'property.read', confirmation.propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+    if (!confirmation.guestEmail) {
+      return res.status(400).json({ error: 'This confirmation has no guest email on file.' });
+    }
+    const property = await store.getProperty(confirmation.propertyId);
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+
+    let attachments: MailAttachment[] | undefined;
+    if (req.body?.pdfBase64 !== undefined) {
+      const parsed = parsePdfAttachment(req.body.pdfBase64);
+      if ('error' in parsed) {
+        return res.status(400).json({ error: parsed.error });
+      }
+      const fileNameRaw = normalizeText(req.body?.pdfFileName) || `BookingConfirmation_${confirmation.confirmationNo}.pdf`;
+      const fileName = /\.pdf$/i.test(fileNameRaw) ? fileNameRaw : `${fileNameRaw}.pdf`;
+      attachments = [{ filename: fileName, content: parsed.buffer.toString('base64'), contentType: 'application/pdf' }];
+    }
+
+    const slug = property.metalink || property.id;
+    const checkInUrl = buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}/checkin`
+      + `?bk=${encodeURIComponent(confirmation.confirmationNo)}`);
+    const locale = toLanguageCode(req.body?.locale) ?? 'en';
+    const mail = buildManualBookingConfirmationEmail({ confirmation, checkInUrl }, locale);
+
+    try {
+      await mailer.send({ ...mail, to: confirmation.guestEmail, attachments });
+    } catch (error) {
+      console.error(`Could not send manual booking confirmation mail for ${confirmation.id}.`, error);
+      return res.status(502).json({ error: 'Failed to send the confirmation email.' });
+    }
+
+    return res.json({ ok: true });
   });
 
   app.get('/api/booking-confirmations', requireAuth, requireHostOrAdmin, async (req, res) => {

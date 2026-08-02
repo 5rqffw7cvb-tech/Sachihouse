@@ -1,9 +1,17 @@
+export interface MailAttachment {
+  filename: string;
+  // Base64-encoded file content.
+  content: string;
+  contentType?: string;
+}
+
 export interface MailMessage {
   to: string;
   subject: string;
   text: string;
   html: string;
   replyTo?: string;
+  attachments?: MailAttachment[];
 }
 
 export interface Mailer {
@@ -53,6 +61,7 @@ export class ResendMailer implements Mailer {
         text: message.text,
         html: message.html,
         reply_to: message.replyTo,
+        attachments: message.attachments?.map((a) => ({ filename: a.filename, content: a.content })),
       }),
     });
 

@@ -1,9 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-react';
 import { getAllProperties } from '../services/storage';
-import { createBookingConfirmation } from '../services/bookingConfirm';
+import { createBookingConfirmation, sendBookingConfirmationEmail } from '../services/bookingConfirm';
 import { getBlockedDatesForProperty } from '../services/calendar';
-import { downloadBookingConfirmationPdf } from '../utils/bookingConfirmPdf';
+import {
+  downloadAndAttachBookingConfirmationPdf,
+  downloadBookingConfirmationPdf,
+  generateBookingConfirmationPdfAttachment,
+} from '../utils/bookingConfirmPdf';
 import { calculateHomestayPrice } from '../utils/pricing';
 import { BookingConfirmation, PropertyData } from '../types';
 import { ApiError, ApiUser } from '../services/api';
@@ -79,6 +83,8 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<BookingConfirmation | null>(null);
+  const [emailSendError, setEmailSendError] = useState<string | null>(null);
+  const [resendingEmail, setResendingEmail] = useState(false);
 
   // Form state
   const [propertyId, setPropertyId] = useState('');
@@ -231,6 +237,8 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
 
     setSubmitting(true);
     setErrorMsg(null);
+    setEmailSendError(null);
+    const hasGuestEmail = Boolean(guestEmail.trim());
     try {
       const confirmation = await createBookingConfirmation(selectedProperty.id, {
         propertyName: selectedProperty.name,
@@ -257,10 +265,25 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
         balanceDue,
         notes: notes.trim() || undefined,
         includeInAccounting,
+        // The confirmation email needs the real confirmationNo baked into the
+        // PDF, which only exists once this call returns — so when there's a
+        // guest email, the server skips sending it here and we send it
+        // ourselves below, PDF attached.
+        attachPdf: hasGuestEmail,
       });
       setCreated(confirmation);
       onCreated?.(confirmation);
-      await downloadBookingConfirmationPdf(confirmation);
+
+      if (hasGuestEmail) {
+        try {
+          const { base64, fileName } = await downloadAndAttachBookingConfirmationPdf(confirmation);
+          await sendBookingConfirmationEmail(confirmation.id, { pdfBase64: base64, pdfFileName: fileName, locale: guestLocale });
+        } catch (mailErr) {
+          setEmailSendError(mailErr instanceof Error ? mailErr.message : 'Failed to send the confirmation email.');
+        }
+      } else {
+        await downloadBookingConfirmationPdf(confirmation);
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         const dates = (err.body as { conflictDates?: string[] } | undefined)?.conflictDates;
@@ -280,8 +303,23 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
     }
   };
 
+  const resendConfirmationEmail = async () => {
+    if (!created) return;
+    setResendingEmail(true);
+    setEmailSendError(null);
+    try {
+      const { base64, fileName } = await generateBookingConfirmationPdfAttachment(created);
+      await sendBookingConfirmationEmail(created.id, { pdfBase64: base64, pdfFileName: fileName, locale: guestLocale });
+    } catch (err) {
+      setEmailSendError(err instanceof Error ? err.message : 'Failed to send the confirmation email.');
+    } finally {
+      setResendingEmail(false);
+    }
+  };
+
   const resetForNext = () => {
     setCreated(null);
+    setEmailSendError(null);
     setGuestName('');
     setGuestEmail('');
     setGuestPhone('');
@@ -312,6 +350,26 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
           {created.confirmationNo} · {created.guestName} · {formatMoney(created.totalAmount, created.currency)}
         </p>
         <p className="mt-1 text-[12px] text-[#9a9ca0]">The PDF has been downloaded. It is also saved to your revenue list.</p>
+        {created.guestEmail && (
+          emailSendError ? (
+            <div className="mx-auto mt-3 max-w-md rounded-xl border border-[#f5c2c7] bg-[#fdeef0] px-4 py-3 text-left">
+              <p className="text-[12.5px] text-[#ba1a1a]">
+                Could not email the confirmation (with PDF) to {created.guestEmail}: {emailSendError}
+              </p>
+              <button
+                type="button"
+                onClick={() => void resendConfirmationEmail()}
+                disabled={resendingEmail}
+                className="mt-2 flex items-center gap-1.5 text-[12.5px] font-semibold text-[#ba1a1a] hover:underline disabled:opacity-60"
+              >
+                {resendingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                Retry sending
+              </button>
+            </div>
+          ) : (
+            <p className="mt-1 text-[12px] text-[#1a7f4b]">A confirmation email with the PDF attached was sent to {created.guestEmail}.</p>
+          )
+        )}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"
