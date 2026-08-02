@@ -67,8 +67,8 @@ async function createManualConfirmation(
   return res.body.confirmation as { confirmationNo: string };
 }
 
-function minimalGuest(id: string) {
-  return { id, evidenceUrl: 'gcs://fake-bucket/fake-evidence.jpg', fullName: 'Hanako Tanaka' };
+function minimalGuest(id: string, contactInfo?: string) {
+  return { id, evidenceUrl: 'gcs://fake-bucket/fake-evidence.jpg', fullName: 'Hanako Tanaka', contactInfo };
 }
 
 beforeEach(async () => {
@@ -166,26 +166,46 @@ describe('post-checkin welcome email', () => {
     expect(mail[0].text).toContain('maps.app.goo.gl');
   });
 
-  it('sends nothing for the generic per-property link (no bk at all)', async () => {
+  it('rejects a generic-link submission whose lead guest gave no valid email', async () => {
     await setCheckInInfo();
-    await createManualConfirmation('hanako@example.com');
-    // Creating the manual confirmation itself already emailed the guest;
-    // isolate what the check-in submission sends on top of that.
-    mailer.sent.length = 0;
-
     const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
+
+    const res = await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: session.body.checkinToken,
+        checkInDate: '2026-09-01',
+        checkOutDate: '2026-09-03',
+        // No bk, and the lead guest's contact is a phone number, not an
+        // email — nothing on this submission could ever receive the
+        // house-access info, so the server refuses it outright.
+        guests: [minimalGuest('g1', '+81-90-1234-5678')],
+        consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
+      })
+      .expect(400);
+
+    expect(res.body.error).toMatch(/valid email/i);
+  });
+
+  it('emails the lead guest\'s own contact address on the generic per-property link (OTA guests)', async () => {
+    await setCheckInInfo();
+    const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
+
     await request(app)
       .post('/api/properties/main/checkins/submit')
       .send({
         checkinToken: session.body.checkinToken,
         checkInDate: '2026-09-01',
         checkOutDate: '2026-09-03',
-        guests: [minimalGuest('g1')],
+        guests: [minimalGuest('g1', 'airbnb-guest@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
       })
       .expect(201);
 
-    expect(mailer.sent).toHaveLength(0);
+    const mail = mailer.to('airbnb-guest@example.com');
+    expect(mail).toHaveLength(1);
+    expect(mail[0].text).toContain('welcome2026');
+    expect(mail[0].text).toContain('Keybox code: 4821');
   });
 
   it('does not fail the check-in submission if bk no longer matches anything', async () => {

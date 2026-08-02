@@ -77,6 +77,7 @@ const RequiredLabel: React.FC<{ text: string; required?: boolean }> = ({ text, r
 );
 
 const isFilledString = (value?: string | null): boolean => Boolean(value && value.trim());
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type GuestValidationField =
   | 'fullName'
@@ -105,13 +106,17 @@ const REQUIRED_GUEST_FIELDS: Array<{ key: GuestValidationField; labelKey: Transl
   { key: 'evidenceUrl', labelKey: 'checkin_field_id_image' },
 ];
 
-const validateGuestFields = (guest: CheckInGuest): Record<GuestValidationField, boolean> => ({
+// requireEmail is true only for the lead guest on the generic per-property
+// link: with no matched booking to supply an email, their own contact field
+// is the sole place a house-access email could ever be sent to, so it has to
+// actually be one — a phone number alone can't receive that email.
+const validateGuestFields = (guest: CheckInGuest, requireEmail = false): Record<GuestValidationField, boolean> => ({
   fullName: !isFilledString(guest.fullName),
   birthYear: guest.birthYear == null,
   gender: !isFilledString(guest.gender),
   nationality: !isFilledString(guest.nationality),
   address: !isFilledString(guest.address),
-  contactInfo: !isFilledString(guest.contactInfo),
+  contactInfo: requireEmail ? !EMAIL_REGEX.test((guest.contactInfo ?? '').trim()) : !isFilledString(guest.contactInfo),
   previousLocation: !isFilledString(guest.previousLocation),
   nextLocation: !isFilledString(guest.nextLocation),
   documentNumber: !isFilledString(guest.documentNumber),
@@ -735,8 +740,17 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       nextLocation: (editorDraft.nextLocation ?? '').trim(),
     };
 
-    const fieldErrors = validateGuestFields(normalizedGuest);
+    const isLeadGuest = guests[0]?.id === editorGuestId;
+    const requireEmailForContact = isLeadGuest && gateState === 'none';
+    const fieldErrors = validateGuestFields(normalizedGuest, requireEmailForContact);
     setEditorFieldErrors(fieldErrors);
+
+    if (requireEmailForContact && fieldErrors.contactInfo && normalizedGuest.contactInfo) {
+      // Distinguish "typed something, but it's not an email" from "left it
+      // blank" — the generic missing-fields message below covers the latter.
+      setEditorError(t('checkin_contact_email_invalid'));
+      return;
+    }
 
     const missingFields = REQUIRED_GUEST_FIELDS
       .filter(({ key }) => fieldErrors[key])
@@ -1158,14 +1172,21 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                         </div>
                       )}
                       <div className="col-span-2">
-                        <RequiredLabel text={t('checkin_popup_contact')} required />
+                        <RequiredLabel
+                          text={index === 0 && gateState === 'none' ? t('checkin_popup_contact_email') : t('checkin_popup_contact')}
+                          required
+                        />
                         <input
+                          type={index === 0 && gateState === 'none' ? 'email' : 'text'}
                           value={editorDraft.contactInfo ?? ''}
                           onChange={(event) => { setEditorDraft((prev) => (prev ? { ...prev, contactInfo: event.target.value } : prev)); setEditorError(null); }}
                           disabled={index > 0 && Boolean(sameAsLeadByGuest[guest.id])}
                           className={`w-full rounded-lg border px-2.5 py-1.5 text-sm text-gray-900 disabled:bg-gray-100 disabled:text-gray-400 ${editorFieldErrors.contactInfo ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                          placeholder={t('checkin_contact_placeholder')}
+                          placeholder={index === 0 && gateState === 'none' ? t('checkin_contact_email_placeholder') : t('checkin_contact_placeholder')}
                         />
+                        {index === 0 && gateState === 'none' && (
+                          <p className="mt-1 text-[11px] text-gray-400">{t('checkin_contact_email_note')}</p>
+                        )}
                       </div>
                       <div className="col-span-2">
                         <RequiredLabel text={t('checkin_popup_prev_location')} required />
