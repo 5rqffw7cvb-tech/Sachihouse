@@ -131,12 +131,16 @@ function buildDocumentHtml(confirmation: BookingConfirmation): string {
 
   const freeCancelDays = confirmation.freeCancellationDays ?? DEFAULT_FREE_CANCEL_DAYS;
   const deadline = cancellationDeadline(confirmation.checkInDate, confirmation.checkInTime, freeCancelDays);
+  const stripeFeeNoticeHtml = confirmation.source === 'online'
+    ? `<div style="margin-top:8px;">If a booking is cancelled and a refund is applicable, payment processing fees (e.g. Stripe fees) are non-refundable.</div>`
+    : '';
   const cancellationHtml = deadline
     ? `<div style="margin-top:22px;border:1px solid #e4e2e3;border-radius:12px;padding:14px 16px;">
          <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#74777d;margin-bottom:6px;">Cancellation policy</div>
          <div style="font-size:12.5px;color:#1b1c1d;line-height:1.55;">
            Free cancellation until <strong>${escapeHtml(formatDateTime(deadline))}</strong> — up to ${freeCancelDays} days before check-in.
            Cancellations after this time are charged <strong>100% of the total</strong> (${money(confirmation.totalAmount)}) and are non-refundable.
+           ${stripeFeeNoticeHtml}
          </div>
        </div>`
     : '';
