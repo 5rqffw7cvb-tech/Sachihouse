@@ -175,3 +175,11 @@ export function resolveFreeCancellationDays(property: Pick<PropertyData, 'direct
 export function isDirectBookingEnabled(property: Pick<PropertyData, 'directBooking'>): boolean {
   return property.directBooking?.enabled === true;
 }
+
+// The public `address` is deliberately vague (e.g. "Tokyo, Japan") for
+// privacy; booking-confirmation emails/PDFs — only ever sent to a guest who
+// already has a confirmed reservation — use the precise address instead,
+// when the host has set one.
+export function resolveGuestFacingAddress(property: Pick<PropertyData, 'directBooking' | 'address'>): string {
+  return property.directBooking?.exactAddress?.trim() || property.address;
+}

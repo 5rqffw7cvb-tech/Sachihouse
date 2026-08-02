@@ -242,7 +242,10 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
     try {
       const confirmation = await createBookingConfirmation(selectedProperty.id, {
         propertyName: selectedProperty.name,
-        propertyAddress: selectedProperty.address,
+        // The server always re-resolves this itself (exact address if the
+        // property has one, else the public address) — sent here only so the
+        // request shape matches what the preview above shows.
+        propertyAddress: selectedProperty.directBooking?.exactAddress?.trim() || selectedProperty.address,
         propertyUrl: buildPropertyUrl(selectedProperty),
         guestName: guestName.trim(),
         guestEmail: guestEmail.trim() || undefined,
@@ -422,8 +425,11 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
                 {selectedProperty && (
                   <div className="mt-3 rounded-xl bg-[#f7f5f6] px-4 py-3 text-[12.5px] text-[#44474c] leading-relaxed">
                     <div className="font-semibold text-[#1b1c1d]">{selectedProperty.name}</div>
-                    <div>{selectedProperty.address || '—'}</div>
+                    <div>{selectedProperty.directBooking?.exactAddress?.trim() || selectedProperty.address || '—'}</div>
                     <div className="text-[#2563EB] break-all">{buildPropertyUrl(selectedProperty)}</div>
+                    {selectedProperty.directBooking?.exactAddress?.trim() && (
+                      <div className="mt-1 text-[11px] text-[#9a9ca0]">Exact address on file — this is what the guest will see, not the public address.</div>
+                    )}
                   </div>
                 )}
               </>

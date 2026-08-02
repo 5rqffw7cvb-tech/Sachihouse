@@ -489,6 +489,11 @@ export interface PropertyData {
     maxAdvanceDays?: number;         // default 365
     sameDayCutoffHour?: number;      // default 12, Asia/Tokyo
     freeCancellationDays?: number;   // default 7 (FREE_CANCELLATION_DAYS)
+    // Precise street address, used only in booking-confirmation emails/PDFs
+    // sent to a guest who already has a confirmed reservation. Falls back to
+    // the public `address` (kept deliberately vague, e.g. "Tokyo, Japan")
+    // when unset — never shown on the public site itself.
+    exactAddress?: string;
   };
   amenities: string[];
   galleryCategories: Array<{ id: string; label: string }>;

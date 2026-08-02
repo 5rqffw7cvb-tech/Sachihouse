@@ -6,6 +6,7 @@ import {
   getStayDates,
   isIsoDateString,
   resolveFreeCancellationDays,
+  resolveGuestFacingAddress,
   toJstDateString,
   toJstHour,
   validateBookingWindow,
@@ -258,5 +259,25 @@ describe('resolveFreeCancellationDays', () => {
   it('falls back to the default for a nonsensical stored value', () => {
     const property = { directBooking: { enabled: true, freeCancellationDays: -3 } };
     expect(resolveFreeCancellationDays(property)).toBe(7);
+  });
+});
+
+describe('resolveGuestFacingAddress', () => {
+  it('falls back to the public address when no exact address is set', () => {
+    const property = { address: 'Tokyo, Japan', directBooking: { enabled: true } };
+    expect(resolveGuestFacingAddress(property)).toBe('Tokyo, Japan');
+  });
+
+  it('prefers the exact address when the host has set one', () => {
+    const property = {
+      address: 'Tokyo, Japan',
+      directBooking: { enabled: true, exactAddress: '1-2-3 Ojima, Koto-ku, Tokyo 136-0072' },
+    };
+    expect(resolveGuestFacingAddress(property)).toBe('1-2-3 Ojima, Koto-ku, Tokyo 136-0072');
+  });
+
+  it('ignores a blank/whitespace-only exact address', () => {
+    const property = { address: 'Tokyo, Japan', directBooking: { enabled: true, exactAddress: '   ' } };
+    expect(resolveGuestFacingAddress(property)).toBe('Tokyo, Japan');
   });
 });
