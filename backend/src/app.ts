@@ -2036,47 +2036,56 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   // and nothing after that; a host cancelling always refunds in full.
   async function cancelBooking(
     booking: Booking,
-    options: { byHost: boolean; reason: string },
+    // skipRefund: bypasses the Stripe refund call entirely instead of failing
+    // the cancellation when it errors. For bookings whose payment intent can
+    // never be refunded through Stripe any more — e.g. one created under a
+    // test-mode key that no longer resolves after switching to a live key —
+    // there is no automatic refund path, so an admin explicitly vouches that
+    // either nothing is owed or it was already handled outside Stripe.
+    options: { byHost: boolean; reason: string; skipRefund?: boolean },
   ): Promise<CancelOutcome> {
     const nextStatus: BookingStatus = options.byHost ? 'cancelled_by_host' : 'cancelled_by_guest';
     if (!canTransition(booking.status, nextStatus)) {
       return { ok: false, status: 409, error: `A booking in status "${booking.status}" cannot be cancelled.` };
     }
 
-    // The fee is normally captured at confirm time, but Stripe occasionally
-    // hasn't finished computing the charge's balance_transaction the instant
-    // the checkout.session.completed webhook fires, so getChargeFee silently
-    // returns 0 with no error to log. A real ¥0 fee is not realistic for a
-    // card charge, so treat a stored 0 as "unknown" and re-check here. This
-    // matters for a guest cancellation (it is deducted from their refund) and
-    // for a host cancellation too, since the host-cancellation email reports
-    // this fee as the amount the host is absorbing.
     let stripeFeeAmount = booking.stripeFeeAmount;
-    if (stripeFeeAmount === 0 && booking.stripePaymentIntentId) {
-      try {
-        stripeFeeAmount = await payments.getChargeFee(booking.stripePaymentIntentId);
-      } catch (error) {
-        console.error(`Could not re-check the Stripe fee for booking ${booking.id} at cancellation time.`, error);
-      }
-    }
-
-    const property = await store.getProperty(booking.propertyId);
-    const freeCancellationDays = property ? resolveFreeCancellationDays(property) : FREE_CANCELLATION_DAYS;
-    const outcome = calculateRefund({ ...booking, stripeFeeAmount }, Date.now(), {
-      byHost: options.byHost,
-      freeCancellationDays,
-    });
-
-    // Money moves before the room is released. The reverse order risks leaving
-    // the guest with neither their stay nor their refund if Stripe fails.
     let refunded = 0;
-    if (outcome.refundAmount > 0 && booking.stripePaymentIntentId) {
-      try {
-        const refund = await payments.createRefund(booking.stripePaymentIntentId, outcome.refundAmount);
-        refunded = refund.amount;
-      } catch (error) {
-        console.error(`Refund failed for booking ${booking.id}; it stays confirmed.`, error);
-        return { ok: false, status: 502, error: 'Refund could not be processed. The booking was not cancelled.' };
+
+    if (!options.skipRefund) {
+      // The fee is normally captured at confirm time, but Stripe occasionally
+      // hasn't finished computing the charge's balance_transaction the instant
+      // the checkout.session.completed webhook fires, so getChargeFee silently
+      // returns 0 with no error to log. A real ¥0 fee is not realistic for a
+      // card charge, so treat a stored 0 as "unknown" and re-check here. This
+      // matters for a guest cancellation (it is deducted from their refund) and
+      // for a host cancellation too, since the host-cancellation email reports
+      // this fee as the amount the host is absorbing.
+      if (stripeFeeAmount === 0 && booking.stripePaymentIntentId) {
+        try {
+          stripeFeeAmount = await payments.getChargeFee(booking.stripePaymentIntentId);
+        } catch (error) {
+          console.error(`Could not re-check the Stripe fee for booking ${booking.id} at cancellation time.`, error);
+        }
+      }
+
+      const property = await store.getProperty(booking.propertyId);
+      const freeCancellationDays = property ? resolveFreeCancellationDays(property) : FREE_CANCELLATION_DAYS;
+      const outcome = calculateRefund({ ...booking, stripeFeeAmount }, Date.now(), {
+        byHost: options.byHost,
+        freeCancellationDays,
+      });
+
+      // Money moves before the room is released. The reverse order risks leaving
+      // the guest with neither their stay nor their refund if Stripe fails.
+      if (outcome.refundAmount > 0 && booking.stripePaymentIntentId) {
+        try {
+          const refund = await payments.createRefund(booking.stripePaymentIntentId, outcome.refundAmount);
+          refunded = refund.amount;
+        } catch (error) {
+          console.error(`Refund failed for booking ${booking.id}; it stays confirmed.`, error);
+          return { ok: false, status: 502, error: 'Refund could not be processed. The booking was not cancelled.' };
+        }
       }
     }
 
@@ -2364,6 +2373,29 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
 
     const reason = normalizeText(req.body?.reason) || 'host_cancelled';
     const result = await cancelBooking(booking, { byHost: true, reason });
+    if (!result.ok) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    const { guestToken, ...safe } = result.booking;
+    return res.json({ booking: safe, refundAmount: result.refundAmount });
+  });
+
+  // Admin-only escape hatch for a booking whose refund can never go through
+  // Stripe automatically — most commonly a booking created under a test-mode
+  // secret key whose payment intent no longer resolves once the account
+  // switches to a live key, but also useful if a guest was already refunded
+  // by other means. Skips the Stripe call entirely rather than erroring like
+  // cancel-by-host does; the admin is vouching that no further refund is owed
+  // through this system.
+  app.post('/api/bookings/:id/force-cancel', requireAuth, requireAdmin, async (req, res) => {
+    const booking = await store.getBooking(getParam(req.params.id));
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found.' });
+    }
+
+    const reason = normalizeText(req.body?.reason) || 'admin_force_cancelled_no_refund';
+    const result = await cancelBooking(booking, { byHost: true, reason, skipRefund: true });
     if (!result.ok) {
       return res.status(result.status).json({ error: result.error });
     }

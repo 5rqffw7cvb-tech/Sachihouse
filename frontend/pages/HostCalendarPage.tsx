@@ -27,7 +27,7 @@ import {
   updateIcalFeeds,
 } from '../services/calendar';
 import { ApiUser } from '../services/api';
-import { cancelBookingByHost } from '../services/booking';
+import { cancelBookingByHost, forceCancelBookingByHost } from '../services/booking';
 import { ICalFeed, PropertyData } from '../types';
 
 type PropertyItem = PropertyData & { id: string };
@@ -211,6 +211,30 @@ const HostCalendarPage: React.FC = () => {
       if (calendar) void loadCalendar(calendar.propertyId);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to cancel the booking.');
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  // Admin-only escape hatch: cancels without calling Stripe at all. Meant for
+  // a booking whose payment intent Stripe can never refund any more — most
+  // commonly a leftover test-mode booking after switching to a live secret
+  // key — or one already refunded manually outside the system.
+  const handleForceCancelBooking = async (booking: DirectBooking) => {
+    const reason = window.prompt(
+      `Force-cancel ${booking.guestName}'s booking (${booking.checkInDate} → ${booking.checkOutDate})?\n\n`
+      + 'This does NOT call Stripe and does NOT refund anything automatically. '
+      + 'Only use this when a refund is impossible (e.g. a leftover test-mode booking) '
+      + 'or the guest was already refunded manually.\n\nOptional reason (included in the guest email):',
+    );
+    if (reason === null) return;
+    setCancellingId(booking.id);
+    setErrorMsg(null);
+    try {
+      await forceCancelBookingByHost(booking.id, reason || undefined);
+      if (calendar) void loadCalendar(calendar.propertyId);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to force-cancel the booking.');
     } finally {
       setCancellingId(null);
     }
@@ -437,14 +461,27 @@ const HostCalendarPage: React.FC = () => {
                             </td>
                             <td className="py-2.5 text-right">
                               {booking.status === 'confirmed' && (
-                                <button
-                                  type="button"
-                                  onClick={() => void handleCancelBooking(booking)}
-                                  disabled={cancellingId === booking.id}
-                                  className="rounded-lg border border-[#e4c2c2] px-2.5 py-1 text-[11px] font-semibold text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-50"
-                                >
-                                  {cancellingId === booking.id ? 'Cancelling…' : 'Cancel'}
-                                </button>
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleCancelBooking(booking)}
+                                    disabled={cancellingId === booking.id}
+                                    className="rounded-lg border border-[#e4c2c2] px-2.5 py-1 text-[11px] font-semibold text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-50"
+                                  >
+                                    {cancellingId === booking.id ? 'Cancelling…' : 'Cancel'}
+                                  </button>
+                                  {authUser?.role === 'ADMIN' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleForceCancelBooking(booking)}
+                                      disabled={cancellingId === booking.id}
+                                      title="Cancel without calling Stripe or refunding automatically"
+                                      className="rounded-lg border border-[#e4e2e3] px-2.5 py-1 text-[11px] font-semibold text-[#74777d] hover:bg-[#f3f1f2] transition-colors disabled:opacity-50"
+                                    >
+                                      Force cancel
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </td>
                           </tr>

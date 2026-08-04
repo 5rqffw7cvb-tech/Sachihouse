@@ -295,3 +295,44 @@ describe('host cancellation', () => {
     expect((await store.getBooking(id))?.status).toBe('confirmed');
   });
 });
+
+describe('force cancellation (admin)', () => {
+  it('cancels without ever calling Stripe, even when a refund would normally be attempted', async () => {
+    await enableDirectBooking();
+    const { id } = await bookAndPay({ daysAhead: 40 });
+    // If this ever called Stripe it would fail, proving the call never happens.
+    payments.failNextRefund = true;
+    const token = await login('admin@sachihouse.com', 'admin123');
+
+    const res = await request(app)
+      .post(`/api/bookings/${id}/force-cancel`)
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ reason: 'stale test-mode payment intent' })
+      .expect(200);
+
+    expect(res.body.refundAmount).toBe(0);
+    expect(res.body.booking.status).toBe('cancelled_by_host');
+    expect(res.body.booking.cancelReason).toBe('stale test-mode payment intent');
+    expect(payments.refunds).toEqual([]);
+    expect(await store.listHeldDates('main')).toEqual([]);
+  });
+
+  it('requires authentication', async () => {
+    await enableDirectBooking();
+    const { id } = await bookAndPay();
+    await request(app).post(`/api/bookings/${id}/force-cancel`).expect(401);
+  });
+
+  it('blocks a host — admin only', async () => {
+    await enableDirectBooking();
+    const { id } = await bookAndPay();
+    const hostToken = await login('host@sachihouse.com', 'host123');
+
+    await request(app)
+      .post(`/api/bookings/${id}/force-cancel`)
+      .set({ Authorization: `Bearer ${hostToken}` })
+      .expect(403);
+
+    expect((await store.getBooking(id))?.status).toBe('confirmed');
+  });
+});

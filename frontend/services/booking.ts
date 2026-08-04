@@ -133,6 +133,20 @@ export async function cancelBookingByHost(
   );
 }
 
+// Admin-only escape hatch: cancels without ever calling Stripe. For a booking
+// whose payment intent can no longer be refunded automatically — most often
+// one created under a test-mode key that stopped resolving once the account
+// switched to a live key — or one the guest was already refunded manually.
+export async function forceCancelBookingByHost(
+  id: string,
+  reason?: string,
+): Promise<{ booking: GuestBooking; refundAmount: number }> {
+  return apiRequest<{ booking: GuestBooking; refundAmount: number }>(
+    `/bookings/${encodeURIComponent(id)}/force-cancel`,
+    { method: 'POST', body: JSON.stringify({ reason }) },
+  );
+}
+
 // The browser is redirected back from Stripe the moment payment succeeds, but
 // the booking is only confirmed once Stripe's webhook reaches our server. That
 // gap is normally under a second and occasionally a few seconds, so the result
