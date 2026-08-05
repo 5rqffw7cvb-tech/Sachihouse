@@ -104,7 +104,7 @@ function buildStayBandMap(stays: CleaningStay[]): Map<string, StaySegment[]> {
 function useHomeScreenMeta() {
   useEffect(() => {
     const prevTitle = document.title;
-    document.title = 'Cleaning Calendar';
+    document.title = 'SH Calendar';
 
     const created: HTMLElement[] = [];
     const addMeta = (name: string, content: string) => {
@@ -116,17 +116,17 @@ function useHomeScreenMeta() {
     };
     addMeta('apple-mobile-web-app-capable', 'yes');
     addMeta('mobile-web-app-capable', 'yes');
-    addMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');
-    addMeta('apple-mobile-web-app-title', 'Cleaning');
+    addMeta('apple-mobile-web-app-status-bar-style', 'default');
+    addMeta('apple-mobile-web-app-title', 'SH Calendar');
 
     const touchIcon = document.createElement('link');
     touchIcon.rel = 'apple-touch-icon';
-    touchIcon.href = 'https://cdn-icons-png.flaticon.com/512/2111/2111320.png';
+    touchIcon.href = '/sachi-house-icon.png';
     document.head.appendChild(touchIcon);
 
     const themeMeta = document.querySelector('meta[name="theme-color"]');
     const prevTheme = themeMeta?.getAttribute('content') ?? null;
-    themeMeta?.setAttribute('content', '#111827');
+    themeMeta?.setAttribute('content', '#ffffff');
 
     return () => {
       document.title = prevTitle;

@@ -353,7 +353,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     enabled: process.env.ICAL_SYNC_ENABLED !== 'false' && process.env.NODE_ENV !== 'test',
     ttlMs: Number(process.env.ICAL_SYNC_TTL_MS ?? 60000),
     timeoutMs: Number(process.env.ICAL_SYNC_TIMEOUT_MS ?? 5000),
-  });
+  }, store);
   const idProcessing = new IdProcessingService();
   const objectStorage = new ObjectStorageService();
   const receiptProcessing = new ReceiptProcessingService();

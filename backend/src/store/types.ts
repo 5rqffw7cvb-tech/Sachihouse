@@ -431,6 +431,32 @@ export type CreateBookingResult =
   | { ok: true; booking: Booking }
   | { ok: false; conflictDates: string[] };
 
+// A single reservation synced in from a property's iCal feed(s), kept as its
+// own event (not flattened into dates) so the host/cleaning calendars can
+// show which platform it came from and the raw text the platform sent.
+// Persisted to the store (not just cached in memory) so a stay that already
+// checked out and later rolled out of the OTA's live feed window stays
+// visible as history instead of silently disappearing.
+export interface ImportedEvent {
+  // Stable identity for this reservation across repeated fetches — the
+  // Hostex reservation code when present, else the feed's own UID, else a
+  // best-effort composite of feed+dates+summary. Used as the upsert key.
+  externalId: string;
+  feedId: string;
+  feedName: string;
+  // Best-effort original OTA, detected from the feed's own text (e.g. a
+  // Hostex reservation code) when the aggregator's feedName is too generic
+  // to tell which platform a given stay actually came from. Null when we
+  // cannot tell — never a guess.
+  channelName: string | null;
+  summary: string;
+  description: string;
+  checkInDate: string; // yyyy-MM-dd, inclusive
+  checkOutDate: string; // yyyy-MM-dd, exclusive
+  dates: string[]; // expanded inclusive nights, yyyy-MM-dd
+  guestCount: number | null;
+}
+
 export interface PropertyData {
   id?: string;
   metalink?: string;
@@ -661,6 +687,20 @@ export interface DataStore {
   ensureCleaningCalendarToken(): Promise<string>;
   // Rotates the cleaning-calendar token, invalidating any previously shared link.
   regenerateCleaningCalendarToken(): Promise<string>;
+  // Persists this fetch's iCal-imported events (insert new, update existing
+  // by externalId) so they remain visible after they age out of the OTA's
+  // live feed. Called on every successful sync, not just on change.
+  upsertImportedEvents(propertyId: string, events: ImportedEvent[]): Promise<void>;
+  // Reconciles cancellations: deletes previously-persisted events that are
+  // no longer in the live feed, but ONLY among those not yet checked out
+  // (checkOutDate >= cutoffDateIso) — a past stay missing from the current
+  // feed is normal feed churn, not a cancellation, and must be kept as
+  // history. Callers must only invoke this after a fetch that unambiguously
+  // succeeded (an empty result from a failed fetch would otherwise look
+  // identical to "no upcoming reservations" and wipe real future bookings).
+  pruneMissingImportedEvents(propertyId: string, keepExternalIds: string[], cutoffDateIso: string): Promise<void>;
+  // Full persisted history for this property, most recent first.
+  listImportedEvents(propertyId: string): Promise<ImportedEvent[]>;
   listBlogPosts(includeArchived?: boolean): Promise<BlogPost[]>;
   getBlogPost(id: string): Promise<BlogPost | null>;
   createBlogPost(post: Omit<BlogPost, 'createdAt' | 'updatedAt'>, actor: AuthUser): Promise<BlogPost>;

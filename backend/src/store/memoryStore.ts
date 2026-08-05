@@ -21,6 +21,7 @@ import {
   CheckInSubmissionInput,
   DataStore,
   FinancialTransaction,
+  ImportedEvent,
   FinancialTransactionInput,
   PendingTransaction,
   PendingTransactionInput,
@@ -54,6 +55,8 @@ interface MemoryState {
   subscriptionRequests: SubscriptionRequest[];
   ingestRules: IngestRule[];
   cleaningCalendarToken: string | null;
+  // Persisted iCal-imported reservations, keyed by "<propertyId>|<externalId>".
+  importedEvents: Map<string, ImportedEvent>;
 }
 
 export class MemoryStore implements DataStore {
@@ -80,6 +83,7 @@ export class MemoryStore implements DataStore {
       subscriptionRequests: [],
       ingestRules: [],
       cleaningCalendarToken: null,
+      importedEvents: new Map(),
     };
   }
 
@@ -525,6 +529,34 @@ export class MemoryStore implements DataStore {
     const state = this.assertState();
     state.cleaningCalendarToken = randomBytes(24).toString('hex');
     return state.cleaningCalendarToken;
+  }
+
+  async upsertImportedEvents(propertyId: string, events: ImportedEvent[]): Promise<void> {
+    const state = this.assertState();
+    for (const event of events) {
+      state.importedEvents.set(`${propertyId}|${event.externalId}`, { ...event });
+    }
+  }
+
+  async pruneMissingImportedEvents(propertyId: string, keepExternalIds: string[], cutoffDateIso: string): Promise<void> {
+    const state = this.assertState();
+    const keep = new Set(keepExternalIds);
+    const prefix = `${propertyId}|`;
+    for (const [key, event] of state.importedEvents) {
+      if (!key.startsWith(prefix)) continue;
+      if (event.checkOutDate >= cutoffDateIso && !keep.has(event.externalId)) {
+        state.importedEvents.delete(key);
+      }
+    }
+  }
+
+  async listImportedEvents(propertyId: string): Promise<ImportedEvent[]> {
+    const state = this.assertState();
+    const prefix = `${propertyId}|`;
+    return Array.from(state.importedEvents.entries())
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([, event]) => ({ ...event }))
+      .sort((a, b) => b.checkInDate.localeCompare(a.checkInDate));
   }
 
   async listBlogPosts(includeArchived = false): Promise<BlogPost[]> {

@@ -1,5 +1,7 @@
 import { addDays, format, isValid, parseISO, subDays } from 'date-fns';
-import { PropertyData } from '../store/types.js';
+import { ImportedEvent, PropertyData } from '../store/types.js';
+
+export type { ImportedEvent };
 
 type FetchMode = 'stale-ok' | 'fresh-if-stale';
 
@@ -9,25 +11,12 @@ interface IcalSyncOptions {
   timeoutMs: number;
 }
 
-// A single imported reservation/block, kept as its own event (not flattened
-// into dates) so the host calendar can show which feed it came from and the
-// raw text the platform sent — most OTA feeds never include a guest count
-// (Airbnb strips guest details from exported .ics for privacy), so
-// guestCount is best-effort and often null.
-export interface ImportedEvent {
-  feedId: string;
-  feedName: string;
-  // Best-effort original OTA, detected from the feed's own text (e.g. a
-  // Hostex reservation code) when the aggregator's feedName is too generic
-  // to tell which platform a given stay actually came from. Null when we
-  // cannot tell — never a guess.
-  channelName: string | null;
-  summary: string;
-  description: string;
-  checkInDate: string; // yyyy-MM-dd, inclusive
-  checkOutDate: string; // yyyy-MM-dd, exclusive
-  dates: string[]; // expanded inclusive nights, yyyy-MM-dd
-  guestCount: number | null;
+// The subset of DataStore this service needs to persist imported events —
+// kept narrow so unit tests can construct a service without a full store.
+export interface ImportedEventStore {
+  upsertImportedEvents(propertyId: string, events: ImportedEvent[]): Promise<void>;
+  pruneMissingImportedEvents(propertyId: string, keepExternalIds: string[], cutoffDateIso: string): Promise<void>;
+  listImportedEvents(propertyId: string): Promise<ImportedEvent[]>;
 }
 
 // Hostex is a channel manager: one aggregated feed carries bookings synced in
@@ -50,6 +39,15 @@ const HOSTEX_CHANNEL_PREFIXES: Record<string, string> = {
 function detectHostexChannel(description: string): string | null {
   const match = description.match(/Hostex reservation code:\s*(\d+)-/i);
   return match ? HOSTEX_CHANNEL_PREFIXES[match[1]] ?? null : null;
+}
+
+// The full Hostex reservation code (not just the channel-prefix digit) is
+// already a unique-per-reservation string — reuse it as the persistence
+// key so re-fetching the same feed updates the same row instead of creating
+// a duplicate.
+function extractReservationCode(description: string): string | null {
+  const match = description.match(/Hostex reservation code:\s*([\w-]+)/i);
+  return match ? match[1].trim() : null;
 }
 
 interface CacheEntry {
@@ -125,6 +123,8 @@ function parseICSEvents(content: string, feedId: string, feedName: string): Impo
   let summary = '';
   let description = '';
 
+  let uid = '';
+
   for (const line of lines) {
     if (line.startsWith('BEGIN:VEVENT')) {
       inEvent = true;
@@ -132,6 +132,7 @@ function parseICSEvents(content: string, feedId: string, feedName: string): Impo
       dtEnd = null;
       summary = '';
       description = '';
+      uid = '';
       continue;
     }
 
@@ -144,14 +145,22 @@ function parseICSEvents(content: string, feedId: string, feedName: string): Impo
           for (let cursor = dtStart; cursor <= endInclusive; cursor = addDays(cursor, 1)) {
             dates.push(format(cursor, 'yyyy-MM-dd'));
           }
+          const checkInDate = format(dtStart, 'yyyy-MM-dd');
+          const checkOutDate = format(dtEnd, 'yyyy-MM-dd');
+          // Prefer a real identifier (Hostex's own reservation code, or the
+          // feed's UID) over the composite fallback — either survives a
+          // guest's dates being edited, the fallback does not.
+          const externalId = extractReservationCode(description) || uid
+            || `${feedId}|${checkInDate}|${checkOutDate}|${summary}`;
           events.push({
+            externalId,
             feedId,
             feedName,
             channelName: detectHostexChannel(description),
             summary: summary || 'Reserved',
             description,
-            checkInDate: format(dtStart, 'yyyy-MM-dd'),
-            checkOutDate: format(dtEnd, 'yyyy-MM-dd'),
+            checkInDate,
+            checkOutDate,
             dates,
             guestCount: extractGuestCount(`${summary} ${description}`),
           });
@@ -181,6 +190,11 @@ function parseICSEvents(content: string, feedId: string, feedName: string): Impo
 
     if (/^DESCRIPTION[:;]/i.test(line)) {
       description = unescapeText(line.slice(line.indexOf(':') + 1));
+      continue;
+    }
+
+    if (/^UID[:;]/i.test(line)) {
+      uid = unescapeText(line.slice(line.indexOf(':') + 1));
     }
   }
 
@@ -195,10 +209,16 @@ function isLikelyPlaceholder(url: string): boolean {
   return /example\.com/i.test(url) || url.includes('...');
 }
 
+// Returns `null` specifically when the fetch itself failed (network error,
+// timeout, non-2xx, unparseable response) — as opposed to a feed that
+// fetched fine and genuinely lists zero reservations right now. The caller
+// uses this distinction to decide whether it's safe to treat "missing from
+// this fetch" as a cancellation; a transient failure must never be allowed
+// to look like "the OTA has no more bookings" and wipe real future stays.
 async function fetchIcalFeed(
   feed: { id: string; name: string; url: string },
   timeoutMs: number,
-): Promise<ImportedEvent[]> {
+): Promise<ImportedEvent[] | null> {
   const cleaned = feed.url.trim();
   if (!cleaned || !/^https?:\/\//i.test(cleaned) || isLikelyPlaceholder(cleaned)) {
     return [];
@@ -216,17 +236,17 @@ async function fetchIcalFeed(
     });
 
     if (!response.ok) {
-      return [];
+      return null;
     }
 
     const text = await response.text();
     if (!text.includes('BEGIN:VCALENDAR')) {
-      return [];
+      return null;
     }
 
     return parseICSEvents(text, feed.id, feed.name || 'Imported');
   } catch {
-    return [];
+    return null;
   } finally {
     clearTimeout(timeout);
   }
@@ -234,11 +254,13 @@ async function fetchIcalFeed(
 
 export class IcalSyncService {
   private readonly options: IcalSyncOptions;
+  private readonly store?: ImportedEventStore;
   private readonly cache = new Map<string, CacheEntry>();
   private readonly inflight = new Map<string, Promise<CacheEntry>>();
 
-  constructor(options: IcalSyncOptions) {
+  constructor(options: IcalSyncOptions, store?: ImportedEventStore) {
     this.options = options;
+    this.store = store;
   }
 
   private async refresh(propertyId: string, feeds: PropertyData['icalFeeds']): Promise<CacheEntry> {
@@ -249,9 +271,27 @@ export class IcalSyncService {
 
     const next = (async () => {
       const events: ImportedEvent[] = [];
+      let allFeedsOk = true;
       for (const feed of feeds) {
-        events.push(...(await fetchIcalFeed(feed, this.options.timeoutMs)));
+        const result = await fetchIcalFeed(feed, this.options.timeoutMs);
+        if (result === null) {
+          allFeedsOk = false;
+          continue;
+        }
+        events.push(...result);
       }
+
+      if (this.store) {
+        await this.store.upsertImportedEvents(propertyId, events);
+        // Only reconcile cancellations when every configured feed answered
+        // this round — a feed that timed out must never look like "the OTA
+        // has nothing left" and wipe real future bookings from that feed.
+        if (allFeedsOk) {
+          const cutoff = format(new Date(), 'yyyy-MM-dd');
+          await this.store.pruneMissingImportedEvents(propertyId, events.map((e) => e.externalId), cutoff);
+        }
+      }
+
       const blockedDates = Array.from(new Set(events.flatMap((event) => event.dates))).sort();
       const entry: CacheEntry = { blockedDates, events, expiresAt: Date.now() + this.options.ttlMs };
       this.cache.set(propertyId, entry);
@@ -294,11 +334,17 @@ export class IcalSyncService {
     return entry ? mergeDates(baseDates, entry.blockedDates) : baseDates;
   }
 
-  // Per-event detail (which feed, raw SUMMARY/DESCRIPTION) for the host
-  // calendar's "which platform blocked this" view. Shares the same cache and
-  // staleness rules as getBlockedDates so the two never disagree.
+  // Per-event detail (which feed, raw SUMMARY/DESCRIPTION) for the host and
+  // cleaning calendars. Triggers the same cache/staleness-driven refresh as
+  // getBlockedDates, but — unlike it — the returned list is sourced from the
+  // persisted store when one is configured, so a stay that already checked
+  // out and rolled out of the OTA's live feed window stays visible as
+  // history instead of disappearing the moment the feed stops listing it.
   async getImportedEvents(property: PropertyData & { id: string }, mode: FetchMode): Promise<ImportedEvent[]> {
     const entry = await this.getEntry(property, mode);
+    if (this.store) {
+      return this.store.listImportedEvents(property.id);
+    }
     return entry ? entry.events : [];
   }
 }

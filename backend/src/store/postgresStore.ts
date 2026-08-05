@@ -24,6 +24,7 @@ import {
   DataStore,
   FinancialTransaction,
   FinancialTransactionInput,
+  ImportedEvent,
   PendingTransaction,
   PendingTransactionInput,
   IngestRule,
@@ -40,6 +41,20 @@ import { generateBookingId, generateGuestToken, getStayDates } from '../domain/b
 
 export class PostgresStore implements DataStore {
   constructor(private readonly pool: Pool) {}
+
+  // yyyy-MM-dd, inclusive of check-in, exclusive of checkout — UTC-anchored
+  // to sidestep DST edge cases entirely, matching the icalSync parser.
+  private expandNights(checkInIso: string, checkOutIso: string): string[] {
+    const dates: string[] = [];
+    let cursor = new Date(`${checkInIso}T00:00:00Z`).getTime();
+    const end = new Date(`${checkOutIso}T00:00:00Z`).getTime();
+    const dayMs = 24 * 60 * 60 * 1000;
+    while (cursor < end) {
+      dates.push(new Date(cursor).toISOString().slice(0, 10));
+      cursor += dayMs;
+    }
+    return dates;
+  }
 
   private hydrateCheckInSubmission(row: {
     data: CheckInSubmission;
@@ -287,6 +302,29 @@ export class PostgresStore implements DataStore {
       ON subscription_requests(status, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_subscription_requests_user
       ON subscription_requests(user_id, created_at DESC);
+    `);
+
+    // iCal-synced reservations, persisted (not just cached in memory) so a
+    // stay that already checked out and rolled off the OTA's live feed
+    // window stays visible as history on the host/cleaning calendars.
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS imported_events (
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        external_id TEXT NOT NULL,
+        feed_id TEXT NOT NULL,
+        feed_name TEXT NOT NULL,
+        channel_name TEXT,
+        summary TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        check_in_date DATE NOT NULL,
+        check_out_date DATE NOT NULL,
+        guest_count INTEGER,
+        first_seen_at BIGINT NOT NULL,
+        last_seen_at BIGINT NOT NULL,
+        PRIMARY KEY (property_id, external_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_imported_events_property_dates
+      ON imported_events(property_id, check_in_date DESC);
     `);
 
     const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
@@ -912,6 +950,81 @@ export class PostgresStore implements DataStore {
       [token, Date.now()],
     );
     return token;
+  }
+
+  async upsertImportedEvents(propertyId: string, events: ImportedEvent[]): Promise<void> {
+    const now = Date.now();
+    for (const event of events) {
+      await this.pool.query(
+        `INSERT INTO imported_events
+           (property_id, external_id, feed_id, feed_name, channel_name, summary, description, check_in_date, check_out_date, guest_count, first_seen_at, last_seen_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+         ON CONFLICT (property_id, external_id) DO UPDATE SET
+           feed_id = EXCLUDED.feed_id,
+           feed_name = EXCLUDED.feed_name,
+           channel_name = EXCLUDED.channel_name,
+           summary = EXCLUDED.summary,
+           description = EXCLUDED.description,
+           check_in_date = EXCLUDED.check_in_date,
+           check_out_date = EXCLUDED.check_out_date,
+           guest_count = EXCLUDED.guest_count,
+           last_seen_at = EXCLUDED.last_seen_at`,
+        [
+          propertyId,
+          event.externalId,
+          event.feedId,
+          event.feedName,
+          event.channelName,
+          event.summary,
+          event.description,
+          event.checkInDate,
+          event.checkOutDate,
+          event.guestCount,
+          now,
+        ],
+      );
+    }
+  }
+
+  async pruneMissingImportedEvents(propertyId: string, keepExternalIds: string[], cutoffDateIso: string): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM imported_events
+       WHERE property_id = $1 AND check_out_date >= $2 AND NOT (external_id = ANY($3::text[]))`,
+      [propertyId, cutoffDateIso, keepExternalIds],
+    );
+  }
+
+  async listImportedEvents(propertyId: string): Promise<ImportedEvent[]> {
+    const result = await this.pool.query<{
+      external_id: string;
+      feed_id: string;
+      feed_name: string;
+      channel_name: string | null;
+      summary: string;
+      description: string;
+      check_in_date: string;
+      check_out_date: string;
+      guest_count: number | null;
+    }>(
+      `SELECT external_id, feed_id, feed_name, channel_name, summary, description,
+              check_in_date::text, check_out_date::text, guest_count
+       FROM imported_events
+       WHERE property_id = $1
+       ORDER BY check_in_date DESC`,
+      [propertyId],
+    );
+    return result.rows.map((row) => ({
+      externalId: row.external_id,
+      feedId: row.feed_id,
+      feedName: row.feed_name,
+      channelName: row.channel_name,
+      summary: row.summary,
+      description: row.description,
+      checkInDate: row.check_in_date,
+      checkOutDate: row.check_out_date,
+      dates: this.expandNights(row.check_in_date, row.check_out_date),
+      guestCount: row.guest_count,
+    }));
   }
 
   async listBlogPosts(includeArchived = false): Promise<BlogPost[]> {
