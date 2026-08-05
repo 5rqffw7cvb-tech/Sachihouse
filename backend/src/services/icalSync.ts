@@ -17,12 +17,35 @@ interface IcalSyncOptions {
 export interface ImportedEvent {
   feedId: string;
   feedName: string;
+  // Best-effort original OTA, detected from the feed's own text (e.g. a
+  // Hostex reservation code) when the aggregator's feedName is too generic
+  // to tell which platform a given stay actually came from. Null when we
+  // cannot tell — never a guess.
+  channelName: string | null;
   summary: string;
   description: string;
   checkInDate: string; // yyyy-MM-dd, inclusive
   checkOutDate: string; // yyyy-MM-dd, exclusive
   dates: string[]; // expanded inclusive nights, yyyy-MM-dd
   guestCount: number | null;
+}
+
+// Hostex is a channel manager: one aggregated feed carries bookings synced in
+// from several OTAs, and encodes which one in its own reservation code, e.g.
+// "Hostex reservation code: 0-HM5R8EW9YC-iffeae12sl". This mapping is not
+// publicly documented by Hostex — it was confirmed against a real Hostex
+// account by cross-checking the channel prefix against what the Hostex
+// dashboard itself reports for the same reservation. Any prefix not listed
+// here (or a feed that isn't Hostex at all) is left unclassified rather than
+// guessed.
+const HOSTEX_CHANNEL_PREFIXES: Record<string, string> = {
+  '0': 'Airbnb',
+  '9': 'Booking.com',
+};
+
+function detectHostexChannel(description: string): string | null {
+  const match = description.match(/Hostex reservation code:\s*(\d+)-/i);
+  return match ? HOSTEX_CHANNEL_PREFIXES[match[1]] ?? null : null;
 }
 
 interface CacheEntry {
@@ -120,6 +143,7 @@ function parseICSEvents(content: string, feedId: string, feedName: string): Impo
           events.push({
             feedId,
             feedName,
+            channelName: detectHostexChannel(description),
             summary: summary || 'Reserved',
             description,
             checkInDate: format(dtStart, 'yyyy-MM-dd'),

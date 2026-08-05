@@ -94,6 +94,54 @@ describe('IcalSyncService', () => {
     expect(event.guestCount).toBe(3);
   });
 
+  it('detects Airbnb and Booking.com from a Hostex-aggregated feed\'s reservation code', async () => {
+    // Real shape of a Hostex export: one feed, multiple OTAs funneled through
+    // it. The channel-prefix mapping (0=Airbnb, 9=Booking.com) was confirmed
+    // against a real Hostex account, not documented publicly by Hostex.
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'PRODID:-//Xiaoge//Hostex Hosting Calendar 2.12.0//EN',
+      'BEGIN:VEVENT',
+      'DTSTART;VALUE=DATE:20260805',
+      'DTEND;VALUE=DATE:20260824',
+      'SUMMARY:Reserved: Lucas Henrique Silva 2 guests',
+      'DESCRIPTION:Hostex reservation code: 0-HM5R8EW9YC-iffeae12sl',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'DTSTART;VALUE=DATE:20260901',
+      'DTEND;VALUE=DATE:20260908',
+      'SUMMARY:Reserved: Nguyen Thi Thanh Vi 4 guests',
+      'DESCRIPTION:Hostex reservation code: 9-6715379079-ifng5powx4',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'DTSTART;VALUE=DATE:20261126',
+      'DTEND;VALUE=DATE:20261204',
+      'SUMMARY:Reserved: Vlad Stoenescu 2 guests',
+      'DESCRIPTION:Hostex reservation code: 5-6BUW8GT0W',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'DTSTART;VALUE=DATE:20260828',
+      'DTEND;VALUE=DATE:20260830',
+      'SUMMARY:Hostex (Not available)',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    vi.stubGlobal('fetch', fakeIcsResponse(ics));
+
+    const service = new IcalSyncService({ enabled: true, ttlMs: 60_000, timeoutMs: 5000 });
+    const prop = property([{ id: 'feed1', name: 'Hostex', url: 'https://hostex.example/cal.ics', lastSynced: '' }]);
+
+    const events = await service.getImportedEvents(prop, 'fresh-if-stale');
+    const [airbnb, booking, unknownPrefix, plainBlock] = events;
+
+    expect(airbnb.channelName).toBe('Airbnb');
+    expect(booking.channelName).toBe('Booking.com');
+    // An unrecognized prefix must stay unclassified rather than guessed.
+    expect(unknownPrefix.channelName).toBeNull();
+    // A block with no reservation code at all is likewise unclassified.
+    expect(plainBlock.channelName).toBeNull();
+  });
+
   it('keeps each feed distinct when a property has more than one', async () => {
     const airbnbIcs = [
       'BEGIN:VCALENDAR',

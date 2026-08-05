@@ -26,6 +26,10 @@ export interface DirectBooking {
 export interface ImportedCalendarEvent {
   feedId: string;
   feedName: string;
+  // Best-effort original OTA (e.g. "Airbnb") detected from the feed's own
+  // text when the feed itself is an aggregator like Hostex. Null when it
+  // cannot be determined — falls back to feedName in the UI.
+  channelName: string | null;
   summary: string;
   description: string;
   checkInDate: string;

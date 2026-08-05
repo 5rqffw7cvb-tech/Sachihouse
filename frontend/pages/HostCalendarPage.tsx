@@ -402,13 +402,13 @@ const HostCalendarPage: React.FC = () => {
                   let label = '';
                   if (occupancy?.kind === 'booking') { cellClass = 'bg-[#e7f0ff] text-[#0b57d0] cursor-default'; label = 'Booked'; }
                   else if (occupancy?.kind === 'hold') { cellClass = 'bg-[#f3e8ff] text-[#6b21a8] cursor-default'; label = 'Hold'; }
-                  else if (isImported) { cellClass = `bg-[#fff1e0] text-[#8a5a00] ${importedEvent ? 'hover:bg-[#ffe6c2] cursor-pointer' : 'cursor-default'}`; label = importedEvent?.feedName || 'iCal'; }
+                  else if (isImported) { cellClass = `bg-[#fff1e0] text-[#8a5a00] ${importedEvent ? 'hover:bg-[#ffe6c2] cursor-pointer' : 'cursor-default'}`; label = importedEvent?.channelName || importedEvent?.feedName || 'iCal'; }
                   else if (isManual) { cellClass = 'bg-[#1b1c1d] text-white hover:bg-[#333]'; label = 'Blocked'; }
 
                   const title = occupancy
                     ? `${occupancy.kind === 'hold' ? 'Unpaid hold' : 'Booked'} — ${occupancy.name}`
                     : importedEvent
-                      ? `Blocked by ${importedEvent.feedName} — click for details`
+                      ? `Blocked by ${importedEvent.channelName || importedEvent.feedName} — click for details`
                       : (isImported ? 'Imported from another platform' : (isManual ? 'Blocked (click to unblock)' : 'Available (click to block)'));
 
                   return (
@@ -445,7 +445,12 @@ const HostCalendarPage: React.FC = () => {
                 <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8a5a00]">Imported from {selectedImportedEvent.feedName}</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8a5a00]">
+                        Imported from {selectedImportedEvent.channelName || selectedImportedEvent.feedName}
+                        {selectedImportedEvent.channelName && selectedImportedEvent.channelName !== selectedImportedEvent.feedName && (
+                          <span className="ml-1.5 normal-case font-normal tracking-normal text-[#9a9ca0]">via {selectedImportedEvent.feedName}</span>
+                        )}
+                      </div>
                       <div className="mt-1 text-[15px] font-semibold text-[#1b1c1d]">{selectedImportedEvent.summary}</div>
                     </div>
                     <button type="button" onClick={() => setSelectedImportedEvent(null)} className="rounded-lg p-1 text-[#74777d] hover:bg-[#f5f3f4]" aria-label="Close">
