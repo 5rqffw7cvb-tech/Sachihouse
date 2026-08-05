@@ -212,6 +212,7 @@ const CleaningCalendarPage: React.FC = () => {
   // actionable checkout/check-in cards above.
   const selectedOngoing = (selectedDate ? bandMap.get(selectedDate) ?? [] : [])
     .filter((seg) => visibleIds.has(seg.stay.propertyId) && !seg.isStart && !seg.isEnd);
+  const selectedVisibleCheckouts = (selectedActivity?.checkouts ?? []).filter((s) => visibleIds.has(s.propertyId));
 
   const togglePropertyFilter = (id: string) => {
     setActivePropertyIds((prev) => {
@@ -300,6 +301,10 @@ const CleaningCalendarPage: React.FC = () => {
                 const isWeekEnd = day.getDay() === 6;
                 const hasAnything = daySegs.length > 0;
                 const hasCleaning = checkouts.length > 0;
+                // 2+ properties both needing a turnaround the same day is a
+                // real capacity problem for staff — call it out distinctly
+                // from an ordinary single-property cleaning day.
+                const isBusy = checkouts.length > 1;
                 const rowCount = Math.max(1, propertyRows.length);
 
                 return (
@@ -309,11 +314,15 @@ const CleaningCalendarPage: React.FC = () => {
                     onClick={() => setSelectedDate(iso)}
                     disabled={!hasAnything}
                     style={{ minHeight: `${30 + rowCount * 16}px` }}
-                    className={`relative border-b-2 py-1 flex flex-col items-center gap-1 text-[12px] transition-colors ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} ${!inMonth ? 'opacity-30' : ''} ${hasAnything ? 'hover:bg-[#f5f5f5] cursor-pointer' : 'cursor-default'}`}
+                    className={`relative border-b-2 py-1 flex flex-col items-center gap-1 text-[12px] transition-colors ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} ${!inMonth ? 'opacity-30' : ''} ${hasAnything ? 'hover:bg-[#f5f5f5] cursor-pointer' : 'cursor-default'} ${isBusy ? 'bg-[#fff1e6] ring-1 ring-inset ring-[#fb923c]' : ''}`}
                   >
                     <span className="flex items-center gap-0.5 leading-none">
                       <span className="font-medium">{format(day, 'd')}</span>
-                      {hasCleaning && <span className="text-[10px]" title="Cleaning day">🧹</span>}
+                      {hasCleaning && (
+                        <span className={`flex items-center text-[10px] font-bold ${isBusy ? 'text-[#c2410c]' : ''}`} title={isBusy ? `${checkouts.length} properties need cleaning` : 'Cleaning day'}>
+                          🧹{isBusy && <span>×{checkouts.length}</span>}
+                        </span>
+                      )}
                     </span>
 
                     <div className="flex flex-col gap-[2px] w-full px-px">
@@ -385,6 +394,7 @@ const CleaningCalendarPage: React.FC = () => {
             </span>
             <span>🧹 cleaning</span>
             <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-[#f59e0b]" /> turnover</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded ring-1 ring-inset ring-[#fb923c] bg-[#fff1e6]" /> busy (2+)</span>
             {properties.map((p) => {
               const idx = propertyColorMap.get(p.id) ?? 0;
               return (
@@ -412,7 +422,13 @@ const CleaningCalendarPage: React.FC = () => {
               <p className="text-[13px] text-[#9ca3af]">No activity this day.</p>
             )}
 
-            {selectedActivity?.checkouts.filter((s) => visibleIds.has(s.propertyId)).map((stay) => {
+            {selectedVisibleCheckouts.length > 1 && (
+              <div className="mb-3 flex items-center gap-1.5 rounded-xl bg-[#fff1e6] px-3 py-2 text-[12px] font-bold text-[#c2410c]">
+                🧹 Busy day — {selectedVisibleCheckouts.length} properties need cleaning
+              </div>
+            )}
+
+            {selectedVisibleCheckouts.map((stay) => {
               const sameDayTurnover = selectedActivity.checkins.some((i) => i.propertyId === stay.propertyId);
               return (
                 <div key={`out-${stay.propertyId}-${stay.checkOutDate}-${stay.source}`} className="mb-2 rounded-xl border border-[#e4e2e3] p-3">
