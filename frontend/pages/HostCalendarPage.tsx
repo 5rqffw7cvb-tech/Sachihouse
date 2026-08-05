@@ -51,6 +51,22 @@ function buildImportedEventMap(calendar: PropertyCalendar | null): Map<string, I
   return map;
 }
 
+// Solid, near-brand colors for channels we can confidently name (detected
+// from the feed's own text, e.g. a Hostex reservation code) — a bolder look
+// than the generic "some iCal feed" amber signals that this label is a real
+// classification, not a guess. Anything not in this map (including a channel
+// we can't detect) falls back to the soft amber default.
+const IMPORTED_CHANNEL_STYLES: Record<string, { chip: string; text: string }> = {
+  Airbnb: { chip: 'bg-[#FF5A5F] text-white hover:bg-[#e8484d]', text: 'text-[#FF5A5F]' },
+  'Booking.com': { chip: 'bg-[#003580] text-white hover:bg-[#00296b]', text: 'text-[#003580]' },
+  'Hostex Direct': { chip: 'bg-[#0f9d58] text-white hover:bg-[#0c7d46]', text: 'text-[#0f9d58]' },
+};
+const DEFAULT_IMPORTED_STYLE = { chip: 'bg-[#fff1e0] text-[#8a5a00] hover:bg-[#ffe6c2]', text: 'text-[#8a5a00]' };
+
+function importedEventStyle(channelName: string | null | undefined): { chip: string; text: string } {
+  return (channelName && IMPORTED_CHANNEL_STYLES[channelName]) || DEFAULT_IMPORTED_STYLE;
+}
+
 // Expands bookings into a map of YYYY-MM-DD -> occupancy for the nights they
 // take (check-out morning is free again, so it is excluded).
 function buildOccupancyMap(calendar: PropertyCalendar | null): Map<string, Occupancy> {
@@ -402,7 +418,7 @@ const HostCalendarPage: React.FC = () => {
                   let label = '';
                   if (occupancy?.kind === 'booking') { cellClass = 'bg-[#e7f0ff] text-[#0b57d0] cursor-default'; label = 'Booked'; }
                   else if (occupancy?.kind === 'hold') { cellClass = 'bg-[#f3e8ff] text-[#6b21a8] cursor-default'; label = 'Hold'; }
-                  else if (isImported) { cellClass = `bg-[#fff1e0] text-[#8a5a00] ${importedEvent ? 'hover:bg-[#ffe6c2] cursor-pointer' : 'cursor-default'}`; label = importedEvent?.channelName || importedEvent?.feedName || 'iCal'; }
+                  else if (isImported) { cellClass = `${importedEventStyle(importedEvent?.channelName).chip} ${importedEvent ? 'cursor-pointer' : 'cursor-default'}`; label = importedEvent?.channelName || importedEvent?.feedName || 'iCal'; }
                   else if (isManual) { cellClass = 'bg-[#1b1c1d] text-white hover:bg-[#333]'; label = 'Blocked'; }
 
                   const title = occupancy
@@ -432,7 +448,10 @@ const HostCalendarPage: React.FC = () => {
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-[#44474c]">
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-white border border-[#c4c6cd]" /> Available</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#1b1c1d]" /> Manually blocked</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#fff1e0] border border-[#e6c48a]" /> iCal imported (tap for details)</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#FF5A5F]" /> Airbnb</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#003580]" /> Booking.com</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#0f9d58]" /> Hostex Direct</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#fff1e0] border border-[#e6c48a]" /> Other imported (tap for details)</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#e7f0ff] border border-[#a9c8f5]" /> Direct booking</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#f3e8ff] border border-[#d8b4fe]" /> Unpaid hold</span>
               </div>
@@ -445,7 +464,7 @@ const HostCalendarPage: React.FC = () => {
                 <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8a5a00]">
+                      <div className={`text-[11px] font-semibold uppercase tracking-wide ${importedEventStyle(selectedImportedEvent.channelName).text}`}>
                         Imported from {selectedImportedEvent.channelName || selectedImportedEvent.feedName}
                         {selectedImportedEvent.channelName && selectedImportedEvent.channelName !== selectedImportedEvent.feedName && (
                           <span className="ml-1.5 normal-case font-normal tracking-normal text-[#9a9ca0]">via {selectedImportedEvent.feedName}</span>

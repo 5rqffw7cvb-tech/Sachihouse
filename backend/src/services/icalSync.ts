@@ -41,6 +41,10 @@ export interface ImportedEvent {
 const HOSTEX_CHANNEL_PREFIXES: Record<string, string> = {
   '0': 'Airbnb',
   '9': 'Booking.com',
+  // Booked through Hostex's own widget/dashboard, not synced in from an OTA.
+  // Named distinctly from our own site's "Direct booking" (a Stripe-paid
+  // Booking row) so the two are never confused on the host calendar.
+  '5': 'Hostex Direct',
 };
 
 function detectHostexChannel(description: string): string | null {

@@ -116,8 +116,14 @@ describe('IcalSyncService', () => {
       'BEGIN:VEVENT',
       'DTSTART;VALUE=DATE:20261126',
       'DTEND;VALUE=DATE:20261204',
-      'SUMMARY:Reserved: Vlad Stoenescu 2 guests',
+      'SUMMARY:Reserved: Mai Hoang Tan 7 guests',
       'DESCRIPTION:Hostex reservation code: 5-6BUW8GT0W',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'DTSTART;VALUE=DATE:20261209',
+      'DTEND;VALUE=DATE:20261223',
+      'SUMMARY:Reserved: David Barrera Jr. 3 guests',
+      'DESCRIPTION:Hostex reservation code: 3-XYZ12345',
       'END:VEVENT',
       'BEGIN:VEVENT',
       'DTSTART;VALUE=DATE:20260828',
@@ -132,10 +138,11 @@ describe('IcalSyncService', () => {
     const prop = property([{ id: 'feed1', name: 'Hostex', url: 'https://hostex.example/cal.ics', lastSynced: '' }]);
 
     const events = await service.getImportedEvents(prop, 'fresh-if-stale');
-    const [airbnb, booking, unknownPrefix, plainBlock] = events;
+    const [airbnb, booking, hostexDirect, unknownPrefix, plainBlock] = events;
 
     expect(airbnb.channelName).toBe('Airbnb');
     expect(booking.channelName).toBe('Booking.com');
+    expect(hostexDirect.channelName).toBe('Hostex Direct');
     // An unrecognized prefix must stay unclassified rather than guessed.
     expect(unknownPrefix.channelName).toBeNull();
     // A block with no reservation code at all is likewise unclassified.
