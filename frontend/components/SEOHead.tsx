@@ -47,11 +47,6 @@ const SEOHead: React.FC<SEOHeadProps> = ({ data }) => {
     const title = (data.metaTitle || data.name || 'SachiHouse').trim();
     const description = (data.description || data.subtitle || 'SachiHouse Tokyo stay information.').trim();
     const pageUrl = toAbsoluteUrl(window.location.href) || window.location.href;
-    const imageUrl =
-      toAbsoluteUrl(data.social?.footerImageUrl) ||
-      toAbsoluteUrl(data.hostImageUrl) ||
-      toAbsoluteUrl(data.metaFavicon) ||
-      'https://cdn-icons-png.flaticon.com/512/2111/2111320.png';
 
     document.title = title;
     upsertMeta("meta[name='description']", 'name', 'description', description);
@@ -60,12 +55,10 @@ const SEOHead: React.FC<SEOHeadProps> = ({ data }) => {
     upsertMeta("meta[property='og:description']", 'property', 'og:description', description);
     upsertMeta("meta[property='og:type']", 'property', 'og:type', 'website');
     upsertMeta("meta[property='og:url']", 'property', 'og:url', pageUrl);
-    upsertMeta("meta[property='og:image']", 'property', 'og:image', imageUrl);
 
-    upsertMeta("meta[name='twitter:card']", 'name', 'twitter:card', 'summary_large_image');
+    upsertMeta("meta[name='twitter:card']", 'name', 'twitter:card', 'summary');
     upsertMeta("meta[name='twitter:title']", 'name', 'twitter:title', title);
     upsertMeta("meta[name='twitter:description']", 'name', 'twitter:description', description);
-    upsertMeta("meta[name='twitter:image']", 'name', 'twitter:image', imageUrl);
 
     upsertLink('canonical', pageUrl);
   }, [data]);
