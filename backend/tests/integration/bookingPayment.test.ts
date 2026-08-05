@@ -239,7 +239,7 @@ describe('checkout.session.completed', () => {
     expect(res.body.available.map((item: { id: string }) => item.id)).not.toContain('main');
   });
 
-  it('publishes the confirmed booking to the iCal feed', async () => {
+  it('publishes the confirmed booking to the iCal feed exactly once, with its guest count', async () => {
     await enableDirectBooking();
     const body = await createBooking();
     await postWebhook(checkoutCompleted(body.booking.id)).expect(200);
@@ -253,6 +253,15 @@ describe('checkout.session.completed', () => {
     const ics = await request(app).get(exportUrl.slice(exportUrl.indexOf('/api/'))).expect(200);
 
     expect(ics.text).toContain(`direct-${body.booking.id}`);
+    expect(ics.text).toContain('DESCRIPTION:2 guests');
+    // The booking is also mirrored into booking_confirmations for the PDF/
+    // accounting flows — it must not be published a second time under that id
+    // (i.e. no "booking-main-BC-..." UID for this same stay).
+    expect(ics.text.match(new RegExp(`direct-${body.booking.id}`, 'g'))).toHaveLength(1);
+
+    // The host calendar's "manual confirmations" list is likewise not
+    // double-counting this online booking under its mirrored id.
+    expect(cal.body.bookings).toEqual([]);
   });
 
   it('processes a redelivered event only once', async () => {

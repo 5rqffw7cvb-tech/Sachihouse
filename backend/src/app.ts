@@ -1202,12 +1202,18 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     const accountedFor = new Set([...manualBlockedDates, ...heldDates]);
     const importedBlockedDates = effective.filter((date) => !accountedFor.has(date));
 
-    const bookings = (await store.listBookingConfirmations({ propertyId: property.id })).map((b) => ({
-      id: b.id,
-      guestName: b.guestName,
-      checkInDate: b.checkInDate,
-      checkOutDate: b.checkOutDate,
-    }));
+    // Online bookings are mirrored into booking_confirmations for the PDF and
+    // accounting flows, but that mirror would double up with the same stay's
+    // entry in directBookings below (different id, same dates) — only manual
+    // (off-platform) confirmations belong in this list.
+    const bookings = (await store.listBookingConfirmations({ propertyId: property.id }))
+      .filter((b) => b.source === 'manual')
+      .map((b) => ({
+        id: b.id,
+        guestName: b.guestName,
+        checkInDate: b.checkInDate,
+        checkOutDate: b.checkOutDate,
+      }));
 
     const directBookings = (await store.listBookings({
       propertyId: property.id,
@@ -1222,6 +1228,8 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       currency: booking.currency,
     }));
 
+    const importedEvents = await icalSync.getImportedEvents(property, 'fresh-if-stale');
+
     const token = await store.ensureIcalExportToken(property.id);
 
     res.json({
@@ -1229,6 +1237,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       propertyName: property.name,
       manualBlockedDates,
       importedBlockedDates,
+      importedEvents,
       bookings,
       directBookings,
       icalFeeds: property.icalFeeds ?? [],
@@ -1326,12 +1335,19 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     }
 
     const manualBlockedDates = await store.listBlockedDates(property.id);
-    const bookings = (await store.listBookingConfirmations({ propertyId: property.id })).map((b) => ({
-      id: b.id,
-      guestName: b.guestName,
-      checkInDate: b.checkInDate,
-      checkOutDate: b.checkOutDate,
-    }));
+    // Online bookings are mirrored into booking_confirmations too, but that
+    // mirror would publish a second, duplicate VEVENT for the same stay
+    // alongside the one built from directBookings below — only manual
+    // (off-platform) confirmations belong in this list.
+    const bookings = (await store.listBookingConfirmations({ propertyId: property.id }))
+      .filter((b) => b.source === 'manual')
+      .map((b) => ({
+        id: b.id,
+        guestName: b.guestName,
+        checkInDate: b.checkInDate,
+        checkOutDate: b.checkOutDate,
+        numGuests: b.numGuests,
+      }));
 
     // Confirmed direct bookings belong on the feed so other platforms stop
     // selling those nights. Unpaid holds are deliberately left off — a 35-minute
@@ -1344,6 +1360,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       guestName: booking.guestName,
       checkInDate: booking.checkInDate,
       checkOutDate: booking.checkOutDate,
+      numGuests: booking.adults + booking.children + booking.infants,
     }));
 
     const ics = buildPropertyIcs({

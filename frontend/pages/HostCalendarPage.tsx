@@ -21,6 +21,7 @@ import {
   addBlockedDates,
   DirectBooking,
   getPropertyCalendar,
+  ImportedCalendarEvent,
   PropertyCalendar,
   regenerateIcalExportToken,
   removeBlockedDates,
@@ -37,6 +38,18 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // A paid stay and an unpaid hold both take the night off the market, but they
 // are not the same thing to a host, so the calendar distinguishes them.
 type Occupancy = { name: string; kind: 'booking' | 'hold' };
+
+// Maps each imported night to the event that covers it, so a calendar cell
+// can show which platform blocked it and open the raw details on click.
+function buildImportedEventMap(calendar: PropertyCalendar | null): Map<string, ImportedCalendarEvent> {
+  const map = new Map<string, ImportedCalendarEvent>();
+  for (const event of calendar?.importedEvents ?? []) {
+    for (const iso of event.dates) {
+      if (!map.has(iso)) map.set(iso, event);
+    }
+  }
+  return map;
+}
 
 // Expands bookings into a map of YYYY-MM-DD -> occupancy for the nights they
 // take (check-out morning is free again, so it is excluded).
@@ -160,6 +173,8 @@ const HostCalendarPage: React.FC = () => {
   const manualSet = useMemo(() => new Set(calendar?.manualBlockedDates ?? []), [calendar]);
   const importedSet = useMemo(() => new Set(calendar?.importedBlockedDates ?? []), [calendar]);
   const occupancyMap = useMemo(() => buildOccupancyMap(calendar), [calendar]);
+  const importedEventMap = useMemo(() => buildImportedEventMap(calendar), [calendar]);
+  const [selectedImportedEvent, setSelectedImportedEvent] = useState<ImportedCalendarEvent | null>(null);
 
   const gridDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(viewMonth), { weekStartsOn: 0 });
@@ -377,6 +392,7 @@ const HostCalendarPage: React.FC = () => {
                   const inMonth = isSameMonth(day, viewMonth);
                   const isManual = manualSet.has(iso);
                   const isImported = importedSet.has(iso);
+                  const importedEvent = importedEventMap.get(iso);
                   const occupancy = occupancyMap.get(iso);
                   const isBusy = busyDates.has(iso);
                   const readOnly = isImported || !!occupancy;
@@ -386,22 +402,26 @@ const HostCalendarPage: React.FC = () => {
                   let label = '';
                   if (occupancy?.kind === 'booking') { cellClass = 'bg-[#e7f0ff] text-[#0b57d0] cursor-default'; label = 'Booked'; }
                   else if (occupancy?.kind === 'hold') { cellClass = 'bg-[#f3e8ff] text-[#6b21a8] cursor-default'; label = 'Hold'; }
-                  else if (isImported) { cellClass = 'bg-[#fff1e0] text-[#8a5a00] cursor-default'; label = 'iCal'; }
+                  else if (isImported) { cellClass = `bg-[#fff1e0] text-[#8a5a00] ${importedEvent ? 'hover:bg-[#ffe6c2] cursor-pointer' : 'cursor-default'}`; label = importedEvent?.feedName || 'iCal'; }
                   else if (isManual) { cellClass = 'bg-[#1b1c1d] text-white hover:bg-[#333]'; label = 'Blocked'; }
+
+                  const title = occupancy
+                    ? `${occupancy.kind === 'hold' ? 'Unpaid hold' : 'Booked'} — ${occupancy.name}`
+                    : importedEvent
+                      ? `Blocked by ${importedEvent.feedName} — click for details`
+                      : (isImported ? 'Imported from another platform' : (isManual ? 'Blocked (click to unblock)' : 'Available (click to block)'));
 
                   return (
                     <button
                       key={iso}
                       type="button"
-                      disabled={readOnly || isBusy}
-                      onClick={() => toggleDay(iso)}
-                      title={occupancy
-                        ? `${occupancy.kind === 'hold' ? 'Unpaid hold' : 'Booked'} — ${occupancy.name}`
-                        : (isImported ? 'Imported from another platform' : (isManual ? 'Blocked (click to unblock)' : 'Available (click to block)'))}
-                      className={`relative aspect-square rounded-lg border ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} flex flex-col items-center justify-center text-[13px] transition-colors ${cellClass} ${!inMonth ? 'opacity-35' : ''} ${readOnly ? '' : 'cursor-pointer'}`}
+                      disabled={(readOnly && !importedEvent) || isBusy}
+                      onClick={() => (importedEvent ? setSelectedImportedEvent(importedEvent) : toggleDay(iso))}
+                      title={title}
+                      className={`relative aspect-square rounded-lg border ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} flex flex-col items-center justify-center text-[13px] transition-colors ${cellClass} ${!inMonth ? 'opacity-35' : ''} ${readOnly && !importedEvent ? '' : 'cursor-pointer'}`}
                     >
                       <span className="font-medium leading-none">{format(day, 'd')}</span>
-                      {label && <span className="mt-0.5 text-[8px] uppercase tracking-wide leading-none">{label}</span>}
+                      {label && <span className="mt-0.5 max-w-full truncate px-0.5 text-[8px] uppercase tracking-wide leading-none">{label}</span>}
                       {isBusy && <Loader2 className="absolute h-3.5 w-3.5 animate-spin" />}
                     </button>
                   );
@@ -412,12 +432,39 @@ const HostCalendarPage: React.FC = () => {
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-[#44474c]">
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-white border border-[#c4c6cd]" /> Available</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#1b1c1d]" /> Manually blocked</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#fff1e0] border border-[#e6c48a]" /> iCal imported</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#fff1e0] border border-[#e6c48a]" /> iCal imported (tap for details)</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#e7f0ff] border border-[#a9c8f5]" /> Direct booking</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#f3e8ff] border border-[#d8b4fe]" /> Unpaid hold</span>
               </div>
-              <p className="mt-3 text-[11px] text-[#74777d]">Click an available day to block it, or a blocked day to free it. iCal-imported dates and direct bookings are managed elsewhere.</p>
+              <p className="mt-3 text-[11px] text-[#74777d]">Click an available day to block it, or a blocked day to free it. iCal-imported days show which platform sent them — tap one for the raw details. Direct bookings are managed elsewhere.</p>
             </section>
+
+            {/* Imported-block details, shown on tap */}
+            {selectedImportedEvent && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm" onClick={() => setSelectedImportedEvent(null)}>
+                <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8a5a00]">Imported from {selectedImportedEvent.feedName}</div>
+                      <div className="mt-1 text-[15px] font-semibold text-[#1b1c1d]">{selectedImportedEvent.summary}</div>
+                    </div>
+                    <button type="button" onClick={() => setSelectedImportedEvent(null)} className="rounded-lg p-1 text-[#74777d] hover:bg-[#f5f3f4]" aria-label="Close">
+                      ✕
+                    </button>
+                  </div>
+                  <div className="mt-3 space-y-1.5 text-[13px] text-[#44474c]">
+                    <div>{selectedImportedEvent.checkInDate} → {selectedImportedEvent.checkOutDate}</div>
+                    <div>{selectedImportedEvent.guestCount != null ? `${selectedImportedEvent.guestCount} guest${selectedImportedEvent.guestCount === 1 ? '' : 's'}` : 'Guest count not provided by this platform'}</div>
+                  </div>
+                  {selectedImportedEvent.description && (
+                    <div className="mt-3 rounded-xl bg-[#f7f5f6] p-3 text-[12px] text-[#44474c] whitespace-pre-wrap break-words">
+                      {selectedImportedEvent.description}
+                    </div>
+                  )}
+                  <p className="mt-3 text-[11px] text-[#9a9ca0]">Whatever this platform includes in its calendar feed is shown as-is — most platforms send limited guest details for privacy.</p>
+                </div>
+              </div>
+            )}
 
             {/* Direct bookings taken on our own site, newest check-in first. */}
             {(calendar?.directBookings?.length ?? 0) > 0 && (

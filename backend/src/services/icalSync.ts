@@ -9,9 +9,26 @@ interface IcalSyncOptions {
   timeoutMs: number;
 }
 
+// A single imported reservation/block, kept as its own event (not flattened
+// into dates) so the host calendar can show which feed it came from and the
+// raw text the platform sent — most OTA feeds never include a guest count
+// (Airbnb strips guest details from exported .ics for privacy), so
+// guestCount is best-effort and often null.
+export interface ImportedEvent {
+  feedId: string;
+  feedName: string;
+  summary: string;
+  description: string;
+  checkInDate: string; // yyyy-MM-dd, inclusive
+  checkOutDate: string; // yyyy-MM-dd, exclusive
+  dates: string[]; // expanded inclusive nights, yyyy-MM-dd
+  guestCount: number | null;
+}
+
 interface CacheEntry {
   expiresAt: number;
   blockedDates: string[];
+  events: ImportedEvent[];
 }
 
 function parseICSDate(raw: string): Date | null {
@@ -23,19 +40,71 @@ function parseICSDate(raw: string): Date | null {
   return isValid(date) ? date : null;
 }
 
-function parseICSBlockedDates(content: string): string[] {
-  const lines = content.split(/\r\n|\n|\r/);
-  const blocked = new Set<string>();
+// RFC 5545 folds long lines with a CRLF followed by a single space or tab —
+// without unfolding first, a folded SUMMARY/DESCRIPTION would be silently
+// truncated at whatever column the sender wrapped it at.
+function unfoldLines(content: string): string[] {
+  const rawLines = content.split(/\r\n|\n|\r/);
+  const unfolded: string[] = [];
+  for (const line of rawLines) {
+    if ((line.startsWith(' ') || line.startsWith('\t')) && unfolded.length > 0) {
+      unfolded[unfolded.length - 1] += line.slice(1);
+    } else {
+      unfolded.push(line);
+    }
+  }
+  return unfolded;
+}
+
+// Reverses the TEXT escaping RFC 5545 requires (backslash, comma, semicolon,
+// newline) so SUMMARY/DESCRIPTION display as the sender actually wrote them.
+function unescapeText(value: string): string {
+  let out = '';
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    if (ch === '\\' && i + 1 < value.length) {
+      const next = value[i + 1];
+      if (next === 'n' || next === 'N') {
+        out += '\n';
+        i++;
+        continue;
+      }
+      if (next === ',' || next === ';' || next === '\\') {
+        out += next;
+        i++;
+        continue;
+      }
+    }
+    out += ch;
+  }
+  return out;
+}
+
+// Most OTA feeds never mention a guest count in plain text at all — this only
+// catches the rare feed that does (e.g. "2 guests", "Guests: 2"). Absence is
+// the common case, not a parsing failure.
+function extractGuestCount(text: string): number | null {
+  const match = text.match(/(\d+)\s*guests?\b/i) ?? text.match(/guests?\s*[:\-]\s*(\d+)/i);
+  return match ? Number(match[1]) : null;
+}
+
+function parseICSEvents(content: string, feedId: string, feedName: string): ImportedEvent[] {
+  const lines = unfoldLines(content);
+  const events: ImportedEvent[] = [];
 
   let inEvent = false;
   let dtStart: Date | null = null;
   let dtEnd: Date | null = null;
+  let summary = '';
+  let description = '';
 
   for (const line of lines) {
     if (line.startsWith('BEGIN:VEVENT')) {
       inEvent = true;
       dtStart = null;
       dtEnd = null;
+      summary = '';
+      description = '';
       continue;
     }
 
@@ -44,9 +113,20 @@ function parseICSBlockedDates(content: string): string[] {
       if (dtStart && dtEnd && dtStart < dtEnd) {
         const endInclusive = subDays(dtEnd, 1);
         if (dtStart <= endInclusive) {
+          const dates: string[] = [];
           for (let cursor = dtStart; cursor <= endInclusive; cursor = addDays(cursor, 1)) {
-            blocked.add(format(cursor, 'yyyy-MM-dd'));
+            dates.push(format(cursor, 'yyyy-MM-dd'));
           }
+          events.push({
+            feedId,
+            feedName,
+            summary: summary || 'Reserved',
+            description,
+            checkInDate: format(dtStart, 'yyyy-MM-dd'),
+            checkOutDate: format(dtEnd, 'yyyy-MM-dd'),
+            dates,
+            guestCount: extractGuestCount(`${summary} ${description}`),
+          });
         }
       }
       continue;
@@ -57,18 +137,26 @@ function parseICSBlockedDates(content: string): string[] {
     }
 
     if (line.startsWith('DTSTART')) {
-      const value = line.split(':')[1] ?? '';
-      dtStart = parseICSDate(value);
+      dtStart = parseICSDate(line.split(':')[1] ?? '');
       continue;
     }
 
     if (line.startsWith('DTEND')) {
-      const value = line.split(':')[1] ?? '';
-      dtEnd = parseICSDate(value);
+      dtEnd = parseICSDate(line.split(':')[1] ?? '');
+      continue;
+    }
+
+    if (/^SUMMARY[:;]/i.test(line)) {
+      summary = unescapeText(line.slice(line.indexOf(':') + 1));
+      continue;
+    }
+
+    if (/^DESCRIPTION[:;]/i.test(line)) {
+      description = unescapeText(line.slice(line.indexOf(':') + 1));
     }
   }
 
-  return Array.from(blocked).sort();
+  return events;
 }
 
 function mergeDates(baseDates: string[], icalDates: string[]): string[] {
@@ -79,8 +167,11 @@ function isLikelyPlaceholder(url: string): boolean {
   return /example\.com/i.test(url) || url.includes('...');
 }
 
-async function fetchIcalFeed(url: string, timeoutMs: number): Promise<string[]> {
-  const cleaned = url.trim();
+async function fetchIcalFeed(
+  feed: { id: string; name: string; url: string },
+  timeoutMs: number,
+): Promise<ImportedEvent[]> {
+  const cleaned = feed.url.trim();
   if (!cleaned || !/^https?:\/\//i.test(cleaned) || isLikelyPlaceholder(cleaned)) {
     return [];
   }
@@ -105,7 +196,7 @@ async function fetchIcalFeed(url: string, timeoutMs: number): Promise<string[]> 
       return [];
     }
 
-    return parseICSBlockedDates(text);
+    return parseICSEvents(text, feed.id, feed.name || 'Imported');
   } catch {
     return [];
   } finally {
@@ -116,32 +207,27 @@ async function fetchIcalFeed(url: string, timeoutMs: number): Promise<string[]> 
 export class IcalSyncService {
   private readonly options: IcalSyncOptions;
   private readonly cache = new Map<string, CacheEntry>();
-  private readonly inflight = new Map<string, Promise<string[]>>();
+  private readonly inflight = new Map<string, Promise<CacheEntry>>();
 
   constructor(options: IcalSyncOptions) {
     this.options = options;
   }
 
-  private async refresh(propertyId: string, feeds: PropertyData['icalFeeds']): Promise<string[]> {
+  private async refresh(propertyId: string, feeds: PropertyData['icalFeeds']): Promise<CacheEntry> {
     const existing = this.inflight.get(propertyId);
     if (existing) {
       return existing;
     }
 
     const next = (async () => {
-      const allDates = new Set<string>();
+      const events: ImportedEvent[] = [];
       for (const feed of feeds) {
-        const dates = await fetchIcalFeed(feed.url, this.options.timeoutMs);
-        for (const date of dates) {
-          allDates.add(date);
-        }
+        events.push(...(await fetchIcalFeed(feed, this.options.timeoutMs)));
       }
-      const blockedDates = Array.from(allDates).sort();
-      this.cache.set(propertyId, {
-        blockedDates,
-        expiresAt: Date.now() + this.options.ttlMs,
-      });
-      return blockedDates;
+      const blockedDates = Array.from(new Set(events.flatMap((event) => event.dates))).sort();
+      const entry: CacheEntry = { blockedDates, events, expiresAt: Date.now() + this.options.ttlMs };
+      this.cache.set(propertyId, entry);
+      return entry;
     })();
 
     this.inflight.set(propertyId, next);
@@ -152,31 +238,39 @@ export class IcalSyncService {
     }
   }
 
-  async getBlockedDates(property: PropertyData & { id: string }, baseDates: string[], mode: FetchMode): Promise<string[]> {
+  private async getEntry(property: PropertyData & { id: string }, mode: FetchMode): Promise<CacheEntry | null> {
     if (!this.options.enabled || !property.icalFeeds.length) {
-      return baseDates;
+      return null;
     }
 
     const cached = this.cache.get(property.id);
     const isFresh = !!cached && cached.expiresAt > Date.now();
-
     if (isFresh) {
-      return mergeDates(baseDates, cached.blockedDates);
+      return cached;
     }
 
     if (mode === 'stale-ok' && cached) {
       void this.refresh(property.id, property.icalFeeds);
-      return mergeDates(baseDates, cached.blockedDates);
+      return cached;
     }
 
     try {
-      const refreshed = await this.refresh(property.id, property.icalFeeds);
-      return mergeDates(baseDates, refreshed);
+      return await this.refresh(property.id, property.icalFeeds);
     } catch {
-      if (cached) {
-        return mergeDates(baseDates, cached.blockedDates);
-      }
-      return baseDates;
+      return cached ?? null;
     }
+  }
+
+  async getBlockedDates(property: PropertyData & { id: string }, baseDates: string[], mode: FetchMode): Promise<string[]> {
+    const entry = await this.getEntry(property, mode);
+    return entry ? mergeDates(baseDates, entry.blockedDates) : baseDates;
+  }
+
+  // Per-event detail (which feed, raw SUMMARY/DESCRIPTION) for the host
+  // calendar's "which platform blocked this" view. Shares the same cache and
+  // staleness rules as getBlockedDates so the two never disagree.
+  async getImportedEvents(property: PropertyData & { id: string }, mode: FetchMode): Promise<ImportedEvent[]> {
+    const entry = await this.getEntry(property, mode);
+    return entry ? entry.events : [];
   }
 }

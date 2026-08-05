@@ -20,6 +20,20 @@ export interface DirectBooking {
   currency: string;
 }
 
+// A single imported reservation/block, as sent by the source OTA feed. Most
+// platforms strip guest details from their exported .ics for privacy, so
+// guestCount is best-effort and often null.
+export interface ImportedCalendarEvent {
+  feedId: string;
+  feedName: string;
+  summary: string;
+  description: string;
+  checkInDate: string;
+  checkOutDate: string;
+  dates: string[];
+  guestCount: number | null;
+}
+
 export interface PropertyCalendar {
   propertyId: string;
   propertyName: string;
@@ -27,6 +41,9 @@ export interface PropertyCalendar {
   manualBlockedDates: string[];
   // Dates pulled in from other platforms via iCal import (read-only here).
   importedBlockedDates: string[];
+  // Same import, but as individual events with feed attribution and raw
+  // SUMMARY/DESCRIPTION text — what the calendar's "which platform" view reads.
+  importedEvents: ImportedCalendarEvent[];
   // Host-entered confirmations for off-platform stays.
   bookings: CalendarBooking[];
   // Guest-made online bookings. These occupy the calendar too.

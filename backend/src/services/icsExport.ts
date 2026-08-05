@@ -7,6 +7,7 @@ export interface ExportBooking {
   checkInDate: string;
   checkOutDate: string;
   guestName?: string;
+  numGuests?: number;
 }
 
 interface BuildIcsOptions {
@@ -71,17 +72,27 @@ function coalesceRanges(dates: string[]): Array<{ start: Date; endExclusive: Dat
   return ranges;
 }
 
-function buildEvent(uid: string, dtstamp: string, start: Date, endExclusive: Date, summary: string): string[] {
-  return [
+function buildEvent(
+  uid: string,
+  dtstamp: string,
+  start: Date,
+  endExclusive: Date,
+  summary: string,
+  description?: string,
+): string[] {
+  const lines = [
     'BEGIN:VEVENT',
     foldLine(`UID:${uid}`),
     `DTSTAMP:${dtstamp}`,
     `DTSTART;VALUE=DATE:${toIcsDate(start)}`,
     `DTEND;VALUE=DATE:${toIcsDate(endExclusive)}`,
     foldLine(`SUMMARY:${escapeText(summary)}`),
-    'TRANSP:OPAQUE',
-    'END:VEVENT',
   ];
+  if (description) {
+    lines.push(foldLine(`DESCRIPTION:${escapeText(description)}`));
+  }
+  lines.push('TRANSP:OPAQUE', 'END:VEVENT');
+  return lines;
 }
 
 // Builds an RFC 5545 VCALENDAR advertising this property's unavailable dates so
@@ -112,7 +123,10 @@ export function buildPropertyIcs(options: BuildIcsOptions): string {
     }
     const uid = `booking-${options.propertyId}-${booking.id}@sachihouse`;
     const summary = booking.guestName ? `Reserved - ${booking.guestName}` : 'Reserved';
-    lines.push(...buildEvent(uid, dtstamp, start, endExclusive, summary));
+    const description = booking.numGuests
+      ? `${booking.numGuests} guest${booking.numGuests === 1 ? '' : 's'}`
+      : undefined;
+    lines.push(...buildEvent(uid, dtstamp, start, endExclusive, summary, description));
   }
 
   lines.push('END:VCALENDAR');
