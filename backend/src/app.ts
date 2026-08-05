@@ -1319,6 +1319,110 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     res.json({ exportUrl: buildIcalExportUrl(req, property.id, token) });
   });
 
+  // Unlike the per-property iCal export link (an API URL other software
+  // fetches), this points at our own SPA page so a cleaning-staff phone can
+  // open and read it — one token, every property.
+  function buildCleaningCalendarUrl(token: string): string {
+    return buildSiteUrl(publicSiteUrl, `/cleaning/${token}`);
+  }
+
+  app.get('/api/cleaning-calendar-link', requireAuth, requireHostOrAdmin, async (_req, res) => {
+    const token = await store.ensureCleaningCalendarToken();
+    res.json({ url: buildCleaningCalendarUrl(token) });
+  });
+
+  // Invalidates the previously shared link — anyone still using the old one
+  // gets a 404 on the data endpoint below.
+  app.post('/api/cleaning-calendar-link/regenerate', requireAuth, requireHostOrAdmin, async (_req, res) => {
+    const token = await store.regenerateCleaningCalendarToken();
+    res.json({ url: buildCleaningCalendarUrl(token) });
+  });
+
+  // Public, token-guarded schedule for cleaning staff: every property's
+  // checkouts/check-ins in one place, from all three sources a stay can come
+  // from (manual confirmations, our own paid direct bookings, and OTA
+  // bookings synced in via iCal). No auth — the token in the path is the
+  // credential, same model as the per-property iCal export. Deliberately
+  // excludes guest names/contact details; only what cleaning staff need.
+  app.get('/api/cleaning-calendar/:token', async (req, res) => {
+    const providedToken = getParam(req.params.token);
+    const expectedToken = await store.ensureCleaningCalendarToken();
+    const expected = Buffer.from(expectedToken);
+    const provided = Buffer.from(providedToken);
+    if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    const now = new Date();
+    const defaultFrom = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const defaultTo = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const from = isIsoDate(req.query.from) ? req.query.from : defaultFrom;
+    const to = isIsoDate(req.query.to) ? req.query.to : defaultTo;
+
+    const overlapsWindow = (checkInDate: string, checkOutDate: string) => checkOutDate >= from && checkInDate <= to;
+
+    const stays: Array<{
+      propertyId: string;
+      propertyName: string;
+      checkInDate: string;
+      checkOutDate: string;
+      checkInTime: string;
+      checkOutTime: string;
+      source: string;
+      guestCount: number | null;
+    }> = [];
+
+    const properties = (await store.listProperties(false));
+    for (const property of properties) {
+      const manual = (await store.listBookingConfirmations({ propertyId: property.id }))
+        .filter((b) => b.source === 'manual' && overlapsWindow(b.checkInDate, b.checkOutDate));
+      for (const b of manual) {
+        stays.push({
+          propertyId: property.id,
+          propertyName: property.name,
+          checkInDate: b.checkInDate,
+          checkOutDate: b.checkOutDate,
+          checkInTime: b.checkInTime || '15:00',
+          checkOutTime: b.checkOutTime || '10:00',
+          source: 'Manual',
+          guestCount: b.numGuests ?? null,
+        });
+      }
+
+      const direct = (await store.listBookings({ propertyId: property.id, statuses: ['confirmed'] }))
+        .filter((bk) => overlapsWindow(bk.checkInDate, bk.checkOutDate));
+      for (const bk of direct) {
+        stays.push({
+          propertyId: property.id,
+          propertyName: property.name,
+          checkInDate: bk.checkInDate,
+          checkOutDate: bk.checkOutDate,
+          checkInTime: '15:00',
+          checkOutTime: '10:00',
+          source: 'Direct booking',
+          guestCount: bk.adults + bk.children + bk.infants,
+        });
+      }
+
+      const imported = (await icalSync.getImportedEvents(property, 'stale-ok'))
+        .filter((ev) => overlapsWindow(ev.checkInDate, ev.checkOutDate));
+      for (const ev of imported) {
+        stays.push({
+          propertyId: property.id,
+          propertyName: property.name,
+          checkInDate: ev.checkInDate,
+          checkOutDate: ev.checkOutDate,
+          checkInTime: '15:00',
+          checkOutTime: '10:00',
+          source: ev.channelName || ev.feedName,
+          guestCount: ev.guestCount,
+        });
+      }
+    }
+
+    res.json({ stays });
+  });
+
   // Public token-guarded iCal export consumed by other booking platforms. No
   // auth: the secret token in the path is the credential. Publishes manual
   // blocks + direct bookings only (imported dates are excluded to avoid loops).

@@ -655,6 +655,12 @@ export interface DataStore {
   ensureIcalExportToken(propertyId: string): Promise<string>;
   // Rotates the iCal export token, invalidating any previously shared URL.
   regenerateIcalExportToken(propertyId: string): Promise<string>;
+  // A single global (not per-property) token guarding the public
+  // cleaning-staff calendar — one link covers every property. Generated
+  // lazily on first use, same pattern as ensureIcalExportToken.
+  ensureCleaningCalendarToken(): Promise<string>;
+  // Rotates the cleaning-calendar token, invalidating any previously shared link.
+  regenerateCleaningCalendarToken(): Promise<string>;
   listBlogPosts(includeArchived?: boolean): Promise<BlogPost[]>;
   getBlogPost(id: string): Promise<BlogPost | null>;
   createBlogPost(post: Omit<BlogPost, 'createdAt' | 'updatedAt'>, actor: AuthUser): Promise<BlogPost>;

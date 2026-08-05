@@ -53,6 +53,7 @@ interface MemoryState {
   pendingTransactions: PendingTransaction[];
   subscriptionRequests: SubscriptionRequest[];
   ingestRules: IngestRule[];
+  cleaningCalendarToken: string | null;
 }
 
 export class MemoryStore implements DataStore {
@@ -78,6 +79,7 @@ export class MemoryStore implements DataStore {
       pendingTransactions: [],
       subscriptionRequests: [],
       ingestRules: [],
+      cleaningCalendarToken: null,
     };
   }
 
@@ -508,6 +510,21 @@ export class MemoryStore implements DataStore {
     const token = randomBytes(24).toString('hex');
     state.properties[index] = { ...state.properties[index], icalExportToken: token };
     return token;
+  }
+
+  async ensureCleaningCalendarToken(): Promise<string> {
+    const state = this.assertState();
+    if (state.cleaningCalendarToken) {
+      return state.cleaningCalendarToken;
+    }
+    state.cleaningCalendarToken = randomBytes(24).toString('hex');
+    return state.cleaningCalendarToken;
+  }
+
+  async regenerateCleaningCalendarToken(): Promise<string> {
+    const state = this.assertState();
+    state.cleaningCalendarToken = randomBytes(24).toString('hex');
+    return state.cleaningCalendarToken;
   }
 
   async listBlogPosts(includeArchived = false): Promise<BlogPost[]> {

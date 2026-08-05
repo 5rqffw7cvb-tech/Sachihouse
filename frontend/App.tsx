@@ -33,6 +33,7 @@ const ServicesAdminPage = lazy(() => import('./pages/ServicesAdminPage'));
 const BookingConfirmPage = lazy(() => import('./pages/BookingConfirmPage'));
 const BookingConfirmHistoryPage = lazy(() => import('./pages/BookingConfirmHistoryPage'));
 const HostCalendarPage = lazy(() => import('./pages/HostCalendarPage'));
+const CleaningCalendarPage = lazy(() => import('./pages/CleaningCalendarPage'));
 
 // ScrollToTop component to fix scroll position on route change in HashRouter
 const ScrollToTop = () => {
@@ -590,6 +591,7 @@ const App: React.FC = () => {
                         <Route path="/admin/booking-confirm/new" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BookingConfirmPage /></Suspense>} />
                         <Route path="/admin/booking-confirm/history" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BookingConfirmHistoryPage /></Suspense>} />
                         <Route path="/admin/calendar" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><HostCalendarPage /></Suspense>} />
+                        <Route path="/cleaning/:token" element={<Suspense fallback={<div className="min-h-screen bg-[#111827] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><CleaningCalendarPage /></Suspense>} />
                         <Route path="/blog/:id" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BlogPostPage /></Suspense>} />
                         <Route path="/:id/*" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><PropertyRoutes /></Suspense>} />
           </Routes>

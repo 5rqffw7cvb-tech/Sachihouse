@@ -183,6 +183,16 @@ export class PostgresStore implements DataStore {
         payload JSONB
       );
 
+      -- Small generic key/value slot for global (not per-property) secrets,
+      -- e.g. the cleaning-staff calendar's share token. Kept separate from
+      -- site_settings, whose save path wholesale-replaces the row and would
+      -- otherwise wipe a token that the settings form never round-trips.
+      CREATE TABLE IF NOT EXISTS app_secrets (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS financial_transactions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
@@ -880,6 +890,26 @@ export class PostgresStore implements DataStore {
     await this.pool.query(
       'UPDATE properties SET data = $2::jsonb, updated_at = NOW() WHERE id = $1',
       [current.id, JSON.stringify(next)],
+    );
+    return token;
+  }
+
+  async ensureCleaningCalendarToken(): Promise<string> {
+    const result = await this.pool.query<{ value: string }>(
+      "SELECT value FROM app_secrets WHERE key = 'cleaning_calendar_token'",
+    );
+    if (result.rows[0]) {
+      return result.rows[0].value;
+    }
+    return this.regenerateCleaningCalendarToken();
+  }
+
+  async regenerateCleaningCalendarToken(): Promise<string> {
+    const token = randomBytes(24).toString('hex');
+    await this.pool.query(
+      `INSERT INTO app_secrets (key, value, updated_at) VALUES ('cleaning_calendar_token', $1, $2)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
+      [token, Date.now()],
     );
     return token;
   }

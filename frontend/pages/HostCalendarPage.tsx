@@ -11,7 +11,7 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Loader2, RefreshCw, Plus, Settings2, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Loader2, RefreshCw, Plus, Settings2, Sparkles, Trash2 } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { Footer } from '../components/Footer';
@@ -29,6 +29,7 @@ import {
 } from '../services/calendar';
 import { ApiUser } from '../services/api';
 import { cancelBookingByHost, forceCancelBookingByHost } from '../services/booking';
+import { getCleaningCalendarLink, regenerateCleaningCalendarLink } from '../services/cleaningCalendar';
 import { ICalFeed, PropertyData } from '../types';
 
 type PropertyItem = PropertyData & { id: string };
@@ -122,6 +123,11 @@ const HostCalendarPage: React.FC = () => {
   const [savingFeeds, setSavingFeeds] = useState(false);
   const [feedsSaved, setFeedsSaved] = useState(false);
 
+  // Cleaning-staff calendar share link (one link, all properties).
+  const [cleaningLink, setCleaningLink] = useState<string | null>(null);
+  const [cleaningLinkCopied, setCleaningLinkCopied] = useState(false);
+  const [regeneratingCleaningLink, setRegeneratingCleaningLink] = useState(false);
+
   const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
 
   useEffect(() => {
@@ -132,6 +138,35 @@ const HostCalendarPage: React.FC = () => {
     }).then((unsub) => { unsubscribe = unsub; });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!canAccess) return;
+    getCleaningCalendarLink().then(setCleaningLink).catch(() => {});
+  }, [canAccess]);
+
+  const copyCleaningLink = async () => {
+    if (!cleaningLink) return;
+    try {
+      await navigator.clipboard.writeText(cleaningLink);
+      setCleaningLinkCopied(true);
+      setTimeout(() => setCleaningLinkCopied(false), 1800);
+    } catch {
+      setErrorMsg('Could not copy to clipboard.');
+    }
+  };
+
+  const handleRegenerateCleaningLink = async () => {
+    if (!window.confirm('Generate a new cleaning-calendar link? The old one will stop working — anyone using it (including staff who added it to their home screen) will need the new link.')) return;
+    setRegeneratingCleaningLink(true);
+    try {
+      const url = await regenerateCleaningCalendarLink();
+      setCleaningLink(url);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to regenerate the cleaning-calendar link.');
+    } finally {
+      setRegeneratingCleaningLink(false);
+    }
+  };
 
   const scopedProperties = useMemo(() => {
     if (!authUser) return [] as PropertyItem[];
@@ -360,6 +395,41 @@ const HostCalendarPage: React.FC = () => {
         <div className="mb-4">
           <h1 className="font-['Plus_Jakarta_Sans'] text-[20px] md:text-[28px] font-bold tracking-tight leading-none">Calendar</h1>
           <p className="hidden md:block mt-1.5 text-[13px] text-[#74777d]">Block dates manually and sync availability with other platforms via iCal.</p>
+        </div>
+
+        {/* Cleaning-staff calendar link — one link covers every property, no login required on the other end. */}
+        <div className="mb-4 rounded-2xl border border-[#e4e2e3] bg-white p-4">
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="h-4 w-4 text-[#d97706]" />
+            <span className="text-[13px] font-semibold text-[#1b1c1d]">Cleaning calendar (share with staff)</span>
+          </div>
+          <p className="mt-1 text-[12px] text-[#74777d]">Send this link to your cleaning staff — they can add it to their phone's home screen like an app. Shows checkout/check-in times for every property, no login needed.</p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <input
+              readOnly
+              value={cleaningLink ?? 'Loading…'}
+              onFocus={(e) => e.target.select()}
+              className="flex-1 min-w-[200px] rounded-xl border border-[#c4c6cd] bg-[#f7f5f6] px-3 py-2 text-[12.5px] text-[#44474c]"
+            />
+            <button
+              type="button"
+              onClick={() => void copyCleaningLink()}
+              disabled={!cleaningLink}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#c4c6cd] px-3 py-2 text-[12.5px] font-semibold text-[#1b1c1d] hover:bg-[#f5f3f4] transition-colors disabled:opacity-50"
+            >
+              {cleaningLinkCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {cleaningLinkCopied ? 'Copied' : 'Copy'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleRegenerateCleaningLink()}
+              disabled={!cleaningLink || regeneratingCleaningLink}
+              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12.5px] font-semibold text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-50"
+            >
+              {regeneratingCleaningLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Regenerate
+            </button>
+          </div>
         </div>
 
         {/* Property selector */}
