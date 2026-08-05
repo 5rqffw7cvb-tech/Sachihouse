@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   addDays,
@@ -13,7 +13,7 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Loader2, X, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, X, Zap } from 'lucide-react';
 import { ApiError } from '../services/api';
 import { CleaningStay, getCleaningCalendar } from '../services/cleaningCalendar';
 
@@ -144,6 +144,7 @@ const CleaningCalendarPage: React.FC = () => {
   const [viewMonth, setViewMonth] = useState<Date>(startOfMonth(new Date()));
   const [stays, setStays] = useState<CleaningStay[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -155,31 +156,39 @@ const CleaningCalendarPage: React.FC = () => {
     return eachDayOfInterval({ start, end });
   }, [viewMonth]);
 
-  useEffect(() => {
+  // Added to home screen, this page runs full-screen with no browser chrome
+  // — no pull-to-refresh, no reload button. `manual` mode (the header's
+  // refresh button) keeps the existing grid on screen and only spins the
+  // icon, instead of blanking the page the way the initial load does.
+  const requestIdRef = useRef(0);
+  const fetchStays = useCallback(async (mode: 'initial' | 'manual') => {
     if (!token) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setErrorMsg(null);
-      try {
-        const from = format(gridDays[0], 'yyyy-MM-dd');
-        const to = format(gridDays[gridDays.length - 1], 'yyyy-MM-dd');
-        const data = await getCleaningCalendar(token, from, to);
-        if (!cancelled) setStays(data);
-      } catch (err) {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.status === 404) {
-          setNotFound(true);
-        } else {
-          setErrorMsg(err instanceof Error ? err.message : 'Failed to load the cleaning calendar.');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+    const requestId = ++requestIdRef.current;
+    if (mode === 'initial') setLoading(true); else setRefreshing(true);
+    setErrorMsg(null);
+    try {
+      const from = format(gridDays[0], 'yyyy-MM-dd');
+      const to = format(gridDays[gridDays.length - 1], 'yyyy-MM-dd');
+      const data = await getCleaningCalendar(token, from, to);
+      if (requestIdRef.current !== requestId) return;
+      setStays(data);
+    } catch (err) {
+      if (requestIdRef.current !== requestId) return;
+      if (err instanceof ApiError && err.status === 404) {
+        setNotFound(true);
+      } else {
+        setErrorMsg(err instanceof Error ? err.message : 'Failed to load the cleaning calendar.');
       }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, viewMonth]);
+    } finally {
+      if (requestIdRef.current === requestId) {
+        if (mode === 'initial') setLoading(false); else setRefreshing(false);
+      }
+    }
+  }, [token, gridDays]);
+
+  useEffect(() => {
+    fetchStays('initial');
+  }, [fetchStays]);
 
   const dayMap = useMemo(() => buildDayMap(stays), [stays]);
   const bandMap = useMemo(() => buildStayBandMap(stays), [stays]);
@@ -237,8 +246,17 @@ const CleaningCalendarPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] flex flex-col">
-      <header className="bg-white text-[#111827] px-4 py-4 sticky top-0 z-20 shadow-sm border-b border-[#e4e2e3]">
+      <header className="bg-white text-[#111827] px-4 py-4 sticky top-0 z-20 shadow-sm border-b border-[#e4e2e3] flex items-center justify-between">
         <h1 className="text-[17px] font-bold tracking-tight">SachiHouse Calendar</h1>
+        <button
+          type="button"
+          onClick={() => fetchStays('manual')}
+          disabled={loading || refreshing}
+          className="p-2 rounded-full hover:bg-[#f5f3f4] active:bg-[#ececec] transition-colors disabled:opacity-40"
+          aria-label="Refresh"
+        >
+          <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
+        </button>
       </header>
 
       <main className="flex-1 max-w-lg w-full mx-auto px-3 py-4">
