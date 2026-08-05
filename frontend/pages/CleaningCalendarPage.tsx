@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
+  addDays,
   addMonths,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
   format,
   isSameMonth,
+  parseISO,
   startOfMonth,
   startOfWeek,
   subMonths,
@@ -40,6 +42,21 @@ function sourceStyle(source: string): string {
   return SOURCE_STYLES[source] || DEFAULT_SOURCE_STYLE;
 }
 
+// Background-only variant of SOURCE_STYLES for the occupancy band, which
+// never carries text.
+const SOURCE_BG: Record<string, string> = {
+  Airbnb: 'bg-[#FF5A5F]',
+  'Booking.com': 'bg-[#003580]',
+  'Hostex Direct': 'bg-[#0f9d58]',
+  Manual: 'bg-[#6b7280]',
+  'Direct booking': 'bg-[#0b57d0]',
+};
+const DEFAULT_SOURCE_BG = 'bg-[#d97706]';
+
+function sourceBg(source: string): string {
+  return SOURCE_BG[source] || DEFAULT_SOURCE_BG;
+}
+
 interface DayActivity {
   checkouts: CleaningStay[];
   checkins: CleaningStay[];
@@ -58,6 +75,34 @@ function buildDayMap(stays: CleaningStay[]): Map<string, DayActivity> {
   for (const stay of stays) {
     ensure(stay.checkOutDate).checkouts.push(stay);
     ensure(stay.checkInDate).checkins.push(stay);
+  }
+  return map;
+}
+
+interface OccupancySegment {
+  stay: CleaningStay;
+  isStart: boolean; // this night is the guest's first (check-in day)
+  isEnd: boolean;   // this night is the guest's last (the day before checkout)
+}
+
+// One entry per occupied *night* (check-in inclusive, checkout exclusive —
+// the checkout day itself is a cleaning day, not an occupied one) so the
+// calendar can paint a continuous band from check-in through to the night
+// before checkout.
+function buildOccupancyMap(stays: CleaningStay[]): Map<string, OccupancySegment[]> {
+  const map = new Map<string, OccupancySegment[]>();
+  for (const stay of stays) {
+    const start = parseISO(stay.checkInDate);
+    const end = parseISO(stay.checkOutDate);
+    if (!(start < end)) continue;
+    for (let cursor = start; cursor < end; cursor = addDays(cursor, 1)) {
+      const iso = format(cursor, 'yyyy-MM-dd');
+      const isStart = iso === stay.checkInDate;
+      const isEnd = format(addDays(cursor, 1), 'yyyy-MM-dd') === stay.checkOutDate;
+      const arr = map.get(iso) ?? [];
+      arr.push({ stay, isStart, isEnd });
+      map.set(iso, arr);
+    }
   }
   return map;
 }
@@ -146,6 +191,7 @@ const CleaningCalendarPage: React.FC = () => {
   }, [token, viewMonth]);
 
   const dayMap = useMemo(() => buildDayMap(stays), [stays]);
+  const occupancyMap = useMemo(() => buildOccupancyMap(stays), [stays]);
 
   const properties = useMemo(() => {
     const map = new Map<string, string>();
@@ -156,6 +202,11 @@ const CleaningCalendarPage: React.FC = () => {
   const visibleIds = activePropertyIds ?? new Set(properties.map((p) => p.id));
   const todayIso = format(new Date(), 'yyyy-MM-dd');
   const selectedActivity = selectedDate ? dayMap.get(selectedDate) : undefined;
+  // Stays covering the selected day with no check-in/checkout event on it —
+  // "guest is just staying" context, shown separately from the actionable
+  // checkout/check-in cards above.
+  const selectedOngoing = (selectedDate ? occupancyMap.get(selectedDate) ?? [] : [])
+    .filter((seg) => visibleIds.has(seg.stay.propertyId) && seg.stay.checkInDate !== selectedDate);
 
   const togglePropertyFilter = (id: string) => {
     setActivePropertyIds((prev) => {
@@ -218,7 +269,7 @@ const CleaningCalendarPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 mb-1">
+          <div className="grid grid-cols-7 gap-x-0 mb-1">
             {WEEKDAYS.map((d) => (
               <div key={d} className="text-center text-[10px] font-semibold text-[#9ca3af] py-1">{d}</div>
             ))}
@@ -229,7 +280,7 @@ const CleaningCalendarPage: React.FC = () => {
               <Loader2 className="h-6 w-6 animate-spin text-[#9ca3af]" />
             </div>
           ) : (
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-x-0 gap-y-1">
               {gridDays.map((day) => {
                 const iso = format(day, 'yyyy-MM-dd');
                 const inMonth = isSameMonth(day, viewMonth);
@@ -237,21 +288,39 @@ const CleaningCalendarPage: React.FC = () => {
                 const activity = dayMap.get(iso);
                 const checkouts = (activity?.checkouts ?? []).filter((s) => visibleIds.has(s.propertyId));
                 const checkins = (activity?.checkins ?? []).filter((s) => visibleIds.has(s.propertyId));
+                const occupancy = (occupancyMap.get(iso) ?? []).filter((seg) => visibleIds.has(seg.stay.propertyId));
 
                 const propertyRows = checkouts.map((c) => {
                   const sameDayTurnover = checkins.some((i) => i.propertyId === c.propertyId);
                   return { stay: c, sameDayTurnover };
                 });
 
+                // A continuous colored band across the stay: rounded only at
+                // its true start/end night, or where a week row wraps (so
+                // the band always reads as a clean, connected strip).
+                const isWeekStart = day.getDay() === 0;
+                const isWeekEnd = day.getDay() === 6;
+                const hasAnything = checkouts.length > 0 || checkins.length > 0 || occupancy.length > 0;
+
                 return (
                   <button
                     key={iso}
                     type="button"
                     onClick={() => setSelectedDate(iso)}
-                    disabled={checkouts.length === 0 && checkins.length === 0}
-                    className={`relative min-h-[56px] rounded-lg border p-1 flex flex-col items-center gap-0.5 text-[12px] transition-colors ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} ${!inMonth ? 'opacity-30' : ''} ${propertyRows.length || checkins.length ? 'bg-[#fafafa] hover:bg-[#f0f0f0] cursor-pointer' : 'cursor-default'}`}
+                    disabled={!hasAnything}
+                    className={`relative min-h-[64px] border-b-2 py-1 flex flex-col items-center gap-0.5 text-[12px] transition-colors ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} ${!inMonth ? 'opacity-30' : ''} ${hasAnything ? 'hover:bg-[#f5f5f5] cursor-pointer' : 'cursor-default'}`}
                   >
                     <span className="font-medium leading-none">{format(day, 'd')}</span>
+
+                    <div className="flex flex-col gap-[2px] w-full px-px">
+                      {occupancy.slice(0, 2).map((seg) => (
+                        <span
+                          key={`${seg.stay.propertyId}-${seg.stay.checkInDate}`}
+                          className={`block h-[6px] w-full ${sourceBg(seg.stay.source)} ${seg.isStart || isWeekStart ? 'rounded-l-[3px]' : ''} ${seg.isEnd || isWeekEnd ? 'rounded-r-[3px]' : ''}`}
+                        />
+                      ))}
+                    </div>
+
                     <div className="flex flex-wrap items-center justify-center gap-0.5 w-full">
                       {propertyRows.slice(0, 2).map(({ stay, sameDayTurnover }) => (
                         <span
@@ -262,9 +331,6 @@ const CleaningCalendarPage: React.FC = () => {
                           {sameDayTurnover && <Zap className="h-2 w-2" />}
                         </span>
                       ))}
-                      {checkins.length > 0 && propertyRows.length === 0 && (
-                        <span className="text-[8px] font-semibold text-[#9ca3af]">arriving</span>
-                      )}
                     </div>
                   </button>
                 );
@@ -277,6 +343,7 @@ const CleaningCalendarPage: React.FC = () => {
 
         <div className="mt-4 rounded-2xl bg-white border border-[#e4e2e3] p-3">
           <div className="text-[10px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-2">Legend</div>
+          <p className="mb-2 text-[11px] text-[#74777d]">The colored strip under each day shows a guest is staying that night. The code below it (e.g. SH7) marks a checkout — clean that day.</p>
           <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-[#44474c]">
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-[#FF5A5F]" /> Airbnb</span>
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-[#003580]" /> Booking.com</span>
@@ -298,7 +365,7 @@ const CleaningCalendarPage: React.FC = () => {
               </button>
             </div>
 
-            {!selectedActivity?.checkouts.length && !selectedActivity?.checkins.length && (
+            {!selectedActivity?.checkouts.length && !selectedActivity?.checkins.length && !selectedOngoing.length && (
               <p className="text-[13px] text-[#9ca3af]">No activity this day.</p>
             )}
 
@@ -332,6 +399,20 @@ const CleaningCalendarPage: React.FC = () => {
                 <div className="mt-1 text-[12.5px] text-[#44474c]">
                   🛬 New guest arriving at <strong>{stay.checkInTime}</strong>
                   {stay.guestCount != null && <> · {stay.guestCount} guest{stay.guestCount === 1 ? '' : 's'}</>}
+                </div>
+              </div>
+            ))}
+
+            {selectedOngoing.map((seg) => (
+              <div key={`stay-${seg.stay.propertyId}-${seg.stay.checkInDate}`} className="mb-2 rounded-xl bg-[#f7f5f6] p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[14px] font-semibold text-[#1b1c1d]">{seg.stay.propertyName}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceStyle(seg.stay.source)}`}>{seg.stay.source}</span>
+                </div>
+                <div className="mt-1 text-[12.5px] text-[#44474c]">
+                  🏠 Guest staying
+                  {seg.stay.guestCount != null && <> · {seg.stay.guestCount} guest{seg.stay.guestCount === 1 ? '' : 's'}</>}
+                  {' '}· checkout {seg.stay.checkOutDate}
                 </div>
               </div>
             ))}
