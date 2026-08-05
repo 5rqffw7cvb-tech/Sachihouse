@@ -13,18 +13,11 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Loader2, Sparkles, X, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, X, Zap } from 'lucide-react';
 import { ApiError } from '../services/api';
 import { CleaningStay, getCleaningCalendar } from '../services/cleaningCalendar';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-// Short, glanceable tag for a property on a cramped mobile calendar cell —
-// its uppercase letters and digits, e.g. "SachiHouse7" -> "SH7".
-function shortCode(name: string): string {
-  const code = name.replace(/[^A-Z0-9]/g, '');
-  return (code || name.slice(0, 3).toUpperCase()).slice(0, 4);
-}
 
 // Same palette as the host calendar's imported-event colors, plus two more
 // for sources that only exist on this page (Manual, Direct booking) — kept
@@ -37,13 +30,12 @@ const SOURCE_STYLES: Record<string, string> = {
   'Direct booking': 'bg-[#0b57d0] text-white',
 };
 const DEFAULT_SOURCE_STYLE = 'bg-[#d97706] text-white';
-
 function sourceStyle(source: string): string {
   return SOURCE_STYLES[source] || DEFAULT_SOURCE_STYLE;
 }
 
 // Background-only variant of SOURCE_STYLES for the occupancy band, which
-// never carries text.
+// never carries text of its own beyond the In/Out label.
 const SOURCE_BG: Record<string, string> = {
   Airbnb: 'bg-[#FF5A5F]',
   'Booking.com': 'bg-[#003580]',
@@ -52,7 +44,6 @@ const SOURCE_BG: Record<string, string> = {
   'Direct booking': 'bg-[#0b57d0]',
 };
 const DEFAULT_SOURCE_BG = 'bg-[#d97706]';
-
 function sourceBg(source: string): string {
   return SOURCE_BG[source] || DEFAULT_SOURCE_BG;
 }
@@ -79,28 +70,28 @@ function buildDayMap(stays: CleaningStay[]): Map<string, DayActivity> {
   return map;
 }
 
-interface OccupancySegment {
+interface StaySegment {
   stay: CleaningStay;
-  isStart: boolean; // this night is the guest's first (check-in day)
-  isEnd: boolean;   // this night is the guest's last (the day before checkout)
+  isStart: boolean; // check-in day -> band shows "In"
+  isEnd: boolean;   // checkout day -> band shows "Out"
 }
 
-// One entry per occupied *night* (check-in inclusive, checkout exclusive —
-// the checkout day itself is a cleaning day, not an occupied one) so the
-// calendar can paint a continuous band from check-in through to the night
-// before checkout.
-function buildOccupancyMap(stays: CleaningStay[]): Map<string, OccupancySegment[]> {
-  const map = new Map<string, OccupancySegment[]>();
+// One entry per calendar day a stay touches, check-in through checkout
+// *inclusive* of both ends, so the band visibly starts on check-in day
+// (labelled "In") and visibly ends on checkout day (labelled "Out") instead
+// of stopping one day short. When two stays for the same property meet on
+// the same day (same-day turnover), that day carries two segments — the
+// cell renderer splits the row in half to show both.
+function buildStayBandMap(stays: CleaningStay[]): Map<string, StaySegment[]> {
+  const map = new Map<string, StaySegment[]>();
   for (const stay of stays) {
     const start = parseISO(stay.checkInDate);
     const end = parseISO(stay.checkOutDate);
-    if (!(start < end)) continue;
-    for (let cursor = start; cursor < end; cursor = addDays(cursor, 1)) {
+    if (!(start <= end)) continue;
+    for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
       const iso = format(cursor, 'yyyy-MM-dd');
-      const isStart = iso === stay.checkInDate;
-      const isEnd = format(addDays(cursor, 1), 'yyyy-MM-dd') === stay.checkOutDate;
       const arr = map.get(iso) ?? [];
-      arr.push({ stay, isStart, isEnd });
+      arr.push({ stay, isStart: iso === stay.checkInDate, isEnd: iso === stay.checkOutDate });
       map.set(iso, arr);
     }
   }
@@ -191,22 +182,29 @@ const CleaningCalendarPage: React.FC = () => {
   }, [token, viewMonth]);
 
   const dayMap = useMemo(() => buildDayMap(stays), [stays]);
-  const occupancyMap = useMemo(() => buildOccupancyMap(stays), [stays]);
+  const bandMap = useMemo(() => buildStayBandMap(stays), [stays]);
 
+  // Stable, alphabetical order — each property always renders in the same
+  // band row across every day and every reload, so position alone tells
+  // staff which property a row belongs to (the legend spells out the
+  // mapping) instead of them having to re-read a label on every cell.
   const properties = useMemo(() => {
     const map = new Map<string, string>();
     for (const stay of stays) map.set(stay.propertyId, stay.propertyName);
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [stays]);
 
   const visibleIds = activePropertyIds ?? new Set(properties.map((p) => p.id));
+  const propertyRows = properties.filter((p) => visibleIds.has(p.id));
   const todayIso = format(new Date(), 'yyyy-MM-dd');
   const selectedActivity = selectedDate ? dayMap.get(selectedDate) : undefined;
-  // Stays covering the selected day with no check-in/checkout event on it —
-  // "guest is just staying" context, shown separately from the actionable
-  // checkout/check-in cards above.
-  const selectedOngoing = (selectedDate ? occupancyMap.get(selectedDate) ?? [] : [])
-    .filter((seg) => visibleIds.has(seg.stay.propertyId) && seg.stay.checkInDate !== selectedDate);
+  // Stays covering the selected day that are neither the check-in nor the
+  // checkout — "guest is just staying" context, shown separately from the
+  // actionable checkout/check-in cards above.
+  const selectedOngoing = (selectedDate ? bandMap.get(selectedDate) ?? [] : [])
+    .filter((seg) => visibleIds.has(seg.stay.propertyId) && !seg.isStart && !seg.isEnd);
 
   const togglePropertyFilter = (id: string) => {
     setActivePropertyIds((prev) => {
@@ -231,26 +229,23 @@ const CleaningCalendarPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] flex flex-col">
-      <header className="bg-[#111827] text-white px-4 pt-6 pb-5 sticky top-0 z-20 shadow-md">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-[#fbbf24]" />
-          <h1 className="text-[17px] font-bold tracking-tight">Cleaning Calendar</h1>
-        </div>
-        <p className="mt-0.5 text-[12px] text-[#9ca3af]">Checkout &amp; check-in schedule for all properties</p>
+      <header className="bg-[#111827] text-white px-4 py-4 sticky top-0 z-20 shadow-md">
+        <h1 className="text-[17px] font-bold tracking-tight">SachiHouse Calendar</h1>
       </header>
 
       <main className="flex-1 max-w-lg w-full mx-auto px-3 py-4">
         {properties.length > 1 && (
           <div className="mb-3 flex flex-wrap gap-2">
-            {properties.map((p) => {
+            {properties.map((p, idx) => {
               const active = visibleIds.has(p.id);
               return (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => togglePropertyFilter(p.id)}
-                  className={`rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${active ? 'bg-[#111827] text-white' : 'bg-white text-[#74777d] border border-[#e4e2e3]'}`}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${active ? 'bg-[#111827] text-white' : 'bg-white text-[#74777d] border border-[#e4e2e3]'}`}
                 >
+                  <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold ${active ? 'bg-white/20' : 'bg-[#111827]/10 text-[#111827]'}`}>{idx + 1}</span>
                   {p.name}
                 </button>
               );
@@ -287,20 +282,12 @@ const CleaningCalendarPage: React.FC = () => {
                 const isToday = iso === todayIso;
                 const activity = dayMap.get(iso);
                 const checkouts = (activity?.checkouts ?? []).filter((s) => visibleIds.has(s.propertyId));
-                const checkins = (activity?.checkins ?? []).filter((s) => visibleIds.has(s.propertyId));
-                const occupancy = (occupancyMap.get(iso) ?? []).filter((seg) => visibleIds.has(seg.stay.propertyId));
-
-                const propertyRows = checkouts.map((c) => {
-                  const sameDayTurnover = checkins.some((i) => i.propertyId === c.propertyId);
-                  return { stay: c, sameDayTurnover };
-                });
-
-                // A continuous colored band across the stay: rounded only at
-                // its true start/end night, or where a week row wraps (so
-                // the band always reads as a clean, connected strip).
+                const daySegs = (bandMap.get(iso) ?? []).filter((seg) => visibleIds.has(seg.stay.propertyId));
                 const isWeekStart = day.getDay() === 0;
                 const isWeekEnd = day.getDay() === 6;
-                const hasAnything = checkouts.length > 0 || checkins.length > 0 || occupancy.length > 0;
+                const hasAnything = daySegs.length > 0;
+                const hasCleaning = checkouts.length > 0;
+                const rowCount = Math.max(1, propertyRows.length);
 
                 return (
                   <button
@@ -308,29 +295,45 @@ const CleaningCalendarPage: React.FC = () => {
                     type="button"
                     onClick={() => setSelectedDate(iso)}
                     disabled={!hasAnything}
-                    className={`relative min-h-[64px] border-b-2 py-1 flex flex-col items-center gap-0.5 text-[12px] transition-colors ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} ${!inMonth ? 'opacity-30' : ''} ${hasAnything ? 'hover:bg-[#f5f5f5] cursor-pointer' : 'cursor-default'}`}
+                    style={{ minHeight: `${30 + rowCount * 16}px` }}
+                    className={`relative border-b-2 py-1 flex flex-col items-center gap-1 text-[12px] transition-colors ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} ${!inMonth ? 'opacity-30' : ''} ${hasAnything ? 'hover:bg-[#f5f5f5] cursor-pointer' : 'cursor-default'}`}
                   >
-                    <span className="font-medium leading-none">{format(day, 'd')}</span>
+                    <span className="flex items-center gap-0.5 leading-none">
+                      <span className="font-medium">{format(day, 'd')}</span>
+                      {hasCleaning && <span className="text-[10px]" title="Cleaning day">🧹</span>}
+                    </span>
 
                     <div className="flex flex-col gap-[2px] w-full px-px">
-                      {occupancy.slice(0, 2).map((seg) => (
-                        <span
-                          key={`${seg.stay.propertyId}-${seg.stay.checkInDate}`}
-                          className={`block h-[6px] w-full ${sourceBg(seg.stay.source)} ${seg.isStart || isWeekStart ? 'rounded-l-[3px]' : ''} ${seg.isEnd || isWeekEnd ? 'rounded-r-[3px]' : ''}`}
-                        />
-                      ))}
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-center gap-0.5 w-full">
-                      {propertyRows.slice(0, 2).map(({ stay, sameDayTurnover }) => (
-                        <span
-                          key={`${stay.propertyId}-${stay.source}`}
-                          className={`inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[8px] font-bold uppercase leading-none ${sourceStyle(stay.source)}`}
-                        >
-                          {shortCode(stay.propertyName)}
-                          {sameDayTurnover && <Zap className="h-2 w-2" />}
-                        </span>
-                      ))}
+                      {propertyRows.map((prop) => {
+                        const segs = daySegs.filter((seg) => seg.stay.propertyId === prop.id);
+                        if (segs.length === 0) {
+                          return <span key={prop.id} className="block h-[13px] w-full" />;
+                        }
+                        if (segs.length === 1) {
+                          const seg = segs[0];
+                          const label = seg.isStart ? 'In' : seg.isEnd ? 'Out' : '';
+                          return (
+                            <span
+                              key={prop.id}
+                              className={`flex h-[13px] w-full items-center justify-center text-[7px] font-bold uppercase text-white ${sourceBg(seg.stay.source)} ${seg.isStart || isWeekStart ? 'rounded-l-[4px]' : ''} ${seg.isEnd || isWeekEnd ? 'rounded-r-[4px]' : ''}`}
+                            >
+                              {label}
+                            </span>
+                          );
+                        }
+                        // Same-day turnover: one stay ends and another begins
+                        // for this property on this day — split the row so
+                        // both are visible instead of one hiding the other.
+                        const outSeg = segs.find((s) => s.isEnd) ?? segs[0];
+                        const inSeg = segs.find((s) => s.isStart) ?? segs[1];
+                        return (
+                          <span key={prop.id} className="relative flex h-[13px] w-full gap-px">
+                            <span className={`flex-1 flex items-center justify-center text-[7px] font-bold uppercase text-white ${sourceBg(outSeg.stay.source)} ${isWeekStart ? 'rounded-l-[4px]' : ''}`}>Out</span>
+                            <span className={`flex-1 flex items-center justify-center text-[7px] font-bold uppercase text-white ${sourceBg(inSeg.stay.source)} ${isWeekEnd ? 'rounded-r-[4px]' : ''}`}>In</span>
+                            <Zap className="pointer-events-none absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 text-white drop-shadow" />
+                          </span>
+                        );
+                      })}
                     </div>
                   </button>
                 );
@@ -342,16 +345,32 @@ const CleaningCalendarPage: React.FC = () => {
         </div>
 
         <div className="mt-4 rounded-2xl bg-white border border-[#e4e2e3] p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#9ca3af] mb-2">Legend</div>
-          <p className="mb-2 text-[11px] text-[#74777d]">The colored strip under each day shows a guest is staying that night. The code below it (e.g. SH7) marks a checkout — clean that day.</p>
-          <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-[#44474c]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-[#44474c]">
+            <span className="inline-flex items-center gap-1">
+              <span className="rounded bg-[#111827] px-1 py-0.5 text-[7px] font-bold uppercase text-white">In</span>
+              <span className="rounded bg-[#111827] px-1 py-0.5 text-[7px] font-bold uppercase text-white">Out</span>
+              check-in / checkout
+            </span>
+            <span className="inline-flex items-center gap-1">🧹 cleaning day</span>
+            <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-[#f59e0b]" /> same-day turnover</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-[#44474c]">
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-[#FF5A5F]" /> Airbnb</span>
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-[#003580]" /> Booking.com</span>
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-[#0f9d58]" /> Hostex Direct</span>
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-[#0b57d0]" /> Direct booking</span>
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-[#6b7280]" /> Manual</span>
-            <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-[#f59e0b]" /> Same-day turnover</span>
           </div>
+          {properties.length > 1 && (
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10.5px] text-[#9ca3af]">
+              {properties.map((p, idx) => (
+                <span key={p.id} className="inline-flex items-center gap-1">
+                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#111827] text-[8px] font-bold text-white">{idx + 1}</span>
+                  {p.name} = row {idx + 1}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </main>
 
@@ -373,18 +392,18 @@ const CleaningCalendarPage: React.FC = () => {
               const sameDayTurnover = selectedActivity.checkins.some((i) => i.propertyId === stay.propertyId);
               return (
                 <div key={`out-${stay.propertyId}-${stay.checkOutDate}-${stay.source}`} className="mb-2 rounded-xl border border-[#e4e2e3] p-3">
-                  {sameDayTurnover && (
-                    <div className="mb-1.5 inline-flex items-center gap-1 rounded-full bg-[#fef3c7] px-2 py-0.5 text-[10px] font-bold text-[#92400e]">
-                      <Zap className="h-3 w-3" /> Same-day turnover — clean fast
-                    </div>
-                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-[14px] font-semibold text-[#1b1c1d]">{stay.propertyName}</span>
                     <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceStyle(stay.source)}`}>{stay.source}</span>
                   </div>
-                  <div className="mt-1 text-[12.5px] text-[#44474c]">
-                    🧹 Checkout at <strong>{stay.checkOutTime}</strong>
-                    {stay.guestCount != null && <> · {stay.guestCount} guest{stay.guestCount === 1 ? '' : 's'} just left</>}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-[#44474c]">
+                    <span>🧹 Out {stay.checkOutTime}</span>
+                    {stay.guestCount != null && <span>👤 {stay.guestCount}</span>}
+                    {sameDayTurnover && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-[#fef3c7] px-1.5 py-0.5 text-[10px] font-bold text-[#92400e]">
+                        <Zap className="h-2.5 w-2.5" /> turnover
+                      </span>
+                    )}
                   </div>
                 </div>
               );
@@ -396,9 +415,9 @@ const CleaningCalendarPage: React.FC = () => {
                   <span className="text-[14px] font-semibold text-[#1b1c1d]">{stay.propertyName}</span>
                   <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceStyle(stay.source)}`}>{stay.source}</span>
                 </div>
-                <div className="mt-1 text-[12.5px] text-[#44474c]">
-                  🛬 New guest arriving at <strong>{stay.checkInTime}</strong>
-                  {stay.guestCount != null && <> · {stay.guestCount} guest{stay.guestCount === 1 ? '' : 's'}</>}
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-[#44474c]">
+                  <span>🛬 In {stay.checkInTime}</span>
+                  {stay.guestCount != null && <span>👤 {stay.guestCount}</span>}
                 </div>
               </div>
             ))}
@@ -409,10 +428,10 @@ const CleaningCalendarPage: React.FC = () => {
                   <span className="text-[14px] font-semibold text-[#1b1c1d]">{seg.stay.propertyName}</span>
                   <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceStyle(seg.stay.source)}`}>{seg.stay.source}</span>
                 </div>
-                <div className="mt-1 text-[12.5px] text-[#44474c]">
-                  🏠 Guest staying
-                  {seg.stay.guestCount != null && <> · {seg.stay.guestCount} guest{seg.stay.guestCount === 1 ? '' : 's'}</>}
-                  {' '}· checkout {seg.stay.checkOutDate}
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-[#44474c]">
+                  <span>🏠 Staying</span>
+                  {seg.stay.guestCount != null && <span>👤 {seg.stay.guestCount}</span>}
+                  <span>out {seg.stay.checkOutDate}</span>
                 </div>
               </div>
             ))}
