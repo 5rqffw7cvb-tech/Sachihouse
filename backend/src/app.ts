@@ -1326,14 +1326,16 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return buildSiteUrl(publicSiteUrl, `/cleaning/${token}`);
   }
 
-  app.get('/api/cleaning-calendar-link', requireAuth, requireHostOrAdmin, async (_req, res) => {
+  app.get('/api/cleaning-calendar-link', requireAuth, requireAdmin, async (_req, res) => {
     const token = await store.ensureCleaningCalendarToken();
     res.json({ url: buildCleaningCalendarUrl(token) });
   });
 
   // Invalidates the previously shared link — anyone still using the old one
-  // gets a 404 on the data endpoint below.
-  app.post('/api/cleaning-calendar-link/regenerate', requireAuth, requireHostOrAdmin, async (_req, res) => {
+  // gets a 404 on the data endpoint below. Admin-only: this link is shared
+  // across every property, so a host regenerating it would knock every
+  // other host's cleaning staff off the calendar too.
+  app.post('/api/cleaning-calendar-link/regenerate', requireAuth, requireAdmin, async (_req, res) => {
     const token = await store.regenerateCleaningCalendarToken();
     res.json({ url: buildCleaningCalendarUrl(token) });
   });

@@ -129,6 +129,7 @@ const HostCalendarPage: React.FC = () => {
   const [regeneratingCleaningLink, setRegeneratingCleaningLink] = useState(false);
 
   const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
+  const isAdminUser = authUser?.role === 'ADMIN';
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -140,9 +141,12 @@ const HostCalendarPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!canAccess) return;
+    // Admin-only: this link is shared across every property, so a host
+    // regenerating it would knock every other host's cleaning staff off
+    // the calendar too. The backend enforces this too (403 for a host).
+    if (!isAdminUser) return;
     getCleaningCalendarLink().then(setCleaningLink).catch(() => {});
-  }, [canAccess]);
+  }, [isAdminUser]);
 
   const copyCleaningLink = async () => {
     if (!cleaningLink) return;
@@ -397,40 +401,42 @@ const HostCalendarPage: React.FC = () => {
           <p className="hidden md:block mt-1.5 text-[13px] text-[#74777d]">Block dates manually and sync availability with other platforms via iCal.</p>
         </div>
 
-        {/* Cleaning-staff calendar link — one link covers every property, no login required on the other end. */}
-        <div className="mb-4 rounded-2xl border border-[#e4e2e3] bg-white p-4">
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="h-4 w-4 text-[#d97706]" />
-            <span className="text-[13px] font-semibold text-[#1b1c1d]">Cleaning calendar (share with staff)</span>
+        {/* Cleaning-staff calendar link — one link covers every property, no login required on the other end. Admin-only: regenerating it affects every host's staff at once. */}
+        {isAdminUser && (
+          <div className="mb-4 rounded-2xl border border-[#e4e2e3] bg-white p-4">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-[#d97706]" />
+              <span className="text-[13px] font-semibold text-[#1b1c1d]">Cleaning calendar (share with staff)</span>
+            </div>
+            <p className="mt-1 text-[12px] text-[#74777d]">Send this link to your cleaning staff — they can add it to their phone's home screen like an app. Shows checkout/check-in times for every property, no login needed.</p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <input
+                readOnly
+                value={cleaningLink ?? 'Loading…'}
+                onFocus={(e) => e.target.select()}
+                className="flex-1 min-w-[200px] rounded-xl border border-[#c4c6cd] bg-[#f7f5f6] px-3 py-2 text-[12.5px] text-[#44474c]"
+              />
+              <button
+                type="button"
+                onClick={() => void copyCleaningLink()}
+                disabled={!cleaningLink}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#c4c6cd] px-3 py-2 text-[12.5px] font-semibold text-[#1b1c1d] hover:bg-[#f5f3f4] transition-colors disabled:opacity-50"
+              >
+                {cleaningLinkCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {cleaningLinkCopied ? 'Copied' : 'Copy'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRegenerateCleaningLink()}
+                disabled={!cleaningLink || regeneratingCleaningLink}
+                className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12.5px] font-semibold text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-50"
+              >
+                {regeneratingCleaningLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                Regenerate
+              </button>
+            </div>
           </div>
-          <p className="mt-1 text-[12px] text-[#74777d]">Send this link to your cleaning staff — they can add it to their phone's home screen like an app. Shows checkout/check-in times for every property, no login needed.</p>
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <input
-              readOnly
-              value={cleaningLink ?? 'Loading…'}
-              onFocus={(e) => e.target.select()}
-              className="flex-1 min-w-[200px] rounded-xl border border-[#c4c6cd] bg-[#f7f5f6] px-3 py-2 text-[12.5px] text-[#44474c]"
-            />
-            <button
-              type="button"
-              onClick={() => void copyCleaningLink()}
-              disabled={!cleaningLink}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-[#c4c6cd] px-3 py-2 text-[12.5px] font-semibold text-[#1b1c1d] hover:bg-[#f5f3f4] transition-colors disabled:opacity-50"
-            >
-              {cleaningLinkCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              {cleaningLinkCopied ? 'Copied' : 'Copy'}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleRegenerateCleaningLink()}
-              disabled={!cleaningLink || regeneratingCleaningLink}
-              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12.5px] font-semibold text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-50"
-            >
-              {regeneratingCleaningLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              Regenerate
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Property selector */}
         <div className="mb-4 flex flex-wrap items-center gap-3">

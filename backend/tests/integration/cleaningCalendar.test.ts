@@ -93,8 +93,22 @@ beforeEach(async () => {
 });
 
 describe('cleaning-calendar link management', () => {
-  it('requires host/admin auth to fetch the link', async () => {
+  it('requires auth to fetch the link', async () => {
     await request(app).get('/api/cleaning-calendar-link').expect(401);
+  });
+
+  // Admin-only: this one link covers every property, so a host regenerating
+  // it would knock every other host's cleaning staff off the calendar too.
+  it('rejects a host — only admin can view or regenerate the link', async () => {
+    const token = await login('host@sachihouse.com', 'host123');
+    await request(app)
+      .get('/api/cleaning-calendar-link')
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(403);
+    await request(app)
+      .post('/api/cleaning-calendar-link/regenerate')
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(403);
   });
 
   it('returns a stable link that points at the SPA, not the API', async () => {
