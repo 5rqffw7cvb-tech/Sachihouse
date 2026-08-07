@@ -68,6 +68,9 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
   const [calendarViewMonth, setCalendarViewMonth] = useState(today);
   const [selectingField, setSelectingField] = useState<'checkIn' | 'checkOut'>('checkIn');
   const [isBookingFormOpen, setIsBookingFormOpen] = useState(false);
+  // Compact mode (mobile "Book Direct") hides the price breakdown behind a
+  // toggle by default so the sticky bottom CTA is reachable without scrolling.
+  const [showBreakdown, setShowBreakdown] = useState(false);
   // Nights that were taken while the guest was filling in the form; shown so
   // they understand why the calendar suddenly changed under them.
   const [takenDates, setTakenDates] = useState<string[]>([]);
@@ -324,25 +327,44 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
 
       <div className={compact ? 'p-4' : 'p-8'}>
         {/* Price Display */}
-        <div className={`flex justify-between items-baseline ${compact ? 'mb-4' : 'mb-8'}`}>
-            <div>
-            {calculation && calculation.isValid ? (
-                <>
-                    <span className="text-3xl font-bold text-gray-900">¥{calculation.breakdown.pricePerGuest.toLocaleString()}</span>
-                    <span className="text-gray-500 ml-1 text-base">{t('sim_per_night')}</span>
-                </>
-            ) : (
-                <span className="text-3xl font-bold text-gray-900">{t('sim_add_dates')}</span>
-            )}
-            </div>
-            <div className="flex items-center text-xs bg-gray-100 px-3 py-1.5 rounded-full">
-               <Star className="w-3.5 h-3.5 text-orange-400 fill-current mr-1.5" />
-               <span className="font-bold text-gray-700">4.92</span>
-            </div>
-        </div>
+        {compact ? (
+          <div className="mb-3 rounded-2xl bg-gradient-to-br from-[var(--color-primary-600)] to-[var(--color-primary-700)] px-5 py-4 text-white shadow-lg shadow-black/10 flex items-end justify-between">
+              <div>
+              {calculation && calculation.isValid ? (
+                  <>
+                      <span className="text-3xl font-extrabold tracking-tight">¥{calculation.breakdown.pricePerGuest.toLocaleString()}</span>
+                      <span className="ml-1 text-sm text-white/80">{t('sim_per_night')}</span>
+                  </>
+              ) : (
+                  <span className="text-xl font-bold">{t('sim_add_dates')}</span>
+              )}
+              </div>
+              <div className="flex items-center gap-1 text-xs bg-white/15 px-2.5 py-1 rounded-full backdrop-blur-sm shrink-0">
+                 <Star className="w-3.5 h-3.5 text-yellow-300 fill-current" />
+                 <span className="font-bold">4.92</span>
+              </div>
+          </div>
+        ) : (
+          <div className="flex justify-between items-baseline mb-8">
+              <div>
+              {calculation && calculation.isValid ? (
+                  <>
+                      <span className="text-3xl font-bold text-gray-900">¥{calculation.breakdown.pricePerGuest.toLocaleString()}</span>
+                      <span className="text-gray-500 ml-1 text-base">{t('sim_per_night')}</span>
+                  </>
+              ) : (
+                  <span className="text-3xl font-bold text-gray-900">{t('sim_add_dates')}</span>
+              )}
+              </div>
+              <div className="flex items-center text-xs bg-gray-100 px-3 py-1.5 rounded-full">
+                 <Star className="w-3.5 h-3.5 text-orange-400 fill-current mr-1.5" />
+                 <span className="font-bold text-gray-700">4.92</span>
+              </div>
+          </div>
+        )}
 
         {/* Inputs Container */}
-        <div className={`border border-gray-300 rounded-xl bg-white relative ${compact ? 'mb-4' : 'mb-8'}`}>
+        <div className={`border bg-white relative ${compact ? 'border-gray-200 rounded-2xl shadow-sm mb-3' : 'border-gray-300 rounded-xl mb-8'}`}>
             {/* Custom Date Inputs Trigger */}
             <div className="flex border-b border-gray-300">
                 <div 
@@ -506,7 +528,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
 
         {/* Calculation Result */}
         {calculation && calculation.isValid ? (
-            <div className={compact ? 'space-y-4' : 'space-y-6'}>
+            <div className={compact ? 'space-y-3 pb-20' : 'space-y-6'}>
                 {propertyId && (
                     <div className="space-y-2">
                         {!couponFieldOpen && !appliedCoupon ? (
@@ -552,54 +574,87 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                         {couponError && <p className="text-xs text-red-600">{couponError}</p>}
                     </div>
                 )}
-                <div className={`bg-gray-50 rounded-xl border border-gray-100 space-y-3 text-base text-gray-600 ${compact ? 'p-4' : 'p-5'}`}>
-                    <div className="flex justify-between">
-                        <span className="underline decoration-dotted cursor-help" title={`¥${calculation.breakdown.pricePerGuest.toLocaleString()} x ${adults} x ${calculation.nights}`}>
-                            {t('sim_adults')} ({calculation.nights} nights)
-                        </span>
-                        <span>¥{(calculation.breakdown.adultTotal).toLocaleString()}</span>
+                {(() => {
+                  const breakdownLines = (
+                    <>
+                      <div className="flex justify-between">
+                          <span className="underline decoration-dotted cursor-help" title={`¥${calculation.breakdown.pricePerGuest.toLocaleString()} x ${adults} x ${calculation.nights}`}>
+                              {t('sim_adults')} ({calculation.nights} nights)
+                          </span>
+                          <span>¥{(calculation.breakdown.adultTotal).toLocaleString()}</span>
+                      </div>
+
+                      {children > 0 && (
+                          <div className="flex justify-between text-blue-600">
+                              <span className="underline decoration-dotted cursor-help" title={`${pricing.childDiscountPercent}% Discount applied`}>
+                                  {t('sim_children')} ({pricing.childDiscountPercent}% off)
+                              </span>
+                              <span>¥{(calculation.breakdown.childTotal).toLocaleString()}</span>
+                          </div>
+                      )}
+
+                      {infants > 0 && (
+                          <div className="flex justify-between text-green-600">
+                              <span>{t('sim_infant_free')}</span>
+                              <span>¥0</span>
+                          </div>
+                      )}
+
+                      <div className="flex justify-between">
+                          <span>{t('sim_cleaning')}</span>
+                          <span>¥{calculation.breakdown.cleaningFee.toLocaleString()}</span>
+                      </div>
+
+                      {calculation.breakdown.discountRate < 1 && (
+                          <div className="flex justify-between text-green-600 font-bold">
+                              <span>{t('sim_long_stay')} ({pricing.longStayDiscountPercent}%)</span>
+                              <span>-¥{(calculation.breakdown.subtotal - calculation.breakdown.discountedSubtotal).toLocaleString()}</span>
+                          </div>
+                      )}
+
+                      {appliedCoupon && couponQuote && (
+                          <div className="flex justify-between text-green-600 font-bold">
+                              <span>{t('sim_coupon_applied')} ({appliedCoupon.code})</span>
+                              <span>-¥{Math.max(0, calculation.total - couponQuote.total).toLocaleString()}</span>
+                          </div>
+                      )}
+                    </>
+                  );
+                  const displayTotal = appliedCoupon && couponQuote ? couponQuote.total : calculation.total;
+
+                  if (compact) {
+                    return (
+                      <div className="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setShowBreakdown((v) => !v)}
+                          className="w-full flex items-center justify-between gap-2 px-4 py-3"
+                        >
+                          <span className="flex items-center gap-1 text-sm font-semibold text-gray-600">
+                            {t('sim_breakdown_toggle')}
+                            {showBreakdown ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </span>
+                          <span className="font-bold text-lg text-gray-900">¥{displayTotal.toLocaleString()}</span>
+                        </button>
+                        {showBreakdown && (
+                          <div className="px-4 pb-4 pt-1 space-y-2.5 text-sm text-gray-600 border-t border-gray-100">
+                            {breakdownLines}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="bg-gray-50 rounded-xl border border-gray-100 space-y-3 text-base text-gray-600 p-5">
+                        {breakdownLines}
+                        <div className="border-t border-gray-200 pt-4 mt-2 flex justify-between items-center text-gray-900">
+                            <span className="font-bold text-lg">{t('sim_total_est')}</span>
+                            <span className="font-bold text-2xl">¥{displayTotal.toLocaleString()}</span>
+                        </div>
                     </div>
-                    
-                    {children > 0 && (
-                        <div className="flex justify-between text-blue-600">
-                            <span className="underline decoration-dotted cursor-help" title={`${pricing.childDiscountPercent}% Discount applied`}>
-                                {t('sim_children')} ({pricing.childDiscountPercent}% off)
-                            </span>
-                            <span>¥{(calculation.breakdown.childTotal).toLocaleString()}</span>
-                        </div>
-                    )}
-
-                    {infants > 0 && (
-                        <div className="flex justify-between text-green-600">
-                            <span>{t('sim_infant_free')}</span>
-                            <span>¥0</span>
-                        </div>
-                    )}
-
-                    <div className="flex justify-between">
-                        <span>{t('sim_cleaning')}</span>
-                        <span>¥{calculation.breakdown.cleaningFee.toLocaleString()}</span>
-                    </div>
-
-                    {calculation.breakdown.discountRate < 1 && (
-                        <div className="flex justify-between text-green-600 font-bold">
-                            <span>{t('sim_long_stay')} ({pricing.longStayDiscountPercent}%)</span>
-                            <span>-¥{(calculation.breakdown.subtotal - calculation.breakdown.discountedSubtotal).toLocaleString()}</span>
-                        </div>
-                    )}
-
-                    {appliedCoupon && couponQuote && (
-                        <div className="flex justify-between text-green-600 font-bold">
-                            <span>{t('sim_coupon_applied')} ({appliedCoupon.code})</span>
-                            <span>-¥{Math.max(0, calculation.total - couponQuote.total).toLocaleString()}</span>
-                        </div>
-                    )}
-
-                    <div className="border-t border-gray-200 pt-4 mt-2 flex justify-between items-center text-gray-900">
-                        <span className="font-bold text-lg">{t('sim_total_est')}</span>
-                        <span className="font-bold text-2xl">¥{(appliedCoupon && couponQuote ? couponQuote.total : calculation.total).toLocaleString()}</span>
-                    </div>
-                </div>
+                  );
+                })()}
 
                 {takenDates.length > 0 && (
                     <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
@@ -610,7 +665,8 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                     </div>
                 )}
 
-                {canBookOnline ? (
+                {!compact && (
+                  canBookOnline ? (
                     <button
                         onClick={() => { setTakenDates([]); setIsBookingFormOpen(true); }}
                         className="w-full bg-[var(--color-primary-600)] hover:opacity-90 text-white font-bold text-lg py-4 px-6 rounded-xl shadow-lg shadow-black/10 transition-all duration-200 flex items-center justify-center gap-3 group transform hover:-translate-y-1"
@@ -618,7 +674,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                         <Lock className="w-5 h-5 group-hover:scale-110 transition-transform" />
                         {t('book_now')}
                     </button>
-                ) : (
+                  ) : (
                     <button
                         onClick={handleEmailInquiry}
                         className="w-full bg-[var(--color-primary-600)] hover:opacity-90 text-white font-bold text-lg py-4 px-6 rounded-xl shadow-lg shadow-black/10 transition-all duration-200 flex items-center justify-center gap-3 group transform hover:-translate-y-1"
@@ -626,12 +682,44 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                         <Mail className="w-6 h-6 group-hover:scale-110 transition-transform" />
                         {t('sim_send_inquiry')}
                     </button>
+                  )
                 )}
 
                 {!compact && (
                     <p className="text-xs text-gray-400 text-center leading-tight">
                         {canBookOnline ? t('book_widget_note') : t('sim_note')}
                     </p>
+                )}
+
+                {/* Compact mode: price + CTA pinned above the mobile bottom nav
+                    (h-16) so booking is always one tap away, no matter how far
+                    the guest has scrolled through the breakdown above. */}
+                {compact && (
+                    <div className="fixed bottom-16 inset-x-0 z-40 bg-white border-t border-gray-200 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+                        <div className="leading-tight">
+                            <div className="text-[11px] text-gray-500">{t('sim_total_est')}</div>
+                            <div className="text-xl font-extrabold text-gray-900">
+                                ¥{(appliedCoupon && couponQuote ? couponQuote.total : calculation.total).toLocaleString()}
+                            </div>
+                        </div>
+                        {canBookOnline ? (
+                            <button
+                                onClick={() => { setTakenDates([]); setIsBookingFormOpen(true); }}
+                                className="flex-1 max-w-[62%] bg-[var(--color-primary-600)] hover:opacity-90 text-white font-bold text-base py-3.5 px-6 rounded-xl shadow-md flex items-center justify-center gap-2"
+                            >
+                                <Lock className="w-4 h-4" />
+                                {t('book_now')}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleEmailInquiry}
+                                className="flex-1 max-w-[62%] bg-[var(--color-primary-600)] hover:opacity-90 text-white font-bold text-base py-3.5 px-6 rounded-xl shadow-md flex items-center justify-center gap-2"
+                            >
+                                <Mail className="w-5 h-5" />
+                                {t('sim_send_inquiry')}
+                            </button>
+                        )}
+                    </div>
                 )}
             </div>
         ) : (
