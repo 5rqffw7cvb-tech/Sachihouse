@@ -87,7 +87,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
           booking widget, positioned to be visible without scrolling. The
           rates table and availability calendar below are desktop-only;
           reachable there via the Book Direct nav item. */}
-      <div className="lg:hidden px-3 pt-16 pb-4">
+      <div className="lg:hidden px-3 pt-4 pb-4">
         <BookingWidget
           pricing={data.pricing}
           adminEmail={data.adminEmail}

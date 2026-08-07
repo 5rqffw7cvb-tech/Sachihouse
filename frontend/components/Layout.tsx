@@ -67,16 +67,6 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      {/* Floating Back Button for Mobile (Since no top nav on mobile) */}
-      <div className="md:hidden fixed top-4 left-4 z-50">
-        <Link to="/" className="w-10 h-10 bg-white/90 backdrop-blur-md border border-gray-200 rounded-full flex items-center justify-center text-gray-900 shadow-sm hover:bg-gray-50 transition-colors">
-          <ChevronLeft className="w-6 h-6" />
-        </Link>
-      </div>
-      <div className="md:hidden fixed top-4 right-4 z-50">
-        <LanguageSwitcher compact />
-      </div>
-
       {/* Desktop Navbar (Hidden on mobile) */}
       <header className="hidden md:block fixed top-0 w-full bg-white/90 backdrop-blur-md z-50 border-b border-gray-100 shadow-sm transition-all duration-300">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
