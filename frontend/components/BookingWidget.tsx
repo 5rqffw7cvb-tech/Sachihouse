@@ -23,6 +23,12 @@ interface BookingWidgetProps {
   // it keeps the original "email the host" behaviour.
   propertyId?: string;
   directBooking?: PropertyData['directBooking'];
+  // Denser layout for space-constrained contexts (the mobile "Book Direct"
+  // page) — drops the header/footer copy and tightens padding so the whole
+  // card fits without scrolling. Booking mechanics are unchanged; only the
+  // surrounding chrome shrinks. Defaults to false (e.g. the Home tab's
+  // sidebar keeps the full layout).
+  compact?: boolean;
 }
 
 type CalculationResult = 
@@ -43,7 +49,7 @@ const startOfMonth = (date: Date): Date => {
   return newDate;
 };
 
-const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, adminEmail, propertyId, directBooking }) => {
+const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, adminEmail, propertyId, directBooking, compact }) => {
   const { t, language } = useLanguage();
   const dateLocale = getDateFnsLocale(language);
   const weekdayLabels = [t('weekday_sun'), t('weekday_mon'), t('weekday_tue'), t('weekday_wed'), t('weekday_thu'), t('weekday_fri'), t('weekday_sat')];
@@ -302,20 +308,23 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
   return (
     <div className={`bg-white rounded-2xl shadow-xl border border-gray-200 overflow-visible lg:sticky lg:top-24 ${className}`} ref={calendarRef}>
       
-      {/* Header Section */}
-      <div className="bg-gray-50 px-8 py-6 border-b border-gray-100 rounded-t-2xl">
-        <div className="flex items-center gap-2 mb-2">
-             <Calculator className="w-5 h-5 text-[var(--color-primary-600)]" />
-             <span className="text-xs font-bold text-[var(--color-primary-600)] uppercase tracking-wider">{t('sim_title')}</span>
+      {/* Header Section — dropped in compact mode, where the page itself
+          already carries the title (e.g. the mobile "Book Direct" tab). */}
+      {!compact && (
+        <div className="bg-gray-50 px-8 py-6 border-b border-gray-100 rounded-t-2xl">
+          <div className="flex items-center gap-2 mb-2">
+               <Calculator className="w-5 h-5 text-[var(--color-primary-600)]" />
+               <span className="text-xs font-bold text-[var(--color-primary-600)] uppercase tracking-wider">{t('sim_title')}</span>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 leading-tight">
+              {t('sim_subtitle')}
+          </h3>
         </div>
-        <h3 className="text-xl font-bold text-gray-900 leading-tight">
-            {t('sim_subtitle')}
-        </h3>
-      </div>
+      )}
 
-      <div className="p-8">
+      <div className={compact ? 'p-4' : 'p-8'}>
         {/* Price Display */}
-        <div className="flex justify-between items-baseline mb-8">
+        <div className={`flex justify-between items-baseline ${compact ? 'mb-4' : 'mb-8'}`}>
             <div>
             {calculation && calculation.isValid ? (
                 <>
@@ -333,7 +342,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
         </div>
 
         {/* Inputs Container */}
-        <div className="border border-gray-300 rounded-xl mb-8 bg-white relative">
+        <div className={`border border-gray-300 rounded-xl bg-white relative ${compact ? 'mb-4' : 'mb-8'}`}>
             {/* Custom Date Inputs Trigger */}
             <div className="flex border-b border-gray-300">
                 <div 
@@ -497,7 +506,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
 
         {/* Calculation Result */}
         {calculation && calculation.isValid ? (
-            <div className="space-y-6">
+            <div className={compact ? 'space-y-4' : 'space-y-6'}>
                 {propertyId && (
                     <div className="space-y-2">
                         {!couponFieldOpen && !appliedCoupon ? (
@@ -543,7 +552,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                         {couponError && <p className="text-xs text-red-600">{couponError}</p>}
                     </div>
                 )}
-                <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-3 text-base text-gray-600">
+                <div className={`bg-gray-50 rounded-xl border border-gray-100 space-y-3 text-base text-gray-600 ${compact ? 'p-4' : 'p-5'}`}>
                     <div className="flex justify-between">
                         <span className="underline decoration-dotted cursor-help" title={`¥${calculation.breakdown.pricePerGuest.toLocaleString()} x ${adults} x ${calculation.nights}`}>
                             {t('sim_adults')} ({calculation.nights} nights)
@@ -619,9 +628,11 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                     </button>
                 )}
 
-                <p className="text-xs text-gray-400 text-center leading-tight">
-                    {canBookOnline ? t('book_widget_note') : t('sim_note')}
-                </p>
+                {!compact && (
+                    <p className="text-xs text-gray-400 text-center leading-tight">
+                        {canBookOnline ? t('book_widget_note') : t('sim_note')}
+                    </p>
+                )}
             </div>
         ) : (
             <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">

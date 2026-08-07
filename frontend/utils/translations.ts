@@ -18,7 +18,7 @@ export const translations = {
     // Navigation
     nav_home: "Home",
     nav_access: "Access",
-    nav_pricing: "Pricing",
+    nav_pricing: "Book Direct",
     nav_rules: "Rules",
     nav_manual: "Manual",
     nav_host: "Host Admin",
@@ -428,13 +428,13 @@ export const translations = {
     layout_like_page: "Like Page",
     layout_facebook_location: "Tokyo, Japan",
     layout_no_image_fallback: "No img",
-    nav_pricing_short: "Simulator",
+    nav_pricing_short: "Book Direct",
   },
   vi: {
     // Navigation
     nav_home: "Trang chủ",
     nav_access: "Đi lại",
-    nav_pricing: "Bảng giá",
+    nav_pricing: "Đặt trực tiếp",
     nav_rules: "Nội quy",
     nav_manual: "Hướng dẫn",
     nav_host: "Quản trị",
@@ -844,13 +844,13 @@ export const translations = {
     layout_like_page: "Thích trang",
     layout_facebook_location: "Tokyo, Nhật Bản",
     layout_no_image_fallback: "Không có ảnh",
-    nav_pricing_short: "Tính giá",
+    nav_pricing_short: "Đặt trực tiếp",
   },
   ja: {
     // Navigation
     nav_home: "ホーム",
     nav_access: "アクセス",
-    nav_pricing: "料金",
+    nav_pricing: "直接予約",
     nav_rules: "ルール",
     nav_manual: "ガイド",
     nav_host: "管理者",
@@ -1260,13 +1260,13 @@ export const translations = {
     layout_like_page: "いいね！",
     layout_facebook_location: "日本、東京",
     layout_no_image_fallback: "画像なし",
-    nav_pricing_short: "計算",
+    nav_pricing_short: "直接予約",
   },
   zh: {
     // Navigation
     nav_home: "首页",
     nav_access: "交通",
-    nav_pricing: "价格",
+    nav_pricing: "直接预订",
     nav_rules: "规则",
     nav_manual: "指南",
     nav_host: "管理后台",
@@ -1676,13 +1676,13 @@ export const translations = {
     layout_like_page: "赞页面",
     layout_facebook_location: "日本东京",
     layout_no_image_fallback: "无图片",
-    nav_pricing_short: "计算",
+    nav_pricing_short: "直接预订",
   },
   ko: {
     // Navigation
     nav_home: "홈",
     nav_access: "오시는 길",
-    nav_pricing: "요금",
+    nav_pricing: "다이렉트 예약",
     nav_rules: "이용 규칙",
     nav_manual: "안내",
     nav_host: "호스트 관리",
@@ -2092,7 +2092,7 @@ export const translations = {
     layout_like_page: "페이지 좋아요",
     layout_facebook_location: "일본 도쿄",
     layout_no_image_fallback: "이미지 없음",
-    nav_pricing_short: "계산",
+    nav_pricing_short: "다이렉트 예약",
   }
 };
 

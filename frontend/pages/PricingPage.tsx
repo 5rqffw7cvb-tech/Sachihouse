@@ -82,28 +82,34 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8">
+    <>
+      {/* Mobile: a dedicated, compact "Book Direct" screen — just the
+          booking widget, positioned to be visible without scrolling. The
+          rates table and availability calendar below are desktop-only;
+          reachable there via the Book Direct nav item. */}
+      <div className="lg:hidden px-3 pt-16 pb-4">
+        <BookingWidget
+          pricing={data.pricing}
+          adminEmail={data.adminEmail}
+          propertyId={data.id}
+          directBooking={data.directBooking}
+          compact
+        />
+      </div>
+
+      {/* Desktop: full pricing rules + availability calendar, unchanged. */}
+      <div className="hidden lg:block max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8">
       <div className="text-center mb-8">
         <h1 className="text-[22px] md:text-[28px] font-bold text-gray-900 leading-[1.25] mb-2">{data.titles.pricing}</h1>
         <p className="text-[14px] md:text-[16px] text-gray-500 leading-[1.6]">{data.titles.pricingSubtitle}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* Left Column: Simulator (Mobile) & Rules */}
-          <div className="lg:col-span-7 space-y-8">
-             {/* Mobile Only: Show Simulator here */}
-            <div className="block lg:hidden">
-                <BookingWidget
-                    pricing={data.pricing}
-                    adminEmail={data.adminEmail}
-                    propertyId={data.id}
-                    directBooking={data.directBooking}
-                />
-            </div>
 
-            {/* Pricing Rules Section — desktop only; on mobile this tab is booking-first. */}
-            <div id="rules" className="hidden lg:block bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-100/50 overflow-hidden">
+          {/* Left Column: Rules */}
+          <div className="lg:col-span-7 space-y-8">
+            {/* Pricing Rules Section */}
+            <div id="rules" className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-100/50 overflow-hidden">
                 <div className="p-8 bg-gradient-to-br from-blue-50 to-white border-b border-blue-50">
                     <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                         <Tag className="w-5 h-5 text-blue-600"/> {t('price_rates')}
@@ -164,8 +170,8 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
             </div>
           </div>
 
-          {/* Right Column: Calendar — desktop only; on mobile this tab is booking-first. */}
-          <div className="hidden lg:block lg:col-span-5 space-y-8">
+          {/* Right Column: Calendar */}
+          <div className="lg:col-span-5 space-y-8">
                <div className="flex items-center justify-between lg:justify-start gap-4 mb-2">
                    <h2 className="text-2xl font-bold text-gray-900">{t('price_avail')}</h2>
                    <div className="flex items-center gap-2 text-xs font-medium bg-gray-100 px-3 py-1 rounded-full text-gray-600">
@@ -185,7 +191,8 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
                </div>
           </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 
