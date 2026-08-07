@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import { addDays, format, isValid, parseISO } from 'date-fns';
 import { canAccessProperty, canPerformAction } from './domain/authorization.js';
 import { calculateQuote } from './domain/pricing.js';
+import { applyCouponToPricing, findApplicableCoupon } from './domain/coupon.js';
 import {
   calculateRefund,
   canTransition,
@@ -1844,7 +1845,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   });
 
   app.post('/api/quotes', async (req, res) => {
-    const { propertyId, ...quoteInput } = req.body ?? {};
+    const { propertyId, couponCode, ...quoteInput } = req.body ?? {};
     const property = propertyId ? await store.getProperty(propertyId) : null;
     if (!property) {
       return res.status(404).json({ error: 'Property not found.' });
@@ -1867,8 +1868,23 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       });
     }
 
-    const quote = calculateQuote(property.pricing, quoteInput);
-    res.json({ quote });
+    // A bad coupon code never blocks seeing the undiscounted price — it only
+    // surfaces as `couponError` alongside the normal quote.
+    let pricing = property.pricing;
+    let coupon: { code: string; type: string; value: number } | null = null;
+    let couponError: string | null = null;
+    if (typeof couponCode === 'string' && couponCode.trim()) {
+      const result = findApplicableCoupon(property.coupons, couponCode, quoteInput.checkIn, quoteInput.checkOut);
+      if ('error' in result) {
+        couponError = result.error;
+      } else {
+        pricing = applyCouponToPricing(property.pricing, result.coupon);
+        coupon = { code: result.coupon.code, type: result.coupon.type, value: result.coupon.value };
+      }
+    }
+
+    const quote = calculateQuote(pricing, quoteInput);
+    res.json({ quote, coupon, couponError });
   });
 
   // ---------------------------------------------------------------------------
@@ -1896,6 +1912,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       currency: booking.currency,
       amountTotal: booking.amountTotal,
       quote: booking.quote,
+      couponCode: booking.couponCode,
       holdExpiresAt: booking.holdExpiresAt,
       refundAmount: booking.refundAmount,
       cancelledAt: booking.cancelledAt,
@@ -2280,11 +2297,26 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       return res.status(400).json({ error: window.error });
     }
 
+    // Unlike /api/quotes, an invalid coupon here fails the whole request
+    // rather than silently falling back to full price — the guest saw a
+    // discounted total in the simulator, so booking at a different price
+    // without telling them would be dishonest.
+    let appliedCoupon: string | undefined;
+    let pricing = property.pricing;
+    if (typeof body.couponCode === 'string' && body.couponCode.trim()) {
+      const couponResult = findApplicableCoupon(property.coupons, body.couponCode, checkInDate, checkOutDate);
+      if ('error' in couponResult) {
+        return res.status(400).json({ error: couponResult.error });
+      }
+      pricing = applyCouponToPricing(property.pricing, couponResult.coupon);
+      appliedCoupon = couponResult.coupon.code;
+    }
+
     // The price is always recomputed here — a client-supplied total is never
     // trusted, and the result is snapshotted onto the booking.
     let quote;
     try {
-      quote = calculateQuote(property.pricing, {
+      quote = calculateQuote(pricing, {
         checkIn: checkInDate,
         checkOut: checkOutDate,
         adults,
@@ -2318,6 +2350,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       currency: 'JPY',
       amountTotal: quote.total,
       quote,
+      couponCode: appliedCoupon,
       holdExpiresAt: Date.now() + bookingHoldMs,
       locale: toLanguageCode(body.locale) ?? 'ja',
     });

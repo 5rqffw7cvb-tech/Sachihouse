@@ -44,6 +44,13 @@ export const translations = {
     sim_child_disc: "Child discount",
     sim_infant_free: "Infants (Free)",
     sim_note: "This is a simulation. Clicking the button will open your email client.",
+    sim_coupon_toggle: "Have a coupon code?",
+    sim_coupon_placeholder: "Enter code",
+    sim_coupon_apply: "Apply",
+    sim_coupon_applied: "Coupon applied",
+    sim_coupon_remove: "Remove",
+    sim_coupon_invalid: "Invalid coupon code.",
+    sim_coupon_check_failed: "Could not check this coupon right now.",
 
     // Direct booking
     book_now: "Book now",
@@ -453,6 +460,13 @@ export const translations = {
     sim_child_disc: "Ưu đãi trẻ em",
     sim_infant_free: "Em bé (Miễn phí)",
     sim_note: "Đây là bảng tính mô phỏng. Bấm nút để gửi email yêu cầu tới chủ nhà.",
+    sim_coupon_toggle: "Bạn có mã giảm giá?",
+    sim_coupon_placeholder: "Nhập mã",
+    sim_coupon_apply: "Áp dụng",
+    sim_coupon_applied: "Đã áp dụng mã",
+    sim_coupon_remove: "Bỏ mã",
+    sim_coupon_invalid: "Mã giảm giá không hợp lệ.",
+    sim_coupon_check_failed: "Không thể kiểm tra mã lúc này.",
 
     // Direct booking
     book_now: "Đặt ngay",
@@ -862,6 +876,13 @@ export const translations = {
     sim_child_disc: "子供割引",
     sim_infant_free: "幼児（無料）",
     sim_note: "これはシミュレーションです。ボタンを押すとメールアプリが開きます。",
+    sim_coupon_toggle: "クーポンコードをお持ちですか？",
+    sim_coupon_placeholder: "コードを入力",
+    sim_coupon_apply: "適用",
+    sim_coupon_applied: "クーポン適用済み",
+    sim_coupon_remove: "削除",
+    sim_coupon_invalid: "無効なクーポンコードです。",
+    sim_coupon_check_failed: "現在このクーポンを確認できません。",
 
     // Direct booking
     book_now: "今すぐ予約",
@@ -1271,6 +1292,13 @@ export const translations = {
     sim_child_disc: "儿童优惠",
     sim_infant_free: "婴儿（免费）",
     sim_note: "这是一个模拟计算。点击按钮将打开您的邮件客户端。",
+    sim_coupon_toggle: "有优惠码吗？",
+    sim_coupon_placeholder: "输入优惠码",
+    sim_coupon_apply: "使用",
+    sim_coupon_applied: "优惠码已使用",
+    sim_coupon_remove: "移除",
+    sim_coupon_invalid: "优惠码无效。",
+    sim_coupon_check_failed: "暂时无法验证此优惠码。",
 
     // Direct booking
     book_now: "立即预订",
@@ -1680,6 +1708,13 @@ export const translations = {
     sim_child_disc: "아동 할인",
     sim_infant_free: "유아 (무료)",
     sim_note: "이것은 시뮬레이션입니다. 버튼을 클릭하면 이메일 클라이언트가 열립니다.",
+    sim_coupon_toggle: "쿠폰 코드가 있으신가요?",
+    sim_coupon_placeholder: "코드 입력",
+    sim_coupon_apply: "적용",
+    sim_coupon_applied: "쿠폰 적용됨",
+    sim_coupon_remove: "제거",
+    sim_coupon_invalid: "유효하지 않은 쿠폰 코드입니다.",
+    sim_coupon_check_failed: "지금은 쿠폰을 확인할 수 없습니다.",
 
     // Direct booking
     book_now: "지금 예약",

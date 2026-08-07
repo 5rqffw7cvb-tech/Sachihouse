@@ -885,6 +885,7 @@ export class MemoryStore implements DataStore {
       currency: input.currency,
       amountTotal: input.amountTotal,
       quote: input.quote,
+      couponCode: input.couponCode,
       stripeFeeAmount: 0,
       holdExpiresAt: input.holdExpiresAt,
       refundAmount: 0,

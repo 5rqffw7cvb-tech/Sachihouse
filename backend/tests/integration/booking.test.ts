@@ -34,6 +34,32 @@ async function enableDirectBooking(propertyId: string, config: Record<string, un
     .expect(200);
 }
 
+// Wide open by default (today through +100 days) so it comfortably covers
+// CHECK_IN/CHECK_OUT (+40/+43 days) without the test needing to reason about
+// exact boundaries, unless a test overrides startDate/endDate on purpose.
+async function addCouponToProperty(propertyId: string, coupon: Record<string, unknown> = {}) {
+  const token = await login('admin@sachihouse.com', 'admin123');
+  const current = await request(app).get(`/api/properties/${propertyId}`).expect(200);
+  await request(app)
+    .put(`/api/properties/${propertyId}`)
+    .set({ Authorization: `Bearer ${token}` })
+    .send({
+      ...current.body.property,
+      coupons: [{
+        id: 'coupon_1',
+        code: 'SH-TEST01',
+        type: 'percentage',
+        value: 10,
+        startDate: isoDaysFromNow(0),
+        endDate: isoDaysFromNow(100),
+        active: true,
+        createdAt: Date.now(),
+        ...coupon,
+      }],
+    })
+    .expect(200);
+}
+
 function bookingPayload(overrides: Record<string, unknown> = {}) {
   return {
     propertyId: 'main',
@@ -364,5 +390,86 @@ describe('host booking list', () => {
       .set({ Authorization: `Bearer ${token}` })
       .expect(200);
     expect(pending.body.bookings).toHaveLength(1);
+  });
+});
+
+describe('coupons', () => {
+  it('/api/quotes applies a valid percentage coupon and reports it', async () => {
+    await addCouponToProperty('main', { type: 'percentage', value: 10 });
+
+    const res = await request(app)
+      .post('/api/quotes')
+      .send({ propertyId: 'main', checkIn: CHECK_IN, checkOut: CHECK_OUT, adults: 2, children: 0, infants: 0, couponCode: 'sh-test01' })
+      .expect(200);
+
+    // 2 x (5,000 - 10%) x 3 nights + 5,000 cleaning.
+    expect(res.body.quote.total).toBe(32000);
+    expect(res.body.coupon).toMatchObject({ code: 'SH-TEST01', type: 'percentage', value: 10 });
+    expect(res.body.couponError).toBeNull();
+  });
+
+  it('/api/quotes falls back to full price with a couponError when the code is wrong', async () => {
+    await addCouponToProperty('main');
+
+    const res = await request(app)
+      .post('/api/quotes')
+      .send({ propertyId: 'main', checkIn: CHECK_IN, checkOut: CHECK_OUT, adults: 2, children: 0, infants: 0, couponCode: 'SH-WRONG' })
+      .expect(200);
+
+    expect(res.body.quote.total).toBe(35000);
+    expect(res.body.coupon).toBeNull();
+    expect(res.body.couponError).toMatch(/invalid coupon/i);
+  });
+
+  it('/api/bookings applies a valid fixed_night coupon and snapshots it onto the booking', async () => {
+    await enableDirectBooking('main');
+    await addCouponToProperty('main', { type: 'fixed_night', value: 4000 });
+
+    const res = await request(app)
+      .post('/api/bookings')
+      .send(bookingPayload({ couponCode: 'SH-TEST01' }))
+      .expect(201);
+
+    // 2 x 4,000 (flat, regardless of guest count) x 3 nights + 5,000 cleaning.
+    expect(res.body.booking.amountTotal).toBe(29000);
+    expect(res.body.booking.quote.total).toBe(29000);
+    expect(res.body.booking.couponCode).toBe('SH-TEST01');
+  });
+
+  it('/api/bookings rejects an unknown coupon code and creates nothing', async () => {
+    await enableDirectBooking('main');
+
+    const res = await request(app)
+      .post('/api/bookings')
+      .send(bookingPayload({ couponCode: 'SH-NOPE99' }))
+      .expect(400);
+    expect(res.body.error).toMatch(/invalid coupon/i);
+
+    // Never trusted with the client's total, and never even started a hold.
+    expect(await store.listHeldDates('main')).toEqual([]);
+  });
+
+  it('/api/bookings rejects a coupon whose date range only partially covers the stay', async () => {
+    await enableDirectBooking('main');
+    // Ends the day before check-out, so the stay only partially overlaps.
+    await addCouponToProperty('main', { endDate: isoDaysFromNow(42) });
+
+    const res = await request(app)
+      .post('/api/bookings')
+      .send(bookingPayload({ couponCode: 'SH-TEST01' }))
+      .expect(400);
+    expect(res.body.error).toMatch(/not valid for the selected dates/i);
+    expect(await store.listHeldDates('main')).toEqual([]);
+  });
+
+  it('/api/bookings ignores an empty coupon code and prices normally', async () => {
+    await enableDirectBooking('main');
+
+    const res = await request(app)
+      .post('/api/bookings')
+      .send(bookingPayload({ couponCode: '' }))
+      .expect(201);
+    expect(res.body.booking.amountTotal).toBe(35000);
+    expect(res.body.booking.couponCode).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { X, Lock, Loader2, AlertCircle, CalendarDays, Users } from 'lucide-react';
+import { X, Lock, Loader2, AlertCircle, CalendarDays, Users, Tag } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
 import { ApiError } from '../services/api';
@@ -15,6 +15,10 @@ interface BookingGuestFormProps {
   children: number;
   infants: number;
   estimatedTotal: number;
+  // Set once the guest applies a valid coupon in the Price Simulator; passed
+  // through so the server can re-validate and apply the same discount when
+  // the booking is actually created.
+  couponCode?: string;
   // Days before check-in a cancellation still qualifies for a refund. Set per
   // property by the host; defaults to 7 when the property has not set one.
   freeCancellationDays?: number;
@@ -33,6 +37,7 @@ const BookingGuestForm: React.FC<BookingGuestFormProps> = ({
   children,
   infants,
   estimatedTotal,
+  couponCode,
   freeCancellationDays = 7,
   onClose,
   onDatesUnavailable,
@@ -82,6 +87,7 @@ const BookingGuestForm: React.FC<BookingGuestFormProps> = ({
         checkInDate: format(checkIn, 'yyyy-MM-dd'),
         checkOutDate: format(checkOut, 'yyyy-MM-dd'),
         locale: language,
+        couponCode,
       });
 
       // The token is the guest's only way back into this booking, and Stripe is
@@ -149,6 +155,12 @@ const BookingGuestForm: React.FC<BookingGuestFormProps> = ({
                 {infants > 0 ? `, ${infants} ${t('sim_infants').toLowerCase()}` : ''}
               </span>
             </div>
+            {couponCode && (
+              <div className="flex items-center gap-2 text-green-700">
+                <Tag className="w-4 h-4 shrink-0" />
+                <span>{t('sim_coupon_applied')}: {couponCode}</span>
+              </div>
+            )}
             <div className="flex justify-between items-baseline pt-2 border-t border-gray-200 text-gray-900">
               <span className="font-bold">{t('book_total')}</span>
               <span className="font-bold text-xl">¥{estimatedTotal.toLocaleString()}</span>

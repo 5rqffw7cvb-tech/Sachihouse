@@ -365,6 +365,10 @@ export interface Booking {
   // Price snapshot taken server-side at booking time, so a later pricing edit
   // never changes what the guest agreed to pay.
   quote: QuoteResult;
+  // Coupon applied at booking time, if any — already baked into `quote`/
+  // `amountTotal` above; kept here only so the host can see which code was
+  // used.
+  couponCode?: string;
   stripeSessionId?: string;
   stripePaymentIntentId?: string;
   // Actual processing fee read back from Stripe's balance transaction. Refunds
@@ -398,6 +402,7 @@ export interface BookingInput {
   currency: string;
   amountTotal: number;
   quote: QuoteResult;
+  couponCode?: string;
   holdExpiresAt: number;
   locale: string;
 }
@@ -457,6 +462,26 @@ export interface ImportedEvent {
   guestCount: number | null;
 }
 
+// A host-created discount code for one property's Price Simulator. `code` is
+// generated once (client-side, see frontend/utils/couponCode.ts) and never
+// changes — deleting and recreating is the only way to get a new code.
+// Applies only when the guest's entire stay falls within [startDate,
+// endDate]; a stay that only partially overlaps is rejected outright rather
+// than prorated.
+export interface Coupon {
+  id: string;
+  code: string;
+  type: 'percentage' | 'fixed_night';
+  // percentage: 1-100 (% off every guest-count tier's nightly rate).
+  // fixed_night: flat JPY nightly rate that replaces every tier's price,
+  // regardless of guest count.
+  value: number;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  active: boolean;
+  createdAt: number;
+}
+
 export interface PropertyData {
   id?: string;
   metalink?: string;
@@ -512,6 +537,9 @@ export interface PropertyData {
   // Secret token that guards the public iCal export URL for this property.
   // Generated lazily the first time a host opens the calendar/export panel.
   icalExportToken?: string;
+  // Discount codes for this property's Price Simulator. Absent on properties
+  // created before this field existed — always fall back to `[]`.
+  coupons?: Coupon[];
   // Opt-in per property: guests may book and pay online themselves. Absent or
   // `enabled: false` keeps the legacy "email the host for a quote" flow.
   directBooking?: {

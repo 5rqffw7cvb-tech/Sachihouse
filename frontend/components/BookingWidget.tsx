@@ -7,12 +7,13 @@ import {
     differenceInDays, addDays, format, isBefore, eachDayOfInterval, 
     endOfMonth, getDay, isSameDay, isWithinInterval, addMonths 
 } from 'date-fns';
-import { Star, Minus, Plus, ChevronDown, ChevronUp, Mail, Calculator, Calendar as CalendarIcon, Users, AlertCircle, ChevronLeft, ChevronRight, X, Baby, Lock } from 'lucide-react';
+import { Star, Minus, Plus, ChevronDown, ChevronUp, Mail, Calculator, Calendar as CalendarIcon, Users, AlertCircle, ChevronLeft, ChevronRight, X, Baby, Lock, Tag, Loader2, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { calculateHomestayPrice } from '../utils/pricing';
 import { isDateBlocked, refreshBlockedDates } from '../services/storage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
+import { AppliedCoupon, getQuote, QuoteResult } from '../services/pricing';
 
 interface BookingWidgetProps {
   pricing: PricingConfig;
@@ -64,6 +65,16 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
   // Nights that were taken while the guest was filling in the form; shown so
   // they understand why the calendar suddenly changed under them.
   const [takenDates, setTakenDates] = useState<string[]>([]);
+
+  // Coupon state. Unlike the rest of this widget's price, a coupon discount
+  // is always server-validated (getQuote) rather than computed client-side —
+  // it needs to check the property's actual coupon list.
+  const [couponFieldOpen, setCouponFieldOpen] = useState(false);
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+  const [couponQuote, setCouponQuote] = useState<QuoteResult | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [checkingCoupon, setCheckingCoupon] = useState(false);
 
   const canBookOnline = Boolean(propertyId && directBooking?.enabled);
 
@@ -128,6 +139,47 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
 
     return { nights, ...priceDetails, isValid: true };
   }, [checkIn, checkOut, adults, children, infants, pricing, today, t]);
+
+  // A coupon was validated against one specific date/guest combination — if
+  // any of those change, that validation is stale, so clear it and make the
+  // guest re-apply rather than silently keep an outdated discount.
+  useEffect(() => {
+    setAppliedCoupon(null);
+    setCouponQuote(null);
+    setCouponError(null);
+  }, [checkIn, checkOut, adults, children, infants]);
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim();
+    if (!code || !propertyId || !checkIn || !checkOut) return;
+    setCheckingCoupon(true);
+    setCouponError(null);
+    try {
+      const res = await getQuote({
+        propertyId,
+        checkIn: format(checkIn, 'yyyy-MM-dd'),
+        checkOut: format(checkOut, 'yyyy-MM-dd'),
+        adults,
+        children,
+        infants,
+        couponCode: code,
+      });
+      if (res.coupon) {
+        setAppliedCoupon(res.coupon);
+        setCouponQuote(res.quote);
+      } else {
+        setAppliedCoupon(null);
+        setCouponQuote(null);
+        setCouponError(res.couponError || t('sim_coupon_invalid'));
+      }
+    } catch {
+      setAppliedCoupon(null);
+      setCouponQuote(null);
+      setCouponError(t('sim_coupon_check_failed'));
+    } finally {
+      setCheckingCoupon(false);
+    }
+  };
 
   const handleDateSelect = (day: Date) => {
     if (selectingField === 'checkIn') {
@@ -446,6 +498,51 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
         {/* Calculation Result */}
         {calculation && calculation.isValid ? (
             <div className="space-y-6">
+                {propertyId && (
+                    <div className="space-y-2">
+                        {!couponFieldOpen && !appliedCoupon ? (
+                            <button
+                                type="button"
+                                onClick={() => setCouponFieldOpen(true)}
+                                className="flex items-center gap-1.5 text-sm font-semibold text-[var(--color-primary-600)] hover:underline"
+                            >
+                                <Tag className="w-4 h-4" /> {t('sim_coupon_toggle')}
+                            </button>
+                        ) : appliedCoupon ? (
+                            <div className="flex items-center justify-between gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                                <span className="flex items-center gap-1.5 text-sm font-bold text-green-700">
+                                    <Check className="w-4 h-4" /> {t('sim_coupon_applied')}: {appliedCoupon.code}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => { setAppliedCoupon(null); setCouponQuote(null); setCouponInput(''); setCouponFieldOpen(false); }}
+                                    className="text-xs font-semibold text-gray-500 hover:text-gray-800 underline"
+                                >
+                                    {t('sim_coupon_remove')}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={couponInput}
+                                    onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(null); }}
+                                    placeholder={t('sim_coupon_placeholder')}
+                                    className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-mono uppercase focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => void handleApplyCoupon()}
+                                    disabled={!couponInput.trim() || checkingCoupon}
+                                    className="px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold disabled:opacity-40 flex items-center gap-1.5"
+                                >
+                                    {checkingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : t('sim_coupon_apply')}
+                                </button>
+                            </div>
+                        )}
+                        {couponError && <p className="text-xs text-red-600">{couponError}</p>}
+                    </div>
+                )}
                 <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 space-y-3 text-base text-gray-600">
                     <div className="flex justify-between">
                         <span className="underline decoration-dotted cursor-help" title={`¥${calculation.breakdown.pricePerGuest.toLocaleString()} x ${adults} x ${calculation.nights}`}>
@@ -481,10 +578,17 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                             <span>-¥{(calculation.breakdown.subtotal - calculation.breakdown.discountedSubtotal).toLocaleString()}</span>
                         </div>
                     )}
-                    
+
+                    {appliedCoupon && couponQuote && (
+                        <div className="flex justify-between text-green-600 font-bold">
+                            <span>{t('sim_coupon_applied')} ({appliedCoupon.code})</span>
+                            <span>-¥{Math.max(0, calculation.total - couponQuote.total).toLocaleString()}</span>
+                        </div>
+                    )}
+
                     <div className="border-t border-gray-200 pt-4 mt-2 flex justify-between items-center text-gray-900">
                         <span className="font-bold text-lg">{t('sim_total_est')}</span>
-                        <span className="font-bold text-2xl">¥{calculation.total.toLocaleString()}</span>
+                        <span className="font-bold text-2xl">¥{(appliedCoupon && couponQuote ? couponQuote.total : calculation.total).toLocaleString()}</span>
                     </div>
                 </div>
 
@@ -540,7 +644,8 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
           adults={adults}
           children={children}
           infants={infants}
-          estimatedTotal={calculation.total}
+          estimatedTotal={appliedCoupon && couponQuote ? couponQuote.total : calculation.total}
+          couponCode={appliedCoupon?.code}
           freeCancellationDays={directBooking?.freeCancellationDays}
           onClose={() => setIsBookingFormOpen(false)}
           onDatesUnavailable={(conflicts) => {

@@ -25,6 +25,7 @@ export interface GuestBooking {
   currency: string;
   // Whole yen — JPY has no minor unit, so never divide by 100 for display.
   amountTotal: number;
+  couponCode?: string;
   holdExpiresAt?: number | null;
   refundAmount: number;
   cancelledAt?: number | null;
@@ -50,6 +51,7 @@ export interface CreateBookingInput {
   checkInDate: string;
   checkOutDate: string;
   locale: string;
+  couponCode?: string;
 }
 
 export interface CreateBookingResponse {

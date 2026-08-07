@@ -41,6 +41,23 @@ export interface ICalFeed {
   lastSynced: string;
 }
 
+// A host-created discount code for this property's Price Simulator. `code`
+// is generated once and never changes; applies only when the guest's entire
+// stay falls within [startDate, endDate] (no partial-stay proration).
+export interface Coupon {
+  id: string;
+  code: string;
+  type: 'percentage' | 'fixed_night';
+  // percentage: 1-100 (% off every guest-count tier's nightly rate).
+  // fixed_night: flat JPY nightly rate that replaces every tier's price,
+  // regardless of guest count.
+  value: number;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  active: boolean;
+  createdAt: number;
+}
+
 export interface HighlightItem {
   id: string;
   title: string;
@@ -230,6 +247,9 @@ export interface PropertyData {
   rules: HouseRule[];
   manual: ManualItem[];
   icalFeeds: ICalFeed[];
+  // Discount codes for this property's Price Simulator. Absent on properties
+  // created before this field existed — always fall back to [].
+  coupons?: Coupon[];
   // Opt-in per property: guests book and pay online instead of emailing for a
   // quote. Absent or disabled keeps the legacy enquiry flow.
   directBooking?: {
