@@ -102,8 +102,8 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
                 />
             </div>
 
-            {/* Pricing Rules Section */}
-            <div id="rules" className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-100/50 overflow-hidden">
+            {/* Pricing Rules Section — desktop only; on mobile this tab is booking-first. */}
+            <div id="rules" className="hidden lg:block bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-100/50 overflow-hidden">
                 <div className="p-8 bg-gradient-to-br from-blue-50 to-white border-b border-blue-50">
                     <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                         <Tag className="w-5 h-5 text-blue-600"/> {t('price_rates')}
@@ -164,8 +164,8 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
             </div>
           </div>
 
-          {/* Right Column: Calendar */}
-          <div className="lg:col-span-5 space-y-8">
+          {/* Right Column: Calendar — desktop only; on mobile this tab is booking-first. */}
+          <div className="hidden lg:block lg:col-span-5 space-y-8">
                <div className="flex items-center justify-between lg:justify-start gap-4 mb-2">
                    <h2 className="text-2xl font-bold text-gray-900">{t('price_avail')}</h2>
                    <div className="flex items-center gap-2 text-xs font-medium bg-gray-100 px-3 py-1 rounded-full text-gray-600">
