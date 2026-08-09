@@ -122,6 +122,18 @@ const Layout: React.FC<LayoutProps> = ({ data }) => {
         </div>
       </header>
 
+      {/* Mobile back-to-listing link. Lives in the normal document flow
+          (not a fixed overlay) so it can never sit on top of page content —
+          that was the problem with the floating circular button this
+          replaced, and it's also why no page needs extra top padding to
+          clear it. */}
+      <div className="md:hidden flex items-center px-4 py-3 border-b border-gray-100">
+        <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors">
+          <ChevronLeft className="w-4 h-4" />
+          {t('common_properties')}
+        </Link>
+      </div>
+
       {/* Main Content (Adjust padding for Mobile Bottom Nav vs Desktop Top Nav) */}
       <main className="flex-grow pt-0 md:pt-16 pb-20 md:pb-0">
         <Outlet />
