@@ -41,9 +41,12 @@ export interface ICalFeed {
   lastSynced: string;
 }
 
-// A host-created discount code for this property's Price Simulator. `code`
-// is generated once and never changes; applies only when the guest's entire
-// stay falls within [startDate, endDate] (no partial-stay proration).
+// A global, admin-managed discount code for the Price Simulator — not tied to
+// one property. `code` is typed by hand (admin picks it, can edit it later to
+// fix a typo) and must be unique case-insensitively. `propertyIds` is the set
+// of properties this coupon is assigned to; applying it also requires the
+// guest's entire stay to fall within [startDate, endDate] (no partial-stay
+// proration). Managed on the dedicated /admin/coupons page, not per-property.
 export interface Coupon {
   id: string;
   code: string;
@@ -56,6 +59,8 @@ export interface Coupon {
   endDate: string;   // YYYY-MM-DD
   active: boolean;
   createdAt: number;
+  updatedAt: number;
+  propertyIds: string[];
 }
 
 export interface HighlightItem {
@@ -247,9 +252,6 @@ export interface PropertyData {
   rules: HouseRule[];
   manual: ManualItem[];
   icalFeeds: ICalFeed[];
-  // Discount codes for this property's Price Simulator. Absent on properties
-  // created before this field existed — always fall back to [].
-  coupons?: Coupon[];
   // Opt-in per property: guests book and pay online instead of emailing for a
   // quote. Absent or disabled keeps the legacy enquiry flow.
   directBooking?: {

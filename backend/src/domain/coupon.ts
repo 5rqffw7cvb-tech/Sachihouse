@@ -5,21 +5,28 @@ export type CouponLookupResult =
   | { coupon: Coupon }
   | { error: string };
 
-// A coupon only applies when the guest's entire stay falls within
-// [startDate, endDate] — a stay that only partially overlaps is rejected
-// outright rather than prorated across nights inside vs. outside the range.
+// Codes are hand-typed by an admin rather than generated, so this is the one
+// place normalization happens — reused by app.ts's lookup and by both store
+// implementations' uniqueness checks, so it can never drift between them.
+export function normalizeCouponCode(code: string): string {
+  return code.trim().toUpperCase();
+}
+
+// `coupon` is a single already-fetched-by-code record (or null if the code
+// doesn't exist at all) — the caller does the store lookup, this function is
+// pure. A coupon only applies when it's assigned to the requesting property
+// AND the guest's entire stay falls within [startDate, endDate] — a stay
+// that only partially overlaps is rejected outright rather than prorated.
+// "Not found" and "exists but not assigned to this property" deliberately
+// share the same generic error so a guest can't use trial-and-error to learn
+// which properties a code is valid for.
 export function findApplicableCoupon(
-  coupons: Coupon[] | undefined,
-  code: string,
+  coupon: Coupon | null,
+  propertyId: string,
   checkIn: string,
   checkOut: string,
 ): CouponLookupResult {
-  const normalized = code.trim().toUpperCase();
-  if (!normalized) {
-    return { error: 'Invalid coupon code.' };
-  }
-  const coupon = (coupons ?? []).find((c) => c.code === normalized);
-  if (!coupon) {
+  if (!coupon || !coupon.propertyIds.includes(propertyId)) {
     return { error: 'Invalid coupon code.' };
   }
   if (!coupon.active) {

@@ -29,40 +29,46 @@ function makeCoupon(overrides: Partial<Coupon> = {}): Coupon {
     endDate: '2026-08-31',
     active: true,
     createdAt: Date.now(),
+    updatedAt: Date.now(),
+    propertyIds: ['main'],
     ...overrides,
   };
 }
 
 describe('findApplicableCoupon', () => {
-  it('finds a coupon by code, case-insensitively and trimmed', () => {
-    const coupon = makeCoupon();
-    const result = findApplicableCoupon([coupon], ' sh-abc123 ', '2026-08-05', '2026-08-08');
+  it('accepts a coupon assigned to the requesting property, within its date range', () => {
+    const result = findApplicableCoupon(makeCoupon(), 'main', '2026-08-05', '2026-08-08');
     expect('coupon' in result && result.coupon.id).toBe('coupon_1');
   });
 
-  it('rejects an unknown code', () => {
-    const result = findApplicableCoupon([makeCoupon()], 'SH-NOPE99', '2026-08-05', '2026-08-08');
-    expect('error' in result).toBe(true);
+  it('rejects when no coupon was found for the code (null)', () => {
+    const result = findApplicableCoupon(null, 'main', '2026-08-05', '2026-08-08');
+    expect('error' in result && result.error).toBe('Invalid coupon code.');
+  });
+
+  it('rejects a coupon that exists but is not assigned to this property', () => {
+    const result = findApplicableCoupon(makeCoupon({ propertyIds: ['other'] }), 'main', '2026-08-05', '2026-08-08');
+    expect('error' in result && result.error).toBe('Invalid coupon code.');
   });
 
   it('rejects an inactive coupon', () => {
-    const result = findApplicableCoupon([makeCoupon({ active: false })], 'SH-ABC123', '2026-08-05', '2026-08-08');
+    const result = findApplicableCoupon(makeCoupon({ active: false }), 'main', '2026-08-05', '2026-08-08');
     expect('error' in result && result.error).toMatch(/no longer active/);
   });
 
   it('accepts a stay fully inside the coupon date range', () => {
-    const result = findApplicableCoupon([makeCoupon()], 'SH-ABC123', '2026-08-01', '2026-08-31');
+    const result = findApplicableCoupon(makeCoupon(), 'main', '2026-08-01', '2026-08-31');
     expect('coupon' in result).toBe(true);
   });
 
   it('rejects a stay that starts before the coupon range', () => {
-    const result = findApplicableCoupon([makeCoupon()], 'SH-ABC123', '2026-07-30', '2026-08-05');
+    const result = findApplicableCoupon(makeCoupon(), 'main', '2026-07-30', '2026-08-05');
     expect('error' in result && result.error).toMatch(/not valid for the selected dates/);
   });
 
   it('rejects a stay that only partially overlaps the coupon range — no proration', () => {
     // Checks out one day after the coupon's last valid day.
-    const result = findApplicableCoupon([makeCoupon()], 'SH-ABC123', '2026-08-25', '2026-09-02');
+    const result = findApplicableCoupon(makeCoupon(), 'main', '2026-08-25', '2026-09-02');
     expect('error' in result && result.error).toMatch(/not valid for the selected dates/);
   });
 });

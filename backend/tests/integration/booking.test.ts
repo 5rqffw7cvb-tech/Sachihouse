@@ -37,27 +37,24 @@ async function enableDirectBooking(propertyId: string, config: Record<string, un
 // Wide open by default (today through +100 days) so it comfortably covers
 // CHECK_IN/CHECK_OUT (+40/+43 days) without the test needing to reason about
 // exact boundaries, unless a test overrides startDate/endDate on purpose.
+// Coupons are global now, created by an admin and assigned to properties —
+// this mirrors that flow instead of embedding a coupon in the property PUT.
 async function addCouponToProperty(propertyId: string, coupon: Record<string, unknown> = {}) {
   const token = await login('admin@sachihouse.com', 'admin123');
-  const current = await request(app).get(`/api/properties/${propertyId}`).expect(200);
   await request(app)
-    .put(`/api/properties/${propertyId}`)
+    .post('/api/coupons')
     .set({ Authorization: `Bearer ${token}` })
     .send({
-      ...current.body.property,
-      coupons: [{
-        id: 'coupon_1',
-        code: 'SH-TEST01',
-        type: 'percentage',
-        value: 10,
-        startDate: isoDaysFromNow(0),
-        endDate: isoDaysFromNow(100),
-        active: true,
-        createdAt: Date.now(),
-        ...coupon,
-      }],
+      code: 'SH-TEST01',
+      type: 'percentage',
+      value: 10,
+      startDate: isoDaysFromNow(0),
+      endDate: isoDaysFromNow(100),
+      active: true,
+      propertyIds: [propertyId],
+      ...coupon,
     })
-    .expect(200);
+    .expect(201);
 }
 
 function bookingPayload(overrides: Record<string, unknown> = {}) {

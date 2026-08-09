@@ -462,11 +462,12 @@ export interface ImportedEvent {
   guestCount: number | null;
 }
 
-// A host-created discount code for one property's Price Simulator. `code` is
-// generated once (client-side, see frontend/utils/couponCode.ts) and never
-// changes — deleting and recreating is the only way to get a new code.
-// Applies only when the guest's entire stay falls within [startDate,
-// endDate]; a stay that only partially overlaps is rejected outright rather
+// A global, admin-managed discount code for the Price Simulator — not tied to
+// one property. `code` is typed by hand (admin picks it, can edit it later to
+// fix a typo) rather than generated, and must be unique case-insensitively.
+// `propertyIds` is the set of properties this coupon is assigned to; applying
+// it also requires the guest's entire stay to fall within [startDate,
+// endDate] — a stay that only partially overlaps is rejected outright rather
 // than prorated.
 export interface Coupon {
   id: string;
@@ -480,6 +481,8 @@ export interface Coupon {
   endDate: string;   // YYYY-MM-DD
   active: boolean;
   createdAt: number;
+  updatedAt: number;
+  propertyIds: string[];
 }
 
 export interface PropertyData {
@@ -537,9 +540,6 @@ export interface PropertyData {
   // Secret token that guards the public iCal export URL for this property.
   // Generated lazily the first time a host opens the calendar/export panel.
   icalExportToken?: string;
-  // Discount codes for this property's Price Simulator. Absent on properties
-  // created before this field existed — always fall back to `[]`.
-  coupons?: Coupon[];
   // Opt-in per property: guests may book and pay online themselves. Absent or
   // `enabled: false` keeps the legacy "email the host for a quote" flow.
   directBooking?: {
@@ -735,6 +735,13 @@ export interface DataStore {
   updateBlogPost(id: string, post: Partial<Omit<BlogPost, 'id' | 'createdAt' | 'authorId'>>, actor: AuthUser): Promise<BlogPost>;
   setBlogPostArchived(id: string, archived: boolean, actor: AuthUser): Promise<BlogPost>;
   deleteBlogPost(id: string, actor: AuthUser): Promise<void>;
+  listCoupons(): Promise<Coupon[]>;
+  getCoupon(id: string): Promise<Coupon | null>;
+  // Case-insensitive lookup, used at quote/booking time.
+  getCouponByCode(code: string): Promise<Coupon | null>;
+  createCoupon(coupon: Omit<Coupon, 'id' | 'createdAt' | 'updatedAt'>, actor: AuthUser): Promise<Coupon>;
+  updateCoupon(id: string, coupon: Partial<Omit<Coupon, 'id' | 'createdAt'>>, actor: AuthUser): Promise<Coupon>;
+  deleteCoupon(id: string, actor: AuthUser): Promise<void>;
   assignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void>;
   unassignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void>;
   createCheckInSubmission(input: CheckInSubmissionInput): Promise<CheckInSubmission>;

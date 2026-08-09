@@ -6,7 +6,7 @@ import morgan from 'morgan';
 import { addDays, format, isValid, parseISO } from 'date-fns';
 import { canAccessProperty, canPerformAction } from './domain/authorization.js';
 import { calculateQuote } from './domain/pricing.js';
-import { applyCouponToPricing, findApplicableCoupon } from './domain/coupon.js';
+import { applyCouponToPricing, findApplicableCoupon, normalizeCouponCode } from './domain/coupon.js';
 import {
   calculateRefund,
   canTransition,
@@ -31,6 +31,7 @@ import {
   CheckInGuest,
   CheckInListFilters,
   CheckInSubmission,
+  Coupon,
   DataStore,
   generateConfirmationNo,
   PropertyData,
@@ -1834,6 +1835,106 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     res.json({ post });
   });
 
+  // Validates and normalizes a coupon create/update payload, including that
+  // every propertyId actually exists. Shared by POST and PUT so the two
+  // routes can never drift on what counts as valid.
+  async function parseCouponPayload(
+    body: unknown,
+  ): Promise<{ payload: Omit<Coupon, 'id' | 'createdAt' | 'updatedAt'> } | { error: string }> {
+    const b = (body ?? {}) as Record<string, unknown>;
+
+    const code = normalizeCouponCode(typeof b.code === 'string' ? b.code : '');
+    if (!code) {
+      return { error: 'Coupon code is required.' };
+    }
+
+    const type = b.type;
+    if (type !== 'percentage' && type !== 'fixed_night') {
+      return { error: 'Coupon type must be "percentage" or "fixed_night".' };
+    }
+
+    const value = Number(b.value);
+    if (!Number.isFinite(value) || !Number.isInteger(value)) {
+      return { error: 'Coupon value must be a whole number.' };
+    }
+    if (type === 'percentage' && (value < 1 || value > 100)) {
+      return { error: 'A percentage coupon value must be between 1 and 100.' };
+    }
+    if (type === 'fixed_night' && value < 0) {
+      return { error: 'A fixed-night coupon value cannot be negative.' };
+    }
+
+    const startDate = b.startDate;
+    const endDate = b.endDate;
+    if (
+      typeof startDate !== 'string' || typeof endDate !== 'string'
+      || !isValid(parseISO(startDate)) || !isValid(parseISO(endDate))
+    ) {
+      return { error: 'Valid start and end dates are required.' };
+    }
+    if (startDate > endDate) {
+      return { error: 'Start date must be on or before the end date.' };
+    }
+
+    const propertyIds = Array.isArray(b.propertyIds)
+      ? b.propertyIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    for (const propertyId of propertyIds) {
+      if (!(await store.getProperty(propertyId))) {
+        return { error: `Property "${propertyId}" does not exist.` };
+      }
+    }
+
+    const active = b.active !== false;
+
+    return { payload: { code, type, value, startDate, endDate, active, propertyIds } };
+  }
+
+  app.get('/api/coupons', requireAdmin, async (_req, res) => {
+    res.json({ coupons: await store.listCoupons() });
+  });
+
+  app.post('/api/coupons', requireAdmin, async (req, res) => {
+    const result = await parseCouponPayload(req.body);
+    if ('error' in result) {
+      return res.status(400).json({ error: result.error });
+    }
+    try {
+      const coupon = await store.createCoupon(result.payload, req.authUser!);
+      res.status(201).json({ coupon });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Could not create coupon.' });
+    }
+  });
+
+  app.put('/api/coupons/:id', requireAdmin, async (req, res) => {
+    const couponId = getParam(req.params.id);
+    const current = await store.getCoupon(couponId);
+    if (!current) {
+      return res.status(404).json({ error: 'Coupon not found.' });
+    }
+    const result = await parseCouponPayload(req.body);
+    if ('error' in result) {
+      return res.status(400).json({ error: result.error });
+    }
+    try {
+      const coupon = await store.updateCoupon(couponId, result.payload, req.authUser!);
+      res.json({ coupon });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Could not update coupon.' });
+    }
+  });
+
+  app.delete('/api/coupons/:id', requireAdmin, async (req, res) => {
+    const couponId = getParam(req.params.id);
+    const current = await store.getCoupon(couponId);
+    if (!current) {
+      return res.status(404).json({ error: 'Coupon not found.' });
+    }
+    await store.deleteCoupon(couponId, req.authUser!);
+    res.status(204).send();
+  });
+
   app.post('/api/properties/:propertyId/hosts/:hostUserId', requireAdmin, async (req, res) => {
     await store.assignHost(getParam(req.params.propertyId), Number(getParam(req.params.hostUserId)), req.authUser!);
     res.status(204).send();
@@ -1874,7 +1975,8 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     let coupon: { code: string; type: string; value: number } | null = null;
     let couponError: string | null = null;
     if (typeof couponCode === 'string' && couponCode.trim()) {
-      const result = findApplicableCoupon(property.coupons, couponCode, quoteInput.checkIn, quoteInput.checkOut);
+      const found = await store.getCouponByCode(couponCode);
+      const result = findApplicableCoupon(found, propertyId, quoteInput.checkIn, quoteInput.checkOut);
       if ('error' in result) {
         couponError = result.error;
       } else {
@@ -2304,7 +2406,8 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     let appliedCoupon: string | undefined;
     let pricing = property.pricing;
     if (typeof body.couponCode === 'string' && body.couponCode.trim()) {
-      const couponResult = findApplicableCoupon(property.coupons, body.couponCode, checkInDate, checkOutDate);
+      const foundCoupon = await store.getCouponByCode(body.couponCode);
+      const couponResult = findApplicableCoupon(foundCoupon, property.id, checkInDate, checkOutDate);
       if ('error' in couponResult) {
         return res.status(400).json({ error: couponResult.error });
       }

@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { PropertyData, PricingConfig, ICalFeed, Coupon, HouseRule, ManualItem, SleepingArrangement, HighlightItem, AccessInfo, CheckInInfo, PricingTier, CleaningTier, SocialInfo, PropertyTitles, GalleryItem, GalleryCategoryDef } from '../types';
-import { generateCouponCode } from '../utils/couponCode';
+import { PropertyData, PricingConfig, ICalFeed, HouseRule, ManualItem, SleepingArrangement, HighlightItem, AccessInfo, CheckInInfo, PricingTier, CleaningTier, SocialInfo, PropertyTitles, GalleryItem, GalleryCategoryDef } from '../types';
 import { savePropertyData, translateAndSavePropertyContent, getAllProperties } from '../services/storage';
 import { ImageInput } from '../components/ImageInput';
 import { UploadButton } from '../components/UploadButton';
@@ -17,7 +16,6 @@ import {
   ShieldCheck, Key, Shirt, Briefcase, Lock as LockIcon, Mail, LogOut, Loader2, Shield,
   Eye, EyeOff, Type, Globe, Refrigerator, Microwave, ShowerHead, Zap, Medal, Palette,
   Settings, FolderOpen, Home, Github, Cloud, CloudRain, LockKeyhole, Share2, Menu, Phone, MapPin,
-  Tag, Copy
 } from 'lucide-react';
 
 interface AdminPageProps {
@@ -330,7 +328,6 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   const [saveMessage, setSaveMessage] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
   const [customAmenity, setCustomAmenity] = useState('');
-  const [copiedCouponId, setCopiedCouponId] = useState<string | null>(null);
 
   // Category Management State
   const [isManagingCategories, setIsManagingCategories] = useState(false);
@@ -634,35 +631,6 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
           ...prev,
           directBooking: { ...(prev.directBooking ?? { enabled: false }), freeCancellationDays: value }
       }));
-  };
-
-  // Coupon Handlers
-  const addCoupon = () => {
-    const today = new Date();
-    const inOneWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const toIsoDate = (d: Date) => d.toISOString().slice(0, 10);
-    const newCoupon: Coupon = {
-      id: `coupon_${Date.now()}`,
-      code: generateCouponCode((formData.coupons ?? []).map(c => c.code)),
-      type: 'percentage',
-      value: 10,
-      startDate: toIsoDate(today),
-      endDate: toIsoDate(inOneWeek),
-      active: true,
-      createdAt: Date.now(),
-    };
-    setFormData(prev => ({ ...prev, coupons: [...(prev.coupons ?? []), newCoupon] }));
-  };
-
-  const updateCoupon = (id: string, field: keyof Coupon, value: string | number | boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      coupons: (prev.coupons ?? []).map(c => c.id === id ? { ...c, [field]: value } : c),
-    }));
-  };
-
-  const removeCoupon = (id: string) => {
-    setFormData(prev => ({ ...prev, coupons: (prev.coupons ?? []).filter(c => c.id !== id) }));
   };
 
   // iCal Handlers
@@ -1923,98 +1891,6 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         </div>
                     </div>
 
-                    {/* Coupons Section */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-4">
-                        <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                             <h3 className="text-base font-extrabold text-gray-900 flex items-center gap-2">
-                                 <Tag className="w-5 h-5 text-blue-700" />
-                                 クーポン (Coupons)
-                             </h3>
-                             <button onClick={addCoupon} className="text-xs text-blue-600 font-extrabold hover:underline flex items-center gap-1">
-                                <Plus className="w-4 h-4"/> Add Coupon
-                            </button>
-                        </div>
-                        <div className="space-y-3">
-                            {(formData.coupons ?? []).length === 0 && (
-                                <p className="text-sm text-gray-400">No coupons yet. Add one to offer guests a discount code in the Price Simulator.</p>
-                            )}
-                            {(formData.coupons ?? []).map((coupon) => (
-                                <div key={coupon.id} className="p-4 border border-[#ccc9ca] rounded-2xl bg-slate-50/50 relative shadow-sm space-y-3">
-                                    <button onClick={() => removeCoupon(coupon.id)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50">
-                                        <Trash2 className="w-4.5 h-4.5" />
-                                    </button>
-                                    <div className="flex items-center gap-2 flex-wrap pr-8">
-                                        <span className="font-mono font-extrabold text-sm text-gray-900 bg-white border border-gray-300 rounded-lg px-3 py-1.5">{coupon.code}</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => { navigator.clipboard.writeText(coupon.code); setCopiedCouponId(coupon.id); setTimeout(() => setCopiedCouponId(null), 1500); }}
-                                            className="p-1.5 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
-                                            title="Copy code"
-                                        >
-                                            <Copy className="w-4 h-4" />
-                                        </button>
-                                        {copiedCouponId === coupon.id && <span className="text-xs text-green-600 font-bold">Copied!</span>}
-                                        <label className="ml-auto flex items-center gap-1.5 text-xs font-bold text-gray-500">
-                                            <input
-                                                type="checkbox"
-                                                checked={coupon.active}
-                                                onChange={e => updateCoupon(coupon.id, 'active', e.target.checked)}
-                                                className="w-4 h-4"
-                                            />
-                                            Active
-                                        </label>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Type</label>
-                                            <select
-                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
-                                                value={coupon.type}
-                                                onChange={e => updateCoupon(coupon.id, 'type', e.target.value)}
-                                            >
-                                                <option value="percentage">Percentage off (%)</option>
-                                                <option value="fixed_night">Fixed price / night (¥)</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
-                                                {coupon.type === 'percentage' ? 'Discount %' : 'Fixed price (¥/night)'}
-                                            </label>
-                                            <input
-                                                type="number"
-                                                min={coupon.type === 'percentage' ? 1 : 0}
-                                                max={coupon.type === 'percentage' ? 100 : undefined}
-                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
-                                                value={coupon.value}
-                                                onChange={e => updateCoupon(coupon.id, 'value', parseInt(e.target.value) || 0)}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Valid from</label>
-                                            <input
-                                                type="date"
-                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
-                                                value={coupon.startDate}
-                                                onChange={e => updateCoupon(coupon.id, 'startDate', e.target.value)}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Valid until</label>
-                                            <input
-                                                type="date"
-                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
-                                                value={coupon.endDate}
-                                                onChange={e => updateCoupon(coupon.id, 'endDate', e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-                                    <p className="text-[11px] text-gray-400">
-                                        Only applies when the guest's entire stay falls within this date range (not prorated for partial overlaps). Remember to hit Save below.
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
                 </div>
             )}
 

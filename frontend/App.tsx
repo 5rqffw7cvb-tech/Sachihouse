@@ -22,6 +22,7 @@ const BlogPage = lazy(() => import('./pages/BlogPage'));
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
 const AdminBlogPage = lazy(() => import('./pages/AdminBlogPage'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage'));
+const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage'));
 const PropertyAdminListPage = lazy(() => import('./pages/PropertyAdminListPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const CheckInPage = lazy(() => import('./pages/CheckInPage'));
@@ -583,6 +584,7 @@ const App: React.FC = () => {
                         <Route path="/blog" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BlogPage /></Suspense>} />
                         <Route path="/blog/admin" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><AdminBlogPage /></Suspense>} />
                         <Route path="/admin/users" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><AdminUsersPage /></Suspense>} />
+                        <Route path="/admin/coupons" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><AdminCouponsPage /></Suspense>} />
                         <Route path="/admin/properties" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><PropertyAdminListPage /></Suspense>} />
                         <Route path="/admin/checkin-management" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><CheckInManagementPage /></Suspense>} />
                         <Route path="/admin/finance" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><FinancePage /></Suspense>} />

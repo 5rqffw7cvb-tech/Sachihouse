@@ -12,6 +12,7 @@ import {
   BookingInput,
   BookingListFilters,
   BookingStatusPatch,
+  Coupon,
   CreateBookingResult,
   isActiveBookingStatus,
   generateConfirmationNo,
@@ -36,12 +37,14 @@ import {
 } from './types.js';
 import { Role } from '../types/domain.js';
 import { generateBookingId, generateGuestToken, getStayDates } from '../domain/booking.js';
+import { normalizeCouponCode } from '../domain/coupon.js';
 
 interface MemoryState {
   users: StoredUser[];
   properties: Array<PropertyData & { id: string }>;
   siteSettings: SiteSettings;
   blogPosts: BlogPost[];
+  coupons: Coupon[];
   blockedDates: Record<string, string[]>;
   checkIns: CheckInSubmission[];
   bookingConfirmations: BookingConfirmation[];
@@ -72,6 +75,7 @@ export class MemoryStore implements DataStore {
       properties: structuredClone(propertiesSeed),
       siteSettings: structuredClone(siteSettingsSeed),
       blogPosts: structuredClone(blogPostsSeed),
+      coupons: [],
       blockedDates: structuredClone(blockedDatesSeed),
       checkIns: [],
       bookingConfirmations: [],
@@ -610,6 +614,63 @@ export class MemoryStore implements DataStore {
   async deleteBlogPost(id: string): Promise<void> {
     const state = this.assertState();
     state.blogPosts = state.blogPosts.filter((item) => item.id !== id);
+  }
+
+  async listCoupons(): Promise<Coupon[]> {
+    return structuredClone(this.assertState().coupons).sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async getCoupon(id: string): Promise<Coupon | null> {
+    const coupon = this.assertState().coupons.find((item) => item.id === id);
+    return coupon ? structuredClone(coupon) : null;
+  }
+
+  async getCouponByCode(code: string): Promise<Coupon | null> {
+    const normalized = normalizeCouponCode(code);
+    const coupon = this.assertState().coupons.find((item) => item.code === normalized);
+    return coupon ? structuredClone(coupon) : null;
+  }
+
+  async createCoupon(coupon: Omit<Coupon, 'id' | 'createdAt' | 'updatedAt'>, _actor: AuthUser): Promise<Coupon> {
+    const state = this.assertState();
+    const code = normalizeCouponCode(coupon.code);
+    if (state.coupons.some((item) => item.code === code)) {
+      throw new Error('A coupon with this code already exists.');
+    }
+    const now = Date.now();
+    const next: Coupon = {
+      ...structuredClone(coupon),
+      code,
+      id: `coupon_${now}_${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.coupons.unshift(next);
+    return structuredClone(next);
+  }
+
+  async updateCoupon(id: string, coupon: Partial<Omit<Coupon, 'id' | 'createdAt'>>, _actor: AuthUser): Promise<Coupon> {
+    const state = this.assertState();
+    const index = state.coupons.findIndex((item) => item.id === id);
+    if (index === -1) {
+      throw new Error('Coupon not found.');
+    }
+    const patch = structuredClone(coupon);
+    if (patch.code !== undefined) {
+      const code = normalizeCouponCode(patch.code);
+      if (state.coupons.some((item) => item.id !== id && item.code === code)) {
+        throw new Error('A coupon with this code already exists.');
+      }
+      patch.code = code;
+    }
+    const next = { ...state.coupons[index], ...patch, updatedAt: Date.now() };
+    state.coupons[index] = next;
+    return structuredClone(next);
+  }
+
+  async deleteCoupon(id: string, _actor: AuthUser): Promise<void> {
+    const state = this.assertState();
+    state.coupons = state.coupons.filter((item) => item.id !== id);
   }
 
   async assignHost(propertyId: string, hostUserId: number): Promise<void> {

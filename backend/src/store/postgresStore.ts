@@ -14,6 +14,7 @@ import {
   BookingListFilters,
   BookingStatus,
   BookingStatusPatch,
+  Coupon,
   CreateBookingResult,
   isActiveBookingStatus,
   generateConfirmationNo,
@@ -38,6 +39,7 @@ import {
 } from './types.js';
 import { Role } from '../types/domain.js';
 import { generateBookingId, generateGuestToken, getStayDates } from '../domain/booking.js';
+import { normalizeCouponCode } from '../domain/coupon.js';
 
 export class PostgresStore implements DataStore {
   constructor(private readonly pool: Pool) {}
@@ -325,6 +327,30 @@ export class PostgresStore implements DataStore {
       );
       CREATE INDEX IF NOT EXISTS idx_imported_events_property_dates
       ON imported_events(property_id, check_in_date DESC);
+    `);
+
+    // Global, admin-managed discount codes for the Price Simulator — a coupon
+    // is assigned to zero or more properties via the join table, not nested
+    // inside any one property's own data.
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS coupons (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        code TEXT NOT NULL,
+        type TEXT NOT NULL,
+        value INTEGER NOT NULL,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        active BOOLEAN NOT NULL DEFAULT true,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_code_ci ON coupons (UPPER(code));
+
+      CREATE TABLE IF NOT EXISTS coupon_properties (
+        coupon_id UUID NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        PRIMARY KEY (coupon_id, property_id)
+      );
     `);
 
     const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
@@ -1081,6 +1107,157 @@ export class PostgresStore implements DataStore {
   async deleteBlogPost(id: string, actor: AuthUser): Promise<void> {
     await this.pool.query('DELETE FROM blog_posts WHERE id = $1', [id]);
     await this.writeAudit(actor.id, 'DELETE', 'blog_post', id);
+  }
+
+  private mapCoupon(row: {
+    id: string;
+    code: string;
+    type: 'percentage' | 'fixed_night';
+    value: number;
+    start_date: string | Date;
+    end_date: string | Date;
+    active: boolean;
+    created_at: number;
+    updated_at: number;
+  }, propertyIds: string[]): Coupon {
+    const toIsoDate = (value: string | Date) => (typeof value === 'string' ? value.slice(0, 10) : value.toISOString().slice(0, 10));
+    return {
+      id: row.id,
+      code: row.code,
+      type: row.type,
+      value: Number(row.value),
+      startDate: toIsoDate(row.start_date),
+      endDate: toIsoDate(row.end_date),
+      active: row.active,
+      createdAt: Number(row.created_at),
+      updatedAt: Number(row.updated_at),
+      propertyIds,
+    };
+  }
+
+  // One extra query for the join-table rows rather than an `array_agg` in the
+  // main query — avoids array_agg's "NULL, not []" behaviour for a coupon
+  // with zero properties assigned.
+  private async hydrateCouponPropertyIds(couponIds: string[]): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    if (couponIds.length === 0) return map;
+    const result = await this.pool.query<{ coupon_id: string; property_id: string }>(
+      'SELECT coupon_id, property_id FROM coupon_properties WHERE coupon_id = ANY($1)',
+      [couponIds],
+    );
+    for (const row of result.rows) {
+      const list = map.get(row.coupon_id) ?? [];
+      list.push(row.property_id);
+      map.set(row.coupon_id, list);
+    }
+    return map;
+  }
+
+  async listCoupons(): Promise<Coupon[]> {
+    const result = await this.pool.query('SELECT * FROM coupons ORDER BY created_at DESC');
+    const idMap = await this.hydrateCouponPropertyIds(result.rows.map((row) => row.id));
+    return result.rows.map((row) => this.mapCoupon(row, idMap.get(row.id) ?? []));
+  }
+
+  async getCoupon(id: string): Promise<Coupon | null> {
+    const result = await this.pool.query('SELECT * FROM coupons WHERE id = $1', [id]);
+    if (result.rows.length === 0) return null;
+    const idMap = await this.hydrateCouponPropertyIds([id]);
+    return this.mapCoupon(result.rows[0], idMap.get(id) ?? []);
+  }
+
+  async getCouponByCode(code: string): Promise<Coupon | null> {
+    const result = await this.pool.query('SELECT * FROM coupons WHERE UPPER(code) = UPPER($1)', [normalizeCouponCode(code)]);
+    if (result.rows.length === 0) return null;
+    const idMap = await this.hydrateCouponPropertyIds([result.rows[0].id]);
+    return this.mapCoupon(result.rows[0], idMap.get(result.rows[0].id) ?? []);
+  }
+
+  async createCoupon(coupon: Omit<Coupon, 'id' | 'createdAt' | 'updatedAt'>, actor: AuthUser): Promise<Coupon> {
+    const now = Date.now();
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `INSERT INTO coupons (code, type, value, start_date, end_date, active, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING *`,
+        [coupon.code, coupon.type, coupon.value, coupon.startDate, coupon.endDate, coupon.active, now, now],
+      );
+      const row = result.rows[0];
+      if (coupon.propertyIds.length > 0) {
+        const values = coupon.propertyIds.map((_, i) => `($1, $${i + 2})`).join(', ');
+        await client.query(
+          `INSERT INTO coupon_properties (coupon_id, property_id) VALUES ${values}`,
+          [row.id, ...coupon.propertyIds],
+        );
+      }
+      await client.query('COMMIT');
+      await this.writeAudit(actor.id, 'CREATE', 'coupon', row.id);
+      return this.mapCoupon(row, coupon.propertyIds);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (error instanceof Error && /idx_coupons_code_ci/.test(error.message)) {
+        throw new Error('A coupon with this code already exists.');
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateCoupon(id: string, coupon: Partial<Omit<Coupon, 'id' | 'createdAt'>>, actor: AuthUser): Promise<Coupon> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const sets: string[] = ['updated_at = $2'];
+      const params: unknown[] = [id, Date.now()];
+      const fields: [keyof typeof coupon, string][] = [
+        ['code', 'code'], ['type', 'type'], ['value', 'value'],
+        ['startDate', 'start_date'], ['endDate', 'end_date'], ['active', 'active'],
+      ];
+      for (const [key, col] of fields) {
+        if (coupon[key] !== undefined) {
+          params.push(coupon[key]);
+          sets.push(`${col} = $${params.length}`);
+        }
+      }
+      const result = await client.query(`UPDATE coupons SET ${sets.join(', ')} WHERE id = $1 RETURNING *`, params);
+      if (result.rows.length === 0) {
+        throw new Error('Coupon not found.');
+      }
+      const row = result.rows[0];
+
+      let propertyIds: string[];
+      if (coupon.propertyIds !== undefined) {
+        await client.query('DELETE FROM coupon_properties WHERE coupon_id = $1', [id]);
+        if (coupon.propertyIds.length > 0) {
+          const values = coupon.propertyIds.map((_, i) => `($1, $${i + 2})`).join(', ');
+          await client.query(`INSERT INTO coupon_properties (coupon_id, property_id) VALUES ${values}`, [id, ...coupon.propertyIds]);
+        }
+        propertyIds = coupon.propertyIds;
+      } else {
+        const idMap = await this.hydrateCouponPropertyIds([id]);
+        propertyIds = idMap.get(id) ?? [];
+      }
+
+      await client.query('COMMIT');
+      await this.writeAudit(actor.id, 'UPDATE', 'coupon', id);
+      return this.mapCoupon(row, propertyIds);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (error instanceof Error && /idx_coupons_code_ci/.test(error.message)) {
+        throw new Error('A coupon with this code already exists.');
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async deleteCoupon(id: string, actor: AuthUser): Promise<void> {
+    await this.pool.query('DELETE FROM coupons WHERE id = $1', [id]);
+    await this.writeAudit(actor.id, 'DELETE', 'coupon', id);
   }
 
   async assignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void> {
