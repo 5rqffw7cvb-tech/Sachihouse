@@ -17,10 +17,15 @@ describe('authorization domain', () => {
     expect(canPerformAction({ role: 'GUEST' }, 'property.write', 'sachi-ojima')).toBe(false);
   });
 
-  it('allows host property writes only for assigned properties', () => {
-    expect(canPerformAction({ role: 'HOST', assignedPropertyIds: ['sachi-ojima'] }, 'property.write', 'sachi-ojima')).toBe(true);
-    expect(canPerformAction({ role: 'HOST', assignedPropertyIds: ['sachi-ojima'] }, 'property.write', 'sachi-shinjuku')).toBe(false);
-    expect(canPerformAction({ role: 'HOST', assignedPropertyIds: ['sachi-ojima'] }, 'property.assignHost', 'sachi-ojima')).toBe(false);
+  it('allows host property writes only for assigned properties with a paid plan (hostLevel >= 2)', () => {
+    expect(canPerformAction({ role: 'HOST', assignedPropertyIds: ['sachi-ojima'], hostLevel: 2 }, 'property.write', 'sachi-ojima')).toBe(true);
+    expect(canPerformAction({ role: 'HOST', assignedPropertyIds: ['sachi-ojima'], hostLevel: 2 }, 'property.write', 'sachi-shinjuku')).toBe(false);
+    expect(canPerformAction({ role: 'HOST', assignedPropertyIds: ['sachi-ojima'], hostLevel: 2 }, 'property.assignHost', 'sachi-ojima')).toBe(false);
+  });
+
+  it('denies property writes for an assigned host without a paid plan', () => {
+    expect(canPerformAction({ role: 'HOST', assignedPropertyIds: ['sachi-ojima'] }, 'property.write', 'sachi-ojima')).toBe(false);
+    expect(canPerformAction({ role: 'HOST', assignedPropertyIds: ['sachi-ojima'], hostLevel: 1 }, 'property.write', 'sachi-ojima')).toBe(false);
   });
 
   it('requires explicit blog editor permission for non-admin blog writes', () => {

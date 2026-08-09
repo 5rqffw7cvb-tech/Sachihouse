@@ -534,7 +534,10 @@ describe('API integration', () => {
 
     expect(response.body.guest.id).toBe('guest_2');
     expect(response.body.guest.documentType).toBeTruthy();
-    expect(response.body.guest.evidenceUrl).toContain('data:image/');
+    // Deferred upload: OCR only reads the document, it never pushes to GCS —
+    // the evidence image stays a client-held data URI and is only uploaded
+    // once the guest confirms via /submit.
+    expect(response.body.guest.evidenceUrl).toBe('');
   });
 
   it('submits check-in data and lists submissions for host', async () => {
@@ -564,12 +567,29 @@ describe('API integration', () => {
         guests: [
           {
             ...ocr.body.guest,
+            // OCR no longer returns a real evidenceUrl (deferred upload) — the
+            // client is expected to still be holding the original data URI and
+            // send it here, where /submit does the actual compress + GCS upload.
+            evidenceUrl: tinyPng,
+            // The lead guest's contactInfo must be a real email — it's how the
+            // check-in confirmation gets sent. Neither the OCR mock nor the
+            // spread above ever provides one.
+            contactInfo: 'alice@example.com',
             fullName: 'Alice Example',
             nationality: 'JP',
           },
         ],
       })
       .expect(201);
+
+    // Check-in access requires host level >= 3; the seeded host starts below
+    // that, so an admin promotes them first.
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+    await request(app)
+      .put('/api/users/2/host-level')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ level: 3 })
+      .expect(200);
 
     const hostToken = await login('host@sachihouse.com', 'host123');
     const list = await request(app)
@@ -608,6 +628,8 @@ describe('API integration', () => {
         guests: [
           {
             ...ocr.body.guest,
+            evidenceUrl: tinyPng,
+            contactInfo: 'original-guest@example.com',
             fullName: 'Original Guest',
             nationality: 'JP',
           },
@@ -667,12 +689,23 @@ describe('API integration', () => {
         guests: [
           {
             ...ocr.body.guest,
+            evidenceUrl: tinyPng,
+            contactInfo: 'delete-me@example.com',
             fullName: 'Delete Me',
             nationality: 'JP',
           },
         ],
       })
       .expect(201);
+
+    // Check-in access requires host level >= 3; the seeded host starts below
+    // that, so an admin promotes them first.
+    const adminToken = await login('admin@sachihouse.com', 'admin123');
+    await request(app)
+      .put('/api/users/2/host-level')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ level: 3 })
+      .expect(200);
 
     const hostToken = await login('host@sachihouse.com', 'host123');
     await request(app)
