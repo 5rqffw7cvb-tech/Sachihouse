@@ -250,6 +250,59 @@ describe('refund preview', () => {
   });
 });
 
+describe('cancel-preview endpoint', () => {
+  it('returns the refund breakdown without cancelling or refunding anything', async () => {
+    await enableDirectBooking();
+    const { id, guestToken } = await bookAndPay({ daysAhead: 40 });
+
+    const res = await request(app).post(`/api/bookings/${id}/cancel-preview?token=${guestToken}`).expect(200);
+
+    expect(res.body).toMatchObject({
+      amountTotal: 35000,
+      stripeFeeAmount: 1260,
+      refundAmount: 33740,
+      reason: 'free_cancellation',
+      freeCancellationDays: 7,
+    });
+    // Purely a preview — the booking must be untouched and nothing refunded.
+    expect((await store.getBooking(id))?.status).toBe('confirmed');
+    expect(payments.refunds).toEqual([]);
+  });
+
+  it('reports zero and "too_late" once inside the free-cancellation window', async () => {
+    await enableDirectBooking();
+    const { id, guestToken } = await bookAndPay({ daysAhead: 3 });
+
+    const res = await request(app).post(`/api/bookings/${id}/cancel-preview?token=${guestToken}`).expect(200);
+
+    expect(res.body.refundAmount).toBe(0);
+    expect(res.body.reason).toBe('too_late');
+  });
+
+  it('re-checks the Stripe fee live if it is still stored as 0', async () => {
+    await enableDirectBooking();
+    payments.chargeFee = 0;
+    const { id, guestToken } = await bookAndPay({ daysAhead: 40 });
+    expect((await store.getBooking(id))?.stripeFeeAmount).toBe(0);
+
+    payments.chargeFee = 1260;
+    const res = await request(app).post(`/api/bookings/${id}/cancel-preview?token=${guestToken}`).expect(200);
+
+    expect(res.body.stripeFeeAmount).toBe(1260);
+    expect(res.body.refundAmount).toBe(33740);
+    // The re-check must not have persisted a refund or a status change.
+    expect((await store.getBooking(id))?.status).toBe('confirmed');
+  });
+
+  it('refuses without the right token', async () => {
+    await enableDirectBooking();
+    const { id } = await bookAndPay();
+
+    await request(app).post(`/api/bookings/${id}/cancel-preview`).expect(404);
+    await request(app).post(`/api/bookings/${id}/cancel-preview?token=wrong`).expect(404);
+  });
+});
+
 describe('host cancellation', () => {
   it('refunds in full even inside the 7-day window', async () => {
     await enableDirectBooking();

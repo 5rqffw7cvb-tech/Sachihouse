@@ -8,10 +8,12 @@ import {
   BOOKING_POLL_INTERVAL_MS,
   BOOKING_POLL_TIMEOUT_MS,
   MAX_GUEST_EMAIL_UPDATES,
+  CancelPreview,
   GuestBooking,
   cancelBooking,
   getBooking,
   getBookingConfirmationForPdf,
+  previewCancellation,
   updateBookingEmail,
 } from '../services/booking';
 import { downloadBookingConfirmationPdf } from '../utils/bookingConfirmPdf';
@@ -37,6 +39,10 @@ const BookingResultPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelPreview, setCancelPreview] = useState<CancelPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [showEmailEdit, setShowEmailEdit] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [emailUpdating, setEmailUpdating] = useState(false);
@@ -85,15 +91,44 @@ const BookingResultPage: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [phase, booking, load]);
 
-  const handleCancel = async () => {
-    if (!booking || !window.confirm(t('manage_cancel_confirm'))) {
-      return;
+  // Fetches a fresh, live refund estimate for the popup rather than reusing
+  // booking.refundIfCancelledNow — that value is only as recent as the last
+  // page load/poll, so it can be stale if the guest lingers here across the
+  // free-cancellation cutoff or before the Stripe fee was first re-checked.
+  const loadCancelPreview = useCallback(async () => {
+    if (!booking) return;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    try {
+      const preview = await previewCancellation(booking.id, token);
+      setCancelPreview(preview);
+    } catch (err) {
+      setPreviewError(err instanceof ApiError ? err.message : t('manage_cancel_modal_preview_error'));
+    } finally {
+      setPreviewLoading(false);
     }
+  }, [booking, token, t]);
+
+  const openCancelModal = () => {
+    setCancelError(null);
+    setCancelPreview(null);
+    setCancelModalOpen(true);
+    void loadCancelPreview();
+  };
+
+  const closeCancelModal = () => {
+    if (cancelling) return;
+    setCancelModalOpen(false);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!booking) return;
     setCancelling(true);
     setCancelError(null);
     try {
       const result = await cancelBooking(booking.id, token);
       setBooking(result.booking);
+      setCancelModalOpen(false);
     } catch (err) {
       setCancelError(err instanceof ApiError ? err.message : t('result_err_generic'));
     } finally {
@@ -356,20 +391,11 @@ const BookingResultPage: React.FC = () => {
               )}
             </div>
 
-            {cancelError && (
-              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
-                <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-                <p className="text-sm text-red-700">{cancelError}</p>
-              </div>
-            )}
-
             <button
-              onClick={handleCancel}
-              disabled={cancelling}
+              onClick={openCancelModal}
               className="w-full border border-gray-300 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-50
                          disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
             >
-              {cancelling && <Loader2 className="w-4 h-4 animate-spin" />}
               {t('manage_cancel_button')}
             </button>
           </div>
@@ -381,6 +407,92 @@ const BookingResultPage: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {cancelModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-6 space-y-4">
+            <h2 className="text-lg font-bold text-gray-900">{t('manage_cancel_modal_title')}</h2>
+
+            {previewLoading && (
+              <div className="flex items-center gap-2 text-sm text-gray-500 py-6">
+                <Loader2 className="w-4 h-4 animate-spin" /> {t('manage_cancel_modal_loading')}
+              </div>
+            )}
+
+            {!previewLoading && previewError && (
+              <div className="space-y-3">
+                <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
+                  <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                  <p className="text-sm text-red-700">{previewError}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void loadCancelPreview()}
+                  className="text-sm font-semibold text-[var(--color-primary-600)] hover:underline"
+                >
+                  {t('result_retry')}
+                </button>
+              </div>
+            )}
+
+            {!previewLoading && !previewError && cancelPreview && (
+              <div className="space-y-3">
+                <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 space-y-2 text-sm text-gray-600">
+                  <div className="flex justify-between">
+                    <span>{t('book_total')}</span>
+                    <span>¥{cancelPreview.amountTotal.toLocaleString()}</span>
+                  </div>
+                  {cancelPreview.stripeFeeAmount > 0 && cancelPreview.refundAmount > 0 && (
+                    <div className="flex justify-between text-gray-500">
+                      <span>{t('manage_refund_fee_label')}</span>
+                      <span>−¥{cancelPreview.stripeFeeAmount.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-baseline border-t border-gray-200 pt-2 mt-1 text-gray-900">
+                    <span className="font-bold">{t('manage_cancel_modal_refund_label')}</span>
+                    <span className="font-bold text-xl">¥{cancelPreview.refundAmount.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {cancelPreview.refundAmount <= 0 && (
+                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    {t('manage_cancel_modal_no_refund_confirm')}
+                  </p>
+                )}
+
+                <p className="text-[11px] text-gray-400">{t('manage_refund_disclaimer')}</p>
+              </div>
+            )}
+
+            {cancelError && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
+                <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                <p className="text-sm text-red-700">{cancelError}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={closeCancelModal}
+                disabled={cancelling}
+                className="flex-1 border border-gray-300 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {t('manage_cancel_modal_keep_button')}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmCancel()}
+                disabled={cancelling || previewLoading || Boolean(previewError)}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
+              >
+                {cancelling && <Loader2 className="w-4 h-4 animate-spin" />}
+                {t('manage_cancel_modal_confirm_button')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>,
   );
 };

@@ -2420,6 +2420,42 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return res.json({ confirmation });
   });
 
+  // Non-mutating preview of what a guest self-cancellation would refund right
+  // now — same Stripe-fee re-check and calculateRefund call `cancelBooking`
+  // makes, but never calls payments.createRefund or store.updateBooking. Lets
+  // the confirmation popup show an accurate breakdown before the guest commits.
+  app.post('/api/bookings/:id/cancel-preview', async (req, res) => {
+    const booking = await loadBookingForGuest(getParam(req.params.id), req.query.token ?? req.body?.token);
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found.' });
+    }
+
+    let stripeFeeAmount = booking.stripeFeeAmount;
+    if (stripeFeeAmount === 0 && booking.stripePaymentIntentId) {
+      try {
+        stripeFeeAmount = await payments.getChargeFee(booking.stripePaymentIntentId);
+      } catch (error) {
+        console.error(`Could not re-check the Stripe fee for booking ${booking.id} at cancel-preview time.`, error);
+      }
+    }
+
+    const property = await store.getProperty(booking.propertyId);
+    const freeCancellationDays = property ? resolveFreeCancellationDays(property) : FREE_CANCELLATION_DAYS;
+    const outcome = calculateRefund({ ...booking, stripeFeeAmount }, Date.now(), {
+      byHost: false,
+      freeCancellationDays,
+    });
+
+    return res.json({
+      amountTotal: booking.amountTotal,
+      stripeFeeAmount,
+      refundAmount: outcome.refundAmount,
+      daysUntilCheckIn: outcome.daysUntilCheckIn,
+      reason: outcome.reason,
+      freeCancellationDays,
+    });
+  });
+
   // Guest self-service cancellation, authorised by the same token as the lookup.
   app.post('/api/bookings/:id/cancel', async (req, res) => {
     const booking = await loadBookingForGuest(getParam(req.params.id), req.query.token ?? req.body?.token);

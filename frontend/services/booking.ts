@@ -94,6 +94,27 @@ export async function cancelBooking(
   );
 }
 
+export interface CancelPreview {
+  amountTotal: number;
+  // The Stripe processing fee, deducted from a guest's refund because Stripe
+  // does not return it on a refund. 0 when the reason isn't 'free_cancellation'.
+  stripeFeeAmount: number;
+  refundAmount: number;
+  daysUntilCheckIn: number;
+  reason: 'free_cancellation' | 'host_cancellation' | 'too_late' | 'nothing_to_refund';
+  freeCancellationDays: number;
+}
+
+// Read-only — calculates what cancelling right now would refund, without
+// actually cancelling. Powers the confirmation popup shown before the guest
+// commits to the (irreversible) cancelBooking call above.
+export async function previewCancellation(id: string, token: string): Promise<CancelPreview> {
+  return apiRequest<CancelPreview>(
+    `/bookings/${encodeURIComponent(id)}/cancel-preview?token=${encodeURIComponent(token)}`,
+    { method: 'POST' },
+  );
+}
+
 // Called from the page Stripe sends a guest back to after they back out of
 // Checkout, so the nights go back on sale immediately instead of waiting out
 // the hold. Best-effort: swallow failures, since the hold's own expiry is

@@ -108,12 +108,18 @@ export const translations = {
 
     // Managing a booking
     manage_cancel_button: "Cancel this booking",
-    manage_cancel_confirm: "Cancel this booking? This cannot be undone.",
     manage_refund_if_now: "Cancel now and you would be refunded",
     manage_no_refund_now: "This booking is inside the {days}-day window and is no longer refundable.",
     manage_refunded: "Refunded",
     manage_refund_fee_label: "Stripe processing fee",
     manage_refund_disclaimer: "The actual amount may differ slightly depending on Stripe's fees at the time of cancellation.",
+    manage_cancel_modal_title: "Confirm cancellation",
+    manage_cancel_modal_loading: "Calculating your refund…",
+    manage_cancel_modal_preview_error: "Could not calculate your refund. Please try again.",
+    manage_cancel_modal_refund_label: "You will receive",
+    manage_cancel_modal_no_refund_confirm: "You will not receive a refund for this booking. Cancel anyway?",
+    manage_cancel_modal_keep_button: "Go back",
+    manage_cancel_modal_confirm_button: "Yes, cancel booking",
     abandoned_title: "Payment cancelled",
     abandoned_body: "You were not charged. The dates were held briefly and are now free again — you can start a new booking whenever you like.",
     
@@ -525,12 +531,18 @@ export const translations = {
 
     // Managing a booking
     manage_cancel_button: "Hủy đặt phòng này",
-    manage_cancel_confirm: "Hủy đặt phòng này? Thao tác này không thể hoàn tác.",
     manage_refund_if_now: "Hủy bây giờ bạn sẽ được hoàn",
     manage_no_refund_now: "Đặt phòng này đã vào trong {days} ngày trước ngày nhận phòng nên không còn được hoàn tiền.",
     manage_refunded: "Đã hoàn",
     manage_refund_fee_label: "Phí xử lý Stripe",
     manage_refund_disclaimer: "Số tiền thực tế có thể chênh lệch một chút tùy theo chính sách phí của Stripe tại thời điểm hủy.",
+    manage_cancel_modal_title: "Xác nhận hủy đặt phòng",
+    manage_cancel_modal_loading: "Đang tính số tiền hoàn lại…",
+    manage_cancel_modal_preview_error: "Không thể tính số tiền hoàn lại. Vui lòng thử lại.",
+    manage_cancel_modal_refund_label: "Bạn sẽ được hoàn",
+    manage_cancel_modal_no_refund_confirm: "Bạn sẽ không được hoàn tiền cho đặt phòng này. Vẫn muốn hủy?",
+    manage_cancel_modal_keep_button: "Quay lại",
+    manage_cancel_modal_confirm_button: "Đồng ý, hủy đặt phòng",
     abandoned_title: "Đã hủy thanh toán",
     abandoned_body: "Bạn chưa bị trừ tiền. Các ngày chỉ được giữ tạm và giờ đã mở lại — bạn có thể đặt lại bất cứ lúc nào.",
     
@@ -942,12 +954,18 @@ export const translations = {
 
     // Managing a booking
     manage_cancel_button: "この予約をキャンセルする",
-    manage_cancel_confirm: "この予約をキャンセルしますか？取り消しはできません。",
     manage_refund_if_now: "今キャンセルした場合の返金額",
     manage_no_refund_now: "チェックイン{days}日前以内のため、返金の対象外です。",
     manage_refunded: "返金済み",
     manage_refund_fee_label: "Stripe決済手数料",
     manage_refund_disclaimer: "実際の金額は、キャンセル時点のStripeの手数料により若干異なる場合があります。",
+    manage_cancel_modal_title: "キャンセルの確認",
+    manage_cancel_modal_loading: "返金額を計算しています…",
+    manage_cancel_modal_preview_error: "返金額を計算できませんでした。もう一度お試しください。",
+    manage_cancel_modal_refund_label: "返金額",
+    manage_cancel_modal_no_refund_confirm: "この予約は返金の対象外です。それでもキャンセルしますか？",
+    manage_cancel_modal_keep_button: "戻る",
+    manage_cancel_modal_confirm_button: "はい、キャンセルします",
     abandoned_title: "お支払いを中止しました",
     abandoned_body: "料金は発生していません。日程は一時的に確保されていましたが解放されました。いつでも改めてご予約いただけます。",
     
@@ -1359,12 +1377,18 @@ export const translations = {
 
     // Managing a booking
     manage_cancel_button: "取消此预订",
-    manage_cancel_confirm: "确定取消此预订吗？此操作无法撤销。",
     manage_refund_if_now: "现在取消可退款",
     manage_no_refund_now: "此预订已进入入住前{days}天内，不再享有退款。",
     manage_refunded: "已退款",
     manage_refund_fee_label: "Stripe手续费",
     manage_refund_disclaimer: "实际金额可能会因取消时Stripe的手续费政策而略有不同。",
+    manage_cancel_modal_title: "确认取消预订",
+    manage_cancel_modal_loading: "正在计算退款金额…",
+    manage_cancel_modal_preview_error: "无法计算退款金额，请重试。",
+    manage_cancel_modal_refund_label: "您将收到",
+    manage_cancel_modal_no_refund_confirm: "此预订将不予退款。仍要取消吗？",
+    manage_cancel_modal_keep_button: "返回",
+    manage_cancel_modal_confirm_button: "是的，取消预订",
     abandoned_title: "已取消付款",
     abandoned_body: "未产生扣款。日期只是短暂保留，现已重新开放，您随时可以重新预订。",
     
@@ -1776,12 +1800,18 @@ export const translations = {
 
     // Managing a booking
     manage_cancel_button: "이 예약 취소하기",
-    manage_cancel_confirm: "이 예약을 취소하시겠습니까? 되돌릴 수 없습니다.",
     manage_refund_if_now: "지금 취소하면 환불 금액",
     manage_no_refund_now: "체크인 {days}일 이내이므로 환불 대상이 아닙니다.",
     manage_refunded: "환불 완료",
     manage_refund_fee_label: "Stripe 결제 수수료",
     manage_refund_disclaimer: "실제 금액은 취소 시점의 Stripe 수수료 정책에 따라 다소 차이가 있을 수 있습니다.",
+    manage_cancel_modal_title: "취소 확인",
+    manage_cancel_modal_loading: "환불 금액을 계산하는 중…",
+    manage_cancel_modal_preview_error: "환불 금액을 계산할 수 없습니다. 다시 시도해 주세요.",
+    manage_cancel_modal_refund_label: "환불 예정 금액",
+    manage_cancel_modal_no_refund_confirm: "이 예약은 환불 대상이 아닙니다. 그래도 취소하시겠습니까?",
+    manage_cancel_modal_keep_button: "돌아가기",
+    manage_cancel_modal_confirm_button: "예, 예약을 취소합니다",
     abandoned_title: "결제를 취소했습니다",
     abandoned_body: "결제된 금액은 없습니다. 날짜는 잠시 확보되었다가 해제되었으며, 언제든 다시 예약하실 수 있습니다.",
 
