@@ -291,55 +291,76 @@ const AdminCouponsPage: React.FC = () => {
           </div>
         )}
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20 text-[#74777d]">
-            <Loader2 className="w-6 h-6 animate-spin" />
-          </div>
-        ) : coupons.length === 0 ? (
-          <div className="bg-white border border-dashed border-[#c4c6cd] rounded-2xl p-10 text-center text-[#74777d]">
-            No coupons yet. Create one to get started.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {coupons.map((coupon) => (
-              <div key={coupon.id} className="bg-white border border-[#e4e2e3] rounded-2xl p-5 shadow-sm flex flex-col gap-3">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="font-mono font-bold text-lg text-[#1b1c1d] tracking-wide">{coupon.code}</span>
-                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${coupon.active ? 'bg-[#e6f5ec] text-[#0f7a44]' : 'bg-[#efedef] text-[#74777d]'}`}>
-                    {coupon.active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-                <div className="text-sm text-[#44474c]">
-                  {coupon.type === 'percentage' ? `${coupon.value}% off` : `¥${coupon.value.toLocaleString()} / night flat`}
-                </div>
-                <div className="text-xs text-[#74777d]">{coupon.startDate} → {coupon.endDate}</div>
-                <div className="text-xs text-[#74777d]">
-                  {coupon.propertyIds.length === 0 ? (
-                    'Not assigned to any property yet'
-                  ) : (
-                    <>Assigned to {coupon.propertyIds.length} {coupon.propertyIds.length === 1 ? 'property' : 'properties'}: {coupon.propertyIds.map((id) => propertyNameById.get(id) ?? id).join(', ')}</>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <button
-                    onClick={() => openEditModal(coupon)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold text-xs hover:bg-[#efedef] transition-colors"
-                  >
-                    <Pencil className="w-3.5 h-3.5" /> Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(coupon)}
-                    disabled={pendingDeleteId === coupon.id}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-red-200 bg-white text-red-600 font-semibold text-xs hover:bg-red-50 disabled:opacity-50 transition-colors"
-                  >
-                    {pendingDeleteId === coupon.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <section className="bg-white border border-[#e4e2e3] rounded-2xl shadow-sm overflow-hidden">
+          {isLoading ? (
+            <div className="p-10 flex items-center justify-center text-[#44474c]">
+              <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading coupons...
+            </div>
+          ) : coupons.length === 0 ? (
+            <div className="p-10 text-center text-[#74777d]">No coupons yet. Create one to get started.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-[#f5f3f4] text-[#44474c]">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-semibold">Code</th>
+                    <th className="text-left px-4 py-3 font-semibold">Discount</th>
+                    <th className="text-left px-4 py-3 font-semibold">Valid</th>
+                    <th className="text-left px-4 py-3 font-semibold">Properties</th>
+                    <th className="text-left px-4 py-3 font-semibold">Status</th>
+                    <th className="text-left px-4 py-3 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coupons.map((coupon) => (
+                    <tr key={coupon.id} className="border-t border-[#efedef] align-top">
+                      <td className="px-4 py-4">
+                        <span className="font-mono font-bold text-[#1b1c1d] tracking-wide">{coupon.code}</span>
+                      </td>
+                      <td className="px-4 py-4 text-[#44474c] whitespace-nowrap">
+                        {coupon.type === 'percentage' ? `${coupon.value}% off` : `¥${coupon.value.toLocaleString()} / night flat`}
+                      </td>
+                      <td className="px-4 py-4 text-[#44474c] whitespace-nowrap">{coupon.startDate} → {coupon.endDate}</td>
+                      <td className="px-4 py-4 text-[#44474c] max-w-[280px]">
+                        {coupon.propertyIds.length === 0 ? (
+                          <span className="text-[#74777d]">Not assigned yet</span>
+                        ) : (
+                          <>
+                            <span className="font-semibold text-[#1b1c1d]">{coupon.propertyIds.length}</span>{' '}
+                            {coupon.propertyIds.length === 1 ? 'property' : 'properties'}: {coupon.propertyIds.map((id) => propertyNameById.get(id) ?? id).join(', ')}
+                          </>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${coupon.active ? 'bg-[#e6f5ec] text-[#0f7a44]' : 'bg-[#efedef] text-[#74777d]'}`}>
+                          {coupon.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openEditModal(coupon)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold text-xs hover:bg-[#efedef] transition-colors"
+                          >
+                            <Pencil className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(coupon)}
+                            disabled={pendingDeleteId === coupon.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-red-200 bg-white text-red-600 font-semibold text-xs hover:bg-red-50 disabled:opacity-50 transition-colors"
+                          >
+                            {pendingDeleteId === coupon.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </main>
       <Footer />
       <MobileBottomNav />
