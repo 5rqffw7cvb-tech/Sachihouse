@@ -36,12 +36,18 @@ body {
   overflow-x: hidden;
 }
 
-/* All headings: Plus Jakarta Sans, bold, tight leading */
-h1, h2, h3, h4, h5, h6 {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-weight: 700;
-  line-height: 1.2;
-  color: #0f172a;
+/* All headings: Plus Jakarta Sans, bold, tight leading.
+   Kept in @layer base on purpose: Tailwind v4 emits utilities inside a cascade
+   layer, and unlayered rules outclass layered ones no matter the specificity.
+   Left unlayered, this colour would beat every text-* utility — which is how
+   the dark admin shell ended up with black-on-black headings. */
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #0f172a;
+  }
 }
 
 /* Tabular numbers for financial metrics and counters */
@@ -50,20 +56,29 @@ h1, h2, h3, h4, h5, h6 {
   font-feature-settings: "tnum";
 }
 
-/* Glassmorphism Panel */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+/* Dark Obsidian Glassmorphism */
+.dark-glass-panel {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Ambient Glow Effects */
+.glow-indigo {
+  box-shadow: 0 0 25px -5px rgba(79, 70, 229, 0.35);
+}
+.glow-emerald {
+  box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.35);
 }
 
 /* Card Interactive Hover Effect */
 .card-interactive {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
 }
 .card-interactive:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px -5px rgba(15, 23, 42, 0.12), 0 8px 12px -6px rgba(15, 23, 42, 0.06);
 }
 
 /* Hide scrollbar for clean horizontal scrolling */

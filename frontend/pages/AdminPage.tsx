@@ -1087,8 +1087,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
       subtitle="Quản lý thông tin nhà, album ảnh, bảng giá, nội quy và đồng bộ lịch iCal"
       actions={propertyActions}
     >
-      {/* Sub-tab navigation bar (Segmented Pill Control) */}
-      <div className="mb-6 bg-slate-200/60 p-1.5 rounded-2xl border border-slate-200/80 flex flex-wrap gap-1">
+      {/* Sub-tab navigation bar (Segmented Pill Control v2.0) */}
+      <div className="mb-6 bg-slate-950/80 p-2 rounded-2xl border border-slate-800 backdrop-blur-xl flex flex-wrap gap-1.5 shadow-xl">
         {NAV_ITEMS.map(item => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -1096,13 +1096,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as typeof activeTab)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs transition-all duration-150 ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs transition-all duration-200 ${
                 isActive
-                  ? 'bg-white text-indigo-950 font-extrabold shadow-sm ring-1 ring-slate-900/5'
-                  : 'text-slate-600 font-semibold hover:text-slate-900 hover:bg-white/60'
+                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-extrabold shadow-lg shadow-indigo-500/25 scale-[1.02]'
+                  : 'text-slate-400 font-medium hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
               <span>{item.label}</span>
             </button>
           );
@@ -1110,7 +1110,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
       </div>
 
       {/* Form Content container card */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-4 md:p-8">
+      <div className="bg-slate-900/90 border border-slate-800/80 rounded-3xl shadow-2xl p-4 md:p-8 text-slate-100">
             {activeTab === 'general' && (
                 <div className="space-y-8">
                     {/* Card 1: General Settings */}

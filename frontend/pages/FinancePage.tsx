@@ -271,8 +271,8 @@ const FinancePage: React.FC = () => {
       subtitle="青色申告・損益計算書 (P&L)・貸借対照表 (B/S)"
       actions={headerActions}
     >
-      {/* Sub-tab Navigation Bar (Segmented Pill Control) */}
-      <div className="mb-6 bg-slate-200/60 p-1.5 rounded-2xl border border-slate-200/80 no-print flex flex-wrap gap-1">
+      {/* Sub-tab Navigation Bar (Segmented Pill Control v2.0) */}
+      <div className="mb-6 bg-slate-950/80 p-2 rounded-2xl border border-slate-800 backdrop-blur-xl no-print flex flex-wrap gap-1.5 shadow-xl">
         {NAV_ITEMS.filter(item => !item.adminOnly || authUser.role === 'ADMIN').map(item => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -280,13 +280,13 @@ const FinancePage: React.FC = () => {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs transition-all duration-150 ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs transition-all duration-200 ${
                 isActive
-                  ? 'bg-white text-indigo-950 font-extrabold shadow-sm ring-1 ring-slate-900/5'
-                  : 'text-slate-600 font-semibold hover:text-slate-900 hover:bg-white/60'
+                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-extrabold shadow-lg shadow-indigo-500/25 scale-[1.02]'
+                  : 'text-slate-400 font-medium hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
               <span>{item.label}</span>
             </button>
           );

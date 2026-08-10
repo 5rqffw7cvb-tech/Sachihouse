@@ -250,18 +250,38 @@ export const AdminShell: React.FC<AdminShellProps> = ({
     .filter((group) => group.items.length > 0);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white">
       <TopNavBar navTitleOverride={navTitleOverride} />
 
-      {/* Desktop sidebar. Sits below the fixed TopNavBar and spans the viewport. */}
+      {/* Desktop sidebar. Executive Obsidian Chrome. */}
       <aside
-        className="hidden md:flex flex-col fixed left-0 w-60 bg-white border-r border-slate-200/80 overflow-y-auto z-40 shadow-[1px_0_10px_rgba(0,0,0,0.02)]"
+        className="hidden md:flex flex-col fixed left-0 w-64 bg-slate-950/90 backdrop-blur-xl border-r border-slate-800/80 overflow-y-auto z-40 shadow-2xl shadow-slate-950/50"
         style={{ top: `${TOPNAV_OFFSET}px`, height: `calc(100vh - ${TOPNAV_OFFSET}px)` }}
       >
-        <nav className="flex-1 px-3 py-4 space-y-4">
+        {/* User Role Badge Card */}
+        {authUser && (
+          <div className="px-4 pt-4 pb-2 border-b border-slate-800/60">
+            <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-inner">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center font-bold text-white text-xs shadow-md shadow-indigo-500/20">
+                {authUser.name ? authUser.name.charAt(0).toUpperCase() : 'A'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-extrabold text-slate-200 truncate">{authUser.name || authUser.email}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-400">
+                    {authUser.role} {authUser.role === 'HOST' ? `Lvl ${authUser.hostLevel ?? 1}` : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <nav className="flex-1 px-3 py-4 space-y-5">
           {visibleGroups.map((group) => (
             <div key={group.title} className="space-y-1">
-              <div className="px-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+              <div className="px-3 text-[10px] font-mono font-extrabold uppercase tracking-widest text-slate-500">
                 {group.title}
               </div>
               {group.items.map(({ key, to, label, Icon }) => {
@@ -272,19 +292,18 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                     key={key}
                     to={to}
                     aria-current={isActive ? 'page' : undefined}
-                    className={`relative flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs transition-all duration-150 ${
+                    className={`relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs transition-all duration-200 ${
                       isActive
-                        ? 'bg-indigo-50/80 text-indigo-950 font-bold shadow-sm ring-1 ring-indigo-200/50'
-                        : 'text-slate-600 font-medium hover:bg-slate-100/80 hover:text-slate-900'
+                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-extrabold shadow-lg shadow-indigo-500/25 scale-[1.02]'
+                        : 'text-slate-400 font-medium hover:bg-slate-800/60 hover:text-slate-200'
                     }`}
                   >
-                    {isActive && (
-                      <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-indigo-600" />
-                    )}
-                    <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-white' : 'text-slate-500'}`} />
                     <span className="truncate">{label}</span>
                     {typeof badge === 'number' && badge > 0 && (
-                      <span className="ml-auto shrink-0 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                      <span className={`ml-auto shrink-0 text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-indigo-950 text-indigo-300 border border-indigo-800/50'
+                      }`}>
                         {badge}
                       </span>
                     )}
@@ -296,24 +315,29 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         </nav>
       </aside>
 
-      <div className="md:pl-60">
+      <div className="md:pl-64">
         <main className={`w-full mx-auto pb-28 md:pb-12 ${paddingXClass} ${maxWidthClass}`}>
           {/* Clears the fixed TopNavBar. */}
           <div className="hidden md:block" style={{ height: `${TOPNAV_OFFSET}px` }} />
 
           {(title || actions) && (
-            <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 py-6 md:py-7 ${headerClassName}`}>
+            <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 py-6 md:py-8 border-b border-slate-800/80 mb-6 ${headerClassName}`}>
               <div className="min-w-0">
-                {title && <h1 className="font-['Plus_Jakarta_Sans'] text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 truncate">{title}</h1>}
-                {subtitle && <p className="text-xs md:text-sm text-slate-500 mt-1 font-medium">{subtitle}</p>}
+                {title && (
+                  <div className="flex items-center gap-3">
+                    <span className="w-1.5 h-7 rounded-full bg-gradient-to-b from-indigo-500 to-purple-600" />
+                    <h1 className="font-['Plus_Jakarta_Sans'] text-2xl md:text-3xl font-extrabold tracking-tight text-white truncate">{title}</h1>
+                  </div>
+                )}
+                {subtitle && <p className="text-xs md:text-sm text-slate-400 mt-1.5 font-medium ml-4">{subtitle}</p>}
               </div>
               {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
             </div>
           )}
 
           {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-[#041627]" />
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="w-9 h-9 animate-spin text-indigo-500" />
             </div>
           ) : (
             children
