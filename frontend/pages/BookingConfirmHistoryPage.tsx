@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { AdminShell } from '../components/AdminShell';
+import { Alert, Button } from '../components/ui';
 import { BookingConfirmForm, BOOKING_CONFIRM_CREATED_KEY } from '../components/BookingConfirmForm';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { getAllProperties } from '../services/storage';
@@ -220,16 +221,12 @@ const BookingConfirmHistoryPage: React.FC = () => {
       deniedMessage="Your current account does not have permission to view booking confirmations."
       actions={(
         <>
-          <button type="button" onClick={exportCsv} className="hidden md:flex items-center gap-1.5 rounded-control border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold hover:bg-subtle transition-colors">
-            <Download className="h-4 w-4" /> CSV
-          </button>
-          <button type="button" onClick={handleNewBooking} className="flex items-center gap-1.5 rounded-control bg-brand px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#333] transition-colors">
-            <Plus className="h-4 w-4" /> New Booking
-          </button>
+          <Button icon={Download} onClick={exportCsv} className="hidden md:inline-flex">CSV</Button>
+          <Button variant="primary" icon={Plus} onClick={handleNewBooking}>New booking</Button>
         </>
       )}
     >
-        {errorMsg && <div className="mb-4 rounded-control border border-danger/25 bg-danger-tint px-4 py-3 text-[13px] text-danger">{errorMsg}</div>}
+        {errorMsg && <Alert tone="danger" onDismiss={() => setErrorMsg(null)}>{errorMsg}</Alert>}
 
         {/* Summary tiles (desktop only — mobile stays minimal) */}
         <div className="hidden md:grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">

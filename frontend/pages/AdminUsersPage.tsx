@@ -3,6 +3,7 @@ import { Archive, Bell, Check, ChevronDown, Eye, EyeOff, Loader2, Plus, RefreshC
 import { ApiUser } from '../services/api';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { AdminShell } from '../components/AdminShell';
+import { Alert, Button } from '../components/ui';
 import {
   assignHostToProperty,
   createUser,
@@ -518,36 +519,14 @@ const AdminUsersPage: React.FC = () => {
       deniedMessage="Your current account does not have permission to access user management."
       actions={(
         <>
-          <button
-            onClick={() => loadData(true)}
-            disabled={isRefreshing}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-line-strong bg-surface text-ink font-semibold hover:bg-brand-tint disabled:opacity-60 transition-colors"
-          >
-            {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Refresh
-          </button>
-          <button
-            onClick={() => setCreateFormOpen(v => !v)}
-            className="inline-flex items-center gap-2 bg-brand hover:bg-brand/90 text-white px-4 py-2 rounded-full font-semibold transition-colors"
-          >
-            <Plus className="w-4 h-4" /> New User
-          </button>
+          <Button icon={RefreshCw} loading={isRefreshing} onClick={() => loadData(true)}>Refresh</Button>
+          <Button variant="primary" icon={Plus} onClick={() => setCreateFormOpen(v => !v)}>New user</Button>
         </>
       )}
     >
         {/* Alerts */}
-        {errorMsg && (
-          <div className="mb-5 border border-red-200 bg-red-50 text-red-700 rounded-card px-4 py-3 text-sm flex items-center justify-between gap-3">
-            <span>{errorMsg}</span>
-            <button onClick={() => setErrorMsg(null)} className="flex-shrink-0 text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
-          </div>
-        )}
-        {infoMsg && (
-          <div className="mb-5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-card px-4 py-3 text-sm flex items-center justify-between gap-3">
-            <span>{infoMsg}</span>
-            <button onClick={() => setInfoMsg(null)} className="flex-shrink-0 text-emerald-400 hover:text-emerald-600"><X className="w-4 h-4" /></button>
-          </div>
-        )}
+        {errorMsg && <Alert tone="danger" onDismiss={() => setErrorMsg(null)}>{errorMsg}</Alert>}
+        {infoMsg && <Alert tone="ok" onDismiss={() => setInfoMsg(null)}>{infoMsg}</Alert>}
 
         {/* Pending upgrade requests */}
         {upgradeRequests.length > 0 && (

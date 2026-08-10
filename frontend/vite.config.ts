@@ -9,6 +9,17 @@ export default defineConfig(() => {
         port: 3000,
         host: '0.0.0.0',
       },
+      test: {
+        environment: 'jsdom',
+        globals: true,
+        setupFiles: ['./vitest.setup.ts'],
+        include: ['**/*.test.{ts,tsx}'],
+        exclude: ['node_modules/**', 'dist/**'],
+        // The repo lives under a path containing non-ASCII characters
+        // (…/ドキュメント/…). Vitest's default `forks` pool cannot spawn a worker
+        // for such a path on Windows and times out; threads handles it.
+        pool: 'threads',
+      },
       plugins: [react(), tailwindcss()],
       build: {
         target: 'esnext',

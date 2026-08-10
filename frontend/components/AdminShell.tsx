@@ -17,6 +17,7 @@ import {
 import { Button, Spinner } from './ui';
 import { ApiUser } from '../services/api';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
+import { AdminAccess, hasAccess } from '../services/permissions';
 import { useLanguage } from '../contexts/LanguageContext';
 import { TopNavBar } from './TopNavBar';
 import { MobileBottomNav } from './MobileBottomNav';
@@ -47,29 +48,9 @@ export type AdminNavKey =
   | 'services'
   | 'blog';
 
-/**
- * Access levels mirror the permission booleans in TopNavBar exactly. Keep the
- * two in sync — the sidebar and the gate both read from here, so a drift would
- * show a link the page then refuses to render.
- */
-export type AdminAccess = 'host' | 'admin' | 'finance' | 'blog';
-
-const hasAccess = (user: ApiUser | null, access: AdminAccess): boolean => {
-  if (!user) return false;
-  switch (access) {
-    case 'admin':
-      return user.role === 'ADMIN';
-    case 'host':
-      return user.role === 'ADMIN' || user.role === 'HOST';
-    // Finance is reserved for admins and host level 4 only.
-    case 'finance':
-      return user.role === 'ADMIN' || (user.role === 'HOST' && (user.hostLevel ?? 0) >= 4);
-    case 'blog':
-      return user.role === 'ADMIN' || Boolean(user.canEditBlog);
-    default:
-      return false;
-  }
-};
+// Access levels live in services/permissions so the route guard and this shell
+// cannot answer the same question differently.
+export type { AdminAccess } from '../services/permissions';
 
 interface NavItem {
   key: AdminNavKey;

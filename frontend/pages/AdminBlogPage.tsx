@@ -3,6 +3,7 @@ import { BlogPost, blogService } from '../services/blogService';
 import { Plus, Edit2, Archive, Lock, Loader2, ArrowLeft, Save, ImageIcon, Check, X, PencilLine, Columns2, Eye, Bold, Italic, List, ListOrdered, Heading2, Quote, Link as LinkIcon, RotateCcw } from 'lucide-react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { AdminShell } from '../components/AdminShell';
+import { Alert, Button } from '../components/ui';
 import { ApiUser } from '../services/api';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { DEFAULT_SITE_SETTINGS, getSiteSettings } from '../services/storage';
@@ -234,17 +235,9 @@ const AdminBlogPage: React.FC = () => {
             </div>
           </div>
 
-          {errorMsg && (
-            <div className="mb-6 border border-red-200 bg-red-50 text-red-700 rounded-control px-4 py-3 text-sm">
-              {errorMsg}
-            </div>
-          )}
+          {errorMsg && <Alert tone="danger" onDismiss={() => setErrorMsg(null)}>{errorMsg}</Alert>}
 
-          {infoMsg && (
-            <div className="mb-6 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-control px-4 py-3 text-sm">
-              {infoMsg}
-            </div>
-          )}
+          {infoMsg && <Alert tone="ok" onDismiss={() => setInfoMsg(null)}>{infoMsg}</Alert>}
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <section className="space-y-5">
@@ -434,27 +427,21 @@ const AdminBlogPage: React.FC = () => {
       subtitle="Manage travel stories and publishing highlights with a consistent editorial workflow."
       maxWidthClass="max-w-[1280px]"
       actions={(
-        <div className="flex flex-wrap gap-2">
-          <Link to="/blog" className="inline-flex items-center px-4 py-2 rounded-full border border-line-strong bg-surface text-ink font-semibold hover:bg-brand-tint transition-colors">
-            View Blog
+        <>
+          <Link
+            to="/blog"
+            className="inline-flex items-center h-10 px-4 rounded-control border border-line-strong
+              bg-surface text-[14px] font-semibold text-ink hover:bg-subtle transition-colors"
+          >
+            View blog
           </Link>
-          <button onClick={startNew} className="inline-flex items-center gap-2 bg-brand hover:bg-brand/90 text-white px-4 py-2 rounded-full font-semibold">
-            <Plus className="w-4 h-4" /> New Post
-          </button>
-        </div>
+          <Button variant="primary" icon={Plus} onClick={startNew}>New post</Button>
+        </>
       )}
     >
-        {errorMsg && (
-          <div className="mb-6 border border-red-200 bg-red-50 text-red-700 rounded-control px-4 py-3 text-sm">
-            {errorMsg}
-          </div>
-        )}
+        {errorMsg && <Alert tone="danger" onDismiss={() => setErrorMsg(null)}>{errorMsg}</Alert>}
 
-        {infoMsg && (
-          <div className="mb-6 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-control px-4 py-3 text-sm">
-            {infoMsg}
-          </div>
-        )}
+        {infoMsg && <Alert tone="ok" onDismiss={() => setInfoMsg(null)}>{infoMsg}</Alert>}
 
         {loading ? (
           <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-ink-muted" /></div>

@@ -21,4 +21,4 @@ export { Tabs } from './Tabs';
 export type { TabItem, TabsProps } from './Tabs';
 
 export { Alert, Badge, EmptyState, Spinner } from './Feedback';
-export type { Tone } from './Feedback';
+export type { AlertTone, Tone } from './Feedback';

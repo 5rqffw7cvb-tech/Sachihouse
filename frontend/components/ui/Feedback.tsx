@@ -5,7 +5,8 @@ import { AlertCircle, CheckCircle2, Info, Loader2, X } from 'lucide-react';
  * Status vocabulary shared by every admin screen: one hue per meaning, so a
  * green pill means the same thing on the coupon list as on the check-in table.
  */
-export type Tone = 'neutral' | 'ok' | 'warn' | 'danger' | 'info';
+export type Tone = 'neutral' | 'ok' | 'warn' | 'danger' | 'info' | 'hold';
+export type AlertTone = Exclude<Tone, 'neutral' | 'hold'>;
 
 const BADGE: Record<Tone, string> = {
   neutral: 'bg-brand-tint text-ink-soft',
@@ -13,6 +14,7 @@ const BADGE: Record<Tone, string> = {
   warn: 'bg-warn-tint text-warn',
   danger: 'bg-danger-tint text-danger',
   info: 'bg-info-tint text-info',
+  hold: 'bg-hold-tint text-hold',
 };
 
 export const Badge: React.FC<{ tone?: Tone; children: React.ReactNode; className?: string }> = ({
@@ -28,7 +30,8 @@ export const Badge: React.FC<{ tone?: Tone; children: React.ReactNode; className
   </span>
 );
 
-const ALERT: Record<Exclude<Tone, 'neutral'>, { cls: string; Icon: React.ComponentType<{ className?: string }> }> = {
+/** 'hold' labels a state; it never needs to shout, so it has no Alert form. */
+const ALERT: Record<AlertTone, { cls: string; Icon: React.ComponentType<{ className?: string }> }> = {
   ok: { cls: 'bg-ok-tint text-ok border-ok/20', Icon: CheckCircle2 },
   warn: { cls: 'bg-warn-tint text-warn border-warn/20', Icon: AlertCircle },
   danger: { cls: 'bg-danger-tint text-danger border-danger/20', Icon: AlertCircle },
@@ -37,7 +40,7 @@ const ALERT: Record<Exclude<Tone, 'neutral'>, { cls: string; Icon: React.Compone
 
 /** Dismissible banner. Replaces the hand-rolled error/info strips on six pages. */
 export const Alert: React.FC<{
-  tone?: Exclude<Tone, 'neutral'>;
+  tone?: AlertTone;
   onDismiss?: () => void;
   children: React.ReactNode;
 }> = ({ tone = 'info', onDismiss, children }) => {

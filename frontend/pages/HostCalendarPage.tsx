@@ -467,7 +467,7 @@ const HostCalendarPage: React.FC = () => {
                   let cellClass = 'bg-surface hover:bg-subtle text-ink';
                   let label = '';
                   if (occupancy?.kind === 'booking') { cellClass = 'bg-info-tint text-info cursor-default'; label = 'Booked'; }
-                  else if (occupancy?.kind === 'hold') { cellClass = 'bg-[#f3e8ff] text-[#6b21a8] cursor-default'; label = 'Hold'; }
+                  else if (occupancy?.kind === 'hold') { cellClass = 'bg-hold-tint text-hold cursor-default'; label = 'Hold'; }
                   else if (isImported) { cellClass = `${importedEventStyle(importedEvent?.channelName).chip} ${importedEvent ? 'cursor-pointer' : 'cursor-default'}`; label = importedEvent?.channelName || importedEvent?.feedName || 'iCal'; }
                   else if (isManual) { cellClass = 'bg-brand text-white hover:bg-[#333]'; label = 'Blocked'; }
 
@@ -503,7 +503,7 @@ const HostCalendarPage: React.FC = () => {
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-ok" /> Hostex Direct</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-warn-tint border border-warn/30" /> Other imported (tap for details)</span>
                 <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-info-tint border border-info/30" /> Direct booking</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#f3e8ff] border border-info/30" /> Unpaid hold</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-hold-tint border border-info/30" /> Unpaid hold</span>
               </div>
               <p className="mt-3 text-[11px] text-ink-muted">Click an available day to block it, or a blocked day to free it. iCal-imported days show which platform sent them — tap one for the raw details. Direct bookings are managed elsewhere.</p>
             </section>
@@ -575,7 +575,7 @@ const HostCalendarPage: React.FC = () => {
                               <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
                                 booking.status === 'confirmed'
                                   ? 'bg-info-tint text-info'
-                                  : 'bg-[#f3e8ff] text-[#6b21a8]'
+                                  : 'bg-hold-tint text-hold'
                               }`}>
                                 {booking.status === 'confirmed' ? 'Paid' : 'Awaiting payment'}
                               </span>

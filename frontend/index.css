@@ -48,6 +48,9 @@
   --color-danger-tint: #fdeef0;
   --color-info: #1e40af;
   --color-info-tint: #dbeafe;
+  /* Provisional, not yet earned: a calendar date held but not confirmed. */
+  --color-hold: #6b21a8;
+  --color-hold-tint: #f3e8ff;
 
   /* Radius — exactly three steps: controls, containers, pills */
   --radius-control: 0.75rem;
