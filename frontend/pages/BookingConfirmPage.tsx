@@ -32,7 +32,7 @@ const BookingConfirmPage: React.FC = () => {
         <button
           type="button"
           onClick={goToRevenue}
-          className="shrink-0 flex items-center gap-1.5 rounded-xl border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] font-semibold hover:bg-[#f5f3f4] transition-colors"
+          className="shrink-0 flex items-center gap-1.5 rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] font-semibold hover:bg-subtle transition-colors"
         >
           <ArrowLeft className="h-4 w-4" /> Revenue
         </button>

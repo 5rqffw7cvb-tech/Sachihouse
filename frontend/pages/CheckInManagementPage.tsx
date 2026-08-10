@@ -607,7 +607,7 @@ const CheckInManagementPage: React.FC = () => {
       actions={(
         <div className="flex items-baseline gap-1.5 shrink-0">
           <span className="font-['Plus_Jakarta_Sans'] text-[18px] md:text-[26px] font-bold tracking-tight tabular-nums">{sortedRows.length}</span>
-          <span className="text-[11px] md:text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d] pb-0.5">record{sortedRows.length === 1 ? '' : 's'}</span>
+          <span className="text-[11px] md:text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-muted pb-0.5">record{sortedRows.length === 1 ? '' : 's'}</span>
         </div>
       )}
     >
@@ -617,16 +617,16 @@ const CheckInManagementPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsMobileFiltersOpen(true)}
-              className="flex min-w-0 flex-1 items-center justify-between rounded-xl border border-[#c4c6cd] bg-white px-4 py-2.5 text-left text-[13px] font-semibold text-[#1b1c1d]"
+              className="flex min-w-0 flex-1 items-center justify-between rounded-control border border-line-strong bg-surface px-4 py-2.5 text-left text-[13px] font-semibold text-ink"
             >
               <span>Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
-              <ChevronDown className="h-4 w-4 text-[#9a9ca1]" />
+              <ChevronDown className="h-4 w-4 text-ink-muted" />
             </button>
             <button
               type="button"
               onClick={() => setIsMobileMoreOpen(true)}
               aria-label="More actions"
-              className="shrink-0 rounded-xl border border-[#c4c6cd] bg-white w-[42px] h-[42px] flex items-center justify-center text-[#1b1c1d]"
+              className="shrink-0 rounded-control border border-line-strong bg-surface w-[42px] h-[42px] flex items-center justify-center text-ink"
             >
               <MoreHorizontal className="h-4.5 w-4.5" />
             </button>
@@ -634,11 +634,11 @@ const CheckInManagementPage: React.FC = () => {
         </div>
 
         {/* Desktop filter bar */}
-        <div className="mb-5 hidden md:block rounded-2xl border border-[#e7e5e6] bg-white px-4 py-3.5">
+        <div className="mb-5 hidden md:block rounded-card border border-line bg-surface px-4 py-3.5">
           <div className="flex items-end flex-wrap gap-x-3 gap-y-3">
             <div className="min-w-[180px] flex-1">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Property</label>
-              <select value={draftPropertyId} onChange={(e) => setDraftPropertyId(e.target.value)} className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Property</label>
+              <select value={draftPropertyId} onChange={(e) => setDraftPropertyId(e.target.value)} className="w-full rounded-control border border-line bg-surface px-3 py-2 text-[14px] text-ink transition-colors focus:outline-none focus:border-brand focus:ring-2 focus:ring-[#041627]/10">
                 <option value="">All properties</option>
                 {scopedProperties.map((property) => (
                   <option key={property.id} value={property.id}>{property.name || property.id}</option>
@@ -646,24 +646,24 @@ const CheckInManagementPage: React.FC = () => {
               </select>
             </div>
             <div className="w-[150px]">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">From</label>
-              <input type="date" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10" />
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">From</label>
+              <input type="date" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} className="w-full rounded-control border border-line bg-surface px-3 py-2 text-[14px] text-ink transition-colors focus:outline-none focus:border-brand focus:ring-2 focus:ring-[#041627]/10" />
             </div>
             <div className="w-[150px]">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">To</label>
-              <input type="date" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10" />
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">To</label>
+              <input type="date" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} className="w-full rounded-control border border-line bg-surface px-3 py-2 text-[14px] text-ink transition-colors focus:outline-none focus:border-brand focus:ring-2 focus:ring-[#041627]/10" />
             </div>
             <div className="min-w-[160px] flex-1">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Guest name</label>
-              <input value={draftGuestName} onChange={(e) => setDraftGuestName(e.target.value)} placeholder="e.g. NGUYEN" className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors placeholder:text-[#b9bbbf] focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10" />
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Guest name</label>
+              <input value={draftGuestName} onChange={(e) => setDraftGuestName(e.target.value)} placeholder="e.g. NGUYEN" className="w-full rounded-control border border-line bg-surface px-3 py-2 text-[14px] text-ink transition-colors placeholder:text-ink-muted focus:outline-none focus:border-brand focus:ring-2 focus:ring-[#041627]/10" />
             </div>
             <div className="w-[130px]">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Nationality</label>
-              <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors placeholder:text-[#b9bbbf] focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10" />
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Nationality</label>
+              <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-control border border-line bg-surface px-3 py-2 text-[14px] text-ink transition-colors placeholder:text-ink-muted focus:outline-none focus:border-brand focus:ring-2 focus:ring-[#041627]/10" />
             </div>
             <div className="w-[160px]">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Sort by</label>
-              <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)} className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Sort by</label>
+              <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)} className="w-full rounded-control border border-line bg-surface px-3 py-2 text-[14px] text-ink transition-colors focus:outline-none focus:border-brand focus:ring-2 focus:ring-[#041627]/10">
                 <option value="createdAt">Created time</option>
                 <option value="checkInDate">Check-in date</option>
                 <option value="checkOutDate">Check-out date</option>
@@ -672,53 +672,53 @@ const CheckInManagementPage: React.FC = () => {
               </select>
             </div>
             <div className="w-[130px]">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Order</label>
-              <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as SortDirection)} className="w-full rounded-lg border border-[#e2e0e1] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Order</label>
+              <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as SortDirection)} className="w-full rounded-control border border-line bg-surface px-3 py-2 text-[14px] text-ink transition-colors focus:outline-none focus:border-brand focus:ring-2 focus:ring-[#041627]/10">
                 <option value="desc">Descending</option>
                 <option value="asc">Ascending</option>
               </select>
             </div>
             <div className="flex items-center gap-2 ml-auto">
-              <button type="button" onClick={handleReset} className="rounded-lg px-3 py-2 text-[13px] font-semibold text-[#74777d] transition-colors hover:bg-[#f1eff0] hover:text-[#1b1c1d]">Clear</button>
-              <button type="button" onClick={applyFilters} className="rounded-lg bg-[#041627] px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#0a2238]">Apply filters</button>
+              <button type="button" onClick={handleReset} className="rounded-control px-3 py-2 text-[13px] font-semibold text-ink-muted transition-colors hover:bg-line hover:text-ink">Clear</button>
+              <button type="button" onClick={applyFilters} className="rounded-control bg-brand px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-brand">Apply filters</button>
             </div>
           </div>
         </div>
 
         {errorMsg && <div className="mb-4 px-4 md:px-0 text-sm text-red-700">{errorMsg}</div>}
 
-        <section className="bg-white md:border md:border-[#e7e5e6] rounded-none md:rounded-2xl overflow-hidden">
-          <div className="px-4 md:px-5 py-3 border-b border-[#eeecec] flex items-center justify-between gap-3 flex-wrap">
+        <section className="bg-surface md:border md:border-line rounded-none md:rounded-card overflow-hidden">
+          <div className="px-4 md:px-5 py-3 border-b border-line flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-[13px]">
-              <span className="font-semibold text-[#1b1c1d]">{paginatedRows.length}</span>
-              <span className="text-[#9a9ca1]">of {sortedRows.length} shown</span>
+              <span className="font-semibold text-ink">{paginatedRows.length}</span>
+              <span className="text-ink-muted">of {sortedRows.length} shown</span>
               {checkedRowIds.length > 0 && (
-                <span className="rounded-full bg-[#041627]/[0.06] px-2 py-0.5 text-[11px] font-semibold text-[#041627]">{checkedRowIds.length} checked</span>
+                <span className="rounded-full bg-brand/[0.06] px-2 py-0.5 text-[11px] font-semibold text-brand">{checkedRowIds.length} checked</span>
               )}
               {duplicateVisibleRowsCount > 0 && (
-                <span className="rounded-full bg-[#fdecea] px-2 py-0.5 text-[11px] font-semibold text-[#b3261e]">{duplicateVisibleRowsCount} duplicate</span>
+                <span className="rounded-full bg-danger-tint px-2 py-0.5 text-[11px] font-semibold text-danger">{duplicateVisibleRowsCount} duplicate</span>
               )}
             </div>
 
             {/* Desktop actions */}
             <div className="hidden md:flex items-center gap-1">
-              <button type="button" onClick={handleCheckDuplicates} disabled={isCheckingDuplicates || loading || submissions.length === 0} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#f1eff0] disabled:opacity-40">
+              <button type="button" onClick={handleCheckDuplicates} disabled={isCheckingDuplicates || loading || submissions.length === 0} className="inline-flex items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[13px] font-semibold text-ink-soft transition-colors hover:bg-line disabled:opacity-40">
                 {isCheckingDuplicates ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                 Check duplicates
               </button>
-              <button type="button" onClick={handleDeleteDuplicates} disabled={isDeletingDuplicates || duplicateSubmissionIds.length === 0} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-[#b3261e] transition-colors hover:bg-[#fdecea] disabled:opacity-40">
+              <button type="button" onClick={handleDeleteDuplicates} disabled={isDeletingDuplicates || duplicateSubmissionIds.length === 0} className="inline-flex items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[13px] font-semibold text-danger transition-colors hover:bg-danger-tint disabled:opacity-40">
                 {isDeletingDuplicates ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 Delete duplicates{duplicateSubmissionIds.length > 0 ? ` (${duplicateSubmissionIds.length})` : ''}
               </button>
-              <span className="mx-1 h-5 w-px bg-[#e7e5e6]" />
-              <button type="button" onClick={exportCsv} disabled={flattenedRows.length === 0} className="rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-[#0f7a44] transition-colors hover:bg-[#e6f5ec] disabled:opacity-40">Export CSV</button>
-              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#f1eff0] disabled:opacity-40">
+              <span className="mx-1 h-5 w-px bg-line" />
+              <button type="button" onClick={exportCsv} disabled={flattenedRows.length === 0} className="rounded-control px-2.5 py-1.5 text-[13px] font-semibold text-ok transition-colors hover:bg-ok-tint disabled:opacity-40">Export CSV</button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="inline-flex items-center gap-1.5 rounded-control px-2.5 py-1.5 text-[13px] font-semibold text-ink-soft transition-colors hover:bg-line disabled:opacity-40">
                 {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                 Import
               </button>
-              <button type="button" onClick={downloadTemplate} className="rounded-lg px-2.5 py-1.5 text-[13px] font-semibold text-[#74777d] transition-colors hover:bg-[#f1eff0]">Template</button>
-              <span className="mx-1 h-5 w-px bg-[#e7e5e6]" />
-              <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="rounded-lg border border-[#e2e0e1] bg-white px-2.5 py-1.5 text-[13px] font-semibold text-[#1b1c1d] transition-colors focus:outline-none focus:border-[#041627] focus:ring-2 focus:ring-[#041627]/10">
+              <button type="button" onClick={downloadTemplate} className="rounded-control px-2.5 py-1.5 text-[13px] font-semibold text-ink-muted transition-colors hover:bg-line">Template</button>
+              <span className="mx-1 h-5 w-px bg-line" />
+              <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="rounded-control border border-line bg-surface px-2.5 py-1.5 text-[13px] font-semibold text-ink transition-colors focus:outline-none focus:border-brand focus:ring-2 focus:ring-[#041627]/10">
                 <option value="20">20 / page</option>
                 <option value="50">50 / page</option>
                 <option value="100">100 / page</option>
@@ -727,15 +727,15 @@ const CheckInManagementPage: React.FC = () => {
           </div>
 
           {loading ? (
-            <div className="px-6 py-8 text-[#44474c] inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</div>
+            <div className="px-6 py-8 text-ink-soft inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</div>
           ) : sortedRows.length === 0 ? (
-            <div className="px-6 py-8 text-[14px] text-[#44474c]">No check-ins found.</div>
+            <div className="px-6 py-8 text-[14px] text-ink-soft">No check-ins found.</div>
           ) : (
             <>
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm border-separate border-spacing-0 table-fixed">
                   <thead>
-                    <tr className="[&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-white [&>th]:border-b [&>th]:border-[#e7e5e6] text-[#9a9ca1]">
+                    <tr className="[&>th]:sticky [&>th]:top-0 [&>th]:z-10 [&>th]:bg-surface [&>th]:border-b [&>th]:border-line text-ink-muted">
                       <th className="text-left pl-5 pr-2 py-3 font-semibold uppercase text-[11px] tracking-[0.06em] w-8">
                         <input
                           type="checkbox"
@@ -761,7 +761,7 @@ const CheckInManagementPage: React.FC = () => {
                       const isDuplicate = duplicateSubmissionIdSet.has(submission.id);
                       const travelLine = `${guest.previousLocation || '-'} → ${guest.nextLocation || '-'}`;
                       return (
-                      <tr key={rowId} onClick={() => setSelectedRow({ submission, guest })} className={`group align-top text-[13px] cursor-pointer transition-colors [&>td]:border-b [&>td]:border-[#f1eff0] hover:[&>td]:bg-[#faf9fa] ${isChecked ? '[&>td]:bg-[#041627]/[0.025]' : ''} ${isDuplicate ? '[&>td]:bg-[#fef6f5]' : ''}`}>
+                      <tr key={rowId} onClick={() => setSelectedRow({ submission, guest })} className={`group align-top text-[13px] cursor-pointer transition-colors [&>td]:border-b [&>td]:border-line hover:[&>td]:bg-subtle ${isChecked ? '[&>td]:bg-brand/[0.025]' : ''} ${isDuplicate ? '[&>td]:bg-danger-tint' : ''}`}>
                         <td className="pl-5 pr-2 py-3" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
@@ -772,36 +772,36 @@ const CheckInManagementPage: React.FC = () => {
                           />
                         </td>
                         <td className="px-2 py-3">
-                          <div className="font-semibold text-[#1b1c1d] truncate" title={guest.fullName || ''}>{guest.fullName || '-'}</div>
-                          <div className="mt-0.5 text-[11px] text-[#9a9ca1]">{guest.birthYear ?? '-'}{guest.gender ? ` · ${guest.gender}` : ''}</div>
+                          <div className="font-semibold text-ink truncate" title={guest.fullName || ''}>{guest.fullName || '-'}</div>
+                          <div className="mt-0.5 text-[11px] text-ink-muted">{guest.birthYear ?? '-'}{guest.gender ? ` · ${guest.gender}` : ''}</div>
                         </td>
                         <td className="px-2 py-3">
-                          <div className="font-medium leading-snug text-[#1b1c1d] truncate" title={propertyNameMap.get(submission.propertyId) || submission.propertyId}>{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
+                          <div className="font-medium leading-snug text-ink truncate" title={propertyNameMap.get(submission.propertyId) || submission.propertyId}>{propertyNameMap.get(submission.propertyId) || submission.propertyId}</div>
                         </td>
-                        <td className="px-2 py-3 text-[#1b1c1d]">
+                        <td className="px-2 py-3 text-ink">
                           <div>{submission.checkInDate}{submission.checkInTime ? ` ${submission.checkInTime}` : ''}</div>
-                          <div className="text-[#9a9ca1]">{submission.checkOutDate}{submission.checkOutTime ? ` ${submission.checkOutTime}` : ''}</div>
+                          <div className="text-ink-muted">{submission.checkOutDate}{submission.checkOutTime ? ` ${submission.checkOutTime}` : ''}</div>
                         </td>
-                        <td className="px-2 py-3 font-medium text-[#1b1c1d] truncate">{guest.nationality || '-'}</td>
+                        <td className="px-2 py-3 font-medium text-ink truncate">{guest.nationality || '-'}</td>
                         <td className="px-2 py-3">
-                          <div className="capitalize text-[#1b1c1d] truncate">{(guest.documentType || '-').replace('_', ' ')}</div>
-                          <div className="text-[11px] text-[#9a9ca1] font-mono truncate">{guest.documentNumber || '-'}</div>
-                        </td>
-                        <td className="px-2 py-3">
-                          <div className="truncate text-[#44474c]" title={guest.address || ''}>{guest.address || '-'}</div>
-                          <div className="text-[11px] text-[#9a9ca1] truncate" title={guest.occupation || ''}>{guest.occupation || '-'}</div>
+                          <div className="capitalize text-ink truncate">{(guest.documentType || '-').replace('_', ' ')}</div>
+                          <div className="text-[11px] text-ink-muted font-mono truncate">{guest.documentNumber || '-'}</div>
                         </td>
                         <td className="px-2 py-3">
-                          <div className="truncate text-[#44474c]" title={guest.contactInfo || ''}>{guest.contactInfo || '-'}</div>
-                          <div className="text-[11px] text-[#9a9ca1] truncate" title={travelLine}>{travelLine}</div>
+                          <div className="truncate text-ink-soft" title={guest.address || ''}>{guest.address || '-'}</div>
+                          <div className="text-[11px] text-ink-muted truncate" title={guest.occupation || ''}>{guest.occupation || '-'}</div>
+                        </td>
+                        <td className="px-2 py-3">
+                          <div className="truncate text-ink-soft" title={guest.contactInfo || ''}>{guest.contactInfo || '-'}</div>
+                          <div className="text-[11px] text-ink-muted truncate" title={travelLine}>{travelLine}</div>
                         </td>
                         <td className="px-2 pr-5 py-3">
                           {submission.residency === 'resident' ? (
-                            <span className="text-[12px] font-medium text-[#44474c]">日本居住者</span>
+                            <span className="text-[12px] font-medium text-ink-soft">日本居住者</span>
                           ) : guest.evidenceUrl ? (
-                            <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center rounded-md px-2 py-1 text-[12px] font-semibold text-[#041627] transition-colors hover:bg-[#041627]/[0.06]">View</a>
+                            <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="inline-flex items-center rounded-control px-2 py-1 text-[12px] font-semibold text-brand transition-colors hover:bg-brand/[0.06]">View</a>
                           ) : (
-                            <span className="text-[#c4c6cd]">—</span>
+                            <span className="text-page">—</span>
                           )}
                         </td>
                       </tr>
@@ -818,34 +818,34 @@ const CheckInManagementPage: React.FC = () => {
                     key={rowId}
                     type="button"
                     onClick={() => setSelectedRow({ submission, guest })}
-                    className={`w-full px-4 py-3 text-left active:bg-[#faf9fa] ${isDuplicate ? 'bg-[#fef6f5]' : 'bg-white'}`}
+                    className={`w-full px-4 py-3 text-left active:bg-subtle ${isDuplicate ? 'bg-danger-tint' : 'bg-surface'}`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="min-w-0 flex-1 truncate font-semibold text-[14px] text-[#1b1c1d]">{guest.fullName || '-'}</p>
+                      <p className="min-w-0 flex-1 truncate font-semibold text-[14px] text-ink">{guest.fullName || '-'}</p>
                       {isDuplicate ? (
-                        <span className="shrink-0 rounded-full bg-[#fdecea] px-2 py-0.5 text-[10px] font-bold text-[#b3261e]">DUPLICATE</span>
+                        <span className="shrink-0 rounded-full bg-danger-tint px-2 py-0.5 text-[10px] font-bold text-danger">DUPLICATE</span>
                       ) : (
-                        <ChevronRight className="h-4 w-4 shrink-0 text-[#c4c6cd]" />
+                        <ChevronRight className="h-4 w-4 shrink-0 text-page" />
                       )}
                     </div>
-                    <p className="mt-0.5 truncate text-[12px] text-[#74777d]">
+                    <p className="mt-0.5 truncate text-[12px] text-ink-muted">
                       {propertyNameMap.get(submission.propertyId) || submission.propertyId} · {submission.checkInDate} → {submission.checkOutDate}
                     </p>
-                    <p className="mt-0.5 truncate text-[11px] text-[#9a9ca1]">
+                    <p className="mt-0.5 truncate text-[11px] text-ink-muted">
                       {guest.nationality || '-'} · {(guest.documentType || '-').replace('_', ' ')}
                     </p>
                   </button>
                 )})}
               </div>
 
-              <div className="px-4 md:px-5 py-3 border-t border-[#eeecec] flex items-center justify-between gap-3">
-                <div className="text-[12px] text-[#9a9ca1]">Page <span className="font-semibold text-[#1b1c1d] tabular-nums">{currentPage}</span> of <span className="tabular-nums">{totalPages}</span></div>
+              <div className="px-4 md:px-5 py-3 border-t border-line flex items-center justify-between gap-3">
+                <div className="text-[12px] text-ink-muted">Page <span className="font-semibold text-ink tabular-nums">{currentPage}</span> of <span className="tabular-nums">{totalPages}</span></div>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                     disabled={currentPage <= 1}
-                    className="rounded-lg border border-[#e2e0e1] bg-white px-3.5 py-1.5 text-[12px] font-semibold text-[#44474c] transition-colors hover:bg-[#f1eff0] disabled:opacity-40 disabled:hover:bg-white"
+                    className="rounded-control border border-line bg-surface px-3.5 py-1.5 text-[12px] font-semibold text-ink-soft transition-colors hover:bg-line disabled:opacity-40 disabled:hover:bg-surface"
                   >
                     Prev
                   </button>
@@ -853,7 +853,7 @@ const CheckInManagementPage: React.FC = () => {
                     type="button"
                     onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                     disabled={currentPage >= totalPages}
-                    className="rounded-lg border border-[#e2e0e1] bg-white px-3.5 py-1.5 text-[12px] font-semibold text-[#44474c] transition-colors hover:bg-[#f1eff0] disabled:opacity-40 disabled:hover:bg-white"
+                    className="rounded-control border border-line bg-surface px-3.5 py-1.5 text-[12px] font-semibold text-ink-soft transition-colors hover:bg-line disabled:opacity-40 disabled:hover:bg-surface"
                   >
                     Next
                   </button>
@@ -867,15 +867,15 @@ const CheckInManagementPage: React.FC = () => {
       {isMobileFiltersOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsMobileFiltersOpen(false)} />
-          <div className="absolute bottom-0 inset-x-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-white">
-            <div className="flex items-center justify-between border-b border-[#e4e2e3] px-4 py-3.5">
+          <div className="absolute bottom-0 inset-x-0 flex max-h-[85vh] flex-col rounded-t-2xl bg-surface">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3.5">
               <h2 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold">Filters</h2>
-              <button type="button" onClick={() => setIsMobileFiltersOpen(false)} className="text-[#74777d]"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setIsMobileFiltersOpen(false)} className="text-ink-muted"><X className="h-5 w-5" /></button>
             </div>
             <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Property</label>
-                <select value={draftPropertyId} onChange={(e) => setDraftPropertyId(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Property</label>
+                <select value={draftPropertyId} onChange={(e) => setDraftPropertyId(e.target.value)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2.5 text-[14px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]">
                   <option value="">All properties</option>
                   {scopedProperties.map((property) => (
                     <option key={property.id} value={property.id}>{property.name || property.id}</option>
@@ -884,26 +884,26 @@ const CheckInManagementPage: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">From</label>
-                  <input type="date" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">From</label>
+                  <input type="date" value={draftFromDate} onChange={(e) => setDraftFromDate(e.target.value)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2.5 text-[14px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">To</label>
-                  <input type="date" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">To</label>
+                  <input type="date" value={draftToDate} onChange={(e) => setDraftToDate(e.target.value)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2.5 text-[14px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Guest Name</label>
-                <input value={draftGuestName} onChange={(e) => setDraftGuestName(e.target.value)} placeholder="e.g. NGUYEN VAN A" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Guest Name</label>
+                <input value={draftGuestName} onChange={(e) => setDraftGuestName(e.target.value)} placeholder="e.g. NGUYEN VAN A" className="w-full rounded-control border border-line-strong bg-surface px-3 py-2.5 text-[14px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
               </div>
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Nationality</label>
-                <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Nationality</label>
+                <input value={draftNationality} onChange={(e) => setDraftNationality(e.target.value)} placeholder="e.g. VNM" className="w-full rounded-control border border-line-strong bg-surface px-3 py-2.5 text-[14px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Sort By</label>
-                  <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Sort By</label>
+                  <select value={sortField} onChange={(e) => setSortField(e.target.value as SortField)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2.5 text-[14px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]">
                     <option value="createdAt">Created Time</option>
                     <option value="checkInDate">Check-in Date</option>
                     <option value="checkOutDate">Check-out Date</option>
@@ -912,25 +912,25 @@ const CheckInManagementPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Order</label>
-                  <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as SortDirection)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Order</label>
+                  <select value={sortDirection} onChange={(e) => setSortDirection(e.target.value as SortDirection)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2.5 text-[14px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]">
                     <option value="desc">Descending</option>
                     <option value="asc">Ascending</option>
                   </select>
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9a9ca1]">Page size</label>
-                <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">Page size</label>
+                <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value) as PageSize)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2.5 text-[14px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]">
                   <option value="20">20 / page</option>
                   <option value="50">50 / page</option>
                   <option value="100">100 / page</option>
                 </select>
               </div>
             </div>
-            <div className="flex gap-2 border-t border-[#e4e2e3] px-4 py-3">
-              <button type="button" onClick={handleReset} className="rounded-full border border-[#c4c6cd] bg-white px-5 py-2.5 text-sm font-semibold text-[#1b1c1d]">Clear</button>
-              <button type="button" onClick={applyFilters} className="flex-1 rounded-full bg-[#041627] py-2.5 text-sm font-semibold text-white">Apply filters</button>
+            <div className="flex gap-2 border-t border-line px-4 py-3">
+              <button type="button" onClick={handleReset} className="rounded-full border border-line-strong bg-surface px-5 py-2.5 text-sm font-semibold text-ink">Clear</button>
+              <button type="button" onClick={applyFilters} className="flex-1 rounded-full bg-brand py-2.5 text-sm font-semibold text-white">Apply filters</button>
             </div>
           </div>
         </div>
@@ -940,17 +940,17 @@ const CheckInManagementPage: React.FC = () => {
       {isMobileMoreOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsMobileMoreOpen(false)} />
-          <div className="absolute bottom-0 inset-x-0 rounded-t-2xl bg-white">
-            <div className="flex items-center justify-between border-b border-[#e4e2e3] px-4 py-3.5">
+          <div className="absolute bottom-0 inset-x-0 rounded-t-2xl bg-surface">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3.5">
               <h2 className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold">More actions</h2>
-              <button type="button" onClick={() => setIsMobileMoreOpen(false)} className="text-[#74777d]"><X className="h-5 w-5" /></button>
+              <button type="button" onClick={() => setIsMobileMoreOpen(false)} className="text-ink-muted"><X className="h-5 w-5" /></button>
             </div>
             <div className="p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
               <button
                 type="button"
                 onClick={() => { setIsMobileMoreOpen(false); handleCheckDuplicates(); }}
                 disabled={isCheckingDuplicates || loading || submissions.length === 0}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-[#1b1c1d] active:bg-[#f1eff0] disabled:opacity-40"
+                className="flex w-full items-center gap-3 rounded-control px-3 py-3 text-left text-[14px] font-semibold text-ink active:bg-line disabled:opacity-40"
               >
                 {isCheckingDuplicates ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                 Check duplicates
@@ -959,7 +959,7 @@ const CheckInManagementPage: React.FC = () => {
                 type="button"
                 onClick={() => { setIsMobileMoreOpen(false); void handleDeleteDuplicates(); }}
                 disabled={isDeletingDuplicates || duplicateSubmissionIds.length === 0}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-[#b3261e] active:bg-[#fdecea] disabled:opacity-40"
+                className="flex w-full items-center gap-3 rounded-control px-3 py-3 text-left text-[14px] font-semibold text-danger active:bg-danger-tint disabled:opacity-40"
               >
                 {isDeletingDuplicates ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                 Delete duplicates{duplicateSubmissionIds.length > 0 ? ` (${duplicateSubmissionIds.length})` : ''}
@@ -968,7 +968,7 @@ const CheckInManagementPage: React.FC = () => {
                 type="button"
                 onClick={() => { setIsMobileMoreOpen(false); exportCsv(); }}
                 disabled={flattenedRows.length === 0}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-[#0f7a44] active:bg-[#e6f5ec] disabled:opacity-40"
+                className="flex w-full items-center gap-3 rounded-control px-3 py-3 text-left text-[14px] font-semibold text-ok active:bg-ok-tint disabled:opacity-40"
               >
                 <Download className="h-4 w-4" />
                 Export CSV
@@ -977,7 +977,7 @@ const CheckInManagementPage: React.FC = () => {
                 type="button"
                 onClick={() => { setIsMobileMoreOpen(false); fileInputRef.current?.click(); }}
                 disabled={isImporting}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-[#1b1c1d] active:bg-[#f1eff0] disabled:opacity-40"
+                className="flex w-full items-center gap-3 rounded-control px-3 py-3 text-left text-[14px] font-semibold text-ink active:bg-line disabled:opacity-40"
               >
                 {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 Import CSV
@@ -985,7 +985,7 @@ const CheckInManagementPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { setIsMobileMoreOpen(false); downloadTemplate(); }}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-[#74777d] active:bg-[#f1eff0]"
+                className="flex w-full items-center gap-3 rounded-control px-3 py-3 text-left text-[14px] font-semibold text-ink-muted active:bg-line"
               >
                 <FileText className="h-4 w-4" />
                 Download template
@@ -1021,64 +1021,64 @@ const CheckInManagementPage: React.FC = () => {
         ];
         return (
           <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm" onClick={handleCloseDetail}>
-            <aside className="h-full w-full md:w-1/3 md:min-w-[440px] max-w-[560px] bg-white shadow-2xl border-l border-[#e4e2e3] flex flex-col" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-5 py-4 border-b border-[#e4e2e3] shrink-0">
+            <aside className="h-full w-full md:w-1/3 md:min-w-[440px] max-w-[560px] bg-surface shadow-2xl border-l border-line flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-line shrink-0">
                 <div className="min-w-0">
-                  <h2 className="font-['Plus_Jakarta_Sans'] font-bold text-[16px] text-[#1b1c1d] truncate">{guest.fullName || 'Guest Detail'}</h2>
-                  <p className="text-[12px] text-[#74777d] mt-0.5 truncate">{propName} · {submission.checkInDate} → {submission.checkOutDate}</p>
+                  <h2 className="font-['Plus_Jakarta_Sans'] font-bold text-[16px] text-ink truncate">{guest.fullName || 'Guest Detail'}</h2>
+                  <p className="text-[12px] text-ink-muted mt-0.5 truncate">{propName} · {submission.checkInDate} → {submission.checkOutDate}</p>
                 </div>
-                <button onClick={handleCloseDetail} className="text-[#74777d] hover:text-[#1b1c1d] shrink-0 ml-2"><X className="w-5 h-5" /></button>
+                <button onClick={handleCloseDetail} className="text-ink-muted hover:text-ink shrink-0 ml-2"><X className="w-5 h-5" /></button>
               </div>
               <div className="overflow-y-auto flex-1 px-5 py-4">
                 {isEditingRow && editForm ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Check-in Date</label>
-                        <input type="date" value={editForm.checkInDate} onChange={(e) => handleEditFieldChange('checkInDate', e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Check-in Date</label>
+                        <input type="date" value={editForm.checkInDate} onChange={(e) => handleEditFieldChange('checkInDate', e.target.value)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
                       </div>
                       <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Check-out Date</label>
-                        <input type="date" value={editForm.checkOutDate} onChange={(e) => handleEditFieldChange('checkOutDate', e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Full Name</label>
-                      <input value={editForm.fullName} onChange={(e) => handleEditFieldChange('fullName', e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Birth Year</label>
-                        <input value={editForm.birthYear} onChange={(e) => handleEditFieldChange('birthYear', e.target.value)} placeholder="e.g. 1988" className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Gender</label>
-                        <input value={editForm.gender} onChange={(e) => handleEditFieldChange('gender', e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Nationality</label>
-                        <input value={editForm.nationality} onChange={(e) => handleEditFieldChange('nationality', e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Occupation</label>
-                        <input value={editForm.occupation} onChange={(e) => handleEditFieldChange('occupation', e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Check-out Date</label>
+                        <input type="date" value={editForm.checkOutDate} onChange={(e) => handleEditFieldChange('checkOutDate', e.target.value)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
                       </div>
                     </div>
 
                     <div>
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Address</label>
-                      <input value={editForm.address} onChange={(e) => handleEditFieldChange('address', e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Full Name</label>
+                      <input value={editForm.fullName} onChange={(e) => handleEditFieldChange('fullName', e.target.value)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Document Type</label>
-                        <select value={editForm.documentType} onChange={(e) => handleEditFieldChange('documentType', e.target.value as CheckInGuest['documentType'])} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]">
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Birth Year</label>
+                        <input value={editForm.birthYear} onChange={(e) => handleEditFieldChange('birthYear', e.target.value)} placeholder="e.g. 1988" className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Gender</label>
+                        <input value={editForm.gender} onChange={(e) => handleEditFieldChange('gender', e.target.value)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Nationality</label>
+                        <input value={editForm.nationality} onChange={(e) => handleEditFieldChange('nationality', e.target.value)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Occupation</label>
+                        <input value={editForm.occupation} onChange={(e) => handleEditFieldChange('occupation', e.target.value)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Address</label>
+                      <input value={editForm.address} onChange={(e) => handleEditFieldChange('address', e.target.value)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Document Type</label>
+                        <select value={editForm.documentType} onChange={(e) => handleEditFieldChange('documentType', e.target.value as CheckInGuest['documentType'])} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]">
                           <option value="passport">Passport</option>
                           <option value="driver_license">Driver License</option>
                           <option value="residence_card">Residence Card</option>
@@ -1087,8 +1087,8 @@ const CheckInManagementPage: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">Document Number</label>
-                        <input value={editForm.documentNumber} onChange={(e) => handleEditFieldChange('documentNumber', e.target.value)} className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]" />
+                        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">Document Number</label>
+                        <input value={editForm.documentNumber} onChange={(e) => handleEditFieldChange('documentNumber', e.target.value)} className="w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-brand focus:ring-1 focus:ring-[#041627]" />
                       </div>
                     </div>
                   </div>
@@ -1097,17 +1097,17 @@ const CheckInManagementPage: React.FC = () => {
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5">
                       {fields.map(f => f.value != null && String(f.value).trim() !== '' && (
                         <div key={f.label} className={['Address', 'Submission ID', 'Contact (Phone/Email)', 'Previous Location', 'Next Location'].includes(f.label) ? 'col-span-2' : ''}>
-                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-[#74777d]">{f.label}</dt>
-                          <dd className={`mt-0.5 text-[13px] font-medium text-[#1b1c1d] break-words${f.label === 'Submission ID' || f.label === 'Document Number' ? ' font-mono text-[11px] text-[#44474c]' : ''}`}>{String(f.value)}</dd>
+                          <dt className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{f.label}</dt>
+                          <dd className={`mt-0.5 text-[13px] font-medium text-ink break-words${f.label === 'Submission ID' || f.label === 'Document Number' ? ' font-mono text-[11px] text-ink-soft' : ''}`}>{String(f.value)}</dd>
                         </div>
                       ))}
                     </dl>
                     {guest.evidenceUrl && (
-                      <div className="mt-5 border-t border-[#eeecec] pt-4">
+                      <div className="mt-5 border-t border-line pt-4">
                         <button
                           type="button"
                           onClick={() => setShowEvidence((v) => !v)}
-                          className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-[#041627] text-white font-semibold py-2.5 text-sm hover:bg-[#0a2238] transition-colors"
+                          className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-brand text-white font-semibold py-2.5 text-sm hover:bg-brand transition-colors"
                         >
                           {showEvidence ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           {showEvidence ? 'Hide evidence · ID画像を隠す' : 'View evidence · ID画像を表示'}
@@ -1117,9 +1117,9 @@ const CheckInManagementPage: React.FC = () => {
                             <img
                               src={guest.evidenceUrl}
                               alt="ID evidence"
-                              className="w-full rounded-xl border border-[#e4e2e3] bg-[#f5f3f4] object-contain"
+                              className="w-full rounded-control border border-line bg-subtle object-contain"
                             />
-                            <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[12px] text-[#003580] underline">Open in new tab</a>
+                            <a href={guest.evidenceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[12px] text-info underline">Open in new tab</a>
                           </div>
                         )}
                       </div>
@@ -1127,11 +1127,11 @@ const CheckInManagementPage: React.FC = () => {
                   </>
                 )}
               </div>
-              <div className="px-5 pb-5 pt-3 border-t border-[#e4e2e3] flex flex-col gap-2 shrink-0">
+              <div className="px-5 pb-5 pt-3 border-t border-line flex flex-col gap-2 shrink-0">
                 {isEditingRow ? (
                   <div className="flex gap-2">
-                    <button onClick={() => setIsEditingRow(false)} disabled={isSavingRow} className="flex-1 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold py-2.5 text-sm hover:bg-[#efedef] disabled:opacity-60">Cancel</button>
-                    <button onClick={handleSaveRecord} disabled={isSavingRow} className="flex-1 inline-flex items-center justify-center gap-1 rounded-full bg-[#041627] text-white font-semibold py-2.5 text-sm hover:bg-[#041627]/90 disabled:opacity-60">
+                    <button onClick={() => setIsEditingRow(false)} disabled={isSavingRow} className="flex-1 rounded-full border border-line-strong bg-surface text-ink font-semibold py-2.5 text-sm hover:bg-brand-tint disabled:opacity-60">Cancel</button>
+                    <button onClick={handleSaveRecord} disabled={isSavingRow} className="flex-1 inline-flex items-center justify-center gap-1 rounded-full bg-brand text-white font-semibold py-2.5 text-sm hover:bg-brand/90 disabled:opacity-60">
                       {isSavingRow ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                       Save changes
                     </button>
@@ -1139,13 +1139,13 @@ const CheckInManagementPage: React.FC = () => {
                 ) : (
                   <>
                     <div className="flex gap-2">
-                      <button onClick={() => setIsEditingRow(true)} className="flex-1 inline-flex items-center justify-center gap-1 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold py-2.5 text-sm hover:bg-[#efedef]"><Pencil className="w-4 h-4" />Edit record</button>
-                      <button onClick={handleDeleteRecord} disabled={isDeletingRow} className="flex-1 inline-flex items-center justify-center gap-1 rounded-full border border-[#f0b4b4] bg-[#fff8f8] text-[#a23535] font-semibold py-2.5 text-sm hover:bg-[#ffecec] disabled:opacity-60">
+                      <button onClick={() => setIsEditingRow(true)} className="flex-1 inline-flex items-center justify-center gap-1 rounded-full border border-line-strong bg-surface text-ink font-semibold py-2.5 text-sm hover:bg-brand-tint"><Pencil className="w-4 h-4" />Edit record</button>
+                      <button onClick={handleDeleteRecord} disabled={isDeletingRow} className="flex-1 inline-flex items-center justify-center gap-1 rounded-full border border-danger/25 bg-danger-tint text-danger font-semibold py-2.5 text-sm hover:bg-danger-tint disabled:opacity-60">
                         {isDeletingRow ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                         Delete record
                       </button>
                     </div>
-                    <button onClick={handleCloseDetail} className="w-full rounded-full bg-[#041627] text-white font-semibold py-2.5 text-sm hover:bg-[#041627]/90">Close</button>
+                    <button onClick={handleCloseDetail} className="w-full rounded-full bg-brand text-white font-semibold py-2.5 text-sm hover:bg-brand/90">Close</button>
                   </>
                 )}
               </div>
@@ -1157,18 +1157,18 @@ const CheckInManagementPage: React.FC = () => {
       {/* Import result modal */}
       {importResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-[#e4e2e3]">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#e4e2e3]">
-              <h2 className="font-['Plus_Jakarta_Sans'] font-bold text-[16px] text-[#1b1c1d]">Import Result</h2>
-              <button onClick={() => setImportResult(null)} className="text-[#74777d] hover:text-[#1b1c1d]"><X className="w-5 h-5" /></button>
+          <div className="w-full max-w-md rounded-card bg-surface shadow-xl border border-line">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+              <h2 className="font-['Plus_Jakarta_Sans'] font-bold text-[16px] text-ink">Import Result</h2>
+              <button onClick={() => setImportResult(null)} className="text-ink-muted hover:text-ink"><X className="w-5 h-5" /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
-              <div className="flex items-center gap-3 rounded-xl bg-[#e6f5ec] border border-[#0f7a44]/20 px-4 py-3">
-                <span className="text-[28px] font-['Plus_Jakarta_Sans'] font-bold text-[#0f7a44]">{importResult.imported}</span>
-                <span className="text-sm font-semibold text-[#0f7a44]">submission{importResult.imported === 1 ? '' : 's'} imported</span>
+              <div className="flex items-center gap-3 rounded-control bg-ok-tint border border-ok/20 px-4 py-3">
+                <span className="text-[28px] font-['Plus_Jakarta_Sans'] font-bold text-ok">{importResult.imported}</span>
+                <span className="text-sm font-semibold text-ok">submission{importResult.imported === 1 ? '' : 's'} imported</span>
               </div>
               {importResult.errors.length > 0 && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <div className="rounded-control border border-red-200 bg-red-50 px-4 py-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-red-700 mb-2">{importResult.errors.length} error{importResult.errors.length === 1 ? '' : 's'}</p>
                   <ul className="space-y-1 max-h-40 overflow-y-auto">
                     {importResult.errors.map((e, i) => (
@@ -1180,12 +1180,12 @@ const CheckInManagementPage: React.FC = () => {
                 </div>
               )}
               {importResult.errors.length === 0 && importResult.imported === 0 && (
-                <p className="text-sm text-[#44474c]">Nothing was imported — check your CSV format.</p>
+                <p className="text-sm text-ink-soft">Nothing was imported — check your CSV format.</p>
               )}
             </div>
             <div className="px-5 pb-4 flex gap-2">
-              <button onClick={() => setImportResult(null)} className="flex-1 rounded-full bg-[#041627] text-white font-semibold py-2 text-sm hover:bg-[#041627]/90">Done</button>
-              <button onClick={downloadTemplate} className="rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold py-2 px-4 text-sm hover:bg-[#efedef]">Download Template</button>
+              <button onClick={() => setImportResult(null)} className="flex-1 rounded-full bg-brand text-white font-semibold py-2 text-sm hover:bg-brand/90">Done</button>
+              <button onClick={downloadTemplate} className="rounded-full border border-line-strong bg-surface text-ink font-semibold py-2 px-4 text-sm hover:bg-brand-tint">Download Template</button>
             </div>
           </div>
         </div>

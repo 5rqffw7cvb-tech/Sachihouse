@@ -195,9 +195,9 @@ const AdminCouponsPage: React.FC = () => {
     }
   };
 
-  const inputCls = 'w-full px-3.5 py-2.5 bg-[#f5f3f4] border border-[#e4e2e3] rounded-xl text-sm text-[#1b1c1d] focus:outline-none focus:ring-2 focus:ring-[#041627]/20 focus:border-[#041627] transition-colors disabled:opacity-60';
+  const inputCls = 'w-full px-3.5 py-2.5 bg-subtle border border-line rounded-control text-sm text-ink focus:outline-none focus:ring-2 focus:ring-[#041627]/20 focus:border-brand transition-colors disabled:opacity-60';
   const selectCls = inputCls + ' appearance-none';
-  const primaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#041627] text-white font-semibold text-xs hover:bg-[#041627]/90 disabled:opacity-50 transition-colors';
+  const primaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand text-white font-semibold text-xs hover:bg-brand/90 disabled:opacity-50 transition-colors';
 
   return (
     <AdminShell
@@ -215,14 +215,14 @@ const AdminCouponsPage: React.FC = () => {
           <button
             onClick={() => loadData(true)}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] disabled:opacity-60 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-line-strong bg-surface text-ink font-semibold hover:bg-brand-tint disabled:opacity-60 transition-colors"
           >
             {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Refresh
           </button>
           <button
             onClick={openCreateModal}
-            className="inline-flex items-center gap-2 bg-[#041627] hover:bg-[#041627]/90 text-white px-4 py-2 rounded-full font-semibold transition-colors"
+            className="inline-flex items-center gap-2 bg-brand hover:bg-brand/90 text-white px-4 py-2 rounded-full font-semibold transition-colors"
           >
             <Plus className="w-4 h-4" /> New Coupon
           </button>
@@ -230,29 +230,29 @@ const AdminCouponsPage: React.FC = () => {
       )}
     >
         {errorMsg && (
-          <div className="mb-5 border border-red-200 bg-red-50 text-red-700 rounded-2xl px-4 py-3 text-sm flex items-center justify-between gap-3">
+          <div className="mb-5 border border-red-200 bg-red-50 text-red-700 rounded-card px-4 py-3 text-sm flex items-center justify-between gap-3">
             <span>{errorMsg}</span>
             <button onClick={() => setErrorMsg(null)} className="flex-shrink-0 text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
           </div>
         )}
         {infoMsg && (
-          <div className="mb-5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-2xl px-4 py-3 text-sm flex items-center justify-between gap-3">
+          <div className="mb-5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-card px-4 py-3 text-sm flex items-center justify-between gap-3">
             <span>{infoMsg}</span>
             <button onClick={() => setInfoMsg(null)} className="flex-shrink-0 text-emerald-400 hover:text-emerald-600"><X className="w-4 h-4" /></button>
           </div>
         )}
 
-        <section className="bg-white border border-[#e4e2e3] rounded-2xl shadow-sm overflow-hidden">
+        <section className="bg-surface border border-line rounded-card shadow-sm overflow-hidden">
           {isLoading ? (
-            <div className="p-10 flex items-center justify-center text-[#44474c]">
+            <div className="p-10 flex items-center justify-center text-ink-soft">
               <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading coupons...
             </div>
           ) : coupons.length === 0 ? (
-            <div className="p-10 text-center text-[#74777d]">No coupons yet. Create one to get started.</div>
+            <div className="p-10 text-center text-ink-muted">No coupons yet. Create one to get started.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-[#f5f3f4] text-[#44474c]">
+                <thead className="bg-subtle text-ink-soft">
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold">Code</th>
                     <th className="text-left px-4 py-3 font-semibold">Discount</th>
@@ -264,26 +264,26 @@ const AdminCouponsPage: React.FC = () => {
                 </thead>
                 <tbody>
                   {coupons.map((coupon) => (
-                    <tr key={coupon.id} className="border-t border-[#efedef] align-top">
+                    <tr key={coupon.id} className="border-t border-line align-top">
                       <td className="px-4 py-4">
-                        <span className="font-mono font-bold text-[#1b1c1d] tracking-wide">{coupon.code}</span>
+                        <span className="font-mono font-bold text-ink tracking-wide">{coupon.code}</span>
                       </td>
-                      <td className="px-4 py-4 text-[#44474c] whitespace-nowrap">
+                      <td className="px-4 py-4 text-ink-soft whitespace-nowrap">
                         {coupon.type === 'percentage' ? `${coupon.value}% off` : `¥${coupon.value.toLocaleString()} / night flat`}
                       </td>
-                      <td className="px-4 py-4 text-[#44474c] whitespace-nowrap">{coupon.startDate} → {coupon.endDate}</td>
-                      <td className="px-4 py-4 text-[#44474c] max-w-[280px]">
+                      <td className="px-4 py-4 text-ink-soft whitespace-nowrap">{coupon.startDate} → {coupon.endDate}</td>
+                      <td className="px-4 py-4 text-ink-soft max-w-[280px]">
                         {coupon.propertyIds.length === 0 ? (
-                          <span className="text-[#74777d]">Not assigned yet</span>
+                          <span className="text-ink-muted">Not assigned yet</span>
                         ) : (
                           <>
-                            <span className="font-semibold text-[#1b1c1d]">{coupon.propertyIds.length}</span>{' '}
+                            <span className="font-semibold text-ink">{coupon.propertyIds.length}</span>{' '}
                             {coupon.propertyIds.length === 1 ? 'property' : 'properties'}: {coupon.propertyIds.map((id) => propertyNameById.get(id) ?? id).join(', ')}
                           </>
                         )}
                       </td>
                       <td className="px-4 py-4">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${coupon.active ? 'bg-[#e6f5ec] text-[#0f7a44]' : 'bg-[#efedef] text-[#74777d]'}`}>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${coupon.active ? 'bg-ok-tint text-ok' : 'bg-brand-tint text-ink-muted'}`}>
                           {coupon.active ? 'Active' : 'Inactive'}
                         </span>
                       </td>
@@ -291,14 +291,14 @@ const AdminCouponsPage: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => openEditModal(coupon)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold text-xs hover:bg-[#efedef] transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-line-strong bg-surface text-ink font-semibold text-xs hover:bg-brand-tint transition-colors"
                           >
                             <Pencil className="w-3.5 h-3.5" /> Edit
                           </button>
                           <button
                             onClick={() => handleDelete(coupon)}
                             disabled={pendingDeleteId === coupon.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-red-200 bg-white text-red-600 font-semibold text-xs hover:bg-red-50 disabled:opacity-50 transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-red-200 bg-surface text-red-600 font-semibold text-xs hover:bg-red-50 disabled:opacity-50 transition-colors"
                           >
                             {pendingDeleteId === coupon.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                             Delete
@@ -315,16 +315,16 @@ const AdminCouponsPage: React.FC = () => {
 
       {modalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-surface w-full sm:max-w-lg sm:rounded-card rounded-t-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#1b1c1d]">{editingId ? 'Edit Coupon' : 'New Coupon'}</h2>
-              <button onClick={closeModal} disabled={saving} className="text-[#74777d] hover:text-[#1b1c1d] disabled:opacity-50">
+              <h2 className="text-lg font-bold text-ink">{editingId ? 'Edit Coupon' : 'New Coupon'}</h2>
+              <button onClick={closeModal} disabled={saving} className="text-ink-muted hover:text-ink disabled:opacity-50">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Code</label>
+              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Code</label>
               <input
                 type="text"
                 value={form.code}
@@ -336,7 +336,7 @@ const AdminCouponsPage: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Type</label>
+                <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Type</label>
                 <select
                   value={form.type}
                   onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CouponType }))}
@@ -347,7 +347,7 @@ const AdminCouponsPage: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">
+                <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">
                   Value {form.type === 'percentage' ? '(%)' : '(¥/night)'}
                 </label>
                 <input
@@ -363,7 +363,7 @@ const AdminCouponsPage: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Valid from</label>
+                <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Valid from</label>
                 <input
                   type="date"
                   value={form.startDate}
@@ -372,7 +372,7 @@ const AdminCouponsPage: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Valid until</label>
+                <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Valid until</label>
                 <input
                   type="date"
                   value={form.endDate}
@@ -389,19 +389,19 @@ const AdminCouponsPage: React.FC = () => {
                 onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
                 className="w-4 h-4 accent-[#041627]"
               />
-              <span className="text-sm font-medium text-[#1b1c1d]">Active</span>
+              <span className="text-sm font-medium text-ink">Active</span>
             </label>
 
             <div>
-              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-2">Assigned properties</label>
+              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">Assigned properties</label>
               {properties.length === 0 ? (
-                <p className="text-sm text-[#74777d]">No properties available.</p>
+                <p className="text-sm text-ink-muted">No properties available.</p>
               ) : (
                 <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
                   {properties.map((property) => {
                     const isAssigned = form.propertyIds.includes(property.id);
                     return (
-                      <label key={property.id} className="flex items-center gap-3 p-3 rounded-xl border border-[#e4e2e3] cursor-pointer hover:bg-[#f5f3f4] transition-colors">
+                      <label key={property.id} className="flex items-center gap-3 p-3 rounded-control border border-line cursor-pointer hover:bg-subtle transition-colors">
                         <input
                           type="checkbox"
                           checked={isAssigned}
@@ -409,10 +409,10 @@ const AdminCouponsPage: React.FC = () => {
                           className="w-4 h-4 accent-[#041627]"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-[#1b1c1d]">{property.name || property.id}</div>
-                          <div className="text-xs text-[#74777d]">{property.id}</div>
+                          <div className="text-sm font-semibold text-ink">{property.name || property.id}</div>
+                          <div className="text-xs text-ink-muted">{property.id}</div>
                         </div>
-                        {isAssigned && <Check className="w-4 h-4 text-[#0f7a44]" />}
+                        {isAssigned && <Check className="w-4 h-4 text-ok" />}
                       </label>
                     );
                   })}
@@ -421,7 +421,7 @@ const AdminCouponsPage: React.FC = () => {
             </div>
 
             {formError && (
-              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-control p-3">
                 <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
                 <p className="text-sm text-red-700">{formError}</p>
               </div>
@@ -431,7 +431,7 @@ const AdminCouponsPage: React.FC = () => {
               <button
                 onClick={closeModal}
                 disabled={saving}
-                className="flex-1 border border-[#c4c6cd] text-[#1b1c1d] font-bold py-3 rounded-xl hover:bg-[#efedef] disabled:opacity-50 transition-colors"
+                className="flex-1 border border-line-strong text-ink font-bold py-3 rounded-control hover:bg-brand-tint disabled:opacity-50 transition-colors"
               >
                 Cancel
               </button>

@@ -6,7 +6,6 @@ import {
   CalendarDays,
   ClipboardCheck,
   FileText,
-  Loader2,
   Lock,
   Newspaper,
   Receipt,
@@ -15,6 +14,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
+import { Button, Spinner } from './ui';
 import { ApiUser } from '../services/api';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -197,51 +197,53 @@ export const AdminShell: React.FC<AdminShellProps> = ({
     navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
   };
 
-  if (!authUser) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6] flex flex-col">
-        <TopNavBar navTitleOverride={navTitleOverride} />
-        <div className="flex-1 flex items-center justify-center px-4 py-12">
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#e4e2e3] w-full max-w-md text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-[#efedef] text-[#44474c] flex items-center justify-center">
-              <Lock className="w-6 h-6" />
-            </div>
-            <h2 className="font-['Plus_Jakarta_Sans'] text-[22px] font-bold text-[#1b1c1d] mb-2">{signInTitle}</h2>
-            <p className="text-sm text-[#44474c] mb-6">{signInMessage}</p>
-            <button
-              onClick={handleLogin}
-              className="w-full bg-[#041627] hover:bg-[#041627]/90 text-white font-bold py-3 px-4 rounded-full transition-colors"
-            >
-              Login
-            </button>
+  // Both gates share one panel so a refusal reads the same wherever it comes from.
+  const gate = (
+    Icon: React.ComponentType<{ className?: string }>,
+    iconTone: string,
+    heading: string,
+    message: string,
+    action: React.ReactNode,
+  ) => (
+    <div className="min-h-screen bg-page flex flex-col">
+      <TopNavBar navTitleOverride={navTitleOverride} />
+      <div className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="bg-surface border border-line rounded-card p-8 w-full max-w-md text-center">
+          <div className={`mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center ${iconTone}`}>
+            <Icon className="w-6 h-6" />
           </div>
+          <h2 className="text-[22px] font-bold text-ink mb-2">{heading}</h2>
+          <p className="text-[14px] text-ink-soft mb-6">{message}</p>
+          {action}
         </div>
-        <MobileBottomNav />
       </div>
+      <MobileBottomNav />
+    </div>
+  );
+
+  if (!authUser) {
+    return gate(
+      Lock,
+      'bg-brand-tint text-ink-soft',
+      signInTitle,
+      signInMessage,
+      <Button variant="primary" onClick={handleLogin} className="w-full">Login</Button>,
     );
   }
 
   if (!hasAccess(authUser, access)) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6] flex flex-col">
-        <TopNavBar navTitleOverride={navTitleOverride} />
-        <div className="flex-1 flex items-center justify-center px-4 py-12 md:pt-[110px]">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 shadow-sm text-center w-full max-w-lg">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-2xl font-bold text-[#1b1c1d] mb-2">{deniedTitle}</h1>
-            <p className="text-[#44474c] mb-6">{deniedMessage}</p>
-            <Link
-              to="/"
-              className="inline-flex items-center px-5 py-2.5 rounded-full border border-[#041627] text-[#041627] font-semibold hover:bg-[#efedef] transition-colors"
-            >
-              Back to listings
-            </Link>
-          </div>
-        </div>
-        <MobileBottomNav />
-      </div>
+    return gate(
+      AlertCircle,
+      'bg-danger-tint text-danger',
+      deniedTitle,
+      deniedMessage,
+      <Link
+        to="/"
+        className="inline-flex items-center h-10 px-4 rounded-control border border-line-strong
+          text-[14px] font-semibold text-ink hover:bg-subtle transition-colors"
+      >
+        Back to listings
+      </Link>,
     );
   }
 
@@ -250,38 +252,33 @@ export const AdminShell: React.FC<AdminShellProps> = ({
     .filter((group) => group.items.length > 0);
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-page text-ink">
       <TopNavBar navTitleOverride={navTitleOverride} />
 
-      {/* Desktop sidebar. Executive Obsidian Chrome. */}
+      {/* Desktop sidebar. Sits below the fixed TopNavBar and spans the viewport. */}
       <aside
-        className="hidden md:flex flex-col fixed left-0 w-64 bg-slate-950/90 backdrop-blur-xl border-r border-slate-800/80 overflow-y-auto z-40 shadow-2xl shadow-slate-950/50"
+        className="hidden md:flex flex-col fixed left-0 w-60 bg-surface border-r border-line overflow-y-auto z-40"
         style={{ top: `${TOPNAV_OFFSET}px`, height: `calc(100vh - ${TOPNAV_OFFSET}px)` }}
       >
-        {/* User Role Badge Card */}
-        {authUser && (
-          <div className="px-4 pt-4 pb-2 border-b border-slate-800/60">
-            <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-inner">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center font-bold text-white text-xs shadow-md shadow-indigo-500/20">
-                {authUser.name ? authUser.name.charAt(0).toUpperCase() : 'A'}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-extrabold text-slate-200 truncate">{authUser.name || authUser.email}</p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-400">
-                    {authUser.role} {authUser.role === 'HOST' ? `Lvl ${authUser.hostLevel ?? 1}` : ''}
-                  </span>
-                </div>
-              </div>
+        {/* Who is signed in, and at what level — the question hosts ask most. */}
+        <div className="px-3 pt-3 pb-3 border-b border-line">
+          <div className="flex items-center gap-2.5 px-2 py-2 rounded-control bg-subtle">
+            <div className="w-8 h-8 shrink-0 rounded-full bg-brand text-white flex items-center justify-center text-[13px] font-bold">
+              {(authUser.name || authUser.email).charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-ink truncate">{authUser.name || authUser.email}</p>
+              <p className="text-[11px] text-ink-muted truncate">
+                {authUser.role === 'HOST' ? `Host · Level ${authUser.hostLevel ?? 1}` : 'Administrator'}
+              </p>
             </div>
           </div>
-        )}
+        </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-5">
+        <nav className="flex-1 px-2.5 py-3 space-y-4">
           {visibleGroups.map((group) => (
-            <div key={group.title} className="space-y-1">
-              <div className="px-3 text-[10px] font-mono font-extrabold uppercase tracking-widest text-slate-500">
+            <div key={group.title}>
+              <div className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted">
                 {group.title}
               </div>
               {group.items.map(({ key, to, label, Icon }) => {
@@ -292,17 +289,18 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                     key={key}
                     to={to}
                     aria-current={isActive ? 'page' : undefined}
-                    className={`relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs transition-all duration-200 ${
+                    className={`relative flex items-center gap-2.5 rounded-control px-3 py-2 mb-0.5
+                      text-[14px] transition-colors ${
                       isActive
-                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-extrabold shadow-lg shadow-indigo-500/25 scale-[1.02]'
-                        : 'text-slate-400 font-medium hover:bg-slate-800/60 hover:text-slate-200'
+                        ? 'bg-brand text-white font-semibold'
+                        : 'text-ink-soft font-medium hover:bg-subtle hover:text-ink'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-ink-muted'}`} />
                     <span className="truncate">{label}</span>
                     {typeof badge === 'number' && badge > 0 && (
-                      <span className={`ml-auto shrink-0 text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                        isActive ? 'bg-white/20 text-white' : 'bg-indigo-950 text-indigo-300 border border-indigo-800/50'
+                      <span className={`ml-auto shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-warn-tint text-warn'
                       }`}>
                         {badge}
                       </span>
@@ -315,33 +313,22 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         </nav>
       </aside>
 
-      <div className="md:pl-64">
+      <div className="md:pl-60">
         <main className={`w-full mx-auto pb-28 md:pb-12 ${paddingXClass} ${maxWidthClass}`}>
           {/* Clears the fixed TopNavBar. */}
           <div className="hidden md:block" style={{ height: `${TOPNAV_OFFSET}px` }} />
 
           {(title || actions) && (
-            <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 py-6 md:py-8 border-b border-slate-800/80 mb-6 ${headerClassName}`}>
+            <div className={`flex flex-col md:flex-row md:items-start md:justify-between gap-4 py-6 md:py-7 ${headerClassName}`}>
               <div className="min-w-0">
-                {title && (
-                  <div className="flex items-center gap-3">
-                    <span className="w-1.5 h-7 rounded-full bg-gradient-to-b from-indigo-500 to-purple-600" />
-                    <h1 className="font-['Plus_Jakarta_Sans'] text-2xl md:text-3xl font-extrabold tracking-tight text-white truncate">{title}</h1>
-                  </div>
-                )}
-                {subtitle && <p className="text-xs md:text-sm text-slate-400 mt-1.5 font-medium ml-4">{subtitle}</p>}
+                {title && <h1 className="text-[22px] md:text-[28px] font-bold text-ink truncate">{title}</h1>}
+                {subtitle && <p className="text-[14px] text-ink-soft mt-1">{subtitle}</p>}
               </div>
-              {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+              {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
             </div>
           )}
 
-          {isLoading ? (
-            <div className="flex items-center justify-center py-24">
-              <Loader2 className="w-9 h-9 animate-spin text-indigo-500" />
-            </div>
-          ) : (
-            children
-          )}
+          {isLoading ? <Spinner /> : children}
         </main>
 
         {showFooter && <Footer />}

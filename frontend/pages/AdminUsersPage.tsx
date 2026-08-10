@@ -30,15 +30,15 @@ const PLAN_LABELS: Record<HostPlanCode, string> = { basic: 'Basic', plus: 'Plus'
 type UserTab = 'profile' | 'access' | 'properties' | 'security' | 'danger';
 
 const ROLE_BADGE: Record<UserRole, string> = {
-  ADMIN: 'bg-[#041627] text-white',
-  HOST: 'bg-[#e6f5ec] text-[#0f7a44]',
-  GUEST: 'bg-[#efedef] text-[#44474c]',
+  ADMIN: 'bg-brand text-white',
+  HOST: 'bg-ok-tint text-ok',
+  GUEST: 'bg-brand-tint text-ink-soft',
 };
 
 const AVATAR_COLOR: Record<UserRole, string> = {
-  ADMIN: 'bg-[#041627] text-white',
-  HOST: 'bg-[#e6f5ec] text-[#0f7a44]',
-  GUEST: 'bg-[#efedef] text-[#44474c]',
+  ADMIN: 'bg-brand text-white',
+  HOST: 'bg-ok-tint text-ok',
+  GUEST: 'bg-brand-tint text-ink-soft',
 };
 
 // A user counts as "online" if they made an authenticated request within this window.
@@ -498,12 +498,12 @@ const AdminUsersPage: React.FC = () => {
   };
 
   // Reusable class helpers
-  const inputCls = 'w-full px-3.5 py-2.5 bg-[#f5f3f4] border border-[#e4e2e3] rounded-xl text-sm text-[#1b1c1d] focus:outline-none focus:ring-2 focus:ring-[#041627]/20 focus:border-[#041627] transition-colors disabled:opacity-60';
+  const inputCls = 'w-full px-3.5 py-2.5 bg-subtle border border-line rounded-control text-sm text-ink focus:outline-none focus:ring-2 focus:ring-[#041627]/20 focus:border-brand transition-colors disabled:opacity-60';
   const selectCls = inputCls + ' appearance-none';
   const tabBtnCls = (active: boolean) =>
-    `text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${active ? 'bg-white text-[#041627] shadow-sm' : 'text-[#74777d] hover:text-[#041627]'}`;
-  const primaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#041627] text-white font-semibold text-xs hover:bg-[#041627]/90 disabled:opacity-50 transition-colors';
-  const secondaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold text-xs hover:bg-[#efedef] disabled:opacity-50 transition-colors';
+    `text-xs font-semibold px-3 py-1.5 rounded-control transition-all ${active ? 'bg-surface text-brand shadow-sm' : 'text-ink-muted hover:text-brand'}`;
+  const primaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-brand text-white font-semibold text-xs hover:bg-brand/90 disabled:opacity-50 transition-colors';
+  const secondaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-line-strong bg-surface text-ink font-semibold text-xs hover:bg-brand-tint disabled:opacity-50 transition-colors';
 
   return (
     <AdminShell
@@ -521,14 +521,14 @@ const AdminUsersPage: React.FC = () => {
           <button
             onClick={() => loadData(true)}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] disabled:opacity-60 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-line-strong bg-surface text-ink font-semibold hover:bg-brand-tint disabled:opacity-60 transition-colors"
           >
             {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Refresh
           </button>
           <button
             onClick={() => setCreateFormOpen(v => !v)}
-            className="inline-flex items-center gap-2 bg-[#041627] hover:bg-[#041627]/90 text-white px-4 py-2 rounded-full font-semibold transition-colors"
+            className="inline-flex items-center gap-2 bg-brand hover:bg-brand/90 text-white px-4 py-2 rounded-full font-semibold transition-colors"
           >
             <Plus className="w-4 h-4" /> New User
           </button>
@@ -537,13 +537,13 @@ const AdminUsersPage: React.FC = () => {
     >
         {/* Alerts */}
         {errorMsg && (
-          <div className="mb-5 border border-red-200 bg-red-50 text-red-700 rounded-2xl px-4 py-3 text-sm flex items-center justify-between gap-3">
+          <div className="mb-5 border border-red-200 bg-red-50 text-red-700 rounded-card px-4 py-3 text-sm flex items-center justify-between gap-3">
             <span>{errorMsg}</span>
             <button onClick={() => setErrorMsg(null)} className="flex-shrink-0 text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
           </div>
         )}
         {infoMsg && (
-          <div className="mb-5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-2xl px-4 py-3 text-sm flex items-center justify-between gap-3">
+          <div className="mb-5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-card px-4 py-3 text-sm flex items-center justify-between gap-3">
             <span>{infoMsg}</span>
             <button onClick={() => setInfoMsg(null)} className="flex-shrink-0 text-emerald-400 hover:text-emerald-600"><X className="w-4 h-4" /></button>
           </div>
@@ -551,7 +551,7 @@ const AdminUsersPage: React.FC = () => {
 
         {/* Pending upgrade requests */}
         {upgradeRequests.length > 0 && (
-          <div className="mb-6 bg-white border border-amber-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="mb-6 bg-surface border border-amber-200 rounded-card overflow-hidden shadow-sm">
             <div className="flex items-center gap-2 px-5 py-3 bg-amber-50 border-b border-amber-200">
               <Bell className="w-4 h-4 text-amber-600" />
               <span className="font-semibold text-amber-800 text-sm">
@@ -562,11 +562,11 @@ const AdminUsersPage: React.FC = () => {
               {upgradeRequests.map((request) => (
                 <div key={request.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5">
                   <div className="min-w-0">
-                    <p className="font-semibold text-[#1b1c1d] truncate">{request.userName || request.userEmail}</p>
-                    <p className="text-xs text-[#74777d] truncate">{request.userEmail}</p>
-                    <p className="text-sm text-[#44474c] mt-1">
+                    <p className="font-semibold text-ink truncate">{request.userName || request.userEmail}</p>
+                    <p className="text-xs text-ink-muted truncate">{request.userEmail}</p>
+                    <p className="text-sm text-ink-soft mt-1">
                       Wants <span className="font-semibold">{PLAN_LABELS[request.planCode]}</span> · {request.billingCycle}
-                      <span className="text-[#74777d]"> → host level {PLAN_TO_HOST_LEVEL[request.planCode]}</span>
+                      <span className="text-ink-muted"> → host level {PLAN_TO_HOST_LEVEL[request.planCode]}</span>
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -580,7 +580,7 @@ const AdminUsersPage: React.FC = () => {
                     <button
                       onClick={() => handleUpgradeDecision(request, false)}
                       disabled={pendingRequestId === request.id}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold text-xs hover:bg-[#efedef] disabled:opacity-50 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-line-strong bg-surface text-ink font-semibold text-xs hover:bg-brand-tint disabled:opacity-50 transition-colors"
                     >
                       <X className="w-3.5 h-3.5" /> Reject
                     </button>
@@ -594,67 +594,67 @@ const AdminUsersPage: React.FC = () => {
         {/* Stats */}
         {!isLoading && (
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-            <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
-              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#041627]">{stats.total}</div>
-              <div className="text-xs font-medium text-[#74777d] mt-0.5">Total Users</div>
+            <div className="bg-surface rounded-card border border-line px-5 py-4">
+              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-brand">{stats.total}</div>
+              <div className="text-xs font-medium text-ink-muted mt-0.5">Total Users</div>
             </div>
-            <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
+            <div className="bg-surface rounded-card border border-line px-5 py-4">
               <div className="flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${stats.online > 0 ? 'bg-[#0f7a44]' : 'bg-[#c4c6cd]'}`} />
-                <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#0f7a44]">{stats.online}</div>
+                <span className={`w-2 h-2 rounded-full ${stats.online > 0 ? 'bg-ok' : 'bg-page'}`} />
+                <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-ok">{stats.online}</div>
               </div>
-              <div className="text-xs font-medium text-[#74777d] mt-0.5">Online Now</div>
+              <div className="text-xs font-medium text-ink-muted mt-0.5">Online Now</div>
             </div>
-            <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
-              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#041627]">{stats.admins}</div>
-              <div className="text-xs font-medium text-[#74777d] mt-0.5">Admins</div>
+            <div className="bg-surface rounded-card border border-line px-5 py-4">
+              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-brand">{stats.admins}</div>
+              <div className="text-xs font-medium text-ink-muted mt-0.5">Admins</div>
             </div>
-            <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
-              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#0f7a44]">{stats.hosts}</div>
-              <div className="text-xs font-medium text-[#74777d] mt-0.5">Hosts</div>
+            <div className="bg-surface rounded-card border border-line px-5 py-4">
+              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-ok">{stats.hosts}</div>
+              <div className="text-xs font-medium text-ink-muted mt-0.5">Hosts</div>
             </div>
-            <div className="bg-white rounded-2xl border border-[#e4e2e3] px-5 py-4">
-              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-[#74777d]">{stats.archived}</div>
-              <div className="text-xs font-medium text-[#74777d] mt-0.5">Archived</div>
+            <div className="bg-surface rounded-card border border-line px-5 py-4">
+              <div className="text-2xl font-['Plus_Jakarta_Sans'] font-bold text-ink-muted">{stats.archived}</div>
+              <div className="text-xs font-medium text-ink-muted mt-0.5">Archived</div>
             </div>
           </div>
         )}
 
         {/* Create User card */}
         {createFormOpen && (
-        <div className="bg-white rounded-2xl border border-[#e4e2e3] mb-6 overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#e4e2e3] bg-[#f5f3f4] flex items-center justify-between">
-            <span className="text-sm font-semibold text-[#1b1c1d]">Create New User</span>
-            <button type="button" onClick={() => setCreateFormOpen(false)} className="text-[#74777d] hover:text-[#1b1c1d]"><X className="w-4 h-4" /></button>
+        <div className="bg-surface rounded-card border border-line mb-6 overflow-hidden">
+          <div className="px-4 py-3 border-b border-line bg-subtle flex items-center justify-between">
+            <span className="text-sm font-semibold text-ink">Create New User</span>
+            <button type="button" onClick={() => setCreateFormOpen(false)} className="text-ink-muted hover:text-ink"><X className="w-4 h-4" /></button>
           </div>
           <form onSubmit={handleCreateUser} className="px-6 py-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Full Name</label>
+                  <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Full Name</label>
                   <input type="text" required placeholder="e.g. Nguyen Van A"
                     value={createForm.name} onChange={e => setCreateForm(prev => ({ ...prev, name: e.target.value }))}
                     className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Email Address</label>
+                  <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Email Address</label>
                   <input type="email" required placeholder="user@sachihouse.com"
                     value={createForm.email} onChange={e => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
                     className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Password</label>
+                  <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Password</label>
                   <div className="relative">
                     <input type={showCreatePassword ? 'text' : 'password'} required minLength={6} placeholder="Min. 6 characters"
                       value={createForm.password} onChange={e => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
                       className={inputCls + ' pr-10'} />
                     <button type="button" onClick={() => setShowCreatePassword(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#74777d] hover:text-[#1b1c1d]">
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink">
                       {showCreatePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Role</label>
+                  <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Role</label>
                   <select value={createForm.role} onChange={e => setCreateForm(prev => ({ ...prev, role: e.target.value as UserRole }))}
                     className={selectCls}>
                     {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
@@ -665,16 +665,16 @@ const AdminUsersPage: React.FC = () => {
                 <label className="inline-flex items-center gap-3 cursor-pointer">
                   <button type="button"
                     onClick={() => setCreateForm(prev => ({ ...prev, canEditBlog: !prev.canEditBlog }))}
-                    className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${createForm.canEditBlog ? 'bg-[#041627]' : 'bg-[#c4c6cd]'}`}>
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${createForm.canEditBlog ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${createForm.canEditBlog ? 'bg-brand' : 'bg-page'}`}>
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-surface shadow transition-transform ${createForm.canEditBlog ? 'translate-x-4' : 'translate-x-0.5'}`} />
                   </button>
                   <div>
-                    <div className="text-sm font-semibold text-[#1b1c1d]">Grant Blog Editor Access</div>
-                    <div className="text-xs text-[#74777d]">Allow this user to create and manage blog posts</div>
+                    <div className="text-sm font-semibold text-ink">Grant Blog Editor Access</div>
+                    <div className="text-xs text-ink-muted">Allow this user to create and manage blog posts</div>
                   </div>
                 </label>
               </div>
-              <div className="flex items-center gap-3 pt-4 border-t border-[#e4e2e3]">
+              <div className="flex items-center gap-3 pt-4 border-t border-line">
                 <button type="submit" disabled={isCreating} className={primaryBtnCls + ' px-5 py-2.5 text-sm'}>
                   {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                   Create User
@@ -687,14 +687,14 @@ const AdminUsersPage: React.FC = () => {
 
         {/* Users List */}
         {isLoading ? (
-          <div className="py-16 flex items-center justify-center text-[#44474c]">
+          <div className="py-16 flex items-center justify-center text-ink-soft">
             <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading users...
           </div>
         ) : users.length === 0 ? (
-          <div className="py-16 text-center text-[#44474c]">No users found.</div>
+          <div className="py-16 text-center text-ink-soft">No users found.</div>
         ) : (
-          <div className="rounded-2xl border border-[#e4e2e3] bg-white overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#e4e2e3] bg-[#f5f3f4] flex items-center justify-between">
+          <div className="rounded-card border border-line bg-surface overflow-hidden">
+            <div className="px-4 py-3 border-b border-line bg-subtle flex items-center justify-between">
               <span className="text-sm font-semibold">{users.length} {users.length === 1 ? 'user' : 'users'}</span>
             </div>
             <div className="divide-y divide-[#efedef]">
@@ -702,7 +702,7 @@ const AdminUsersPage: React.FC = () => {
               const isExpanded = expandedUserIds.has(user.id);
               const activeTab = getActiveTab(user);
               const isSelf = user.id === authUser?.id;
-              const avatarColor = user.archivedAt ? 'bg-[#efedef] text-[#74777d]' : (AVATAR_COLOR[user.role] ?? 'bg-[#efedef] text-[#44474c]');
+              const avatarColor = user.archivedAt ? 'bg-brand-tint text-ink-muted' : (AVATAR_COLOR[user.role] ?? 'bg-brand-tint text-ink-soft');
               const avatarInitial = (user.name || user.email).charAt(0).toUpperCase();
               const online = isUserOnline(user, now);
 
@@ -711,53 +711,53 @@ const AdminUsersPage: React.FC = () => {
 
                   {/* Card Header */}
                   <div
-                    className={`flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors hover:bg-[#faf9f9]`}
+                    className={`flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors hover:bg-subtle`}
                     onClick={() => toggleUserCard(user)}
                   >
                     <div className="relative flex-shrink-0">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-['Plus_Jakarta_Sans'] font-bold text-base ${avatarColor}`}>
+                      <div className={`w-10 h-10 rounded-control flex items-center justify-center font-['Plus_Jakarta_Sans'] font-bold text-base ${avatarColor}`}>
                         {avatarInitial}
                       </div>
                       {!user.archivedAt && (
                         <span
                           title={online ? 'Online' : formatLastSeen(user.lastSeenAt, now)}
-                          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${online ? 'bg-[#0f7a44]' : 'bg-[#c4c6cd]'}`}
+                          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${online ? 'bg-ok' : 'bg-page'}`}
                         />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className={`font-['Plus_Jakarta_Sans'] font-bold text-sm ${user.archivedAt ? 'text-[#74777d]' : 'text-[#041627]'}`}>{user.name}</span>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${user.archivedAt ? 'bg-[#efedef] text-[#74777d]' : (ROLE_BADGE[user.role] ?? 'bg-[#efedef] text-[#44474c]')}`}>{user.role}</span>
+                        <span className={`font-['Plus_Jakarta_Sans'] font-bold text-sm ${user.archivedAt ? 'text-ink-muted' : 'text-brand'}`}>{user.name}</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${user.archivedAt ? 'bg-brand-tint text-ink-muted' : (ROLE_BADGE[user.role] ?? 'bg-brand-tint text-ink-soft')}`}>{user.role}</span>
                         {user.archivedAt
                           ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Archived</span>
                           : online
-                            ? <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#e6f5ec] text-[#0f7a44]"><span className="w-1.5 h-1.5 rounded-full bg-[#0f7a44]" />Online</span>
-                            : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#74777d]">Offline</span>
+                            ? <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-ok-tint text-ok"><span className="w-1.5 h-1.5 rounded-full bg-ok" />Online</span>
+                            : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand-tint text-ink-muted">Offline</span>
                         }
-                        {user.canEditBlog && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#44474c]">Blog Editor</span>}
+                        {user.canEditBlog && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand-tint text-ink-soft">Blog Editor</span>}
                         {user.role === 'HOST' && (() => {
                           const lvl = user.hostLevel;
-                          if (!lvl) return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#efedef] text-[#74777d]">No Level</span>;
-                          const levelColors: Record<number, string> = { 1: 'bg-slate-100 text-slate-600', 2: 'bg-orange-100 text-orange-700', 3: 'bg-[#e6f5ec] text-[#0f7a44]', 4: 'bg-indigo-100 text-indigo-700' };
+                          if (!lvl) return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-brand-tint text-ink-muted">No Level</span>;
+                          const levelColors: Record<number, string> = { 1: 'bg-subtle text-ink-soft', 2: 'bg-orange-100 text-orange-700', 3: 'bg-ok-tint text-ok', 4: 'bg-indigo-100 text-indigo-700' };
                           return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${levelColors[lvl]}`}>Level {lvl}</span>;
                         })()}
-                        {isSelf && <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">You</span>}
+                        {isSelf && <span className="text-xs px-2 py-0.5 rounded-full bg-subtle text-ink-muted">You</span>}
                       </div>
-                      <div className="text-xs text-slate-400 mt-0.5 truncate">
+                      <div className="text-xs text-ink-muted mt-0.5 truncate">
                         {user.email} · ID: {user.id}
                         {user.role === 'HOST' && user.assignedPropertyIds.length > 0 && ` · ${user.assignedPropertyIds.length} ${user.assignedPropertyIds.length === 1 ? 'property' : 'properties'}`}
                         {!user.archivedAt && !online && ` · ${formatLastSeen(user.lastSeenAt, now)}`}
                       </div>
                     </div>
-                    <ChevronDown className={`w-4 h-4 flex-shrink-0 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 flex-shrink-0 text-ink-muted transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                   </div>
 
                   {/* Card Body */}
                   {isExpanded && (
-                    <div className="border-t border-[#e4e2e3]">
+                    <div className="border-t border-line">
                       {/* Tabs */}
-                      <div className="flex items-center gap-1 px-4 pt-3 pb-2 bg-[#f5f3f4] flex-wrap">
+                      <div className="flex items-center gap-1 px-4 pt-3 pb-2 bg-subtle flex-wrap">
                         <button onClick={() => setActiveTab(user.id, 'profile')} className={tabBtnCls(activeTab === 'profile')}>Profile</button>
                         <button onClick={() => setActiveTab(user.id, 'access')} className={tabBtnCls(activeTab === 'access')}>Role & Access</button>
                         {user.role === 'HOST' && (
@@ -766,7 +766,7 @@ const AdminUsersPage: React.FC = () => {
                         <button onClick={() => setActiveTab(user.id, 'security')} className={tabBtnCls(activeTab === 'security')}>Security</button>
                         <button
                           onClick={() => setActiveTab(user.id, 'danger')}
-                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${activeTab === 'danger' ? 'bg-white text-red-600 shadow-sm' : 'text-red-400 hover:text-red-600'}`}
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-control transition-all ${activeTab === 'danger' ? 'bg-surface text-red-600 shadow-sm' : 'text-red-400 hover:text-red-600'}`}
                         >Danger Zone</button>
                       </div>
 
@@ -775,7 +775,7 @@ const AdminUsersPage: React.FC = () => {
                         <div className="px-5 py-4">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Full Name</label>
+                              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Full Name</label>
                               <input type="text"
                                 value={nameDrafts[user.id] ?? user.name}
                                 onChange={e => setNameDrafts(prev => ({ ...prev, [user.id]: e.target.value }))}
@@ -783,7 +783,7 @@ const AdminUsersPage: React.FC = () => {
                                 className={inputCls} />
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1.5">Email Address</label>
+                              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1.5">Email Address</label>
                               <input type="email"
                                 value={emailDrafts[user.id] ?? user.email}
                                 onChange={e => setEmailDrafts(prev => ({ ...prev, [user.id]: e.target.value }))}
@@ -809,7 +809,7 @@ const AdminUsersPage: React.FC = () => {
                         <div className="px-5 py-4">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             <div>
-                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-2">Role</label>
+                              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">Role</label>
                               <div className="flex items-center gap-2">
                                 <select
                                   value={user.role}
@@ -819,29 +819,29 @@ const AdminUsersPage: React.FC = () => {
                                 >
                                   {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                                 </select>
-                                {pendingRoleUserId === user.id && <Loader2 className="w-4 h-4 animate-spin text-[#74777d]" />}
+                                {pendingRoleUserId === user.id && <Loader2 className="w-4 h-4 animate-spin text-ink-muted" />}
                               </div>
-                              {isSelf && <p className="text-xs text-[#74777d] mt-1.5">Your own role cannot be changed here.</p>}
+                              {isSelf && <p className="text-xs text-ink-muted mt-1.5">Your own role cannot be changed here.</p>}
                             </div>
                             <div>
-                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-2">Blog Editor Access</label>
+                              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">Blog Editor Access</label>
                               <div className="flex items-center gap-3">
                                 <button type="button"
                                   disabled={pendingBlogPermissionUserId === user.id}
                                   onClick={() => handleBlogPermissionChange(user, !user.canEditBlog)}
-                                  className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${user.canEditBlog ? 'bg-[#041627]' : 'bg-[#c4c6cd]'}`}>
-                                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${user.canEditBlog ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                                  className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${user.canEditBlog ? 'bg-brand' : 'bg-page'}`}>
+                                  <span className={`inline-block h-4 w-4 transform rounded-full bg-surface shadow transition-transform ${user.canEditBlog ? 'translate-x-4' : 'translate-x-0.5'}`} />
                                 </button>
-                                <span className="text-sm font-medium text-[#1b1c1d]">{user.canEditBlog ? 'Enabled' : 'Disabled'}</span>
-                                {pendingBlogPermissionUserId === user.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#74777d]" />}
+                                <span className="text-sm font-medium text-ink">{user.canEditBlog ? 'Enabled' : 'Disabled'}</span>
+                                {pendingBlogPermissionUserId === user.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-ink-muted" />}
                               </div>
-                              <p className="text-xs text-[#74777d] mt-1.5">Can create and edit blog posts.</p>
+                              <p className="text-xs text-ink-muted mt-1.5">Can create and edit blog posts.</p>
                             </div>
                           </div>
                           {user.role === 'HOST' && (
-                            <div className="mt-5 pt-5 border-t border-[#e4e2e3]">
-                              <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-1">Host Level</label>
-                              <p className="text-xs text-[#74777d] mb-3">Level 1: view properties · Level 2: view + edit properties · Level 3: view + edit + check-in management · Level 4: Level 3 + finance</p>
+                            <div className="mt-5 pt-5 border-t border-line">
+                              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-1">Host Level</label>
+                              <p className="text-xs text-ink-muted mb-3">Level 1: view properties · Level 2: view + edit properties · Level 3: view + edit + check-in management · Level 4: Level 3 + finance</p>
                               <div className="flex flex-col gap-2">
                                 {([null, 1, 2, 3, 4] as (1 | 2 | 3 | 4 | null)[]).map((lvl) => {
                                   const labels: Record<string, string> = {
@@ -859,15 +859,15 @@ const AdminUsersPage: React.FC = () => {
                                       key={key}
                                       disabled={isPending || isActive}
                                       onClick={() => handleSetHostLevel(user, lvl)}
-                                      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all text-left ${isActive ? 'bg-[#041627] text-white border-[#041627]' : 'bg-white text-[#1b1c1d] border-[#e4e2e3] hover:border-[#041627] hover:bg-[#f5f3f4]'} disabled:opacity-60`}
+                                      className={`flex items-center gap-3 px-4 py-2.5 rounded-control border text-sm font-medium transition-all text-left ${isActive ? 'bg-brand text-white border-brand' : 'bg-surface text-ink border-line hover:border-brand hover:bg-subtle'} disabled:opacity-60`}
                                     >
-                                      {isPending && isActive ? <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" /> : <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 ${isActive ? 'border-white bg-white' : 'border-[#c4c6cd]'}`} />}
+                                      {isPending && isActive ? <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" /> : <span className={`w-3.5 h-3.5 rounded-full border-2 flex-shrink-0 ${isActive ? 'border-white bg-surface' : 'border-line-strong'}`} />}
                                       {labels[key]}
                                     </button>
                                   );
                                 })}
                               </div>
-                              {pendingHostLevelUserId === user.id && <p className="text-xs text-[#74777d] mt-2 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving…</p>}
+                              {pendingHostLevelUserId === user.id && <p className="text-xs text-ink-muted mt-2 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving…</p>}
                             </div>
                           )}
                         </div>
@@ -876,25 +876,25 @@ const AdminUsersPage: React.FC = () => {
                       {/* Properties Tab */}
                       {activeTab === 'properties' && user.role === 'HOST' && (
                         <div className="px-5 py-4">
-                          <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-3">Assigned Properties</label>
+                          <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-3">Assigned Properties</label>
                           {properties.length === 0 ? (
-                            <p className="text-sm text-[#74777d]">No properties available.</p>
+                            <p className="text-sm text-ink-muted">No properties available.</p>
                           ) : (
                             <div className="space-y-2 mb-4">
                               {properties.map(property => {
                                 const draftAssigned = assignmentDrafts[user.id] ?? user.assignedPropertyIds;
                                 const isAssigned = draftAssigned.includes(property.id);
                                 return (
-                                  <label key={property.id} className="flex items-center gap-3 p-3 rounded-xl border border-[#e4e2e3] cursor-pointer hover:bg-[#f5f3f4] transition-colors">
+                                  <label key={property.id} className="flex items-center gap-3 p-3 rounded-control border border-line cursor-pointer hover:bg-subtle transition-colors">
                                     <input type="checkbox" checked={isAssigned}
                                       disabled={pendingAssignmentSaveUserId === user.id}
                                       onChange={() => handleAssignmentDraftToggle(user, property.id)}
                                       className="w-4 h-4 accent-[#041627]" />
                                     <div className="flex-1 min-w-0">
-                                      <div className="text-sm font-semibold text-[#1b1c1d]">{property.name || property.id}</div>
-                                      <div className="text-xs text-[#74777d]">{property.id}</div>
+                                      <div className="text-sm font-semibold text-ink">{property.name || property.id}</div>
+                                      <div className="text-xs text-ink-muted">{property.id}</div>
                                     </div>
-                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isAssigned ? 'bg-[#e6f5ec] text-[#0f7a44]' : 'bg-[#efedef] text-[#74777d]'}`}>
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isAssigned ? 'bg-ok-tint text-ok' : 'bg-brand-tint text-ink-muted'}`}>
                                       {isAssigned ? 'Assigned' : 'Unassigned'}
                                     </span>
                                   </label>
@@ -919,7 +919,7 @@ const AdminUsersPage: React.FC = () => {
                       {/* Security Tab */}
                       {activeTab === 'security' && (
                         <div className="px-5 py-4">
-                          <label className="block text-xs font-semibold text-[#74777d] uppercase tracking-wide mb-2">Reset Password</label>
+                          <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">Reset Password</label>
                           <div className="flex items-center gap-2 max-w-sm">
                             <div className="relative flex-1">
                               <input
@@ -931,7 +931,7 @@ const AdminUsersPage: React.FC = () => {
                                 className={inputCls + ' pr-10'} />
                               <button type="button"
                                 onClick={() => setShowPasswordDrafts(prev => ({ ...prev, [user.id]: !prev[user.id] }))}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#74777d] hover:text-[#1b1c1d]">
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink">
                                 {showPasswordDrafts[user.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                               </button>
                             </div>
@@ -949,12 +949,12 @@ const AdminUsersPage: React.FC = () => {
                       {activeTab === 'danger' && (
                         <div className="px-5 py-4">
                           {isSelf ? (
-                            <div className="bg-[#f5f3f4] rounded-xl p-4 border border-[#e4e2e3] text-center text-sm text-[#74777d]">
+                            <div className="bg-subtle rounded-control p-4 border border-line text-center text-sm text-ink-muted">
                               You cannot archive or delete your own account.
                             </div>
                           ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div className="p-4 rounded-xl border border-amber-100 bg-amber-50">
+                              <div className="p-4 rounded-control border border-amber-100 bg-amber-50">
                                 <div className="flex items-center gap-2 mb-1.5">
                                   {user.archivedAt ? <RotateCcw className="w-4 h-4 text-amber-600" /> : <Archive className="w-4 h-4 text-amber-600" />}
                                   <span className="text-sm font-semibold text-amber-800">{user.archivedAt ? 'Restore User' : 'Archive User'}</span>
@@ -964,19 +964,19 @@ const AdminUsersPage: React.FC = () => {
                                 </p>
                                 <button onClick={() => handleArchiveUser(user, !user.archivedAt)}
                                   disabled={pendingArchiveUserId === user.id}
-                                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border bg-white font-semibold text-xs disabled:opacity-50 transition-colors ${user.archivedAt ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border-amber-300 text-amber-700 hover:bg-amber-50'}`}>
+                                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-control border bg-surface font-semibold text-xs disabled:opacity-50 transition-colors ${user.archivedAt ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border-amber-300 text-amber-700 hover:bg-amber-50'}`}>
                                   {pendingArchiveUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : user.archivedAt ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
                                   {user.archivedAt ? 'Restore' : 'Archive'}
                                 </button>
                               </div>
-                              <div className="p-4 rounded-xl border border-red-100 bg-red-50">
+                              <div className="p-4 rounded-control border border-red-100 bg-red-50">
                                 <div className="flex items-center gap-2 mb-1.5">
                                   <Trash2 className="w-4 h-4 text-red-600" />
                                   <span className="text-sm font-semibold text-red-800">Delete User</span>
                                 </div>
                                 <p className="text-xs text-red-700 mb-3">Permanently removes this account and all associated data. Cannot be undone.</p>
                                 <button onClick={() => handleDeleteUser(user)} disabled={pendingDeleteUserId === user.id}
-                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-300 bg-white text-red-700 font-semibold text-xs hover:bg-red-50 disabled:opacity-50 transition-colors">
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-control border border-red-300 bg-surface text-red-700 font-semibold text-xs hover:bg-red-50 disabled:opacity-50 transition-colors">
                                   {pendingDeleteUserId === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                                   Delete Permanently
                                 </button>

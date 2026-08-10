@@ -10,6 +10,7 @@ import { financeApi, transactionsToCsvRows, FINANCE_HEADERS, FinancialProperty }
 import { processFinancials, ACCOUNT_TYPE_MAP } from '../utils/accountingUtils';
 import { FinancialReport, CsvRow, AccountType, FinancialTransaction } from '../types/finance';
 import { AdminShell } from '../components/AdminShell';
+import { Tabs } from '../components/ui';
 
 const Dashboard    = lazy(() => import('../components/finance/Dashboard'));
 const PLStatement  = lazy(() => import('../components/finance/PLStatement'));
@@ -32,7 +33,7 @@ const NAV_ITEMS: { id: Tab; label: string; icon: React.ElementType; adminOnly?: 
 ];
 
 const SuspenseFallback = () => (
-  <div className="flex items-center justify-center py-20 text-gray-400">
+  <div className="flex items-center justify-center py-20 text-ink-muted">
     <Loader2 className="w-8 h-8 animate-spin" />
   </div>
 );
@@ -218,11 +219,11 @@ const FinancePage: React.FC = () => {
             setModalSearchTerm('');
             setIsPropDrawerOpen(true);
           }}
-          className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+          className="flex items-center gap-2 px-3 py-1.5 bg-surface border border-line-strong rounded-control text-xs font-semibold text-ink-soft hover:bg-subtle transition-all shadow-sm"
         >
           <Building className="w-3.5 h-3.5 text-blue-600" />
           <span className="max-w-[140px] truncate">{selectedLabel}</span>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+          <ChevronRight className="w-3.5 h-3.5 text-ink-muted" />
         </button>
       )}
 
@@ -231,20 +232,20 @@ const FinancePage: React.FC = () => {
         <select
           value={selectedYear}
           onChange={e => setSelectedYear(parseInt(e.target.value))}
-          className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 appearance-none pr-7 cursor-pointer shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="bg-surface border border-line-strong rounded-control px-2.5 py-1.5 text-xs font-semibold text-ink-soft appearance-none pr-7 cursor-pointer shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           {Array.from({ length: 10 }, (_, i) => currentYear + 1 - i).map(y => (
             <option key={y} value={y}>{y}年</option>
           ))}
         </select>
-        <ChevronsUpDown className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <ChevronsUpDown className="w-3 h-3 text-ink-muted absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
       </div>
 
       {/* Refresh */}
       <button
         onClick={handleRefresh}
         disabled={isRefreshing}
-        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all shadow-sm"
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-line-strong rounded-control text-xs font-semibold text-ink-soft hover:bg-subtle disabled:opacity-50 transition-all shadow-sm"
       >
         <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
         <span>更新</span>
@@ -254,9 +255,9 @@ const FinancePage: React.FC = () => {
       {report && (
         <button
           onClick={() => window.print()}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-line-strong rounded-control text-xs font-semibold text-ink-soft hover:bg-subtle transition-all shadow-sm"
         >
-          <Printer className="w-3.5 h-3.5 text-slate-600" />
+          <Printer className="w-3.5 h-3.5 text-ink-soft" />
           <span>印刷</span>
         </button>
       )}
@@ -271,37 +272,24 @@ const FinancePage: React.FC = () => {
       subtitle="青色申告・損益計算書 (P&L)・貸借対照表 (B/S)"
       actions={headerActions}
     >
-      {/* Sub-tab Navigation Bar (Segmented Pill Control v2.0) */}
-      <div className="mb-6 bg-slate-950/80 p-2 rounded-2xl border border-slate-800 backdrop-blur-xl no-print flex flex-wrap gap-1.5 shadow-xl">
-        {NAV_ITEMS.filter(item => !item.adminOnly || authUser.role === 'ADMIN').map(item => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs transition-all duration-200 ${
-                isActive
-                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-extrabold shadow-lg shadow-indigo-500/25 scale-[1.02]'
-                  : 'text-slate-400 font-medium hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      <Tabs<Tab>
+        className="no-print"
+        active={activeTab}
+        onChange={setActiveTab}
+        items={NAV_ITEMS
+          .filter(item => !item.adminOnly || authUser.role === 'ADMIN')
+          .map(item => ({ id: item.id, label: item.label, icon: item.icon }))}
+      />
 
       {/* Print Header */}
-      <div className="hidden print:block text-center py-4 mb-4 font-mincho border-b border-gray-300">
-        <p className="text-sm font-medium text-gray-700">{selectedLabel} — {selectedYear}年</p>
+      <div className="hidden print:block text-center py-4 mb-4 font-mincho border-b border-line-strong">
+        <p className="text-sm font-medium text-ink-soft">{selectedLabel} — {selectedYear}年</p>
       </div>
 
       {/* Tab Content */}
       <div className="w-full">
         {isLoading ? (
-          <div className="flex items-center justify-center py-20 text-gray-400">
+          <div className="flex items-center justify-center py-20 text-ink-muted">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           </div>
         ) : (
@@ -343,9 +331,9 @@ const FinancePage: React.FC = () => {
               <IngestRules allProperties={allProperties} />
             )}
             {!report && activeTab !== 'journal' && activeTab !== 'pending' && activeTab !== 'ingest' && (
-              <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3 bg-white rounded-xl border border-slate-200 p-8">
-                <BookOpen className="w-10 h-10 opacity-30 text-slate-500" />
-                <p className="text-sm font-medium text-slate-600">データがありません。プロパティを選択してください。</p>
+              <div className="flex flex-col items-center justify-center py-20 text-ink-muted gap-3 bg-surface rounded-control border border-line p-8">
+                <BookOpen className="w-10 h-10 opacity-30 text-ink-muted" />
+                <p className="text-sm font-medium text-ink-soft">データがありません。プロパティを選択してください。</p>
               </div>
             )}
           </Suspense>
@@ -355,16 +343,16 @@ const FinancePage: React.FC = () => {
       {/* Property Selector Drawer Modal */}
       {isPropDrawerOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 no-print">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
+          <div className="bg-surface rounded-card shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border border-line">
             {/* Header */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+            <div className="px-6 py-4 bg-subtle border-b border-line flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <Building className="w-5 h-5 text-blue-600" />
-                <h3 className="font-bold text-slate-800 text-sm">プロパティ詳細・売上順選択</h3>
+                <h3 className="font-bold text-ink text-sm">プロパティ詳細・売上順選択</h3>
               </div>
               <button
                 onClick={() => setIsPropDrawerOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-200 rounded-lg transition-colors"
+                className="text-ink-muted hover:text-ink-soft p-1.5 hover:bg-subtle rounded-control transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -372,31 +360,31 @@ const FinancePage: React.FC = () => {
 
             {/* Body */}
             <div className="p-6 flex-1 overflow-y-auto space-y-4">
-              <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div className="flex flex-col gap-3 bg-subtle p-4 rounded-control border border-line">
                 <div className="relative w-full">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted w-4 h-4" />
                   <input
                     type="text"
                     placeholder="物件名・IDで検索..."
                     value={modalSearchTerm}
                     onChange={e => setModalSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500 text-slate-800 font-semibold"
+                    className="w-full pl-9 pr-3 py-2 bg-surface border border-line-strong rounded-control text-xs outline-none focus:ring-1 focus:ring-blue-500 text-ink font-semibold"
                   />
                 </div>
-                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                <div className="flex items-center justify-between text-xs font-bold text-ink-soft">
                   <span>選択中: <b className="text-blue-600 text-sm font-mono">{tempSelectedPropertyIds.length}</b> / {allProperties.length} 棟</span>
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => setTempSelectedPropertyIds(allProperties.map(p => p.id))}
-                      className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-[10px] font-bold shadow-sm transition-colors text-slate-700"
+                      className="px-3 py-1.5 bg-surface border border-line-strong hover:bg-subtle rounded-control text-[10px] font-bold shadow-sm transition-colors text-ink-soft"
                     >
                       全て選択
                     </button>
                     <button
                       type="button"
                       onClick={() => setTempSelectedPropertyIds([])}
-                      className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-[10px] font-bold shadow-sm transition-colors text-slate-700"
+                      className="px-3 py-1.5 bg-surface border border-line-strong hover:bg-subtle rounded-control text-[10px] font-bold shadow-sm transition-colors text-ink-soft"
                     >
                       全解除
                     </button>
@@ -405,18 +393,18 @@ const FinancePage: React.FC = () => {
               </div>
 
               {/* Table */}
-              <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white">
+              <div className="overflow-x-auto rounded-control border border-line shadow-sm bg-surface">
                 <table className="w-full text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-100 border-b border-slate-200 text-left text-slate-700 h-10">
-                      <th className="py-2.5 px-2.5 font-extrabold text-center w-12 border-r border-slate-200">選択</th>
-                      <th className="py-2.5 px-2.5 font-extrabold border-r border-slate-200">物件ID</th>
-                      <th className="py-2.5 px-2.5 font-extrabold border-r border-slate-200">物件名</th>
-                      <th className="py-2.5 px-2.5 font-extrabold text-center border-r border-slate-200 w-20">登録年</th>
+                    <tr className="bg-subtle border-b border-line text-left text-ink-soft h-10">
+                      <th className="py-2.5 px-2.5 font-extrabold text-center w-12 border-r border-line">選択</th>
+                      <th className="py-2.5 px-2.5 font-extrabold border-r border-line">物件ID</th>
+                      <th className="py-2.5 px-2.5 font-extrabold border-r border-line">物件名</th>
+                      <th className="py-2.5 px-2.5 font-extrabold text-center border-r border-line w-20">登録年</th>
                       <th className="py-2.5 px-2.5 font-extrabold text-right pr-4 w-32">総売上高</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
+                  <tbody className="divide-y divide-slate-200 text-ink font-medium">
                     {sortedProperties.map((prop, idx) => {
                       const isChecked = tempSelectedPropertyIds.includes(prop.id);
                       const regYear = getRegYear(prop.id);
@@ -432,25 +420,25 @@ const FinancePage: React.FC = () => {
                         <tr
                           key={prop.id}
                           onClick={toggleTempProp}
-                          className={`h-11 cursor-pointer hover:bg-blue-50/50 transition-colors ${isChecked ? 'bg-blue-50/30' : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30')}`}
+                          className={`h-11 cursor-pointer hover:bg-blue-50/50 transition-colors ${isChecked ? 'bg-blue-50/30' : (idx % 2 === 0 ? 'bg-surface' : 'bg-subtle/30')}`}
                         >
-                          <td className="text-center py-2 px-2.5 border-r border-slate-200">
+                          <td className="text-center py-2 px-2.5 border-r border-line">
                             <div className="flex justify-center">
-                              <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+                              <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? 'bg-blue-600 border-blue-600' : 'border-line-strong'}`}>
                                 {isChecked && <Check className="w-2.5 h-2.5 text-white" />}
                               </div>
                             </div>
                           </td>
-                          <td className="py-2 px-2.5 font-mono text-[11px] text-slate-500 border-r border-slate-200">{prop.id}</td>
-                          <td className="py-2 px-2.5 font-bold text-slate-800 border-r border-slate-200 break-words">{prop.name}</td>
-                          <td className="py-2 px-2.5 text-center font-mono text-slate-600 border-r border-slate-200">{regYear}年</td>
+                          <td className="py-2 px-2.5 font-mono text-[11px] text-ink-muted border-r border-line">{prop.id}</td>
+                          <td className="py-2 px-2.5 font-bold text-ink border-r border-line break-words">{prop.name}</td>
+                          <td className="py-2 px-2.5 text-center font-mono text-ink-soft border-r border-line">{regYear}年</td>
                           <td className="py-2 px-2.5 text-right pr-4 font-mono font-bold text-blue-700">{formatCurrency(revenue)}</td>
                         </tr>
                       );
                     })}
                     {sortedProperties.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="text-center py-10 text-slate-400">該当物件なし</td>
+                        <td colSpan={5} className="text-center py-10 text-ink-muted">該当物件なし</td>
                       </tr>
                     )}
                   </tbody>
@@ -459,11 +447,11 @@ const FinancePage: React.FC = () => {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3 bg-slate-50">
+            <div className="px-6 py-4 border-t border-line flex justify-end gap-3 bg-subtle">
               <button
                 type="button"
                 onClick={() => setIsPropDrawerOpen(false)}
-                className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-xl font-bold hover:bg-slate-100 text-xs shadow-sm transition-all"
+                className="px-4 py-2 bg-surface border border-line-strong text-ink-soft rounded-control font-bold hover:bg-subtle text-xs shadow-sm transition-all"
               >
                 キャンセル
               </button>
@@ -473,7 +461,7 @@ const FinancePage: React.FC = () => {
                   setSelectedPropertyIds(tempSelectedPropertyIds);
                   setIsPropDrawerOpen(false);
                 }}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all text-center"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-control font-bold text-xs shadow-sm transition-all text-center"
               >
                 適用する ({tempSelectedPropertyIds.length}棟)
               </button>

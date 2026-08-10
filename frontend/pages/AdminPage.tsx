@@ -7,6 +7,7 @@ import { ImageInput } from '../components/ImageInput';
 import { UploadButton } from '../components/UploadButton';
 import { checkAuth, getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { AdminShell } from '../components/AdminShell';
+import { Tabs } from '../components/ui';
 import { 
   Save, Plus, Trash2, Lock, LayoutDashboard, DollarSign, Calendar, 
   FileText, BookOpen, List, Map, CigaretteOff, PartyPopper, Moon, 
@@ -240,7 +241,7 @@ const renderRuleIcon = (iconName: string, type: 'allowed' | 'forbidden') => {
     }
     
     return (
-        <div className={`p-2 rounded-xl border ${colorClass} shrink-0 flex items-center justify-center`}>
+        <div className={`p-2 rounded-control border ${colorClass} shrink-0 flex items-center justify-center`}>
             {iconElement}
         </div>
     );
@@ -924,18 +925,18 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   if (!isAuthenticated) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
-        <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 w-full max-w-md">
+        <div className="bg-surface p-8 rounded-control shadow-lg border border-line w-full max-w-md">
           <div className="flex justify-center mb-6">
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
                 <Lock className="w-6 h-6" />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-center text-gray-900 mb-6">Admin Access</h2>
+          <h2 className="text-2xl font-bold text-center text-ink mb-6">Admin Access</h2>
           <div className="space-y-4">
             {errorMsg && <p className="text-red-500 text-sm text-center">{errorMsg}</p>}
             <button 
               onClick={handleLogin}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-base"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-control transition-colors flex items-center justify-center gap-2 text-base"
             >
                             Login
             </button>
@@ -952,17 +953,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
   if (!canEditThisProperty) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
-        <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 w-full max-w-md text-center">
+        <div className="bg-surface p-8 rounded-control shadow-lg border border-line w-full max-w-md text-center">
           <div className="flex justify-center mb-6">
             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-600">
               <Lock className="w-6 h-6" />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access denied</h2>
-          <p className="text-sm text-gray-500 mb-6">You don't have permission to manage this property. It is assigned to another host.</p>
+          <h2 className="text-2xl font-bold text-ink mb-2">Access denied</h2>
+          <p className="text-sm text-ink-muted mb-6">You don't have permission to manage this property. It is assigned to another host.</p>
           <button
             onClick={() => navigate('/admin/properties')}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-control transition-colors"
           >
             Back to my properties
           </button>
@@ -977,10 +978,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
     <div className="hidden md:flex items-center no-print">
       <button
         onClick={toggleSidebar}
-        className="flex items-center gap-2 px-3 py-1.5 bg-white text-[#1b1c1d] rounded-lg text-sm font-semibold border border-[#ccc9ca] hover:bg-[#f5f3f4] active:scale-[.97] transition-all shadow-sm"
+        className="flex items-center gap-2 px-3 py-1.5 bg-surface text-ink rounded-control text-sm font-semibold border border-line-strong hover:bg-subtle active:scale-[.97] transition-all shadow-sm"
       >
-        <Menu className="w-4 h-4 text-[#1b1c1d]" />
-        <span className="text-[#1b1c1d] font-bold">Menu</span>
+        <Menu className="w-4 h-4 text-ink" />
+        <span className="text-ink font-bold">Menu</span>
       </button>
     </div>
   );
@@ -989,9 +990,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
     <div className="flex items-center no-print">
       <button
         onClick={toggleSidebar}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-[#1b1c1d] rounded-lg text-sm font-semibold border border-[#ccc9ca] hover:bg-[#f5f3f4]"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface text-ink rounded-control text-sm font-semibold border border-line-strong hover:bg-subtle"
       >
-        <Menu className="w-4 h-4 text-[#1b1c1d]" />
+        <Menu className="w-4 h-4 text-ink" />
       </button>
     </div>
   );
@@ -1011,7 +1012,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
               navigate(`/${target.metalink || target.id}/admin`);
             }
           }}
-          className="text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-lg px-3 py-1.5 shadow-sm outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[200px] truncate"
+          className="text-xs font-bold text-ink bg-surface border border-line-strong rounded-control px-3 py-1.5 shadow-sm outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[200px] truncate"
         >
           {!managedProperties.some((p) => p.id === propertyId) && (
             <option value={propertyId}>{formData.name || propertyId}</option>
@@ -1023,7 +1024,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
           ))}
         </select>
       ) : (
-        <span className="text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg px-3 py-1.5 shadow-sm truncate max-w-[200px]">
+        <span className="text-xs font-bold text-ink-soft bg-surface border border-line-strong rounded-control px-3 py-1.5 shadow-sm truncate max-w-[200px]">
           {formData.name || propertyId}
         </span>
       )}
@@ -1032,12 +1033,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
       <button
         onClick={handleSave}
         disabled={saveStatus !== 'idle' || isTranslating}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-sm ${
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-control text-xs font-bold text-white transition-all shadow-sm ${
           saveStatus === 'saved'
             ? 'bg-green-600'
             : saveStatus === 'error'
               ? 'bg-red-600'
-              : 'bg-slate-900 hover:bg-slate-800'
+              : 'bg-brand hover:bg-brand'
         }`}
       >
         {saveStatus === 'saving' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
@@ -1049,7 +1050,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
         <button
           onClick={handleAutoTranslate}
           disabled={isTranslating || saveStatus === 'saving'}
-          className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40 transition-colors shadow-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-line-strong rounded-control text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40 transition-colors shadow-sm"
         >
           {isTranslating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
           <span>Auto Translate</span>
@@ -1070,7 +1071,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
               }
             }
           }}
-          className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors shadow-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 rounded-control text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors shadow-sm"
         >
           <Trash2 className="w-3.5 h-3.5" />
           <span>Archive</span>
@@ -1087,83 +1088,67 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
       subtitle="Quản lý thông tin nhà, album ảnh, bảng giá, nội quy và đồng bộ lịch iCal"
       actions={propertyActions}
     >
-      {/* Sub-tab navigation bar (Segmented Pill Control v2.0) */}
-      <div className="mb-6 bg-slate-950/80 p-2 rounded-2xl border border-slate-800 backdrop-blur-xl flex flex-wrap gap-1.5 shadow-xl">
-        {NAV_ITEMS.map(item => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id as typeof activeTab)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs transition-all duration-200 ${
-                isActive
-                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-extrabold shadow-lg shadow-indigo-500/25 scale-[1.02]'
-                  : 'text-slate-400 font-medium hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      <Tabs
+        active={activeTab}
+        onChange={(id) => setActiveTab(id as typeof activeTab)}
+        items={NAV_ITEMS.map(item => ({ id: item.id, label: item.label, icon: item.icon }))}
+      />
 
       {/* Form Content container card */}
-      <div className="bg-slate-900/90 border border-slate-800/80 rounded-3xl shadow-2xl p-4 md:p-8 text-slate-100">
+      <div className="bg-surface border border-line rounded-card p-4 md:p-6 text-ink">
             {activeTab === 'general' && (
                 <div className="space-y-8">
                     {/* Card 1: General Settings */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6">
+                        <h3 className="text-lg font-bold text-ink flex items-center gap-2 border-b border-line pb-3">
                             <Info className="w-5 h-5 text-blue-700" />
                             基本情報 (Basic Information)
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="md:col-span-2">
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Property Name (物件名)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Property Name (物件名)</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                     value={formData.name}
                                     onChange={(e) => handleChange('name', e.target.value)}
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Property ID (物件ID)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Property ID (物件ID)</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                     value={formData.id || ''}
                                     onChange={(e) => handleChange('id', e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
                                     placeholder={propertyId}
                                 />
-                                <p className="text-[10px] text-gray-500 mt-1.5 ml-1">Technical primary key. Admin can change this value.</p>
+                                <p className="text-[10px] text-ink-muted mt-1.5 ml-1">Technical primary key. Admin can change this value.</p>
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Custom URL / Metalink (カスタムURL)</label>
-                                <div className="flex bg-gray-50 border border-gray-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent shadow-sm">
-                                    <span className="px-3.5 py-2.5 bg-gray-100 text-gray-500 border-r border-gray-300 text-xs font-bold whitespace-nowrap flex items-center">
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Custom URL / Metalink (カスタムURL)</label>
+                                <div className="flex bg-subtle border border-line-strong rounded-control overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent shadow-sm">
+                                    <span className="px-3.5 py-2.5 bg-subtle text-ink-muted border-r border-line-strong text-xs font-bold whitespace-nowrap flex items-center">
                                         {(window.location.origin + window.location.pathname).replace(/\/$/, '')}/#/
                                     </span>
                                     <input 
                                         type="text" 
-                                        className="w-full px-4 py-2.5 outline-none bg-white text-gray-900 text-sm font-medium"
+                                        className="w-full px-4 py-2.5 outline-none bg-surface text-ink text-sm font-medium"
                                         value={formData.metalink || ''}
                                         onChange={(e) => handleChange('metalink', e.target.value)}
                                         placeholder={propertyId}
                                     />
                                 </div>
-                                <p className="text-[10px] text-gray-500 mt-1.5 ml-1">Leave empty to use default ID. Use lowercase letters and hyphens only.</p>
+                                <p className="text-[10px] text-ink-muted mt-1.5 ml-1">Leave empty to use default ID. Use lowercase letters and hyphens only.</p>
                             </div>
 
                             <div className="md:col-span-2">
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Subtitle / Tagline (サブタイトル)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Subtitle / Tagline (サブタイトル)</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                     value={formData.subtitle || ''}
                                     onChange={(e) => handleChange('subtitle', e.target.value)}
                                     placeholder="e.g. Superhost • Tokyo, Japan"
@@ -1171,9 +1156,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             </div>
 
                             <div className="md:col-span-2">
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Description (説明文)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Description (説明文)</label>
                                 <textarea 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-48"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium h-48"
                                     value={formData.description}
                                     onChange={(e) => handleChange('description', e.target.value)}
                                 />
@@ -1182,56 +1167,56 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
 
                     {/* Card 2: Property Capacity & Facilities */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6">
+                        <h3 className="text-lg font-bold text-ink flex items-center gap-2 border-b border-line pb-3">
                             <BedDouble className="w-5 h-5 text-blue-700" />
                             収容人数・設備 (Capacity & Facilities)
                         </h3>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2">Guests (定員)</label>
+                                <label className="block text-xs font-bold text-ink-muted mb-2">Guests (定員)</label>
                                 <input
                                     type="number"
                                     min={1}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm font-bold text-center"
+                                    className="w-full px-4 py-2 border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 outline-none bg-surface text-ink text-sm font-bold text-center"
                                     value={formData.maxGuests}
                                     onChange={(e) => handleChange('maxGuests', parseInt(e.target.value, 10) || 1)}
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2">Bedrooms (寝室数)</label>
+                                <label className="block text-xs font-bold text-ink-muted mb-2">Bedrooms (寝室数)</label>
                                 <input
                                     type="number"
                                     min={1}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm font-bold text-center"
+                                    className="w-full px-4 py-2 border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 outline-none bg-surface text-ink text-sm font-bold text-center"
                                     value={formData.bedrooms}
                                     onChange={(e) => handleChange('bedrooms', parseInt(e.target.value, 10) || 1)}
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2">Beds (ベッド数)</label>
+                                <label className="block text-xs font-bold text-ink-muted mb-2">Beds (ベッド数)</label>
                                 <input
                                     type="number"
                                     min={1}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm font-bold text-center"
+                                    className="w-full px-4 py-2 border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 outline-none bg-surface text-ink text-sm font-bold text-center"
                                     value={formData.beds}
                                     onChange={(e) => handleChange('beds', parseInt(e.target.value, 10) || 1)}
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2">Baths (お風呂数)</label>
+                                <label className="block text-xs font-bold text-ink-muted mb-2">Baths (お風呂数)</label>
                                 <input
                                     type="number"
                                     min={1}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm font-bold text-center"
+                                    className="w-full px-4 py-2 border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 outline-none bg-surface text-ink text-sm font-bold text-center"
                                     value={formData.baths}
                                     onChange={(e) => handleChange('baths', parseInt(e.target.value, 10) || 1)}
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2">Bath Type (タイプ)</label>
+                                <label className="block text-xs font-bold text-ink-muted mb-2">Bath Type (タイプ)</label>
                                 <select
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-xs font-bold"
+                                    className="w-full px-3 py-2 border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 outline-none bg-surface text-ink text-xs font-bold"
                                     value={formData.bathFacilityType || 'bathroom'}
                                     onChange={(e) => handleChange('bathFacilityType', e.target.value as 'bathroom' | 'shower_room')}
                                 >
@@ -1240,11 +1225,11 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-2">Toilets (トイレ数)</label>
+                                <label className="block text-xs font-bold text-ink-muted mb-2">Toilets (トイレ数)</label>
                                 <input
                                     type="number"
                                     min={0}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 text-sm font-bold text-center"
+                                    className="w-full px-4 py-2 border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 outline-none bg-surface text-ink text-sm font-bold text-center"
                                     value={formData.toilets}
                                     onChange={(e) => handleChange('toilets', parseInt(e.target.value, 10) || 0)}
                                 />
@@ -1253,17 +1238,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
 
                     {/* Card 3: Host Profile */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6">
+                        <h3 className="text-lg font-bold text-ink flex items-center gap-2 border-b border-line pb-3">
                             <Settings className="w-5 h-5 text-blue-700" />
                             ホスト情報 (Host Profile)
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Host Name (ホスト名)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Host Name (ホスト名)</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                     value={formData.hostName || ''}
                                     onChange={(e) => handleChange('hostName', e.target.value)}
                                 />
@@ -1277,25 +1262,25 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                 allowUrlPaste={isAdmin}
                             />
 
-                            <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-sm">
+                            <div className="flex items-center gap-3 bg-subtle p-4 rounded-control border border-line shadow-sm">
                                 <input 
                                     type="checkbox"
                                     id="isSuperhost"
-                                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                    className="w-5 h-5 rounded border-line-strong text-blue-600 focus:ring-blue-500 cursor-pointer"
                                     checked={!!formData.isSuperhost}
                                     onChange={(e) => handleChange('isSuperhost', e.target.checked)}
                                 />
-                                <label htmlFor="isSuperhost" className="text-sm font-extrabold text-gray-700 flex items-center gap-2 cursor-pointer">
+                                <label htmlFor="isSuperhost" className="text-sm font-extrabold text-ink-soft flex items-center gap-2 cursor-pointer">
                                     <Medal className="w-4.5 h-4.5 text-rose-500" />
                                     Is Superhost? (スーパーホスト)
                                 </label>
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Superhost Since (Year)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Superhost Since (Year)</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium disabled:bg-gray-100 disabled:text-gray-400"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium disabled:bg-subtle disabled:text-ink-muted"
                                     value={formData.superhostSince || ''}
                                     onChange={(e) => handleChange('superhostSince', e.target.value)}
                                     placeholder="e.g. 2023"
@@ -1304,12 +1289,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             </div>
 
                             <div className="md:col-span-2">
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                    <Mail className="w-4 h-4 text-gray-400" /> Admin Email (display only)
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2 flex items-center gap-2">
+                                    <Mail className="w-4 h-4 text-ink-muted" /> Admin Email (display only)
                                 </label>
                                 <input 
                                     type="email" 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                     value={formData.adminEmail || ''}
                                     onChange={(e) => handleChange('adminEmail', e.target.value)}
                                     placeholder="your-email@example.com"
@@ -1319,8 +1304,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
 
                     {/* Card 5: Social & Platforms */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6">
+                        <h3 className="text-lg font-bold text-ink flex items-center gap-2 border-b border-line pb-3">
                             <Share2 className="w-5 h-5 text-blue-700" />
                             ソーシャル・他サイト連携 (Social & Platforms)
                         </h3>
@@ -1333,63 +1318,63 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                     propertyId={formData.id || ''}
                                     allowUrlPaste={isAdmin}
                                 />
-                                <p className="text-[10px] text-gray-500 mt-1.5 ml-1">This image appears in the large footer card.</p>
+                                <p className="text-[10px] text-ink-muted mt-1.5 ml-1">This image appears in the large footer card.</p>
                             </div>
                             <div className="md:col-span-2">
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Facebook Page URL</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Facebook Page URL</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                     value={formData.social.facebookUrl}
                                     onChange={(e) => handleSocialChange('facebookUrl', e.target.value)}
                                     placeholder="https://facebook.com/..."
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Airbnb URL</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Airbnb URL</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                     value={formData.social.airbnbUrl || ''}
                                     onChange={(e) => handleSocialChange('airbnbUrl', e.target.value)}
                                     placeholder="Leave empty to hide"
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Booking.com URL</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Booking.com URL</label>
                                 <input 
                                     type="text" 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                     value={formData.social.bookingUrl || ''}
                                     onChange={(e) => handleSocialChange('bookingUrl', e.target.value)}
                                     placeholder="Leave empty to hide"
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Agoda URL</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Agoda URL</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                     value={formData.social.agodaUrl || ''}
                                     onChange={(e) => handleSocialChange('agodaUrl', e.target.value)}
                                     placeholder="Leave empty to hide"
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Expedia URL</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Expedia URL</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                     value={formData.social.expediaUrl || ''}
                                     onChange={(e) => handleSocialChange('expediaUrl', e.target.value)}
                                     placeholder="Leave empty to hide"
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Vrbo URL</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Vrbo URL</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                     value={formData.social.vrboUrl || ''}
                                     onChange={(e) => handleSocialChange('vrboUrl', e.target.value)}
                                     placeholder="Leave empty to hide"
@@ -1402,8 +1387,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
             {activeTab === 'amenities' && (
                 <div className="space-y-8">
-                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <div className="flex justify-between items-center border-b border-line pb-3">
+                        <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                             <List className="w-5 h-5 text-blue-700" />
                             アメニティ・設備 (Amenities)
                         </h3>
@@ -1411,8 +1396,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
                     {/* Predefined Categories */}
                     {AMENITY_CATEGORIES.map((category, idx) => (
-                        <div key={idx} className="bg-slate-50/50 p-5 md:p-6 rounded-2xl border border-[#ccc9ca] space-y-4">
-                            <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2 border-b border-gray-200/50 pb-2">
+                        <div key={idx} className="bg-subtle p-5 md:p-6 rounded-card border border-line-strong space-y-4">
+                            <h4 className="font-extrabold text-ink text-sm uppercase tracking-wider flex items-center gap-2 border-b border-line/50 pb-2">
                                 <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                                 {category.title}
                             </h4>
@@ -1425,14 +1410,14 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                             key={item.name}
                                             onClick={() => toggleAmenity(item.name)}
                                             className={`
-                                                flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all text-left shadow-sm cursor-pointer
+                                                flex items-center justify-between px-4 py-3 rounded-control border-2 transition-all text-left shadow-sm cursor-pointer
                                                 ${isSelected 
                                                     ? 'border-blue-600 bg-blue-50/50 ring-1 ring-blue-600 font-extrabold' 
-                                                    : 'border-[#ccc9ca] bg-white hover:bg-slate-50 text-gray-700 font-medium'}
+                                                    : 'border-line-strong bg-surface hover:bg-subtle text-ink-soft font-medium'}
                                             `}
                                         >
                                             <div className="flex items-center gap-2.5 min-w-0">
-                                                <item.icon className={`w-4.5 h-4.5 shrink-0 ${isSelected ? 'text-blue-700' : 'text-gray-500'}`} />
+                                                <item.icon className={`w-4.5 h-4.5 shrink-0 ${isSelected ? 'text-blue-700' : 'text-ink-muted'}`} />
                                                 <span className="text-xs truncate">{item.name}</span>
                                             </div>
                                             {isSelected && <CheckCircle className="w-4.5 h-4.5 text-blue-700 shrink-0" />}
@@ -1444,15 +1429,15 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     ))}
 
                     {/* Custom Amenities */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
-                        <h4 className="font-extrabold text-gray-900 text-sm uppercase tracking-wider flex items-center gap-2 border-b border-gray-100 pb-3">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6">
+                        <h4 className="font-extrabold text-ink text-sm uppercase tracking-wider flex items-center gap-2 border-b border-line pb-3">
                             <Plus className="w-4.5 h-4.5 text-blue-700" />
                             カスタムアメニティ (Custom Amenities)
                         </h4>
                         <div className="flex gap-3 max-w-md">
                             <input 
                                 type="text" 
-                                className="flex-grow px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                className="flex-grow px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                 placeholder="Add another amenity..."
                                 value={customAmenity}
                                 onChange={(e) => setCustomAmenity(e.target.value)}
@@ -1460,7 +1445,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             />
                             <button 
                                 onClick={addCustomAmenity}
-                                className="bg-gray-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-gray-800 transition-all text-xs"
+                                className="bg-brand text-white px-5 py-2.5 rounded-control font-bold hover:bg-brand transition-all text-xs"
                             >
                                 Add
                             </button>
@@ -1470,11 +1455,11 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             {formData.amenities.filter(a => 
                                 !AMENITY_CATEGORIES.some(c => c.items.some(i => i.name === a))
                             ).map((amenity, idx) => (
-                                <div key={idx} className="bg-slate-50 border border-[#ccc9ca] px-3.5 py-2 rounded-xl flex items-center gap-2 shadow-sm">
-                                    <span className="text-xs font-bold text-gray-800">{amenity}</span>
+                                <div key={idx} className="bg-subtle border border-line-strong px-3.5 py-2 rounded-control flex items-center gap-2 shadow-sm">
+                                    <span className="text-xs font-bold text-ink">{amenity}</span>
                                     <button 
                                         onClick={() => removeAmenityByName(amenity)}
-                                        className="text-gray-400 hover:text-red-500 transition-colors p-0.5"
+                                        className="text-ink-muted hover:text-red-500 transition-colors p-0.5"
                                     >
                                         <X className="w-3.5 h-3.5" />
                                     </button>
@@ -1484,7 +1469,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             {formData.amenities.filter(a => 
                                 !AMENITY_CATEGORIES.some(c => c.items.some(i => i.name === a))
                             ).length === 0 && (
-                                <p className="text-gray-400 text-sm italic ml-1">No custom amenities added.</p>
+                                <p className="text-ink-muted text-sm italic ml-1">No custom amenities added.</p>
                             )}
                         </div>
                     </div>
@@ -1494,9 +1479,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             {activeTab === 'gallery' && (
                 <div className="space-y-8">
                     {/* Category Management */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
-                        <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6">
+                        <div className="flex justify-between items-center border-b border-line pb-3">
+                            <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                                 <FolderOpen className="w-5 h-5 text-blue-700" />
                                 画像カテゴリー (Image Categories)
                             </h3>
@@ -1509,19 +1494,19 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         </div>
                         
                         {isManagingCategories && (
-                            <div className="bg-slate-50 p-4 rounded-xl border border-[#ccc9ca] space-y-3">
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider">Add New Category</label>
+                            <div className="bg-subtle p-4 rounded-control border border-line-strong space-y-3">
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider">Add New Category</label>
                                 <div className="flex gap-3">
                                     <input 
                                         type="text" 
-                                        className="flex-grow px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                        className="flex-grow px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                         placeholder="New category name..."
                                         value={newCategoryLabel}
                                         onChange={(e) => setNewCategoryLabel(e.target.value)}
                                     />
                                     <button 
                                         onClick={addCategory}
-                                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm"
+                                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-control font-bold text-xs transition-all shadow-sm"
                                     >
                                         Add
                                     </button>
@@ -1531,12 +1516,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         
                         <div className="flex flex-wrap gap-2">
                             {formData.galleryCategories.map(cat => (
-                                <div key={cat.id} className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-50 border border-[#ccc9ca] rounded-xl text-xs font-bold text-gray-700 shadow-sm">
+                                <div key={cat.id} className="inline-flex items-center gap-2 px-3.5 py-2 bg-subtle border border-line-strong rounded-control text-xs font-bold text-ink-soft shadow-sm">
                                     {cat.label}
                                     {isManagingCategories && (
                                         <button 
                                             onClick={() => removeCategory(cat.id)}
-                                            className="text-gray-400 hover:text-red-500 ml-1 p-0.5 rounded-full hover:bg-red-50 transition-colors"
+                                            className="text-ink-muted hover:text-red-500 ml-1 p-0.5 rounded-full hover:bg-red-50 transition-colors"
                                         >
                                             <X className="w-3.5 h-3.5" />
                                         </button>
@@ -1547,9 +1532,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
 
                     {/* Photo List */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
-                        <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6">
+                        <div className="flex justify-between items-center border-b border-line pb-3">
+                            <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                                 <ImageIcon className="w-5 h-5 text-blue-700" />
                                 写真リスト (Photo List)
                             </h3>
@@ -1558,10 +1543,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                     propertyId={formData.id || ''}
                                     onUploaded={addUploadedImage}
                                     label="Upload"
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-control hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
                                 />
                                 {isAdmin && (
-                                    <button onClick={addImage} className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50">
+                                    <button onClick={addImage} className="inline-flex items-center gap-1 px-3 py-1.5 border border-line-strong rounded-control text-xs font-bold text-ink-soft hover:bg-subtle">
                                         <Plus className="w-3.5 h-3.5"/> URL
                                     </button>
                                 )}
@@ -1572,25 +1557,25 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                 const isFeatured = !!img.showOnHome;
                                 return (
                                     <div key={idx} className={`
-                                        flex items-start gap-4 p-3 border rounded-2xl relative transition-all shadow-sm
+                                        flex items-start gap-4 p-3 border rounded-card relative transition-all shadow-sm
                                         ${isFeatured
                                             ? 'border-blue-300 bg-blue-50/30 ring-1 ring-blue-300/30'
-                                            : 'border-[#ccc9ca] bg-slate-50/50 hover:bg-white'}
+                                            : 'border-line-strong bg-subtle hover:bg-surface'}
                                     `}>
                                         {/* Square thumbnail + upload */}
                                         <div className="shrink-0 w-28 flex flex-col gap-2">
-                                            <div className="w-28 h-28 rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+                                            <div className="w-28 h-28 rounded-control overflow-hidden bg-subtle border border-line">
                                                 {img.url ? (
                                                     <img src={img.url} alt="" className="w-full h-full object-cover" />
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon className="w-7 h-7" /></div>
+                                                    <div className="w-full h-full flex items-center justify-center text-ink-muted"><ImageIcon className="w-7 h-7" /></div>
                                                 )}
                                             </div>
                                             <UploadButton
                                                 propertyId={formData.id || ''}
                                                 onUploaded={(url) => updateImage(idx, 'url', url)}
                                                 label="Upload"
-                                                className="w-28 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
+                                                className="w-28 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 bg-blue-600 text-white rounded-control hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
                                             />
                                         </div>
 
@@ -1598,14 +1583,14 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                         <div className="flex-grow min-w-0 space-y-2.5 pr-8">
                                             <input
                                                 type="text"
-                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                                className="w-full px-3 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                                 value={img.caption || ''}
                                                 onChange={(e) => updateImage(idx, 'caption', e.target.value)}
                                                 placeholder="Caption / 画像説明 (e.g. Master Bedroom)"
                                             />
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <select
-                                                    className="px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm text-sm font-bold"
+                                                    className="px-3 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm text-sm font-bold"
                                                     value={img.category || 'other'}
                                                     onChange={(e) => updateImage(idx, 'category', e.target.value)}
                                                 >
@@ -1616,19 +1601,19 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                                 <button
                                                     type="button"
                                                     onClick={() => updateImage(idx, 'showOnHome', !isFeatured)}
-                                                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-all text-xs shadow-sm ${
+                                                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-control border transition-all text-xs shadow-sm ${
                                                         isFeatured
                                                             ? 'bg-blue-600 text-white border-blue-600 font-extrabold'
-                                                            : 'bg-white text-gray-500 border-gray-300 hover:bg-slate-50 font-bold'}`}
+                                                            : 'bg-surface text-ink-muted border-line-strong hover:bg-subtle font-bold'}`}
                                                 >
-                                                    <Home className={`w-4 h-4 ${isFeatured ? 'text-white' : 'text-gray-400'}`} />
+                                                    <Home className={`w-4 h-4 ${isFeatured ? 'text-white' : 'text-ink-muted'}`} />
                                                     {isFeatured ? 'Featured on Home' : 'Feature on Home'}
                                                 </button>
                                             </div>
                                             {isAdmin && (
                                                 <input
                                                     type="text"
-                                                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-700 bg-white"
+                                                    className="w-full px-3 py-1.5 border border-line-strong rounded-control outline-none focus:ring-2 focus:ring-blue-500 text-xs text-ink-soft bg-surface"
                                                     value={img.url}
                                                     onChange={(e) => updateImage(idx, 'url', e.target.value)}
                                                     placeholder="https://..."
@@ -1636,7 +1621,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                             )}
                                         </div>
 
-                                        <button onClick={() => removeImage(idx)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10">
+                                        <button onClick={() => removeImage(idx)} className="absolute top-3 right-3 text-ink-muted hover:text-red-500 transition-colors p-1 rounded-control hover:bg-red-50 z-10">
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -1650,9 +1635,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             {activeTab === 'pricing' && (
                 <div className="space-y-8">
                     {/* Rates Section */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-4">
-                        <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                             <h3 className="text-base font-extrabold text-gray-900 flex items-center gap-2">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-4">
+                        <div className="flex justify-between items-center border-b border-line pb-3">
+                             <h3 className="text-base font-extrabold text-ink flex items-center gap-2">
                                  <DollarSign className="w-5 h-5 text-blue-700" />
                                  標準宿泊料金 (Standard Rates)
                              </h3>
@@ -1662,29 +1647,29 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         </div>
                         <div className="space-y-3">
                             {formData.pricing.rates.map((rate, idx) => (
-                                <div key={idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 bg-slate-50/50 p-4 rounded-xl border border-[#ccc9ca] relative group shadow-sm">
+                                <div key={idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 bg-subtle p-4 rounded-control border border-line-strong relative group shadow-sm">
                                     <div className="flex items-center gap-3">
-                                        <span className="text-xs font-bold text-gray-500 w-16 uppercase tracking-wider flex items-center gap-1"><Home className="w-4 h-4 text-gray-400"/> Guests:</span>
+                                        <span className="text-xs font-bold text-ink-muted w-16 uppercase tracking-wider flex items-center gap-1"><Home className="w-4 h-4 text-ink-muted"/> Guests:</span>
                                         <input 
                                             type="number" 
-                                            className="w-24 px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-center font-bold text-sm shadow-sm"
+                                            className="w-24 px-3 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-center font-bold text-sm shadow-sm"
                                             value={rate.guests} 
                                             onChange={e => updateRateTier(idx, 'guests', parseInt(e.target.value) || 0)} 
                                         />
                                     </div>
                                     <div className="flex items-center gap-3 flex-grow">
-                                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1"><DollarSign className="w-4 h-4 text-gray-400"/> Price:</span>
+                                        <span className="text-xs font-bold text-ink-muted uppercase tracking-wider flex items-center gap-1"><DollarSign className="w-4 h-4 text-ink-muted"/> Price:</span>
                                         <div className="relative flex-grow flex items-center">
                                             <input 
                                                 type="number" 
-                                                className="w-full pl-4 pr-12 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-right font-extrabold text-sm shadow-sm"
+                                                className="w-full pl-4 pr-12 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-right font-extrabold text-sm shadow-sm"
                                                 value={rate.price} 
                                                 onChange={e => updateRateTier(idx, 'price', parseInt(e.target.value) || 0)} 
                                             />
-                                            <span className="absolute right-4 text-xs font-bold text-gray-400 uppercase">JPY</span>
+                                            <span className="absolute right-4 text-xs font-bold text-ink-muted uppercase">JPY</span>
                                         </div>
                                     </div>
-                                    <button onClick={() => removeRateTier(idx)} className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 absolute top-2 right-2 sm:static">
+                                    <button onClick={() => removeRateTier(idx)} className="p-2 text-ink-muted hover:text-red-500 transition-colors rounded-control hover:bg-red-50 absolute top-2 right-2 sm:static">
                                         <Trash2 className="w-4.5 h-4.5" />
                                     </button>
                                 </div>
@@ -1693,9 +1678,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
 
                     {/* Cleaning Fee Section */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-4">
-                        <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                             <h3 className="text-base font-extrabold text-gray-900 flex items-center gap-2">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-4">
+                        <div className="flex justify-between items-center border-b border-line pb-3">
+                             <h3 className="text-base font-extrabold text-ink flex items-center gap-2">
                                  <Plus className="w-4.5 h-4.5 text-blue-700" />
                                  清掃料金設定 (Cleaning Fees)
                              </h3>
@@ -1705,39 +1690,39 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         </div>
                         <div className="space-y-3">
                             {formData.pricing.cleaning.map((tier, idx) => (
-                                <div key={idx} className="flex flex-col md:flex-row items-stretch md:items-center gap-4 bg-slate-50/50 p-4 rounded-xl border border-[#ccc9ca] relative group shadow-sm">
+                                <div key={idx} className="flex flex-col md:flex-row items-stretch md:items-center gap-4 bg-subtle p-4 rounded-control border border-line-strong relative group shadow-sm">
                                     <div className="flex items-center gap-3">
-                                        <span className="text-xs font-bold text-gray-500 w-16 uppercase tracking-wider flex items-center gap-1">Guests:</span>
+                                        <span className="text-xs font-bold text-ink-muted w-16 uppercase tracking-wider flex items-center gap-1">Guests:</span>
                                         <div className="flex items-center gap-2">
                                             <input 
                                                 type="number" 
-                                                className="w-16 px-2 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold text-xs shadow-sm"
+                                                className="w-16 px-2 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold text-xs shadow-sm"
                                                 value={tier.minGuests} 
                                                 onChange={e => updateCleaningTier(idx, 'minGuests', parseInt(e.target.value) || 0)} 
                                             />
-                                            <span className="text-gray-400 font-bold">-</span>
+                                            <span className="text-ink-muted font-bold">-</span>
                                             <input 
                                                 type="number" 
-                                                className="w-16 px-2 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold text-xs shadow-sm"
+                                                className="w-16 px-2 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold text-xs shadow-sm"
                                                 value={tier.maxGuests} 
                                                 onChange={e => updateCleaningTier(idx, 'maxGuests', parseInt(e.target.value) || 0)} 
                                             />
-                                            <span className="text-xs font-bold text-gray-500 ml-1">名</span>
+                                            <span className="text-xs font-bold text-ink-muted ml-1">名</span>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3 flex-grow">
-                                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">Fee:</span>
+                                        <span className="text-xs font-bold text-ink-muted uppercase tracking-wider flex items-center gap-1">Fee:</span>
                                         <div className="relative flex-grow flex items-center">
                                             <input 
                                                 type="number" 
-                                                className="w-full pl-4 pr-12 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-right font-extrabold text-sm shadow-sm"
+                                                className="w-full pl-4 pr-12 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-right font-extrabold text-sm shadow-sm"
                                                 value={tier.price} 
                                                 onChange={e => updateCleaningTier(idx, 'price', parseInt(e.target.value) || 0)} 
                                             />
-                                            <span className="absolute right-4 text-xs font-bold text-gray-400 uppercase">JPY</span>
+                                            <span className="absolute right-4 text-xs font-bold text-ink-muted uppercase">JPY</span>
                                         </div>
                                     </div>
-                                    <button onClick={() => removeCleaningTier(idx)} className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 absolute top-2 right-2 md:static">
+                                    <button onClick={() => removeCleaningTier(idx)} className="p-2 text-ink-muted hover:text-red-500 transition-colors rounded-control hover:bg-red-50 absolute top-2 right-2 md:static">
                                         <Trash2 className="w-4.5 h-4.5" />
                                     </button>
                                 </div>
@@ -1746,32 +1731,32 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
 
                     {/* Discounts Section */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
-                        <h3 className="text-base font-extrabold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6">
+                        <h3 className="text-base font-extrabold text-ink flex items-center gap-2 border-b border-line pb-3">
                             <Palette className="w-5 h-5 text-blue-700" />
                             割引＆ポリシー設定 (Discounts & Policies)
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-slate-50/50 p-5 rounded-2xl border border-[#ccc9ca] space-y-4 shadow-sm">
-                                <h4 className="font-extrabold text-gray-800 text-xs uppercase tracking-wider border-b border-gray-200 pb-2 flex items-center gap-1.5">
+                            <div className="bg-subtle p-5 rounded-card border border-line-strong space-y-4 shadow-sm">
+                                <h4 className="font-extrabold text-ink text-xs uppercase tracking-wider border-b border-line pb-2 flex items-center gap-1.5">
                                     <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                                     Long Stay Discount (長期滞在割引)
                                 </h4>
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Discount Percentage (%)</label>
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Discount Percentage (%)</label>
                                         <input 
                                             type="number" 
-                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                            className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-bold shadow-sm"
                                             value={formData.pricing.longStayDiscountPercent} 
                                             onChange={e => updateDiscount('longStayDiscountPercent', parseInt(e.target.value) || 0)} 
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Minimum Nights</label>
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Minimum Nights</label>
                                         <input 
                                             type="number" 
-                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                            className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-bold shadow-sm"
                                             value={formData.pricing.longStayMinNights} 
                                             onChange={e => updateDiscount('longStayMinNights', parseInt(e.target.value) || 0)} 
                                         />
@@ -1779,36 +1764,36 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                 </div>
                             </div>
 
-                            <div className="bg-slate-50/50 p-5 rounded-2xl border border-[#ccc9ca] space-y-4 shadow-sm">
-                                <h4 className="font-extrabold text-gray-800 text-xs uppercase tracking-wider border-b border-gray-200 pb-2 flex items-center gap-1.5">
+                            <div className="bg-subtle p-5 rounded-card border border-line-strong space-y-4 shadow-sm">
+                                <h4 className="font-extrabold text-ink text-xs uppercase tracking-wider border-b border-line pb-2 flex items-center gap-1.5">
                                     <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                                     Child Discount (子ども割引)
                                 </h4>
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Discount Percentage (%)</label>
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Discount Percentage (%)</label>
                                         <input 
                                             type="number" 
-                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                            className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-bold shadow-sm"
                                             value={formData.pricing.childDiscountPercent} 
                                             onChange={e => updateDiscount('childDiscountPercent', parseInt(e.target.value) || 0)} 
                                         />
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Min Age</label>
+                                            <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Min Age</label>
                                             <input 
                                                 type="number" 
-                                                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                                className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-bold shadow-sm"
                                                 value={formData.pricing.childAgeMin} 
                                                 onChange={e => updateDiscount('childAgeMin', parseInt(e.target.value) || 0)} 
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Max Age</label>
+                                            <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Max Age</label>
                                             <input 
                                                 type="number" 
-                                                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                                className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-bold shadow-sm"
                                                 value={formData.pricing.childAgeMax} 
                                                 onChange={e => updateDiscount('childAgeMax', parseInt(e.target.value) || 0)} 
                                             />
@@ -1817,22 +1802,22 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                 </div>
                             </div>
 
-                            <div className="bg-slate-50/50 p-5 rounded-2xl border border-[#ccc9ca] space-y-4 shadow-sm">
-                                <h4 className="font-extrabold text-gray-800 text-xs uppercase tracking-wider border-b border-gray-200 pb-2 flex items-center gap-1.5">
+                            <div className="bg-subtle p-5 rounded-card border border-line-strong space-y-4 shadow-sm">
+                                <h4 className="font-extrabold text-ink text-xs uppercase tracking-wider border-b border-line pb-2 flex items-center gap-1.5">
                                     <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                                     Cancellation Policy (キャンセルポリシー)
                                 </h4>
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Free Cancellation Window (Days)</label>
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Free Cancellation Window (Days)</label>
                                         <input
                                             type="number"
                                             min={0}
-                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                            className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-bold shadow-sm"
                                             value={formData.directBooking?.freeCancellationDays ?? 7}
                                             onChange={e => updateFreeCancellationDays(Math.max(0, parseInt(e.target.value) || 0))}
                                         />
-                                        <p className="text-[11px] text-gray-400 mt-1.5">
+                                        <p className="text-[11px] text-ink-muted mt-1.5">
                                             Guests who cancel this many days or more before check-in get a refund (minus the Stripe processing fee). Default is 7.
                                         </p>
                                     </div>
@@ -1847,8 +1832,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             {/* ... other existing tabs ... */}
             {activeTab === 'ical' && (
                 <div className="space-y-8">
-                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <div className="flex justify-between items-center border-b border-line pb-3">
+                        <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                             <Calendar className="w-5 h-5 text-blue-700" />
                             カレンダー同期 (iCal Feeds)
                         </h3>
@@ -1858,25 +1843,25 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
                     <div className="grid grid-cols-1 gap-4">
                         {formData.icalFeeds.map(feed => (
-                            <div key={feed.id} className="p-5 border border-[#ccc9ca] rounded-2xl bg-white relative shadow-sm flex flex-col md:flex-row gap-4 items-stretch group">
-                                <button onClick={() => removeIcal(feed.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50">
+                            <div key={feed.id} className="p-5 border border-line-strong rounded-card bg-surface relative shadow-sm flex flex-col md:flex-row gap-4 items-stretch group">
+                                <button onClick={() => removeIcal(feed.id)} className="absolute top-4 right-4 text-ink-muted hover:text-red-500 transition-colors p-1 rounded-control hover:bg-red-50">
                                     <X className="w-4.5 h-4.5" />
                                 </button>
                                 <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Feed Name (名前)</label>
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Feed Name (名前)</label>
                                         <input 
                                             type="text" 
-                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
+                                            className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold"
                                             value={feed.name}
                                             onChange={(e) => updateIcal(feed.id, 'name', e.target.value)}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">iCal URL</label>
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">iCal URL</label>
                                         <input 
                                             type="text" 
-                                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-500 shadow-sm transition-all text-xs font-mono"
+                                            className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink-muted shadow-sm transition-all text-xs font-mono"
                                             value={feed.url}
                                             onChange={(e) => updateIcal(feed.id, 'url', e.target.value)}
                                         />
@@ -1890,128 +1875,128 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             
              {activeTab === 'labels' && (
                 <div className="space-y-8">
-                     <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6">
-                         <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2">
+                     <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6">
+                         <h3 className="text-lg font-bold text-ink border-b border-line pb-3 flex items-center gap-2">
                              <Type className="w-5 h-5 text-blue-700" />
                              サイト内テキスト & ラベル (Titles & Subtitles)
                          </h3>
                          <div className="grid grid-cols-1 gap-6">
 
                              {/* Navigation Menu Section */}
-                             <div className="space-y-4 border-b border-gray-200/50 pb-6">
-                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                             <div className="space-y-4 border-b border-line/50 pb-6">
+                                <h4 className="font-extrabold text-ink text-sm uppercase tracking-wider flex items-center gap-2">
                                     <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                                     Navigation Menu (ナビゲーションメニュー)
                                 </h4>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Home Label</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Home Label</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.menuHome} onChange={(e) => handleTitleChange('menuHome', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Access Label</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Access Label</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.menuAccess} onChange={(e) => handleTitleChange('menuAccess', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Pricing Label</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Pricing Label</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.menuPricing} onChange={(e) => handleTitleChange('menuPricing', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Rules Label</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Rules Label</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.menuRules} onChange={(e) => handleTitleChange('menuRules', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Manual Label</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Manual Label</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.menuManual} onChange={(e) => handleTitleChange('menuManual', e.target.value)} />
                                     </div>
                                 </div>
                              </div>
                              
                              {/* Home Page Section */}
-                             <div className="space-y-4 border-b border-gray-200/50 pb-6">
-                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                             <div className="space-y-4 border-b border-line/50 pb-6">
+                                <h4 className="font-extrabold text-ink text-sm uppercase tracking-wider flex items-center gap-2">
                                     <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                                     Home Page Sections (トップページセクション)
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">About Title</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">About Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.about} onChange={(e) => handleTitleChange('about', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Sleeping Arrangements Title</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Sleeping Arrangements Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.sleeping} onChange={(e) => handleTitleChange('sleeping', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Amenities Title</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Amenities Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.amenities} onChange={(e) => handleTitleChange('amenities', e.target.value)} />
                                     </div>
                                 </div>
                              </div>
 
                              {/* Access Page Section */}
-                             <div className="space-y-4 border-b border-gray-200/50 pb-6">
-                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                             <div className="space-y-4 border-b border-line/50 pb-6">
+                                <h4 className="font-extrabold text-ink text-sm uppercase tracking-wider flex items-center gap-2">
                                     <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                                     Access Page (アクセス・周辺情報ページ)
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Title</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Page Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.access} onChange={(e) => handleTitleChange('access', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Subtitle</label>
-                                        <textarea className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-20" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Page Subtitle</label>
+                                        <textarea className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium h-20" 
                                             value={formData.titles.accessSubtitle} onChange={(e) => handleTitleChange('accessSubtitle', e.target.value)} />
                                     </div>
                                 </div>
                              </div>
 
                              {/* Pricing Page Section */}
-                             <div className="space-y-4 border-b border-gray-200/50 pb-6">
-                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                             <div className="space-y-4 border-b border-line/50 pb-6">
+                                <h4 className="font-extrabold text-ink text-sm uppercase tracking-wider flex items-center gap-2">
                                     <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                                     Pricing Page (料金ページ)
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Title</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Page Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.pricing} onChange={(e) => handleTitleChange('pricing', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Subtitle</label>
-                                        <textarea className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-20" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Page Subtitle</label>
+                                        <textarea className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium h-20" 
                                             value={formData.titles.pricingSubtitle} onChange={(e) => handleTitleChange('pricingSubtitle', e.target.value)} />
                                     </div>
                                 </div>
                              </div>
 
                              {/* Rules Page Section */}
-                             <div className="space-y-4 border-b border-gray-200/50 pb-6">
-                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                             <div className="space-y-4 border-b border-line/50 pb-6">
+                                <h4 className="font-extrabold text-ink text-sm uppercase tracking-wider flex items-center gap-2">
                                     <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                                     Rules Page (ハウスルールページ)
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Title</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Page Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.rules} onChange={(e) => handleTitleChange('rules', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Subtitle</label>
-                                        <textarea className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-20" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Page Subtitle</label>
+                                        <textarea className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium h-20" 
                                             value={formData.titles.rulesSubtitle} onChange={(e) => handleTitleChange('rulesSubtitle', e.target.value)} />
                                     </div>
                                 </div>
@@ -2019,19 +2004,19 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
                              {/* Manual Page Section */}
                              <div className="space-y-4">
-                                <h4 className="font-extrabold text-gray-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                                <h4 className="font-extrabold text-ink text-sm uppercase tracking-wider flex items-center gap-2">
                                     <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                                     Manual Page (ハウスマニュアルページ)
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Title</label>
-                                        <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Page Title</label>
+                                        <input type="text" className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold" 
                                             value={formData.titles.manual} onChange={(e) => handleTitleChange('manual', e.target.value)} />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Page Subtitle</label>
-                                        <textarea className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-20" 
+                                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Page Subtitle</label>
+                                        <textarea className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium h-20" 
                                             value={formData.titles.manualSubtitle} onChange={(e) => handleTitleChange('manualSubtitle', e.target.value)} />
                                     </div>
                                 </div>
@@ -2043,8 +2028,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             
             {activeTab === 'rules' && (
                 <div className="space-y-8">
-                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <div className="flex justify-between items-center border-b border-line pb-3">
+                        <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                             <List className="w-5 h-5 text-blue-700" />
                             ハウスルール (House Rules)
                         </h3>
@@ -2054,26 +2039,26 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {formData.rules.map(rule => (
-                            <div key={rule.id} className="p-5 border border-[#ccc9ca] rounded-2xl bg-white flex gap-4 items-start relative shadow-sm hover:shadow-md transition-all">
+                            <div key={rule.id} className="p-5 border border-line-strong rounded-card bg-surface flex gap-4 items-start relative shadow-sm hover:shadow-md transition-all">
                                  {renderRuleIcon(rule.icon, rule.type)}
                                  <div className="flex-1 space-y-3 w-full pr-6 pt-1">
                                      <input 
                                          type="text" 
-                                         className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
+                                         className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold"
                                          value={rule.text}
                                          onChange={(e) => updateRule(rule.id, 'text', e.target.value)}
                                          placeholder="Rule text..."
                                      />
                                      <div className="flex gap-3">
                                          <select 
-                                             className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-xs font-bold shadow-sm"
+                                             className="flex-1 px-3 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-xs font-bold shadow-sm"
                                              value={rule.icon}
                                              onChange={(e) => updateRule(rule.id, 'icon', e.target.value)}
                                          >
                                              {ICON_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                                          </select>
                                          <select 
-                                             className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-xs font-bold shadow-sm"
+                                             className="flex-1 px-3 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-xs font-bold shadow-sm"
                                              value={rule.type}
                                              onChange={(e) => updateRule(rule.id, 'type', e.target.value)}
                                          >
@@ -2082,17 +2067,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                          </select>
                                      </div>
                                  </div>
-                                 <button onClick={() => removeRule(rule.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10"><Trash2 className="w-5 h-5"/></button>
+                                 <button onClick={() => removeRule(rule.id)} className="absolute top-4 right-4 text-ink-muted hover:text-red-500 transition-colors p-1 rounded-control hover:bg-red-50 z-10"><Trash2 className="w-5 h-5"/></button>
                             </div>
                         ))}
                     </div>
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-4 shadow-sm">
-                        <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-100 pb-2">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-4 shadow-sm">
+                        <h3 className="text-sm font-bold text-ink uppercase tracking-wider flex items-center gap-1.5 border-b border-line pb-2">
                             <span className="w-1.5 h-3 bg-blue-700 rounded-full"></span>
                             追加ルール・ポリシー (Additional Notes)
                         </h3>
                          <textarea 
-                            className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-32"
+                            className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium h-32"
                             value={formData.additionalRules}
                             onChange={(e) => handleChange('additionalRules', e.target.value)}
                             placeholder="Rules in detail..."
@@ -2103,8 +2088,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
             {activeTab === 'manual' && (
                  <div className="space-y-8">
-                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <div className="flex justify-between items-center border-b border-line pb-3">
+                        <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                             <BookOpen className="w-5 h-5 text-blue-700" />
                             ハウスマニュアル (House Manual)
                         </h3>
@@ -2114,23 +2099,23 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
                     <div className="space-y-6">
                         {formData.manual.map(item => (
-                            <div key={item.id} className="flex items-start gap-4 p-4 md:p-5 border border-[#ccc9ca] rounded-2xl bg-white relative shadow-sm">
-                                 <button onClick={() => removeManualItem(item.id)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10"><X className="w-4 h-4"/></button>
+                            <div key={item.id} className="flex items-start gap-4 p-4 md:p-5 border border-line-strong rounded-card bg-surface relative shadow-sm">
+                                 <button onClick={() => removeManualItem(item.id)} className="absolute top-3 right-3 text-ink-muted hover:text-red-500 transition-colors p-1 rounded-control hover:bg-red-50 z-10"><X className="w-4 h-4"/></button>
 
                                  {/* Square thumbnail + upload */}
                                  <div className="shrink-0 w-[168px] flex flex-col gap-2">
-                                     <div className="w-[168px] h-[168px] rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
+                                     <div className="w-[168px] h-[168px] rounded-control overflow-hidden bg-subtle border border-line">
                                          {item.imageUrl ? (
                                              <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
                                          ) : (
-                                             <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon className="w-8 h-8" /></div>
+                                             <div className="w-full h-full flex items-center justify-center text-ink-muted"><ImageIcon className="w-8 h-8" /></div>
                                          )}
                                      </div>
                                      <UploadButton
                                          propertyId={formData.id || ''}
                                          onUploaded={(url) => updateManualItem(item.id, 'imageUrl', url)}
                                          label="Upload"
-                                         className="w-[168px] inline-flex items-center justify-center gap-1.5 px-2 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
+                                         className="w-[168px] inline-flex items-center justify-center gap-1.5 px-2 py-1.5 bg-blue-600 text-white rounded-control hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
                                      />
                                  </div>
 
@@ -2138,13 +2123,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                  <div className="flex-grow min-w-0 space-y-2.5 pr-8">
                                      <input
                                          type="text"
-                                         className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
+                                         className="w-full px-3 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold"
                                          value={item.title}
                                          onChange={(e) => updateManualItem(item.id, 'title', e.target.value)}
                                          placeholder="Guide Title / タイトル"
                                      />
                                      <textarea
-                                         className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium h-24"
+                                         className="w-full px-3 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium h-24"
                                          value={item.content}
                                          onChange={(e) => updateManualItem(item.id, 'content', e.target.value)}
                                          placeholder="Content / 内容"
@@ -2152,7 +2137,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                      {isAdmin && (
                                          <input
                                              type="text"
-                                             className="w-full px-3 py-1.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-700 bg-white"
+                                             className="w-full px-3 py-1.5 border border-line-strong rounded-control outline-none focus:ring-2 focus:ring-blue-500 text-xs text-ink-soft bg-surface"
                                              value={item.imageUrl || ''}
                                              onChange={(e) => updateManualItem(item.id, 'imageUrl', e.target.value)}
                                              placeholder="Image URL https://..."
@@ -2167,8 +2152,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
             {activeTab === 'rooms' && (
                 <div className="space-y-8">
-                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <div className="flex justify-between items-center border-b border-line pb-3">
+                        <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                             <BedDouble className="w-5 h-5 text-blue-700" />
                             寝室・ベッド (Bedrooms & Sleeping)
                         </h3>
@@ -2177,26 +2162,26 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         </button>
                     </div>
                     {formData.sleepingArrangements?.map(room => (
-                        <div key={room.id} className="p-5 md:p-6 border border-[#ccc9ca] rounded-2xl bg-white relative shadow-sm space-y-6">
-                            <button onClick={() => removeRoom(room.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10">
+                        <div key={room.id} className="p-5 md:p-6 border border-line-strong rounded-card bg-surface relative shadow-sm space-y-6">
+                            <button onClick={() => removeRoom(room.id)} className="absolute top-4 right-4 text-ink-muted hover:text-red-500 transition-colors p-1 rounded-control hover:bg-red-50 z-10">
                                 <X className="w-5 h-5"/>
                             </button>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 md:pt-0">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Room Name (寝室名)</label>
+                                    <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Room Name (寝室名)</label>
                                     <input 
                                         type="text" 
-                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-bold"
+                                        className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-bold"
                                         value={room.title} 
                                         onChange={(e) => updateRoom(room.id, 'title', e.target.value)}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Bed Description (ベッド説明)</label>
+                                    <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Bed Description (ベッド説明)</label>
                                     <input 
                                         type="text" 
-                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-sm font-medium"
+                                        className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-sm font-medium"
                                         value={room.description} 
                                         onChange={(e) => updateRoom(room.id, 'description', e.target.value)}
                                     />
@@ -2204,20 +2189,20 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             </div>
 
                             {/* Unified photo list: square thumbnail left + info right; pick a main photo */}
-                            <div className="pt-2 border-t border-gray-100">
+                            <div className="pt-2 border-t border-line">
                                 <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-                                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Photos (写真)</label>
+                                    <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider">Photos (写真)</label>
                                     <div className="flex items-center gap-2">
                                         <UploadButton
                                             propertyId={formData.id || ''}
                                             onUploaded={(url) => addRoomImage(room.id, url)}
                                             label="Upload"
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-control hover:bg-blue-700 font-bold text-xs disabled:opacity-60"
                                         />
                                         {isAdmin && (
                                             <button
                                                 onClick={() => addRoomPhoto(room.id)}
-                                                className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-50"
+                                                className="inline-flex items-center gap-1 px-3 py-1.5 border border-line-strong rounded-control text-xs font-bold text-ink-soft hover:bg-subtle"
                                             >
                                                 <Plus className="w-3.5 h-3.5" /> URL
                                             </button>
@@ -2231,21 +2216,21 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                         ...(room.photos || []).map((url, pIdx) => ({ url, isMain: false, pIdx })),
                                     ];
                                     if (items.length === 0) {
-                                        return <p className="text-xs text-gray-400 italic">No photos yet. Use Upload to add.</p>;
+                                        return <p className="text-xs text-ink-muted italic">No photos yet. Use Upload to add.</p>;
                                     }
                                     return (
                                         <div className="space-y-2">
                                             {items.map((it) => (
                                                 <div
                                                     key={it.isMain ? 'main' : `p-${it.pIdx}`}
-                                                    className={`flex items-start gap-3 p-2.5 rounded-xl border ${it.isMain ? 'border-blue-300 bg-blue-50/40' : 'border-gray-200 bg-slate-50'}`}
+                                                    className={`flex items-start gap-3 p-2.5 rounded-control border ${it.isMain ? 'border-blue-300 bg-blue-50/40' : 'border-line bg-subtle'}`}
                                                 >
                                                     {/* Square thumbnail */}
-                                                    <div className="w-20 h-20 shrink-0 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                                                    <div className="w-20 h-20 shrink-0 rounded-control overflow-hidden bg-subtle border border-line">
                                                         {it.url ? (
                                                             <img src={it.url} alt="" className="w-full h-full object-cover" />
                                                         ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon className="w-6 h-6" /></div>
+                                                            <div className="w-full h-full flex items-center justify-center text-ink-muted"><ImageIcon className="w-6 h-6" /></div>
                                                         )}
                                                     </div>
                                                     {/* Info */}
@@ -2258,14 +2243,14 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                                             ) : (
                                                                 <button
                                                                     onClick={() => setRoomMainPhoto(room.id, it.pIdx)}
-                                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-gray-300 text-gray-600 text-[11px] font-bold hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-line-strong text-ink-soft text-[11px] font-bold hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition-colors"
                                                                 >
                                                                     <Star className="w-3 h-3" /> Set as Main
                                                                 </button>
                                                             )}
                                                             <button
                                                                 onClick={() => it.isMain ? removeRoomMain(room.id) : removeRoomPhoto(room.id, it.pIdx)}
-                                                                className="ml-auto text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50"
+                                                                className="ml-auto text-ink-muted hover:text-red-500 p-1 rounded-control hover:bg-red-50"
                                                                 title="Remove"
                                                             >
                                                                 <X className="w-4 h-4" />
@@ -2274,13 +2259,13 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                                         {isAdmin ? (
                                                             <input
                                                                 type="text"
-                                                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-700 bg-white"
+                                                                className="w-full px-3 py-1.5 border border-line-strong rounded-control outline-none focus:ring-2 focus:ring-blue-500 text-xs text-ink-soft bg-surface"
                                                                 value={it.url}
                                                                 onChange={(e) => it.isMain ? updateRoom(room.id, 'imageUrl', e.target.value) : updateRoomPhoto(room.id, it.pIdx, e.target.value)}
                                                                 placeholder="https://..."
                                                             />
                                                         ) : (
-                                                            it.url && <p className="text-[11px] text-gray-400 truncate">{it.url}</p>
+                                                            it.url && <p className="text-[11px] text-ink-muted truncate">{it.url}</p>
                                                         )}
                                                     </div>
                                                 </div>
@@ -2296,8 +2281,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
             {activeTab === 'highlights' && (
                 <div className="space-y-8">
-                    <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <div className="flex justify-between items-center border-b border-line pb-3">
+                        <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                             <Star className="w-5 h-5 text-blue-700" />
                             特徴・ハイライト (Highlights)
                         </h3>
@@ -2307,30 +2292,30 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {formData.highlights?.map(item => (
-                            <div key={item.id} className="p-5 border border-[#ccc9ca] rounded-2xl bg-white flex gap-4 items-start relative shadow-sm hover:shadow-md transition-all">
-                                <button onClick={() => removeHighlight(item.id)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 z-10">
+                            <div key={item.id} className="p-5 border border-line-strong rounded-card bg-surface flex gap-4 items-start relative shadow-sm hover:shadow-md transition-all">
+                                <button onClick={() => removeHighlight(item.id)} className="absolute top-4 right-4 text-ink-muted hover:text-red-500 transition-colors p-1 rounded-control hover:bg-red-50 z-10">
                                     <Trash2 className="w-5 h-5"/>
                                 </button>
                                 
-                                <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-blue-700 shrink-0 mt-4 md:mt-2">
+                                <div className="p-3 bg-blue-50 border border-blue-100 rounded-control text-blue-700 shrink-0 mt-4 md:mt-2">
                                     {renderHighlightIcon(item.icon)}
                                 </div>
 
                                 <div className="flex-1 space-y-3 w-full pr-6 pt-2">
                                     <div className="flex flex-col sm:flex-row gap-3">
                                         <div className="flex-1">
-                                            <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Title (タイトル)</label>
+                                            <label className="block text-[10px] font-bold text-ink-muted mb-1 uppercase tracking-wider">Title (タイトル)</label>
                                             <input 
                                                 type="text" 
-                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-xs font-bold"
+                                                className="w-full px-3 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-xs font-bold"
                                                 value={item.title} 
                                                 onChange={(e) => updateHighlight(item.id, 'title', e.target.value)}
                                             />
                                         </div>
                                         <div className="w-full sm:w-1/3">
-                                            <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Icon (アイコン)</label>
+                                            <label className="block text-[10px] font-bold text-ink-muted mb-1 uppercase tracking-wider">Icon (アイコン)</label>
                                             <select 
-                                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-xs font-bold"
+                                                className="w-full px-3 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-xs font-bold"
                                                 value={item.icon} 
                                                 onChange={(e) => updateHighlight(item.id, 'icon', e.target.value)}
                                             >
@@ -2339,10 +2324,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Description (説明)</label>
+                                        <label className="block text-[10px] font-bold text-ink-muted mb-1 uppercase tracking-wider">Description (説明)</label>
                                         <input 
                                             type="text" 
-                                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 shadow-sm transition-all text-xs font-medium"
+                                            className="w-full px-3 py-2 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink shadow-sm transition-all text-xs font-medium"
                                             value={item.description} 
                                             onChange={(e) => updateHighlight(item.id, 'description', e.target.value)}
                                         />
@@ -2357,19 +2342,19 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             {activeTab === 'access' && (
                 <div className="space-y-8">
                     {/* Card 1: Address & Location Map */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6 shadow-sm">
-                        <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6 shadow-sm">
+                        <h3 className="text-lg font-bold text-ink border-b border-line pb-3 flex items-center gap-2">
                             <Map className="w-5 h-5 text-blue-700" />
                             住所と地図 (Address & Map)
                         </h3>
                         
                         <div className="space-y-4">
-                            <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Address (住所)</label>
+                            <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Address (住所)</label>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Country (国) *</label>
+                                    <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Country (国) *</label>
                                     <select
-                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                        className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-bold shadow-sm"
                                         value={selectedCountryCode || ''}
                                         onChange={(e) => handleCountrySelect(e.target.value)}
                                     >
@@ -2380,9 +2365,9 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Province (都道府県/省) *</label>
+                                    <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Province (都道府県/省) *</label>
                                     <select
-                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                        className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-bold shadow-sm disabled:bg-subtle disabled:text-ink-muted"
                                         value={selectedProvinceCode}
                                         onChange={(e) => handleProvinceSelect(e.target.value)}
                                         disabled={!selectedCountryCode}
@@ -2396,17 +2381,17 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                             </div>
                             
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Address detail (市区町村・番地・アパート名)</label>
+                                <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">Address detail (市区町村・番地・アパート名)</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-medium shadow-sm"
                                     value={formData.location?.cityName || ''}
                                     onChange={(e) => handleAddressDetailChange(e.target.value)}
                                     placeholder="Street, ward, district, building..."
                                 />
                             </div>
                             
-                            <div className="bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3.5 rounded-xl flex items-start gap-2.5 shadow-sm">
+                            <div className="bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3.5 rounded-control flex items-start gap-2.5 shadow-sm">
                                 <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                                 <div className="text-xs">
                                     <span className="font-bold block mb-1">Generated Address Preview (自動生成された住所のプレビュー):</span>
@@ -2416,10 +2401,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         </div>
 
                         <div className="pt-2">
-                            <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Google Maps Embed URL (Googleマップ埋め込みURL)</label>
+                            <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Google Maps Embed URL (Googleマップ埋め込みURL)</label>
                             <input 
                                 type="text" 
-                                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-xs font-mono text-gray-500 shadow-sm"
+                                className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-xs font-mono text-ink-muted shadow-sm"
                                 value={formData.mapEmbedUrl}
                                 onChange={(e) => handleChange('mapEmbedUrl', e.target.value)}
                                 placeholder="Paste Google Maps iframe src URL here..."
@@ -2428,8 +2413,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                     </div>
 
                     {/* Card 2: Transport & Access */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6 shadow-sm">
-                        <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6 shadow-sm">
+                        <h3 className="text-lg font-bold text-ink border-b border-line pb-3 flex items-center gap-2">
                             <Car className="w-5 h-5 text-blue-700" />
                             交通アクセス詳細 (Transport & Access)
                         </h3>
@@ -2437,20 +2422,20 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         {selectedCountryCode === 'JP' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Nearest train station (最寄り駅) (Japan only)</label>
+                                    <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Nearest train station (最寄り駅) (Japan only)</label>
                                     <input
                                         type="text"
-                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                        className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-bold shadow-sm"
                                         value={formData.accessInfo.nearestStationName || ''}
                                         onChange={(e) => handleAccessChange('nearestStationName', e.target.value)}
                                         placeholder="Example: Ojima Station"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Distance to station (最寄り駅からの距離) (Japan only)</label>
+                                    <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Distance to station (最寄り駅からの距離) (Japan only)</label>
                                     <input
                                         type="text"
-                                        className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                        className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-bold shadow-sm"
                                         value={formData.accessInfo.nearestStationDistance || ''}
                                         onChange={(e) => handleAccessChange('nearestStationDistance', e.target.value)}
                                         placeholder="Example: 8 minutes walk"
@@ -2460,10 +2445,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                         )}
                         {selectedCountryCode === 'VN' && (
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Drive time to airport (空港までの時間) (Vietnam only)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Drive time to airport (空港までの時間) (Vietnam only)</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-bold shadow-sm"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-bold shadow-sm"
                                     value={formData.accessInfo.nearestAirportDriveTime || ''}
                                     onChange={(e) => handleAccessChange('nearestAirportDriveTime', e.target.value)}
                                     placeholder="Example: 35 minutes by car"
@@ -2473,37 +2458,37 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
                         <div className="grid grid-cols-1 gap-6 pt-2">
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Train Access (電車でのアクセス)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Train Access (電車でのアクセス)</label>
                                 <textarea 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm h-24"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-medium shadow-sm h-24"
                                     value={formData.accessInfo.train}
                                     onChange={(e) => handleAccessChange('train', e.target.value)}
                                     placeholder="Train directions details..."
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Airport Access (空港からのアクセス)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Airport Access (空港からのアクセス)</label>
                                 <textarea 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm h-24"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-medium shadow-sm h-24"
                                     value={formData.accessInfo.airport}
                                     onChange={(e) => handleAccessChange('airport', e.target.value)}
                                     placeholder="Airport transit details..."
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Check-in Instructions (チェックイン方法)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Check-in Instructions (チェックイン方法)</label>
                                 <textarea 
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm h-24"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-medium shadow-sm h-24"
                                     value={formData.accessInfo.checkIn}
                                     onChange={(e) => handleAccessChange('checkIn', e.target.value)}
                                     placeholder="Steps to check-in at property..."
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">YouTube Guide URL (チェックイン動画URL)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">YouTube Guide URL (チェックイン動画URL)</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-medium shadow-sm"
                                     value={formData.accessInfo.youtubeGuideUrl || ''}
                                     onChange={(e) => handleAccessChange('youtubeGuideUrl', e.target.value)}
                                     placeholder="https://youtu.be/..."
@@ -2514,57 +2499,57 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
 
                     {/* Card 3: Guest check-in info — sent by email only after a guest with a
                         booking-specific check-in link submits the check-in form. */}
-                    <div className="bg-white border border-[#ccc9ca] rounded-2xl p-5 md:p-6 space-y-6 shadow-sm">
-                        <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3 flex items-center gap-2">
+                    <div className="bg-surface border border-line-strong rounded-card p-5 md:p-6 space-y-6 shadow-sm">
+                        <h3 className="text-lg font-bold text-ink border-b border-line pb-3 flex items-center gap-2">
                             <Key className="w-5 h-5 text-blue-700" />
                             Guest Check-in Info (チェックイン後に送るゲスト情報)
                         </h3>
-                        <p className="text-xs text-gray-500 -mt-4">
+                        <p className="text-xs text-ink-muted -mt-4">
                             Emailed to the guest automatically once they submit the check-in form via their booking link. Leave any field blank to omit it from that email.
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Google Maps link</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Google Maps link</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-medium shadow-sm"
                                     value={formData.checkInInfo?.googleMapsUrl || ''}
                                     onChange={(e) => handleCheckInInfoChange('googleMapsUrl', e.target.value)}
                                     placeholder="https://maps.app.goo.gl/..."
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Emergency contact phone</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Emergency contact phone</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-medium shadow-sm"
                                     value={formData.checkInInfo?.emergencyContactPhone || ''}
                                     onChange={(e) => handleCheckInInfoChange('emergencyContactPhone', e.target.value)}
                                     placeholder="+81 90 1234 5678"
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Wifi className="w-3.5 h-3.5" /> Wi-Fi name (SSID)</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2 flex items-center gap-1.5"><Wifi className="w-3.5 h-3.5" /> Wi-Fi name (SSID)</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-medium shadow-sm"
                                     value={formData.checkInInfo?.wifiName || ''}
                                     onChange={(e) => handleCheckInInfoChange('wifiName', e.target.value)}
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Wifi className="w-3.5 h-3.5" /> Wi-Fi password</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2 flex items-center gap-1.5"><Wifi className="w-3.5 h-3.5" /> Wi-Fi password</label>
                                 <input
                                     type="text"
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-medium shadow-sm"
                                     value={formData.checkInInfo?.wifiPassword || ''}
                                     onChange={(e) => handleCheckInInfoChange('wifiPassword', e.target.value)}
                                 />
                             </div>
                             <div className="md:col-span-2">
-                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Key className="w-3.5 h-3.5" /> Entry code / keybox instructions</label>
+                                <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2 flex items-center gap-1.5"><Key className="w-3.5 h-3.5" /> Entry code / keybox instructions</label>
                                 <textarea
-                                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-gray-900 text-sm font-medium shadow-sm h-20"
+                                    className="w-full px-4 py-2.5 bg-surface border border-line-strong rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-ink text-sm font-medium shadow-sm h-20"
                                     value={formData.checkInInfo?.entryCode || ''}
                                     onChange={(e) => handleCheckInInfoChange('entryCode', e.target.value)}
                                     placeholder="Door code, keybox code, or free-text instructions..."

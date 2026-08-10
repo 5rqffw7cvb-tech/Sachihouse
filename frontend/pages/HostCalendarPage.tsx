@@ -56,11 +56,11 @@ function buildImportedEventMap(calendar: PropertyCalendar | null): Map<string, I
 // classification, not a guess. Anything not in this map (including a channel
 // we can't detect) falls back to the soft amber default.
 const IMPORTED_CHANNEL_STYLES: Record<string, { chip: string; text: string }> = {
-  Airbnb: { chip: 'bg-[#FF5A5F] text-white hover:bg-[#e8484d]', text: 'text-[#FF5A5F]' },
-  'Booking.com': { chip: 'bg-[#003580] text-white hover:bg-[#00296b]', text: 'text-[#003580]' },
-  'Hostex Direct': { chip: 'bg-[#0f9d58] text-white hover:bg-[#0c7d46]', text: 'text-[#0f9d58]' },
+  Airbnb: { chip: 'bg-danger text-white hover:bg-danger', text: 'text-danger' },
+  'Booking.com': { chip: 'bg-info text-white hover:bg-brand', text: 'text-info' },
+  'Hostex Direct': { chip: 'bg-ok text-white hover:bg-ok', text: 'text-ok' },
 };
-const DEFAULT_IMPORTED_STYLE = { chip: 'bg-[#fff1e0] text-[#8a5a00] hover:bg-[#ffe6c2]', text: 'text-[#8a5a00]' };
+const DEFAULT_IMPORTED_STYLE = { chip: 'bg-warn-tint text-warn hover:bg-warn-tint', text: 'text-warn' };
 
 function importedEventStyle(channelName: string | null | undefined): { chip: string; text: string } {
   return (channelName && IMPORTED_CHANNEL_STYLES[channelName]) || DEFAULT_IMPORTED_STYLE;
@@ -377,24 +377,24 @@ const HostCalendarPage: React.FC = () => {
     >
         {/* Cleaning-staff calendar link — one link covers every property, no login required on the other end. Admin-only: regenerating it affects every host's staff at once. */}
         {isAdminUser && (
-          <div className="mb-4 rounded-2xl border border-[#e4e2e3] bg-white p-4">
+          <div className="mb-4 rounded-card border border-line bg-surface p-4">
             <div className="flex items-center gap-1.5">
-              <Sparkles className="h-4 w-4 text-[#d97706]" />
-              <span className="text-[13px] font-semibold text-[#1b1c1d]">Cleaning calendar (share with staff)</span>
+              <Sparkles className="h-4 w-4 text-warn" />
+              <span className="text-[13px] font-semibold text-ink">Cleaning calendar (share with staff)</span>
             </div>
-            <p className="mt-1 text-[12px] text-[#74777d]">Send this link to your cleaning staff — they can add it to their phone's home screen like an app. Shows checkout/check-in times for every property, no login needed.</p>
+            <p className="mt-1 text-[12px] text-ink-muted">Send this link to your cleaning staff — they can add it to their phone's home screen like an app. Shows checkout/check-in times for every property, no login needed.</p>
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <input
                 readOnly
                 value={cleaningLink ?? 'Loading…'}
                 onFocus={(e) => e.target.select()}
-                className="flex-1 min-w-[200px] rounded-xl border border-[#c4c6cd] bg-[#f7f5f6] px-3 py-2 text-[12.5px] text-[#44474c]"
+                className="flex-1 min-w-[200px] rounded-control border border-line-strong bg-subtle px-3 py-2 text-[12.5px] text-ink-soft"
               />
               <button
                 type="button"
                 onClick={() => void copyCleaningLink()}
                 disabled={!cleaningLink}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[#c4c6cd] px-3 py-2 text-[12.5px] font-semibold text-[#1b1c1d] hover:bg-[#f5f3f4] transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-control border border-line-strong px-3 py-2 text-[12.5px] font-semibold text-ink hover:bg-subtle transition-colors disabled:opacity-50"
               >
                 {cleaningLinkCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                 {cleaningLinkCopied ? 'Copied' : 'Copy'}
@@ -403,7 +403,7 @@ const HostCalendarPage: React.FC = () => {
                 type="button"
                 onClick={() => void handleRegenerateCleaningLink()}
                 disabled={!cleaningLink || regeneratingCleaningLink}
-                className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12.5px] font-semibold text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-control px-3 py-2 text-[12.5px] font-semibold text-danger hover:bg-danger-tint transition-colors disabled:opacity-50"
               >
                 {regeneratingCleaningLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 Regenerate
@@ -414,12 +414,12 @@ const HostCalendarPage: React.FC = () => {
 
         {/* Property selector */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
-          <label className="text-[13px] font-medium text-[#44474c]">Property</label>
+          <label className="text-[13px] font-medium text-ink-soft">Property</label>
           <select
             value={selectedPropertyId}
             onChange={(e) => setSelectedPropertyId(e.target.value)}
             disabled={loadingProps}
-            className="rounded-xl border border-[#c4c6cd] bg-white px-3 py-2 text-[13px] text-[#1b1c1d] outline-none focus:border-[#1b1c1d] transition-colors min-w-[220px]"
+            className="rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink outline-none focus:border-brand transition-colors min-w-[220px]"
           >
             {loadingProps && <option>Loading…</option>}
             {!loadingProps && scopedProperties.length === 0 && <option value="">No properties available</option>}
@@ -427,28 +427,28 @@ const HostCalendarPage: React.FC = () => {
               <option key={p.id} value={p.id}>{p.name || p.id}</option>
             ))}
           </select>
-          {loadingCal && <Loader2 className="h-4 w-4 animate-spin text-[#74777d]" />}
+          {loadingCal && <Loader2 className="h-4 w-4 animate-spin text-ink-muted" />}
         </div>
 
-        {errorMsg && <div className="mb-4 rounded-xl border border-[#f5c2c7] bg-[#fdeef0] px-4 py-3 text-[13px] text-[#ba1a1a]">{errorMsg}</div>}
+        {errorMsg && <div className="mb-4 rounded-control border border-danger/25 bg-danger-tint px-4 py-3 text-[13px] text-danger">{errorMsg}</div>}
 
         {calendar && (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5 items-start">
             {/* Calendar card */}
-            <section className="bg-white border border-[#e4e2e3] rounded-2xl p-4 md:p-5">
+            <section className="bg-surface border border-line rounded-card p-4 md:p-5">
               <div className="flex items-center justify-between mb-4">
-                <button type="button" onClick={() => setViewMonth((m) => subMonths(m, 1))} className="p-2 rounded-lg hover:bg-[#f5f3f4] transition-colors" aria-label="Previous month">
+                <button type="button" onClick={() => setViewMonth((m) => subMonths(m, 1))} className="p-2 rounded-control hover:bg-subtle transition-colors" aria-label="Previous month">
                   <ChevronLeft className="h-5 w-5" />
                 </button>
                 <div className="text-[15px] md:text-[17px] font-semibold">{format(viewMonth, 'MMMM yyyy')}</div>
-                <button type="button" onClick={() => setViewMonth((m) => addMonths(m, 1))} className="p-2 rounded-lg hover:bg-[#f5f3f4] transition-colors" aria-label="Next month">
+                <button type="button" onClick={() => setViewMonth((m) => addMonths(m, 1))} className="p-2 rounded-control hover:bg-subtle transition-colors" aria-label="Next month">
                   <ChevronRight className="h-5 w-5" />
                 </button>
               </div>
 
               <div className="grid grid-cols-7 gap-1 mb-1">
                 {WEEKDAYS.map((d) => (
-                  <div key={d} className="text-center text-[11px] font-semibold text-[#74777d] py-1">{d}</div>
+                  <div key={d} className="text-center text-[11px] font-semibold text-ink-muted py-1">{d}</div>
                 ))}
               </div>
 
@@ -464,12 +464,12 @@ const HostCalendarPage: React.FC = () => {
                   const readOnly = isImported || !!occupancy;
                   const isToday = iso === todayIso;
 
-                  let cellClass = 'bg-white hover:bg-[#f0eeef] text-[#1b1c1d]';
+                  let cellClass = 'bg-surface hover:bg-subtle text-ink';
                   let label = '';
-                  if (occupancy?.kind === 'booking') { cellClass = 'bg-[#e7f0ff] text-[#0b57d0] cursor-default'; label = 'Booked'; }
+                  if (occupancy?.kind === 'booking') { cellClass = 'bg-info-tint text-info cursor-default'; label = 'Booked'; }
                   else if (occupancy?.kind === 'hold') { cellClass = 'bg-[#f3e8ff] text-[#6b21a8] cursor-default'; label = 'Hold'; }
                   else if (isImported) { cellClass = `${importedEventStyle(importedEvent?.channelName).chip} ${importedEvent ? 'cursor-pointer' : 'cursor-default'}`; label = importedEvent?.channelName || importedEvent?.feedName || 'iCal'; }
-                  else if (isManual) { cellClass = 'bg-[#1b1c1d] text-white hover:bg-[#333]'; label = 'Blocked'; }
+                  else if (isManual) { cellClass = 'bg-brand text-white hover:bg-[#333]'; label = 'Blocked'; }
 
                   const title = occupancy
                     ? `${occupancy.kind === 'hold' ? 'Unpaid hold' : 'Booked'} — ${occupancy.name}`
@@ -484,7 +484,7 @@ const HostCalendarPage: React.FC = () => {
                       disabled={(readOnly && !importedEvent) || isBusy}
                       onClick={() => (importedEvent ? setSelectedImportedEvent(importedEvent) : toggleDay(iso))}
                       title={title}
-                      className={`relative aspect-square rounded-lg border ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} flex flex-col items-center justify-center text-[13px] transition-colors ${cellClass} ${!inMonth ? 'opacity-35' : ''} ${readOnly && !importedEvent ? '' : 'cursor-pointer'}`}
+                      className={`relative aspect-square rounded-control border ${isToday ? 'border-info' : 'border-transparent'} flex flex-col items-center justify-center text-[13px] transition-colors ${cellClass} ${!inMonth ? 'opacity-35' : ''} ${readOnly && !importedEvent ? '' : 'cursor-pointer'}`}
                     >
                       <span className="font-medium leading-none">{format(day, 'd')}</span>
                       {label && <span className="mt-0.5 max-w-full truncate px-0.5 text-[8px] uppercase tracking-wide leading-none">{label}</span>}
@@ -495,63 +495,63 @@ const HostCalendarPage: React.FC = () => {
               </div>
 
               {/* Legend */}
-              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-[#44474c]">
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-white border border-[#c4c6cd]" /> Available</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#1b1c1d]" /> Manually blocked</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#FF5A5F]" /> Airbnb</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#003580]" /> Booking.com</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#0f9d58]" /> Hostex Direct</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#fff1e0] border border-[#e6c48a]" /> Other imported (tap for details)</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#e7f0ff] border border-[#a9c8f5]" /> Direct booking</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#f3e8ff] border border-[#d8b4fe]" /> Unpaid hold</span>
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-ink-soft">
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-surface border border-line-strong" /> Available</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-brand" /> Manually blocked</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-danger" /> Airbnb</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-info" /> Booking.com</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-ok" /> Hostex Direct</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-warn-tint border border-warn/30" /> Other imported (tap for details)</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-info-tint border border-info/30" /> Direct booking</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-[#f3e8ff] border border-info/30" /> Unpaid hold</span>
               </div>
-              <p className="mt-3 text-[11px] text-[#74777d]">Click an available day to block it, or a blocked day to free it. iCal-imported days show which platform sent them — tap one for the raw details. Direct bookings are managed elsewhere.</p>
+              <p className="mt-3 text-[11px] text-ink-muted">Click an available day to block it, or a blocked day to free it. iCal-imported days show which platform sent them — tap one for the raw details. Direct bookings are managed elsewhere.</p>
             </section>
 
             {/* Imported-block details, shown on tap */}
             {selectedImportedEvent && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm" onClick={() => setSelectedImportedEvent(null)}>
-                <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <div className="w-full max-w-sm rounded-card bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className={`text-[11px] font-semibold uppercase tracking-wide ${importedEventStyle(selectedImportedEvent.channelName).text}`}>
                         Imported from {selectedImportedEvent.channelName || selectedImportedEvent.feedName}
                         {selectedImportedEvent.channelName && selectedImportedEvent.channelName !== selectedImportedEvent.feedName && (
-                          <span className="ml-1.5 normal-case font-normal tracking-normal text-[#9a9ca0]">via {selectedImportedEvent.feedName}</span>
+                          <span className="ml-1.5 normal-case font-normal tracking-normal text-ink-muted">via {selectedImportedEvent.feedName}</span>
                         )}
                       </div>
-                      <div className="mt-1 text-[15px] font-semibold text-[#1b1c1d]">{selectedImportedEvent.summary}</div>
+                      <div className="mt-1 text-[15px] font-semibold text-ink">{selectedImportedEvent.summary}</div>
                     </div>
-                    <button type="button" onClick={() => setSelectedImportedEvent(null)} className="rounded-lg p-1 text-[#74777d] hover:bg-[#f5f3f4]" aria-label="Close">
+                    <button type="button" onClick={() => setSelectedImportedEvent(null)} className="rounded-control p-1 text-ink-muted hover:bg-subtle" aria-label="Close">
                       ✕
                     </button>
                   </div>
-                  <div className="mt-3 space-y-1.5 text-[13px] text-[#44474c]">
+                  <div className="mt-3 space-y-1.5 text-[13px] text-ink-soft">
                     <div>{selectedImportedEvent.checkInDate} → {selectedImportedEvent.checkOutDate}</div>
                     <div>{selectedImportedEvent.guestCount != null ? `${selectedImportedEvent.guestCount} guest${selectedImportedEvent.guestCount === 1 ? '' : 's'}` : 'Guest count not provided by this platform'}</div>
                   </div>
                   {selectedImportedEvent.description && (
-                    <div className="mt-3 rounded-xl bg-[#f7f5f6] p-3 text-[12px] text-[#44474c] whitespace-pre-wrap break-words">
+                    <div className="mt-3 rounded-control bg-subtle p-3 text-[12px] text-ink-soft whitespace-pre-wrap break-words">
                       {selectedImportedEvent.description}
                     </div>
                   )}
-                  <p className="mt-3 text-[11px] text-[#9a9ca0]">Whatever this platform includes in its calendar feed is shown as-is — most platforms send limited guest details for privacy.</p>
+                  <p className="mt-3 text-[11px] text-ink-muted">Whatever this platform includes in its calendar feed is shown as-is — most platforms send limited guest details for privacy.</p>
                 </div>
               </div>
             )}
 
             {/* Direct bookings taken on our own site, newest check-in first. */}
             {(calendar?.directBookings?.length ?? 0) > 0 && (
-              <section className="rounded-2xl border border-[#e3e1e2] bg-white p-5">
-                <h2 className="text-[15px] font-semibold text-[#1b1c1d]">Direct bookings</h2>
-                <p className="mt-1 text-[12px] text-[#74777d]">
+              <section className="rounded-card border border-line bg-surface p-5">
+                <h2 className="text-[15px] font-semibold text-ink">Direct bookings</h2>
+                <p className="mt-1 text-[12px] text-ink-muted">
                   Booked and paid on this site. Unpaid holds disappear on their own if the guest does not finish paying.
                 </p>
 
                 <div className="mt-4 overflow-x-auto">
                   <table className="w-full min-w-[520px] text-left text-[13px]">
                     <thead>
-                      <tr className="text-[11px] uppercase tracking-wide text-[#74777d]">
+                      <tr className="text-[11px] uppercase tracking-wide text-ink-muted">
                         <th className="pb-2 pr-3 font-medium">Guest</th>
                         <th className="pb-2 pr-3 font-medium">Stay</th>
                         <th className="pb-2 pr-3 font-medium">Amount</th>
@@ -563,18 +563,18 @@ const HostCalendarPage: React.FC = () => {
                       {[...calendar!.directBookings]
                         .sort((a, b) => a.checkInDate.localeCompare(b.checkInDate))
                         .map((booking) => (
-                          <tr key={booking.id} className="border-t border-[#efedee]">
-                            <td className="py-2.5 pr-3 text-[#1b1c1d]">{booking.guestName}</td>
-                            <td className="py-2.5 pr-3 text-[#44474c] whitespace-nowrap">
+                          <tr key={booking.id} className="border-t border-line">
+                            <td className="py-2.5 pr-3 text-ink">{booking.guestName}</td>
+                            <td className="py-2.5 pr-3 text-ink-soft whitespace-nowrap">
                               {booking.checkInDate} → {booking.checkOutDate}
                             </td>
-                            <td className="py-2.5 pr-3 text-[#1b1c1d] whitespace-nowrap">
+                            <td className="py-2.5 pr-3 text-ink whitespace-nowrap">
                               ¥{booking.amountTotal.toLocaleString()}
                             </td>
                             <td className="py-2.5 pr-3">
                               <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
                                 booking.status === 'confirmed'
-                                  ? 'bg-[#e7f0ff] text-[#0b57d0]'
+                                  ? 'bg-info-tint text-info'
                                   : 'bg-[#f3e8ff] text-[#6b21a8]'
                               }`}>
                                 {booking.status === 'confirmed' ? 'Paid' : 'Awaiting payment'}
@@ -587,7 +587,7 @@ const HostCalendarPage: React.FC = () => {
                                     type="button"
                                     onClick={() => void handleCancelBooking(booking)}
                                     disabled={cancellingId === booking.id}
-                                    className="rounded-lg border border-[#e4c2c2] px-2.5 py-1 text-[11px] font-semibold text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-50"
+                                    className="rounded-control border border-danger/25 px-2.5 py-1 text-[11px] font-semibold text-danger hover:bg-danger-tint transition-colors disabled:opacity-50"
                                   >
                                     {cancellingId === booking.id ? 'Cancelling…' : 'Cancel'}
                                   </button>
@@ -597,7 +597,7 @@ const HostCalendarPage: React.FC = () => {
                                       onClick={() => void handleForceCancelBooking(booking)}
                                       disabled={cancellingId === booking.id}
                                       title="Cancel without calling Stripe or refunding automatically"
-                                      className="rounded-lg border border-[#e4e2e3] px-2.5 py-1 text-[11px] font-semibold text-[#74777d] hover:bg-[#f3f1f2] transition-colors disabled:opacity-50"
+                                      className="rounded-control border border-line px-2.5 py-1 text-[11px] font-semibold text-ink-muted hover:bg-subtle transition-colors disabled:opacity-50"
                                     >
                                       Force cancel
                                     </button>
@@ -621,51 +621,51 @@ const HostCalendarPage: React.FC = () => {
                 type="button"
                 onClick={() => setIcalOpen((o) => !o)}
                 aria-expanded={icalOpen}
-                className="lg:hidden w-full flex items-center justify-between gap-2 bg-white border border-[#e4e2e3] rounded-2xl px-4 py-3 text-[14px] font-semibold text-[#1b1c1d]"
+                className="lg:hidden w-full flex items-center justify-between gap-2 bg-surface border border-line rounded-card px-4 py-3 text-[14px] font-semibold text-ink"
               >
-                <span className="inline-flex items-center gap-2"><Settings2 className="h-4 w-4 text-[#74777d]" /> iCal settings</span>
-                <ChevronDown className={`h-5 w-5 text-[#74777d] transition-transform ${icalOpen ? 'rotate-180' : ''}`} />
+                <span className="inline-flex items-center gap-2"><Settings2 className="h-4 w-4 text-ink-muted" /> iCal settings</span>
+                <ChevronDown className={`h-5 w-5 text-ink-muted transition-transform ${icalOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {/* Collapsed on mobile unless opened; always shown on desktop. */}
               <div className={`${icalOpen ? 'block' : 'hidden'} lg:block space-y-5`}>
               {/* Export link */}
-              <section className="bg-white border border-[#e4e2e3] rounded-2xl p-4 md:p-5">
+              <section className="bg-surface border border-line rounded-card p-4 md:p-5">
                 <h2 className="text-[15px] font-semibold mb-1">Export calendar (iCal)</h2>
-                <p className="text-[12px] text-[#74777d] mb-3">Give this link to Airbnb, Booking.com, etc. so they import your blocked dates and direct bookings.</p>
+                <p className="text-[12px] text-ink-muted mb-3">Give this link to Airbnb, Booking.com, etc. so they import your blocked dates and direct bookings.</p>
                 <div className="flex items-stretch gap-2">
                   <input
                     readOnly
                     value={calendar.exportUrl}
                     onFocus={(e) => e.currentTarget.select()}
-                    className="flex-1 min-w-0 rounded-xl border border-[#c4c6cd] bg-[#f7f6f7] px-3 py-2 text-[12px] text-[#44474c] outline-none"
+                    className="flex-1 min-w-0 rounded-control border border-line-strong bg-subtle px-3 py-2 text-[12px] text-ink-soft outline-none"
                   />
-                  <button type="button" onClick={copyExportUrl} className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-[#1b1c1d] px-3 py-2 text-[12px] font-semibold text-white hover:bg-[#333] transition-colors">
+                  <button type="button" onClick={copyExportUrl} className="shrink-0 inline-flex items-center gap-1.5 rounded-control bg-brand px-3 py-2 text-[12px] font-semibold text-white hover:bg-[#333] transition-colors">
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? 'Copied' : 'Copy'}
                   </button>
                 </div>
-                <button type="button" onClick={handleRegenerate} className="mt-2 inline-flex items-center gap-1.5 text-[12px] text-[#74777d] hover:text-[#1b1c1d] transition-colors">
+                <button type="button" onClick={handleRegenerate} className="mt-2 inline-flex items-center gap-1.5 text-[12px] text-ink-muted hover:text-ink transition-colors">
                   <RefreshCw className="h-3.5 w-3.5" /> Regenerate link
                 </button>
               </section>
 
               {/* Import feeds */}
-              <section className="bg-white border border-[#e4e2e3] rounded-2xl p-4 md:p-5">
+              <section className="bg-surface border border-line rounded-card p-4 md:p-5">
                 <h2 className="text-[15px] font-semibold mb-1">Import calendars (iCal)</h2>
-                <p className="text-[12px] text-[#74777d] mb-3">Paste iCal URLs from other platforms. We refresh them about once a minute and block the imported dates automatically.</p>
+                <p className="text-[12px] text-ink-muted mb-3">Paste iCal URLs from other platforms. We refresh them about once a minute and block the imported dates automatically.</p>
 
                 <div className="space-y-3">
-                  {feedDraft.length === 0 && <p className="text-[12px] text-[#9aa0a6]">No import feeds yet.</p>}
+                  {feedDraft.length === 0 && <p className="text-[12px] text-ink-muted">No import feeds yet.</p>}
                   {feedDraft.map((feed) => (
-                    <div key={feed.id} className="rounded-xl border border-[#e4e2e3] p-3">
+                    <div key={feed.id} className="rounded-control border border-line p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <input
                           value={feed.name}
                           onChange={(e) => updateFeedRow(feed.id, 'name', e.target.value)}
                           placeholder="Label (e.g. Airbnb)"
-                          className="flex-1 min-w-0 rounded-lg border border-[#c4c6cd] bg-white px-2.5 py-1.5 text-[12px] outline-none focus:border-[#1b1c1d] transition-colors"
+                          className="flex-1 min-w-0 rounded-control border border-line-strong bg-surface px-2.5 py-1.5 text-[12px] outline-none focus:border-brand transition-colors"
                         />
-                        <button type="button" onClick={() => removeFeedRow(feed.id)} className="shrink-0 p-1.5 rounded-lg text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors" aria-label="Remove feed">
+                        <button type="button" onClick={() => removeFeedRow(feed.id)} className="shrink-0 p-1.5 rounded-control text-danger hover:bg-danger-tint transition-colors" aria-label="Remove feed">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -673,18 +673,18 @@ const HostCalendarPage: React.FC = () => {
                         value={feed.url}
                         onChange={(e) => updateFeedRow(feed.id, 'url', e.target.value)}
                         placeholder="https://…/calendar.ics"
-                        className="w-full rounded-lg border border-[#c4c6cd] bg-white px-2.5 py-1.5 text-[12px] outline-none focus:border-[#1b1c1d] transition-colors"
+                        className="w-full rounded-control border border-line-strong bg-surface px-2.5 py-1.5 text-[12px] outline-none focus:border-brand transition-colors"
                       />
-                      {feed.lastSynced && <p className="mt-1 text-[10px] text-[#9aa0a6]">Last synced: {feed.lastSynced}</p>}
+                      {feed.lastSynced && <p className="mt-1 text-[10px] text-ink-muted">Last synced: {feed.lastSynced}</p>}
                     </div>
                   ))}
                 </div>
 
                 <div className="mt-3 flex items-center justify-between">
-                  <button type="button" onClick={addFeedRow} className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#44474c] hover:text-[#1b1c1d] transition-colors">
+                  <button type="button" onClick={addFeedRow} className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-soft hover:text-ink transition-colors">
                     <Plus className="h-4 w-4" /> Add feed
                   </button>
-                  <button type="button" onClick={saveFeeds} disabled={savingFeeds} className="inline-flex items-center gap-1.5 rounded-xl bg-[#1b1c1d] px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-[#333] disabled:opacity-60 transition-colors">
+                  <button type="button" onClick={saveFeeds} disabled={savingFeeds} className="inline-flex items-center gap-1.5 rounded-control bg-brand px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-[#333] disabled:opacity-60 transition-colors">
                     {savingFeeds ? <Loader2 className="h-4 w-4 animate-spin" /> : (feedsSaved ? <Check className="h-4 w-4" /> : null)} {feedsSaved ? 'Saved' : 'Save feeds'}
                   </button>
                 </div>
@@ -695,7 +695,7 @@ const HostCalendarPage: React.FC = () => {
         )}
 
         {!calendar && !loadingCal && scopedProperties.length > 0 && (
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center text-[13px] text-[#74777d]">Select a property to manage its calendar.</div>
+          <div className="bg-surface border border-line rounded-card p-8 text-center text-[13px] text-ink-muted">Select a property to manage its calendar.</div>
         )}
     </AdminShell>
   );

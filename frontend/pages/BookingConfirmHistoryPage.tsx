@@ -220,16 +220,16 @@ const BookingConfirmHistoryPage: React.FC = () => {
       deniedMessage="Your current account does not have permission to view booking confirmations."
       actions={(
         <>
-          <button type="button" onClick={exportCsv} className="hidden md:flex items-center gap-1.5 rounded-xl border border-[#c4c6cd] bg-white px-3.5 py-2 text-[13px] font-semibold hover:bg-[#f5f3f4] transition-colors">
+          <button type="button" onClick={exportCsv} className="hidden md:flex items-center gap-1.5 rounded-control border border-line-strong bg-surface px-3.5 py-2 text-[13px] font-semibold hover:bg-subtle transition-colors">
             <Download className="h-4 w-4" /> CSV
           </button>
-          <button type="button" onClick={handleNewBooking} className="flex items-center gap-1.5 rounded-xl bg-[#1b1c1d] px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#333] transition-colors">
+          <button type="button" onClick={handleNewBooking} className="flex items-center gap-1.5 rounded-control bg-brand px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#333] transition-colors">
             <Plus className="h-4 w-4" /> New Booking
           </button>
         </>
       )}
     >
-        {errorMsg && <div className="mb-4 rounded-xl border border-[#f5c2c7] bg-[#fdeef0] px-4 py-3 text-[13px] text-[#ba1a1a]">{errorMsg}</div>}
+        {errorMsg && <div className="mb-4 rounded-control border border-danger/25 bg-danger-tint px-4 py-3 text-[13px] text-danger">{errorMsg}</div>}
 
         {/* Summary tiles (desktop only — mobile stays minimal) */}
         <div className="hidden md:grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
@@ -239,31 +239,31 @@ const BookingConfirmHistoryPage: React.FC = () => {
             { label: 'Balance due', value: formatMoney(totals.balance, summaryCurrency) },
             { label: 'In accounting', value: formatMoney(totals.accounted, summaryCurrency) },
           ].map((tile) => (
-            <div key={tile.label} className="flex items-center justify-between gap-2 rounded-xl border border-[#e4e2e3] bg-white px-3 py-2">
-              <span className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#74777d]">{tile.label}</span>
+            <div key={tile.label} className="flex items-center justify-between gap-2 rounded-control border border-line bg-surface px-3 py-2">
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-ink-muted">{tile.label}</span>
               <span className="text-[14px] font-bold tabular-nums">{tile.value}</span>
             </div>
           ))}
         </div>
 
         {/* Filter toolbar (desktop only) — one compact bar instead of stacked, labelled fields */}
-        <div className="hidden md:flex flex-wrap items-center gap-1 rounded-xl border border-[#e4e2e3] bg-white px-2 py-1.5 mb-3">
+        <div className="hidden md:flex flex-wrap items-center gap-1 rounded-control border border-line bg-surface px-2 py-1.5 mb-3">
           <select
             aria-label="Property"
-            className="rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-[13px] font-medium text-[#1b1c1d] outline-none hover:bg-[#f5f3f4] focus:border-[#c4c6cd] transition-colors cursor-pointer"
+            className="rounded-control border border-transparent bg-transparent px-2 py-1.5 text-[13px] font-medium text-ink outline-none hover:bg-subtle focus:border-line-strong transition-colors cursor-pointer"
             value={propertyId}
             onChange={(e) => setPropertyId(e.target.value)}
           >
             <option value="">All properties</option>
             {scopedProperties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          <span className="h-5 w-px bg-[#e4e2e3] mx-1" />
-          <div className="flex items-center gap-1.5 pl-1 text-[13px] text-[#9a9ca0]">
+          <span className="h-5 w-px bg-page mx-1" />
+          <div className="flex items-center gap-1.5 pl-1 text-[13px] text-ink-muted">
             <span>Check-in</span>
             <input
               type="date"
               aria-label="Check-in from"
-              className="rounded-lg border border-transparent bg-transparent px-1.5 py-1 text-[13px] text-[#1b1c1d] outline-none hover:bg-[#f5f3f4] focus:border-[#c4c6cd] transition-colors"
+              className="rounded-control border border-transparent bg-transparent px-1.5 py-1 text-[13px] text-ink outline-none hover:bg-subtle focus:border-line-strong transition-colors"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
             />
@@ -271,39 +271,39 @@ const BookingConfirmHistoryPage: React.FC = () => {
             <input
               type="date"
               aria-label="Check-in to"
-              className="rounded-lg border border-transparent bg-transparent px-1.5 py-1 text-[13px] text-[#1b1c1d] outline-none hover:bg-[#f5f3f4] focus:border-[#c4c6cd] transition-colors"
+              className="rounded-control border border-transparent bg-transparent px-1.5 py-1 text-[13px] text-ink outline-none hover:bg-subtle focus:border-line-strong transition-colors"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
             />
           </div>
-          <button type="button" onClick={() => void load()} className="ml-1 rounded-lg bg-[#1b1c1d] px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-[#333] transition-colors">
+          <button type="button" onClick={() => void load()} className="ml-1 rounded-control bg-brand px-3 py-1.5 text-[12.5px] font-semibold text-white hover:bg-[#333] transition-colors">
             Apply
           </button>
           {(propertyId || fromDate || toDate) && (
             <button
               type="button"
               onClick={() => { setPropertyId(''); setFromDate(''); setToDate(''); void load({ propertyId: '', fromDate: '', toDate: '' }); }}
-              className="rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium text-[#74777d] hover:bg-[#f5f3f4] transition-colors"
+              className="rounded-control px-2.5 py-1.5 text-[12.5px] font-medium text-ink-muted hover:bg-subtle transition-colors"
             >
               Clear
             </button>
           )}
-          <span className="ml-auto pr-1 text-[12.5px] text-[#9a9ca0]">
+          <span className="ml-auto pr-1 text-[12.5px] text-ink-muted">
             {loading ? 'Loading…' : `${rows.length} confirmation${rows.length === 1 ? '' : 's'}`}
           </span>
         </div>
 
         {/* Table (desktop) */}
-        <div className="hidden md:block rounded-2xl border border-[#e4e2e3] bg-white overflow-hidden">
+        <div className="hidden md:block rounded-card border border-line bg-surface overflow-hidden">
           <div className="overflow-x-auto">
             {loading ? (
-              <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-[#74777d]"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+              <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-ink-muted"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
             ) : rows.length === 0 ? (
-              <div className="py-16 text-center text-[13px] text-[#74777d]">No booking confirmations yet.</div>
+              <div className="py-16 text-center text-[13px] text-ink-muted">No booking confirmations yet.</div>
             ) : (
               <table className="w-full text-[12.5px] whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-[#e4e2e3] text-left text-[10px] uppercase tracking-[0.06em] text-[#9a9ca0]">
+                  <tr className="border-b border-line text-left text-[10px] uppercase tracking-[0.06em] text-ink-muted">
                     <th className="px-3 py-2 font-semibold">Confirmation</th>
                     <th className="px-3 py-2 font-semibold">Source</th>
                     <th className="px-3 py-2 font-semibold">Property</th>
@@ -320,11 +320,11 @@ const BookingConfirmHistoryPage: React.FC = () => {
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id} className="border-b border-[#f0eef0] hover:bg-[#faf9fa]">
+                    <tr key={r.id} className="border-b border-line hover:bg-subtle">
                       <td className="px-3 py-2 font-semibold">{r.confirmationNo}</td>
                       <td className="px-3 py-2">
                         <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          r.source === 'online' ? 'bg-[#e7f0ff] text-[#0b57d0]' : 'bg-[#f0eef0] text-[#44474c]'
+                          r.source === 'online' ? 'bg-info-tint text-info' : 'bg-line text-ink-soft'
                         }`}>
                           {r.source === 'online' ? 'Online' : 'Manual'}
                         </span>
@@ -346,11 +346,11 @@ const BookingConfirmHistoryPage: React.FC = () => {
                           disabled={busyId === r.id}
                           title="Include this revenue in accounting reports"
                           className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors disabled:opacity-50 ${
-                            r.includeInAccounting ? 'bg-[#1b8f5a]' : 'bg-[#d7d5d6]'
+                            r.includeInAccounting ? 'bg-ok' : 'bg-page'
                           }`}
                         >
                           <span
-                            className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                            className={`h-4 w-4 rounded-full bg-surface shadow-sm transition-transform ${
                               r.includeInAccounting ? 'translate-x-4' : 'translate-x-0'
                             }`}
                           />
@@ -361,7 +361,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => void downloadBookingConfirmationPdf(r)}
-                            className="rounded-lg p-1.5 text-[#44474c] hover:bg-[#efedef] hover:text-[#1b1c1d] transition-colors"
+                            className="rounded-control p-1.5 text-ink-soft hover:bg-brand-tint hover:text-ink transition-colors"
                             title="Download PDF"
                           >
                             <Download className="h-4 w-4" />
@@ -370,7 +370,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
                             type="button"
                             onClick={() => void handleDelete(r)}
                             disabled={busyId === r.id}
-                            className="rounded-lg p-1.5 text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                            className="rounded-control p-1.5 text-danger hover:bg-danger-tint transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
                             title={r.source === 'online' ? 'This is real Stripe revenue — deleting only removes the accounting record.' : 'Delete'}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -388,39 +388,39 @@ const BookingConfirmHistoryPage: React.FC = () => {
         {/* Card list (mobile) — compact, no horizontal scroll */}
         <div className="md:hidden space-y-3">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-[#74777d] bg-white rounded-2xl border border-[#e4e2e3]"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+            <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-ink-muted bg-surface rounded-card border border-line"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
           ) : rows.length === 0 ? (
-            <div className="py-16 text-center text-[13px] text-[#74777d] bg-white rounded-2xl border border-[#e4e2e3]">No booking confirmations yet.</div>
+            <div className="py-16 text-center text-[13px] text-ink-muted bg-surface rounded-card border border-line">No booking confirmations yet.</div>
           ) : (
             rows.map((r) => (
-              <div key={r.id} className="rounded-2xl border border-[#e4e2e3] bg-white p-4">
+              <div key={r.id} className="rounded-card border border-line bg-surface p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <div className="font-semibold text-[15px] truncate">{r.guestName}</div>
                       <span className={`shrink-0 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                        r.source === 'online' ? 'bg-[#e7f0ff] text-[#0b57d0]' : 'bg-[#f0eef0] text-[#44474c]'
+                        r.source === 'online' ? 'bg-info-tint text-info' : 'bg-line text-ink-soft'
                       }`}>
                         {r.source === 'online' ? 'Online' : 'Manual'}
                       </span>
                     </div>
-                    <div className="text-[12px] text-[#74777d] truncate">{propertyNameById.get(r.propertyId) || r.propertyName}</div>
+                    <div className="text-[12px] text-ink-muted truncate">{propertyNameById.get(r.propertyId) || r.propertyName}</div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="font-bold text-[15px] tabular-nums">{formatMoney(r.totalAmount, r.currency)}</div>
-                    <div className="text-[11px] text-[#9a9ca0]">{r.confirmationNo}</div>
+                    <div className="text-[11px] text-ink-muted">{r.confirmationNo}</div>
                   </div>
                 </div>
-                <div className="mt-2.5 flex items-center justify-between text-[12px] text-[#44474c]">
+                <div className="mt-2.5 flex items-center justify-between text-[12px] text-ink-soft">
                   <span>{formatDate(r.checkInDate)} → {formatDate(r.checkOutDate)}</span>
-                  <span className="text-[#74777d]">{r.numGuests} pax</span>
+                  <span className="text-ink-muted">{r.numGuests} pax</span>
                 </div>
                 <div className="mt-1 flex items-center justify-between text-[12px]">
-                  <span className="text-[#74777d]">Deposit {formatMoney(r.depositAmount, r.currency)}</span>
+                  <span className="text-ink-muted">Deposit {formatMoney(r.depositAmount, r.currency)}</span>
                   <span className="font-semibold">Balance {formatMoney(r.balanceDue, r.currency)}</span>
                 </div>
-                <div className="mt-3 flex items-center justify-between border-t border-[#f0eef0] pt-2.5">
-                  <div className="flex items-center gap-2 text-[12px] text-[#44474c]">
+                <div className="mt-3 flex items-center justify-between border-t border-line pt-2.5">
+                  <div className="flex items-center gap-2 text-[12px] text-ink-soft">
                     <button
                       type="button"
                       role="switch"
@@ -428,11 +428,11 @@ const BookingConfirmHistoryPage: React.FC = () => {
                       onClick={() => void handleToggleAccounting(r)}
                       disabled={busyId === r.id}
                       className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors disabled:opacity-50 ${
-                        r.includeInAccounting ? 'bg-[#1b8f5a]' : 'bg-[#d7d5d6]'
+                        r.includeInAccounting ? 'bg-ok' : 'bg-page'
                       }`}
                     >
                       <span
-                        className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                        className={`h-4 w-4 rounded-full bg-surface shadow-sm transition-transform ${
                           r.includeInAccounting ? 'translate-x-4' : 'translate-x-0'
                         }`}
                       />
@@ -443,7 +443,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => void downloadBookingConfirmationPdf(r)}
-                      className="rounded-lg p-2 text-[#44474c] hover:bg-[#efedef] transition-colors"
+                      className="rounded-control p-2 text-ink-soft hover:bg-brand-tint transition-colors"
                       title="Download PDF"
                     >
                       <Download className="h-4 w-4" />
@@ -452,7 +452,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
                       type="button"
                       onClick={() => void handleDelete(r)}
                       disabled={busyId === r.id}
-                      className="rounded-lg p-2 text-[#ba1a1a] hover:bg-[#fdeef0] transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                      className="rounded-control p-2 text-danger hover:bg-danger-tint transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
                       title={r.source === 'online' ? 'This is real Stripe revenue — deleting only removes the accounting record.' : 'Delete'}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -471,14 +471,14 @@ const BookingConfirmHistoryPage: React.FC = () => {
           onClick={() => setShowForm(false)}
         >
           <div className="relative w-full max-w-[960px] my-2" onClick={(e) => e.stopPropagation()}>
-            <div className="rounded-2xl bg-[#e8e5e6] border border-[#d8d5d7] shadow-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-[#d8d5d7] bg-white/60">
+            <div className="rounded-card bg-page border border-line shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-surface/60">
                 <h2 className="text-[16px] font-bold">New booking</h2>
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
                   aria-label="Close"
-                  className="rounded-lg p-1.5 text-[#74777d] hover:bg-black/5 transition-colors"
+                  className="rounded-control p-1.5 text-ink-muted hover:bg-black/5 transition-colors"
                 >
                   <X className="h-5 w-5" />
                 </button>

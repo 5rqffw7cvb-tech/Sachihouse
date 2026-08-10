@@ -1,10 +1,11 @@
 @import "tailwindcss";
 
 /* ─── Design System ────────────────────────────────────────────
-   Surfaces:   page #e8e5e6  │  subtle #f5f3f4  │  card #ffffff
-   Borders:    default #ccc9ca  │  light #e4e2e3  │  row #edeaeb
-   Text:       primary #1b1c1d  │  secondary #44474c  │  muted #74777d
-   Accent:     dark #041627  │  link #003580
+   The palette below is the single source of truth. It is declared in
+   Tailwind's @theme block, so every token also exists as a utility
+   (--color-page → bg-page / text-page / border-page). Reach for those
+   names, never a raw hex — a hex in a component is how twelve admin
+   pages ended up with five different primary buttons and six radii.
 
    Type scale (px):
      xs 12  │  sm 13  │  base 15  │  md 16
@@ -13,7 +14,45 @@
    Fonts:
      Heading  → Plus Jakarta Sans  weight 700   line-height 1.2
      Body     → Inter              weight 400   line-height 1.6
+
+   Type and spacing are enforced through components/ui/* rather than by
+   overriding Tailwind's own scale, which the guest pages also ride on.
 ─────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Surfaces — three depths, nothing more */
+  --color-page: #e8e5e6;
+  --color-surface: #ffffff;
+  --color-subtle: #f5f3f4;
+
+  /* Lines — hairline for structure, strong for anything interactive */
+  --color-line: #e4e2e3;
+  --color-line-strong: #ccc9ca;
+
+  /* Text — three weights of emphasis */
+  --color-ink: #1b1c1d;
+  --color-ink-soft: #44474c;
+  --color-ink-muted: #74777d;
+
+  /* Brand */
+  --color-brand: #041627;
+  --color-brand-tint: #efedef;
+  --color-link: #003580;
+
+  /* Status — one hue per meaning, used by Badge and Alert */
+  --color-ok: #166534;
+  --color-ok-tint: #dcfce7;
+  --color-warn: #92400e;
+  --color-warn-tint: #fef3c7;
+  --color-danger: #ba1a1a;
+  --color-danger-tint: #fdeef0;
+  --color-info: #1e40af;
+  --color-info-tint: #dbeafe;
+
+  /* Radius — exactly three steps: controls, containers, pills */
+  --radius-control: 0.75rem;
+  --radius-card: 1rem;
+}
 
 :root {
   --color-primary-50: #eff6ff;
@@ -46,39 +85,8 @@ body {
     font-family: 'Plus Jakarta Sans', sans-serif;
     font-weight: 700;
     line-height: 1.2;
-    color: #0f172a;
+    color: var(--color-ink);
   }
-}
-
-/* Tabular numbers for financial metrics and counters */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-
-/* Dark Obsidian Glassmorphism */
-.dark-glass-panel {
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* Ambient Glow Effects */
-.glow-indigo {
-  box-shadow: 0 0 25px -5px rgba(79, 70, 229, 0.35);
-}
-.glow-emerald {
-  box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.35);
-}
-
-/* Card Interactive Hover Effect */
-.card-interactive {
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
-}
-.card-interactive:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 30px -5px rgba(15, 23, 42, 0.12), 0 8px 12px -6px rgba(15, 23, 42, 0.06);
 }
 
 /* Hide scrollbar for clean horizontal scrolling */

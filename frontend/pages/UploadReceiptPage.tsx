@@ -94,23 +94,23 @@ const UploadReceiptPage: React.FC = () => {
       deniedMessage="この機能はホストまたは管理者のみ利用できます。"
     >
         {isLoadingProps ? (
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-10 flex justify-center text-[#74777d] shadow-sm">
+          <div className="bg-surface border border-line rounded-card p-10 flex justify-center text-ink-muted shadow-sm">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
         ) : properties.length === 0 ? (
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center text-[#44474c] shadow-sm">
+          <div className="bg-surface border border-line rounded-card p-8 text-center text-ink-soft shadow-sm">
             利用できる物件がありません。
           </div>
         ) : (
           <div className="space-y-4">
             {/* Property selection */}
-            <div className="bg-white border border-[#e4e2e3] rounded-2xl p-4 shadow-sm">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+            <div className="bg-surface border border-line rounded-card p-4 shadow-sm">
+              <label className="flex items-center gap-1.5 text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">
                 <Building className="w-3.5 h-3.5 text-blue-700" />
                 物件を選択 (Property)
               </label>
               {properties.length === 1 ? (
-                <div className="w-full px-4 py-3 rounded-xl bg-[#f5f3f4] border border-[#e4e2e3] text-sm font-bold text-[#1b1c1d]">
+                <div className="w-full px-4 py-3 rounded-control bg-subtle border border-line text-sm font-bold text-ink">
                   {properties[0].name}
                 </div>
               ) : (
@@ -118,7 +118,7 @@ const UploadReceiptPage: React.FC = () => {
                   value={selectedPropertyId}
                   onChange={(e) => setSelectedPropertyId(e.target.value)}
                   disabled={isProcessing}
-                  className="w-full px-4 py-3 rounded-xl bg-white border border-gray-300 text-sm font-bold text-[#1b1c1d] outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+                  className="w-full px-4 py-3 rounded-control bg-surface border border-line-strong text-sm font-bold text-ink outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
                 >
                   <option value="">-- 物件を選択してください --</option>
                   {properties.map((p) => (
@@ -141,20 +141,20 @@ const UploadReceiptPage: React.FC = () => {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={!selectedPropertyId || isProcessing}
-              className={`w-full rounded-2xl border-2 border-dashed p-10 flex flex-col items-center gap-4 text-center transition-colors ${
+              className={`w-full rounded-card border-2 border-dashed p-10 flex flex-col items-center gap-4 text-center transition-colors ${
                 !selectedPropertyId || isProcessing
-                  ? 'border-[#ccc9ca] bg-white/60 cursor-not-allowed opacity-70'
-                  : 'border-blue-300 bg-white hover:bg-blue-50/40'
+                  ? 'border-line-strong bg-surface/60 cursor-not-allowed opacity-70'
+                  : 'border-blue-300 bg-surface hover:bg-blue-50/40'
               }`}
             >
-              <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-card bg-blue-50 border border-blue-100 flex items-center justify-center">
                 {isProcessing ? <Loader2 className="w-8 h-8 text-blue-600 animate-spin" /> : <Upload className="w-8 h-8 text-blue-600" />}
               </div>
               <div>
-                <p className="font-bold text-[#1b1c1d] text-base mb-1">
+                <p className="font-bold text-ink text-base mb-1">
                   {isProcessing ? 'AIが読み取り中...' : '領収書を選択'}
                 </p>
-                <p className="text-xs text-[#74777d]">
+                <p className="text-xs text-ink-muted">
                   {isProcessing
                     ? `${progress!.done}/${progress!.total} 件 処理中`
                     : selectedPropertyId
@@ -163,7 +163,7 @@ const UploadReceiptPage: React.FC = () => {
                 </p>
               </div>
               {isProcessing && (
-                <div className="w-full max-w-xs h-2 bg-[#e4e2e3] rounded-full overflow-hidden">
+                <div className="w-full max-w-xs h-2 bg-page rounded-full overflow-hidden">
                   <div
                     className="h-full bg-blue-600 transition-all"
                     style={{ width: `${(progress!.done / progress!.total) * 100}%` }}
@@ -172,7 +172,7 @@ const UploadReceiptPage: React.FC = () => {
               )}
             </button>
 
-            <p className="text-xs text-[#74777d] text-center px-2">
+            <p className="text-xs text-ink-muted text-center px-2">
               アップロードした領収書は財務ページの「未承認」一覧に追加され、後で確認・承認できます。
             </p>
           </div>
@@ -180,14 +180,14 @@ const UploadReceiptPage: React.FC = () => {
 
       {/* Completion notification — closing returns to this Upload Receipt page */}
       {result && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-brand/60 backdrop-blur-sm">
+          <div className="bg-surface rounded-card shadow-2xl w-full max-w-sm overflow-hidden">
             <div className="p-7 text-center">
               <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
                 <CheckCircle className="w-9 h-9" />
               </div>
-              <h2 className="text-xl font-bold text-[#1b1c1d] mb-1">処理が完了しました</h2>
-              <p className="text-sm text-[#44474c]">
+              <h2 className="text-xl font-bold text-ink mb-1">処理が完了しました</h2>
+              <p className="text-sm text-ink-soft">
                 {result.success} 件の領収書を処理しました。
                 {result.failed > 0 && (
                   <span className="block text-red-600 font-bold mt-1">{result.failed} 件は失敗しました。</span>
@@ -197,7 +197,7 @@ const UploadReceiptPage: React.FC = () => {
                 )}
               </p>
               {result.success > 0 && (
-                <div className="mt-4 text-left bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                <div className="mt-4 text-left bg-amber-50 border border-amber-200 rounded-control p-3 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-800 leading-relaxed">
                     内容の確認と承認は、<span className="font-bold">パソコン版の「仕訳帳（未承認）」</span>で行ってください。<br />
@@ -208,7 +208,7 @@ const UploadReceiptPage: React.FC = () => {
             </div>
             <button
               onClick={() => setResult(null)}
-              className="w-full py-4 border-t border-[#e4e2e3] text-sm font-bold text-blue-700 hover:bg-blue-50 flex items-center justify-center gap-2"
+              className="w-full py-4 border-t border-line text-sm font-bold text-blue-700 hover:bg-blue-50 flex items-center justify-center gap-2"
             >
               <X className="w-4 h-4" /> 閉じる (Close)
             </button>
