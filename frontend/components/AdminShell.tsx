@@ -250,18 +250,18 @@ export const AdminShell: React.FC<AdminShellProps> = ({
     .filter((group) => group.items.length > 0);
 
   return (
-    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d]">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       <TopNavBar navTitleOverride={navTitleOverride} />
 
       {/* Desktop sidebar. Sits below the fixed TopNavBar and spans the viewport. */}
       <aside
-        className="hidden md:flex flex-col fixed left-0 w-60 bg-[#f5f3f4] border-r border-[#e4e2e3] overflow-y-auto z-40"
+        className="hidden md:flex flex-col fixed left-0 w-60 bg-white border-r border-slate-200/80 overflow-y-auto z-40 shadow-[1px_0_10px_rgba(0,0,0,0.02)]"
         style={{ top: `${TOPNAV_OFFSET}px`, height: `calc(100vh - ${TOPNAV_OFFSET}px)` }}
       >
-        <nav className="flex-1 px-2.5 py-3">
+        <nav className="flex-1 px-3 py-4 space-y-4">
           {visibleGroups.map((group) => (
-            <div key={group.title} className="mb-1">
-              <div className="px-3 pt-3 pb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-[#74777d]">
+            <div key={group.title} className="space-y-1">
+              <div className="px-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
                 {group.title}
               </div>
               {group.items.map(({ key, to, label, Icon }) => {
@@ -272,19 +272,19 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                     key={key}
                     to={to}
                     aria-current={isActive ? 'page' : undefined}
-                    className={`relative flex items-center gap-2.5 rounded-lg px-3 py-2 mb-0.5 text-sm transition-colors ${
+                    className={`relative flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs transition-all duration-150 ${
                       isActive
-                        ? 'bg-white text-[#1b1c1d] font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
-                        : 'text-[#44474c] font-medium hover:bg-[#e8e5e6] hover:text-[#1b1c1d]'
+                        ? 'bg-indigo-50/80 text-indigo-950 font-bold shadow-sm ring-1 ring-indigo-200/50'
+                        : 'text-slate-600 font-medium hover:bg-slate-100/80 hover:text-slate-900'
                     }`}
                   >
                     {isActive && (
-                      <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-[#041627]" />
+                      <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-indigo-600" />
                     )}
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#041627]' : 'text-[#74777d]'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 transition-colors ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
                     <span className="truncate">{label}</span>
                     {typeof badge === 'number' && badge > 0 && (
-                      <span className="ml-auto shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                      <span className="ml-auto shrink-0 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
                         {badge}
                       </span>
                     )}
@@ -298,15 +298,14 @@ export const AdminShell: React.FC<AdminShellProps> = ({
 
       <div className="md:pl-60">
         <main className={`w-full mx-auto pb-28 md:pb-12 ${paddingXClass} ${maxWidthClass}`}>
-          {/* Clears the fixed TopNavBar. A spacer rather than a padding class so the
-              offset stays a single source of truth Tailwind never has to see. */}
+          {/* Clears the fixed TopNavBar. */}
           <div className="hidden md:block" style={{ height: `${TOPNAV_OFFSET}px` }} />
 
           {(title || actions) && (
-            <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 py-6 md:py-8 ${headerClassName}`}>
+            <div className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 py-6 md:py-7 ${headerClassName}`}>
               <div className="min-w-0">
-                {title && <h1 className="font-['Plus_Jakarta_Sans'] text-[28px] font-bold leading-tight truncate">{title}</h1>}
-                {subtitle && <p className="text-[#44474c] mt-1">{subtitle}</p>}
+                {title && <h1 className="font-['Plus_Jakarta_Sans'] text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 truncate">{title}</h1>}
+                {subtitle && <p className="text-xs md:text-sm text-slate-500 mt-1 font-medium">{subtitle}</p>}
               </div>
               {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
             </div>

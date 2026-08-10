@@ -1087,8 +1087,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
       subtitle="Quản lý thông tin nhà, album ảnh, bảng giá, nội quy và đồng bộ lịch iCal"
       actions={propertyActions}
     >
-      {/* Sub-tab navigation bar */}
-      <div className="mb-6 border-b border-slate-200 bg-white rounded-xl p-1.5 shadow-sm flex flex-wrap gap-1">
+      {/* Sub-tab navigation bar (Segmented Pill Control) */}
+      <div className="mb-6 bg-slate-200/60 p-1.5 rounded-2xl border border-slate-200/80 flex flex-wrap gap-1">
         {NAV_ITEMS.map(item => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -1096,19 +1096,21 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as typeof activeTab)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs transition-all duration-150 ${
                 isActive
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'bg-white text-indigo-950 font-extrabold shadow-sm ring-1 ring-slate-900/5'
+                  : 'text-slate-600 font-semibold hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+              <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
               <span>{item.label}</span>
             </button>
           );
         })}
       </div>
-          <div className="bg-white border border-[#ccc9ca] rounded-2xl shadow-sm p-4 md:p-8">
+
+      {/* Form Content container card */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-4 md:p-8">
             {activeTab === 'general' && (
                 <div className="space-y-8">
                     {/* Card 1: General Settings */}
