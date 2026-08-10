@@ -1,9 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Upload, Loader2, CheckCircle, Building, AlertCircle, X, Receipt } from 'lucide-react';
-import { TopNavBar } from '../components/TopNavBar';
-import { MobileBottomNav } from '../components/MobileBottomNav';
-import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
+import { Upload, Loader2, CheckCircle, Building, AlertCircle, X } from 'lucide-react';
+import { AdminShell } from '../components/AdminShell';
+import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { financeApi, FinancialProperty } from '../services/finance';
 
 const fileToBase64 = (file: File): Promise<string> =>
@@ -15,10 +13,6 @@ const fileToBase64 = (file: File): Promise<string> =>
   });
 
 const UploadReceiptPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { pathname, search } = useLocation();
-
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
   const [authUser, setAuthUser] = useState(getCurrentUser());
   const [properties, setProperties] = useState<FinancialProperty[]>([]);
   const [isLoadingProps, setIsLoadingProps] = useState(true);
@@ -33,15 +27,12 @@ const UploadReceiptPage: React.FC = () => {
 
   useEffect(() => {
     let unsubscribe = () => {};
-    subscribeToAuth((user) => {
-      setAuthUser(user);
-      setIsAuthenticated(!!user);
-    }).then((unsub) => { unsubscribe = unsub; });
+    subscribeToAuth((user) => setAuthUser(user)).then((unsub) => { unsubscribe = unsub; });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated || !canAccess) {
+    if (!canAccess) {
       setIsLoadingProps(false);
       return;
     }
@@ -57,7 +48,7 @@ const UploadReceiptPage: React.FC = () => {
       .catch(() => { /* ignore */ })
       .finally(() => { if (!cancelled) setIsLoadingProps(false); });
     return () => { cancelled = true; };
-  }, [isAuthenticated, canAccess]);
+  }, [canAccess]);
 
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
 
@@ -88,59 +79,20 @@ const UploadReceiptPage: React.FC = () => {
     setResult({ success, failed, errorMsg });
   };
 
-  const handleLogin = () => navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
-
   const isProcessing = progress !== null;
 
-  // ── Gates ──────────────────────────────────────────────────────────────
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6]">
-        <TopNavBar navTitleOverride="Upload Receipt" />
-        <div className="max-w-md mx-auto px-4 pt-[110px] pb-24">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 shadow-sm text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <h1 className="text-xl font-bold text-[#1b1c1d] mb-2">ログインが必要です</h1>
-            <p className="text-sm text-[#44474c] mb-6">領収書をアップロードするにはログインしてください。</p>
-            <button onClick={handleLogin} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl">
-              ログイン (Login)
-            </button>
-          </div>
-        </div>
-        <MobileBottomNav />
-      </div>
-    );
-  }
-
-  if (!canAccess) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6]">
-        <TopNavBar navTitleOverride="Upload Receipt" />
-        <div className="max-w-md mx-auto px-4 pt-[110px] pb-24">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 shadow-sm text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <h1 className="text-xl font-bold text-[#1b1c1d] mb-2">権限がありません</h1>
-            <p className="text-sm text-[#44474c]">この機能はホストまたは管理者のみ利用できます。</p>
-          </div>
-        </div>
-        <MobileBottomNav />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#e8e5e6]">
-      <TopNavBar navTitleOverride="Upload Receipt" />
-      <main className="max-w-xl mx-auto px-4 pt-[110px] pb-28">
-        <div className="flex items-center gap-2 mb-5">
-          <Receipt className="w-6 h-6 text-blue-700" />
-          <h1 className="text-2xl font-bold text-[#1b1c1d]">領収書アップロード</h1>
-        </div>
-
+    <AdminShell
+      title="領収書アップロード"
+      access="finance"
+      activeKey="receipts"
+      maxWidthClass="max-w-xl"
+      navTitleOverride="Upload Receipt"
+      signInTitle="ログインが必要です"
+      signInMessage="領収書をアップロードするにはログインしてください。"
+      deniedTitle="権限がありません"
+      deniedMessage="この機能はホストまたは管理者のみ利用できます。"
+    >
         {isLoadingProps ? (
           <div className="bg-white border border-[#e4e2e3] rounded-2xl p-10 flex justify-center text-[#74777d] shadow-sm">
             <Loader2 className="w-6 h-6 animate-spin" />
@@ -225,7 +177,6 @@ const UploadReceiptPage: React.FC = () => {
             </p>
           </div>
         )}
-      </main>
 
       {/* Completion notification — closing returns to this Upload Receipt page */}
       {result && (
@@ -264,9 +215,7 @@ const UploadReceiptPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      <MobileBottomNav />
-    </div>
+    </AdminShell>
   );
 };
 

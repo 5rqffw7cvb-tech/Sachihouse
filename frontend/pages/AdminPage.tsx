@@ -6,7 +6,7 @@ import { savePropertyData, translateAndSavePropertyContent, getAllProperties } f
 import { ImageInput } from '../components/ImageInput';
 import { UploadButton } from '../components/UploadButton';
 import { checkAuth, getCurrentUser, logout, subscribeToAuth } from '../services/auth';
-import { TopNavBar } from '../components/TopNavBar';
+import { AdminShell } from '../components/AdminShell';
 import { 
   Save, Plus, Trash2, Lock, LayoutDashboard, DollarSign, Calendar, 
   FileText, BookOpen, List, Map, CigaretteOff, PartyPopper, Moon, 
@@ -996,170 +996,118 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
     </div>
   );
 
-  const SIDEBAR_W = 272;
+  const propertyActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Property Selector */}
+      {managedProperties.length > 0 ? (
+        <select
+          value={propertyId}
+          onChange={(e) => {
+            const target = managedProperties.find((p) => p.id === e.target.value);
+            if (target && target.id !== propertyId) {
+              if (isDirty && !window.confirm('変更が保存されていません。保存せずに他の物件へ切り替えますか？\n\nYou have unsaved changes. Switch to another property without saving?')) {
+                return;
+              }
+              navigate(`/${target.metalink || target.id}/admin`);
+            }
+          }}
+          className="text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-lg px-3 py-1.5 shadow-sm outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[200px] truncate"
+        >
+          {!managedProperties.some((p) => p.id === propertyId) && (
+            <option value={propertyId}>{formData.name || propertyId}</option>
+          )}
+          {managedProperties.map((p) => (
+            <option key={p.id} value={p.id}>
+              {(p.name || p.id) + (p.archivedAt ? ' (archived)' : '')}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <span className="text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-lg px-3 py-1.5 shadow-sm truncate max-w-[200px]">
+          {formData.name || propertyId}
+        </span>
+      )}
+
+      {/* Save Button */}
+      <button
+        onClick={handleSave}
+        disabled={saveStatus !== 'idle' || isTranslating}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-sm ${
+          saveStatus === 'saved'
+            ? 'bg-green-600'
+            : saveStatus === 'error'
+              ? 'bg-red-600'
+              : 'bg-slate-900 hover:bg-slate-800'
+        }`}
+      >
+        {saveStatus === 'saving' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+        <span>{saveStatus === 'idle' ? 'Save Changes' : saveStatus === 'saving' ? 'Saving...' : saveStatus === 'error' ? 'Error' : 'Saved!'}</span>
+      </button>
+
+      {/* Auto Translate */}
+      {canAutoTranslate && (
+        <button
+          onClick={handleAutoTranslate}
+          disabled={isTranslating || saveStatus === 'saving'}
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40 transition-colors shadow-sm"
+        >
+          {isTranslating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
+          <span>Auto Translate</span>
+        </button>
+      )}
+
+      {/* Archive */}
+      {propertyId !== 'main' && (
+        <button
+          onClick={async () => {
+            if (window.confirm('Are you sure you want to delete this listing? This will redirect you to the home page.')) {
+              try {
+                const { setPropertyArchived } = await import('../services/storage');
+                await setPropertyArchived(propertyId, true);
+                window.location.href = '/#/';
+              } catch (e) {
+                alert('Failed to archive listing.');
+              }
+            }
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors shadow-sm"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>Archive</span>
+        </button>
+      )}
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#e8e5e6] relative font-sans text-gray-900">
-      <TopNavBar
-        navTitleOverride="Content Manager"
-        actionButton={financeToolbar}
-        mobileActionButton={mobileToolbar}
-      />
-
-      {/* Sidebar (fixed, slides from left, High-Contrast Styles matching Finance Page) */}
-      <aside
-        className="no-print fixed top-[72px] left-0 z-40 h-[calc(100vh-72px)] bg-white border-r border-[#ccc9ca] shadow-md flex flex-col transition-transform duration-300 ease-in-out overflow-hidden"
-        style={{ width: SIDEBAR_W, transform: sidebarOpen ? 'translateX(0)' : `translateX(-${SIDEBAR_W}px)` }}
-      >
-        {/* Sidebar Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#ccc9ca] bg-[#f5f3f4]/30 shrink-0">
-          <span className="font-extrabold text-[#1b1c1d] text-sm uppercase tracking-wide">メニュー</span>
-          <button onClick={() => setSidebarOpen(false)} className="p-1 text-gray-500 hover:text-black rounded-md hover:bg-slate-100 transition-colors">
-            <X className="w-4 h-4 text-[#1b1c1d]" />
-          </button>
-        </div>
-
-        {/* Current Property Info */}
-        <div className="px-4 py-3.5 border-b border-[#ccc9ca] shrink-0 bg-slate-50/50">
-          <p className="text-[11px] font-bold text-gray-800 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-            <Home className="w-3.5 h-3.5 text-blue-700" />
-            <span>物件情報 (Property)</span>
-          </p>
-          {managedProperties.length > 0 ? (
-            <select
-              value={propertyId}
-              onChange={(e) => {
-                const target = managedProperties.find((p) => p.id === e.target.value);
-                if (target && target.id !== propertyId) {
-                  if (isDirty && !window.confirm('変更が保存されていません。保存せずに他の物件へ切り替えますか？\n\nYou have unsaved changes. Switch to another property without saving?')) {
-                    return;
-                  }
-                  navigate(`/${target.metalink || target.id}/admin`);
-                }
-              }}
-              className="w-full text-xs font-bold text-gray-900 bg-white border border-[#ccc9ca] rounded-xl px-3 py-2.5 shadow-sm outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-            >
-              {!managedProperties.some((p) => p.id === propertyId) && (
-                <option value={propertyId}>{formData.name || propertyId}</option>
-              )}
-              {managedProperties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {(p.name || p.id) + (p.archivedAt ? ' (archived)' : '')}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="w-full text-xs font-bold text-gray-900 bg-white border border-[#ccc9ca] rounded-xl px-3 py-2.5 shadow-sm truncate">
-              {formData.name || propertyId}
-            </div>
-          )}
-        </div>
-
-        {/* Navigation items (High-Contrast matching Finance tab style) */}
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto bg-white">
-          <p className="text-[11px] font-bold text-gray-800 uppercase tracking-widest px-3 pt-1.5 pb-2">コンテンツ</p>
-          {NAV_ITEMS.map(item => (
+    <AdminShell
+      access="host"
+      activeKey="properties"
+      title={formData.name ? `Property Editor: ${formData.name}` : `Property Editor (${propertyId})`}
+      subtitle="Quản lý thông tin nhà, album ảnh, bảng giá, nội quy và đồng bộ lịch iCal"
+      actions={propertyActions}
+    >
+      {/* Sub-tab navigation bar */}
+      <div className="mb-6 border-b border-slate-200 bg-white rounded-xl p-1.5 shadow-sm flex flex-wrap gap-1">
+        {NAV_ITEMS.map(item => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          return (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as typeof activeTab)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${
-                activeTab === item.id
-                  ? 'bg-[#1b1c1d] text-white shadow-sm'
-                  : 'text-gray-900 hover:bg-[#f5f3f4] hover:text-black'
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <item.icon className={`w-4 h-4 shrink-0 ${activeTab === item.id ? 'text-white' : 'text-gray-700'}`} />
-              {item.label}
+              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+              <span>{item.label}</span>
             </button>
-          ))}
-        </nav>
-
-        {/* Sidebar Footer Actions */}
-        <div className="p-3 border-t border-[#ccc9ca] flex flex-col gap-2 shrink-0 bg-[#f5f3f4]/10">
-          <button
-            onClick={handleSave}
-            disabled={saveStatus !== 'idle' || isTranslating}
-            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-sm ${
-              saveStatus === 'saved'
-                ? 'bg-green-600'
-                : saveStatus === 'error'
-                  ? 'bg-red-600'
-                  : 'bg-gray-900 hover:bg-gray-800'
-            }`}
-          >
-            {saveStatus === 'saving' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            {saveStatus === 'idle' ? 'Save Changes' : saveStatus === 'saving' ? 'Saving...' : saveStatus === 'error' ? 'Error' : 'Saved!'}
-          </button>
-
-          <div className="flex gap-2">
-            {canAutoTranslate && (
-              <button
-                onClick={handleAutoTranslate}
-                disabled={isTranslating || saveStatus === 'saving'}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-[#ccc9ca] rounded-lg text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-40 transition-colors shadow-sm bg-white"
-              >
-                {isTranslating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
-                Auto Translate
-              </button>
-            )}
-
-            {propertyId !== 'main' && (
-              <button
-                onClick={async () => {
-                  if (window.confirm('Are you sure you want to delete this listing? This will redirect you to the home page.')) {
-                    try {
-                      const { setPropertyArchived } = await import('../services/storage');
-                      await setPropertyArchived(propertyId, true);
-                      window.location.href = '/#/';
-                    } catch (e) {
-                      alert('Failed to archive listing.');
-                    }
-                  }
-                }}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-red-200 rounded-lg text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors shadow-sm"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Archive
-              </button>
-            )}
-          </div>
-
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-1.5 py-2 border border-[#ccc9ca] rounded-lg text-xs font-bold text-gray-900 hover:bg-slate-100 transition-colors shadow-sm bg-white"
-          >
-            <LogOut className="w-3.5 h-3.5 text-gray-700" />
-            Logout
-          </button>
-        </div>
-      </aside>
-
-      {/* Mobile backdrop */}
-      {sidebarOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/40 z-30 no-print"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Main Content Area — shifts right on desktop when sidebar open */}
-      <div
-        className="pt-[72px] pb-12 transition-[margin] duration-300 ease-in-out min-h-[calc(100vh-72px)]"
-        style={{ marginLeft: sidebarOpen ? SIDEBAR_W : 0 }}
-      >
-        <div className="w-full px-4 md:px-6 py-6">
-          {/* Error & Success Message Display */}
-          {saveMessage && (
-            <div className={`mb-6 p-4 rounded-xl text-sm font-bold shadow-sm transition-all border ${
-              saveStatus === 'error'
-                ? 'bg-red-50 text-red-800 border-red-200'
-                : 'bg-green-50 text-green-800 border-green-200'
-            }`}>
-{ saveMessage }
-            </div>
-          )}
-
-          {/* Form Content container card */}
+          );
+        })}
+      </div>
           <div className="bg-white border border-[#ccc9ca] rounded-2xl shadow-sm p-4 md:p-8">
             {activeTab === 'general' && (
                 <div className="space-y-8">
@@ -2626,9 +2574,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
             )}
 
         </div>
-      </div>
-    </div>
-    </div>
+    </AdminShell>
   );
 };
 

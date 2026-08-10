@@ -12,10 +12,8 @@ import {
   subMonths,
 } from 'date-fns';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Loader2, RefreshCw, Plus, Settings2, Sparkles, Trash2 } from 'lucide-react';
-import { TopNavBar } from '../components/TopNavBar';
-import { MobileBottomNav } from '../components/MobileBottomNav';
-import { Footer } from '../components/Footer';
-import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
+import { AdminShell } from '../components/AdminShell';
+import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { getAllProperties } from '../services/storage';
 import {
   addBlockedDates,
@@ -103,7 +101,6 @@ function buildOccupancyMap(calendar: PropertyCalendar | null): Map<string, Occup
 
 const HostCalendarPage: React.FC = () => {
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
   const [properties, setProperties] = useState<PropertyItem[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState('');
   const [calendar, setCalendar] = useState<PropertyCalendar | null>(null);
@@ -133,10 +130,7 @@ const HostCalendarPage: React.FC = () => {
 
   useEffect(() => {
     let unsubscribe = () => {};
-    subscribeToAuth((user) => {
-      setAuthUser(user);
-      setIsAuthenticated(!!user);
-    }).then((unsub) => { unsubscribe = unsub; });
+    subscribeToAuth((user) => setAuthUser(user)).then((unsub) => { unsubscribe = unsub; });
     return () => unsubscribe();
   }, []);
 
@@ -370,37 +364,17 @@ const HostCalendarPage: React.FC = () => {
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6]">
-        <TopNavBar />
-        <div className="max-w-3xl mx-auto px-4 pt-[120px]">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">Please login as host/admin to manage the calendar.</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!canAccess) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6]">
-        <TopNavBar />
-        <div className="max-w-3xl mx-auto px-4 pt-[120px]">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">Host or admin role required.</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
-      <TopNavBar />
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 md:px-8 pt-3 md:pt-[110px] pb-24 md:pb-12">
-        <div className="mb-4">
-          <h1 className="font-['Plus_Jakarta_Sans'] text-[20px] md:text-[28px] font-bold tracking-tight leading-none">Calendar</h1>
-          <p className="hidden md:block mt-1.5 text-[13px] text-[#74777d]">Block dates manually and sync availability with other platforms via iCal.</p>
-        </div>
-
+    <AdminShell
+      title="Calendar"
+      subtitle="Block dates manually and sync availability with other platforms via iCal."
+      access="host"
+      activeKey="calendar"
+      maxWidthClass="max-w-6xl"
+      signInMessage="Please login as host/admin to manage the calendar."
+      deniedTitle="Host or admin role required"
+      deniedMessage="Your current account does not have permission to manage the calendar."
+    >
         {/* Cleaning-staff calendar link — one link covers every property, no login required on the other end. Admin-only: regenerating it affects every host's staff at once. */}
         {isAdminUser && (
           <div className="mb-4 rounded-2xl border border-[#e4e2e3] bg-white p-4">
@@ -723,10 +697,7 @@ const HostCalendarPage: React.FC = () => {
         {!calendar && !loadingCal && scopedProperties.length > 0 && (
           <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center text-[13px] text-[#74777d]">Select a property to manage its calendar.</div>
         )}
-      </main>
-      <Footer />
-      <MobileBottomNav />
-    </div>
+    </AdminShell>
   );
 };
 

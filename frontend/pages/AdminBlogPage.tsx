@@ -2,9 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BlogPost, blogService } from '../services/blogService';
 import { Plus, Edit2, Archive, Lock, Loader2, ArrowLeft, Save, ImageIcon, Check, X, PencilLine, Columns2, Eye, Bold, Italic, List, ListOrdered, Heading2, Quote, Link as LinkIcon, RotateCcw } from 'lucide-react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { MobileBottomNav } from '../components/MobileBottomNav';
-import { TopNavBar } from '../components/TopNavBar';
-import { Footer } from '../components/Footer';
+import { AdminShell } from '../components/AdminShell';
 import { ApiUser } from '../services/api';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { DEFAULT_SITE_SETTINGS, getSiteSettings } from '../services/storage';
@@ -16,7 +14,6 @@ import { mockBlogPosts } from '../data/blogData';
 const AdminBlogPage: React.FC = () => {
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!getCurrentUser());
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
   const [errorMsg, setErrorMsg] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
@@ -101,10 +98,7 @@ const AdminBlogPage: React.FC = () => {
 
   useEffect(() => {
     let unsubscribe = () => {};
-    subscribeToAuth((user) => {
-      setAuthUser(user);
-      setIsAuthenticated(!!user);
-    }).then((unsub) => {
+    subscribeToAuth((user) => setAuthUser(user)).then((unsub) => {
       unsubscribe = unsub;
     });
 
@@ -118,17 +112,12 @@ const AdminBlogPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated && canManageBlog) {
+    if (canManageBlog) {
       void fetchPosts();
       return;
     }
     setLoading(false);
-  }, [isAuthenticated, canManageBlog]);
-
-  const handleLogin = () => {
-    setErrorMsg('');
-    navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
-  };
+  }, [canManageBlog]);
 
   const handleSave = async () => {
     if (!editingPost?.title || !editingPost?.content) {
@@ -198,55 +187,16 @@ const AdminBlogPage: React.FC = () => {
     setEditorView('split');
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d]">
-        <TopNavBar />
-        <div className="min-h-[60vh] flex items-center justify-center px-4 pt-[110px] pb-12">
-          <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 w-full max-w-md">
-            <div className="flex justify-center mb-6">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-                <Lock className="w-6 h-6" />
-              </div>
-            </div>
-            <h2 className="text-2xl font-bold text-center text-gray-900 mb-3">Blog Admin Access</h2>
-            <p className="text-sm text-[#44474c] text-center mb-6">Sign in with an admin or blog editor account to manage blog posts.</p>
-            <div className="space-y-4">
-              {errorMsg && <p className="text-red-500 text-sm text-center">{errorMsg}</p>}
-              <button
-                onClick={handleLogin}
-                className="w-full bg-[#041627] hover:bg-[#041627]/90 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2"
-              >
-                Login
-              </button>
-            </div>
-          </div>
-        </div>
-        <MobileBottomNav />
-      </div>
-    );
-  }
-
-  if (!canManageBlog) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d]">
-        <TopNavBar />
-        <div className="max-w-3xl mx-auto px-4 pt-[110px] pb-12">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 shadow-sm text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
-              <Lock className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-bold text-[#1b1c1d] mb-2">Admin or blog editor access required</h1>
-            <p className="text-[#44474c] mb-6">Your current account does not have permission to access blog administration.</p>
-            <Link to="/blog" className="inline-flex items-center px-5 py-2.5 rounded-full border border-[#041627] text-[#041627] font-semibold hover:bg-[#efedef] transition-colors">
-              Back to blog
-            </Link>
-          </div>
-        </div>
-        <MobileBottomNav />
-      </div>
-    );
-  }
+  // Both the list and the editor render inside the same shell, so the gate copy
+  // lives in one place rather than being repeated per branch.
+  const blogShellGate = {
+    access: 'blog' as const,
+    activeKey: 'blog' as const,
+    signInTitle: 'Blog Admin Access',
+    signInMessage: 'Sign in with an admin or blog editor account to manage blog posts.',
+    deniedTitle: 'Admin or blog editor access required',
+    deniedMessage: 'Your current account does not have permission to access blog administration.',
+  };
 
   const draftTitle = editingPost?.title || '';
   const draftContent = editingPost?.content || '';
@@ -257,10 +207,8 @@ const AdminBlogPage: React.FC = () => {
 
   if (editingPost) {
     return (
-      <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
-        <TopNavBar />
-        <main className="flex-1 w-full max-w-[1280px] mx-auto px-3 md:px-6 pt-[110px] pb-28 md:pb-10">
-          <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <AdminShell {...blogShellGate} maxWidthClass="max-w-[1280px]">
+          <div className="mb-6 pt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <button onClick={() => setEditingPost(null)} className="inline-flex items-center text-[#44474c] hover:text-[#1b1c1d] font-semibold">
               <ArrowLeft className="w-5 h-5 mr-2" /> Back to post list
             </button>
@@ -475,33 +423,27 @@ const AdminBlogPage: React.FC = () => {
               </div>
             </aside>
           </div>
-        </main>
-
-        <Footer />
-        <MobileBottomNav />
-      </div>
+      </AdminShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
-      <TopNavBar />
-      <main className="flex-1 w-full max-w-[1280px] mx-auto px-3 md:px-6 pt-[110px] pb-28 md:pb-10">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-[28px] font-bold leading-tight">Blog Administration</h1>
-            <p className="text-[#44474c]">Manage travel stories and publishing highlights with a consistent editorial workflow.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link to="/blog" className="inline-flex items-center px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] transition-colors">
-              View Blog
-            </Link>
-            <button onClick={startNew} className="inline-flex items-center gap-2 bg-[#041627] hover:bg-[#041627]/90 text-white px-4 py-2 rounded-full font-semibold">
-              <Plus className="w-4 h-4" /> New Post
-            </button>
-          </div>
+    <AdminShell
+      {...blogShellGate}
+      title="Blog Administration"
+      subtitle="Manage travel stories and publishing highlights with a consistent editorial workflow."
+      maxWidthClass="max-w-[1280px]"
+      actions={(
+        <div className="flex flex-wrap gap-2">
+          <Link to="/blog" className="inline-flex items-center px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] transition-colors">
+            View Blog
+          </Link>
+          <button onClick={startNew} className="inline-flex items-center gap-2 bg-[#041627] hover:bg-[#041627]/90 text-white px-4 py-2 rounded-full font-semibold">
+            <Plus className="w-4 h-4" /> New Post
+          </button>
         </div>
-
+      )}
+    >
         {errorMsg && (
           <div className="mb-6 border border-red-200 bg-red-50 text-red-700 rounded-xl px-4 py-3 text-sm">
             {errorMsg}
@@ -651,12 +593,7 @@ const AdminBlogPage: React.FC = () => {
             </div>
           </>
         )}
-      </main>
-
-      <Footer />
-
-      <MobileBottomNav />
-    </div>
+    </AdminShell>
   );
 };
 

@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, Check, CheckCircle2, Loader2, Lock, RefreshCw, Save, Tag, X } from 'lucide-react';
+import { Check, CheckCircle2, Loader2, RefreshCw, Save, Tag, X } from 'lucide-react';
 import { ApiUser } from '../services/api';
-import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
-import { TopNavBar } from '../components/TopNavBar';
-import { Footer } from '../components/Footer';
+import { getCurrentUser, subscribeToAuth } from '../services/auth';
+import { AdminShell } from '../components/AdminShell';
 import { DEFAULT_SITE_SETTINGS, getSiteSettings, saveSiteSettings } from '../services/storage';
 import { approveSubscriptionRequest, listSubscriptionRequests, rejectSubscriptionRequest } from '../services/subscriptions';
 import { HostPlanCode, HostPlansConfig, PLAN_TO_HOST_LEVEL, SiteSettings, SubscriptionRequest } from '../types';
@@ -22,9 +20,6 @@ const STATUS_BADGE: Record<SubscriptionRequest['status'], string> = {
 };
 
 const ServicesAdminPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { pathname, search } = useLocation();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
 
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
@@ -41,10 +36,7 @@ const ServicesAdminPage: React.FC = () => {
 
   useEffect(() => {
     let unsubscribe = () => {};
-    subscribeToAuth((user) => {
-      setAuthUser(user);
-      setIsAuthenticated(!!user);
-    }).then((unsub) => { unsubscribe = unsub; });
+    subscribeToAuth((user) => setAuthUser(user)).then((unsub) => { unsubscribe = unsub; });
     return () => unsubscribe();
   }, []);
 
@@ -70,10 +62,6 @@ const ServicesAdminPage: React.FC = () => {
     void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
-
-  const handleLogin = () => {
-    navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
-  };
 
   const updatePlanPrice = (code: HostPlanCode, value: string) => {
     const price = Math.max(0, Math.round(Number(value) || 0));
@@ -122,59 +110,27 @@ const ServicesAdminPage: React.FC = () => {
 
   const inputCls = 'w-full px-3.5 py-2.5 bg-[#f5f3f4] border border-[#e4e2e3] rounded-xl text-sm text-[#1b1c1d] focus:outline-none focus:ring-2 focus:ring-[#041627]/20 focus:border-[#041627] transition-colors disabled:opacity-60';
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6] flex flex-col">
-        <TopNavBar />
-        <div className="flex-1 flex items-center justify-center px-4">
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#e4e2e3] w-full max-w-md text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-[#efedef] text-[#44474c] flex items-center justify-center">
-              <Lock className="w-6 h-6" />
-            </div>
-            <h2 className="text-[22px] font-bold text-[#1b1c1d] mb-2">Services Admin Access</h2>
-            <p className="text-sm text-[#44474c] mb-6">Sign in with an admin account to manage plan pricing and host upgrade requests.</p>
-            <button onClick={handleLogin} className="w-full bg-[#041627] hover:bg-[#041627]/90 text-white font-bold py-3 px-4 rounded-full">Login</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6] flex flex-col">
-        <TopNavBar />
-        <div className="max-w-3xl mx-auto px-4 pt-[110px] pb-12">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 shadow-sm text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-bold text-[#1b1c1d] mb-2">Admin role required</h1>
-            <p className="text-[#44474c] mb-6">Your current account does not have permission to manage services.</p>
-            <Link to="/" className="inline-flex items-center px-5 py-2.5 rounded-full border border-[#041627] text-[#041627] font-semibold hover:bg-[#efedef] transition-colors">Back to listings</Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
-      <TopNavBar />
-      <main className="flex-1 w-full max-w-[1100px] mx-auto px-3 md:px-6 pt-[110px] pb-28 md:pb-10">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-[28px] font-bold leading-tight">Services</h1>
-            <p className="text-[#44474c] mt-1">Manage host plan pricing and review upgrade requests.</p>
-          </div>
-          <button
-            onClick={() => { setIsLoading(true); void loadData(); }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] transition-colors self-start"
-          >
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
-        </div>
-
+    <AdminShell
+      title="Services"
+      subtitle="Manage host plan pricing and review upgrade requests."
+      access="admin"
+      activeKey="services"
+      badges={{ services: pendingCount }}
+      maxWidthClass="max-w-[1100px]"
+      deniedTitle="Admin role required"
+      deniedMessage="Your current account does not have permission to manage services."
+      signInTitle="Services Admin Access"
+      signInMessage="Sign in with an admin account to manage plan pricing and host upgrade requests."
+      actions={(
+        <button
+          onClick={() => { setIsLoading(true); void loadData(); }}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] transition-colors self-start"
+        >
+          <RefreshCw className="w-4 h-4" /> Refresh
+        </button>
+      )}
+    >
         {errorMsg && (
           <div className="mb-5 border border-red-200 bg-red-50 text-red-700 rounded-2xl px-4 py-3 text-sm flex items-center justify-between gap-3">
             <span>{errorMsg}</span>
@@ -299,9 +255,7 @@ const ServicesAdminPage: React.FC = () => {
             </section>
           </div>
         )}
-      </main>
-      <Footer />
-    </div>
+    </AdminShell>
   );
 };
 

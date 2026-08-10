@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ChevronDown, ChevronRight, Download, Eye, EyeOff, FileText, Loader2, MoreHorizontal, Pencil, Save, Trash2, Upload, X } from 'lucide-react';
-import { TopNavBar } from '../components/TopNavBar';
-import { MobileBottomNav } from '../components/MobileBottomNav';
-import { Footer } from '../components/Footer';
-import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
+import { AdminShell } from '../components/AdminShell';
+import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { listCheckIns, importCheckInsCsv, CSV_IMPORT_TEMPLATE, CsvImportResult, deleteCheckIn, updateCheckInRecord } from '../services/checkin';
 import { DEFAULT_SITE_SETTINGS, getAllProperties, getSiteSettings } from '../services/storage';
 import { CheckInGuest, CheckInSubmission, PropertyData, SiteSettings } from '../types';
@@ -113,7 +111,6 @@ function compareText(left: string, right: string): number {
 
 const CheckInManagementPage: React.FC = () => {
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<CheckInSubmission[]>([]);
@@ -162,10 +159,7 @@ const CheckInManagementPage: React.FC = () => {
 
   useEffect(() => {
     let unsubscribe = () => {};
-    subscribeToAuth((user) => {
-      setAuthUser(user);
-      setIsAuthenticated(!!user);
-    }).then((unsub) => {
+    subscribeToAuth((user) => setAuthUser(user)).then((unsub) => {
       unsubscribe = unsub;
     });
     return () => unsubscribe();
@@ -598,43 +592,25 @@ const CheckInManagementPage: React.FC = () => {
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6]">
-        <TopNavBar />
-        <div className="max-w-3xl mx-auto px-4 pt-[120px]">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">Please login as host/admin to access check-in management.</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!canAccess) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6]">
-        <TopNavBar />
-        <div className="max-w-3xl mx-auto px-4 pt-[120px]">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">Host or admin role required.</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
-      <TopNavBar />
-      <main className="flex-1 w-full max-w-none mx-auto px-0 md:px-8 xl:px-12 pt-3 md:pt-[110px] pb-24 md:pb-10">
-        <div className="flex items-end justify-between gap-4 mb-3 px-4 md:mb-6 md:px-0">
-          <div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-[19px] md:text-[28px] font-bold tracking-tight leading-none">Check-in management</h1>
-            <p className="hidden md:block mt-1.5 text-[13px] text-[#74777d]">Review, search, and edit guest ID records.</p>
-          </div>
-          <div className="flex items-baseline gap-1.5 shrink-0">
-            <span className="font-['Plus_Jakarta_Sans'] text-[18px] md:text-[26px] font-bold tracking-tight tabular-nums">{sortedRows.length}</span>
-            <span className="text-[11px] md:text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d] pb-0.5">record{sortedRows.length === 1 ? '' : 's'}</span>
-          </div>
+    <AdminShell
+      title="Check-in management"
+      subtitle="Review, search, and edit guest ID records."
+      access="host"
+      activeKey="checkins"
+      maxWidthClass="max-w-none"
+      paddingXClass="px-0 md:px-8 xl:px-12"
+      headerClassName="px-4 md:px-0"
+      signInMessage="Please login as host/admin to access check-in management."
+      deniedTitle="Host or admin role required"
+      deniedMessage="Your current account does not have permission to access check-in management."
+      actions={(
+        <div className="flex items-baseline gap-1.5 shrink-0">
+          <span className="font-['Plus_Jakarta_Sans'] text-[18px] md:text-[26px] font-bold tracking-tight tabular-nums">{sortedRows.length}</span>
+          <span className="text-[11px] md:text-[12px] font-semibold uppercase tracking-[0.08em] text-[#74777d] pb-0.5">record{sortedRows.length === 1 ? '' : 's'}</span>
         </div>
-
+      )}
+    >
         {/* Mobile compact action bar */}
         <div className="mb-3 px-4 md:hidden">
           <div className="flex items-center gap-2">
@@ -886,10 +862,6 @@ const CheckInManagementPage: React.FC = () => {
             </>
           )}
         </section>
-
-      </main>
-      <MobileBottomNav />
-      <Footer />
 
       {/* Mobile filters bottom sheet */}
       {isMobileFiltersOpen && (
@@ -1218,7 +1190,7 @@ const CheckInManagementPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </AdminShell>
   );
 };
 

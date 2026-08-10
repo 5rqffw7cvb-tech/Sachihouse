@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Loader2, Plus, Trash2, X } from 'lucide-react';
-import { TopNavBar } from '../components/TopNavBar';
-import { MobileBottomNav } from '../components/MobileBottomNav';
-import { Footer } from '../components/Footer';
+import { AdminShell } from '../components/AdminShell';
 import { BookingConfirmForm, BOOKING_CONFIRM_CREATED_KEY } from '../components/BookingConfirmForm';
-import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
+import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { getAllProperties } from '../services/storage';
 import {
   deleteBookingConfirmation,
@@ -42,7 +40,6 @@ function csvEscape(value: string | number): string {
 
 const BookingConfirmHistoryPage: React.FC = () => {
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
   const [rows, setRows] = useState<BookingConfirmation[]>([]);
   const [properties, setProperties] = useState<PropertyItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,10 +55,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
 
   useEffect(() => {
     let unsubscribe = () => {};
-    subscribeToAuth((user) => {
-      setAuthUser(user);
-      setIsAuthenticated(!!user);
-    }).then((unsub) => { unsubscribe = unsub; });
+    subscribeToAuth((user) => setAuthUser(user)).then((unsub) => { unsubscribe = unsub; });
     return () => unsubscribe();
   }, []);
 
@@ -214,47 +208,27 @@ const BookingConfirmHistoryPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6]">
-        <TopNavBar />
-        <div className="max-w-3xl mx-auto px-4 pt-[120px]">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">Please login as host/admin to view booking confirmations.</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!canAccess) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6]">
-        <TopNavBar />
-        <div className="max-w-3xl mx-auto px-4 pt-[120px]">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 text-center">Host or admin role required.</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
-      <TopNavBar />
-      <main className="flex-1 w-full max-w-none mx-auto px-4 md:px-8 xl:px-12 pt-3 md:pt-[84px] pb-24 md:pb-12">
-        <div className="flex items-end justify-between gap-4 mb-3">
-          <div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-[20px] md:text-[24px] font-bold tracking-tight leading-none">Direct booking revenue</h1>
-            <p className="hidden md:block mt-1.5 text-[13px] text-[#74777d]">Booking confirmations you have issued, and the revenue they represent.</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button type="button" onClick={exportCsv} className="hidden md:flex items-center gap-1.5 rounded-xl border border-[#c4c6cd] bg-white px-3.5 py-2 text-[13px] font-semibold hover:bg-[#f5f3f4] transition-colors">
-              <Download className="h-4 w-4" /> CSV
-            </button>
-            <button type="button" onClick={handleNewBooking} className="flex items-center gap-1.5 rounded-xl bg-[#1b1c1d] px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#333] transition-colors">
-              <Plus className="h-4 w-4" /> New Booking
-            </button>
-          </div>
-        </div>
-
+    <AdminShell
+      title="Direct booking revenue"
+      subtitle="Booking confirmations you have issued, and the revenue they represent."
+      access="host"
+      activeKey="bookingConfirm"
+      maxWidthClass="max-w-none"
+      signInMessage="Please login as host/admin to view booking confirmations."
+      deniedTitle="Host or admin role required"
+      deniedMessage="Your current account does not have permission to view booking confirmations."
+      actions={(
+        <>
+          <button type="button" onClick={exportCsv} className="hidden md:flex items-center gap-1.5 rounded-xl border border-[#c4c6cd] bg-white px-3.5 py-2 text-[13px] font-semibold hover:bg-[#f5f3f4] transition-colors">
+            <Download className="h-4 w-4" /> CSV
+          </button>
+          <button type="button" onClick={handleNewBooking} className="flex items-center gap-1.5 rounded-xl bg-[#1b1c1d] px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#333] transition-colors">
+            <Plus className="h-4 w-4" /> New Booking
+          </button>
+        </>
+      )}
+    >
         {errorMsg && <div className="mb-4 rounded-xl border border-[#f5c2c7] bg-[#fdeef0] px-4 py-3 text-[13px] text-[#ba1a1a]">{errorMsg}</div>}
 
         {/* Summary tiles (desktop only — mobile stays minimal) */}
@@ -489,7 +463,6 @@ const BookingConfirmHistoryPage: React.FC = () => {
             ))
           )}
         </div>
-      </main>
 
       {/* Desktop "New Booking" modal */}
       {showForm && (
@@ -522,10 +495,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      <MobileBottomNav />
-      <Footer />
-    </div>
+    </AdminShell>
   );
 };
 

@@ -1,11 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, Check, Loader2, Lock, Pencil, Plus, RefreshCw, Ticket, Trash2, X } from 'lucide-react';
+import { AlertCircle, Check, Loader2, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { ApiUser } from '../services/api';
-import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
-import { TopNavBar } from '../components/TopNavBar';
-import { MobileBottomNav } from '../components/MobileBottomNav';
-import { Footer } from '../components/Footer';
+import { getCurrentUser, subscribeToAuth } from '../services/auth';
+import { AdminShell } from '../components/AdminShell';
 import { createCoupon, deleteCoupon, listCoupons, updateCoupon } from '../services/coupons';
 import { getAllProperties } from '../services/storage';
 import { Coupon, PropertyData } from '../types';
@@ -54,9 +51,6 @@ function validateForm(form: CouponFormState): string | null {
 }
 
 const AdminCouponsPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { pathname, search } = useLocation();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
 
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -83,10 +77,7 @@ const AdminCouponsPage: React.FC = () => {
 
   useEffect(() => {
     let unsubscribe = () => {};
-    subscribeToAuth((user) => {
-      setAuthUser(user);
-      setIsAuthenticated(!!user);
-    }).then((unsub) => {
+    subscribeToAuth((user) => setAuthUser(user)).then((unsub) => {
       unsubscribe = unsub;
     });
     return () => unsubscribe();
@@ -115,10 +106,6 @@ const AdminCouponsPage: React.FC = () => {
     void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
-
-  const handleLogin = () => {
-    navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
-  };
 
   const openCreateModal = () => {
     setEditingId(null);
@@ -212,72 +199,36 @@ const AdminCouponsPage: React.FC = () => {
   const selectCls = inputCls + ' appearance-none';
   const primaryBtnCls = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#041627] text-white font-semibold text-xs hover:bg-[#041627]/90 disabled:opacity-50 transition-colors';
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6] flex flex-col">
-        <TopNavBar />
-        <div className="flex-1 flex items-center justify-center px-4">
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#e4e2e3] w-full max-w-md text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-[#efedef] text-[#44474c] flex items-center justify-center">
-              <Lock className="w-6 h-6" />
-            </div>
-            <h2 className="text-[22px] font-bold text-[#1b1c1d] mb-2">Coupon Admin Access</h2>
-            <p className="text-sm text-[#44474c] mb-6">Sign in with an admin account to manage coupons.</p>
-            <button onClick={handleLogin} className="w-full bg-[#041627] hover:bg-[#041627]/90 text-white font-bold py-3 px-4 rounded-full">Login</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6] flex flex-col">
-        <TopNavBar />
-        <div className="max-w-3xl mx-auto px-4 pt-[110px] pb-12">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 shadow-sm text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-bold text-[#1b1c1d] mb-2">Admin role required</h1>
-            <p className="text-[#44474c] mb-6">Your current account does not have permission to manage coupons.</p>
-            <Link to="/" className="inline-flex items-center px-5 py-2.5 rounded-full border border-[#041627] text-[#041627] font-semibold hover:bg-[#efedef] transition-colors">Back to listings</Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d] flex flex-col">
-      <TopNavBar />
-      <main className="flex-1 w-full max-w-[1280px] mx-auto px-3 md:px-6 pt-[110px] pb-28 md:pb-10">
-
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-[28px] font-bold leading-tight flex items-center gap-2">
-              <Ticket className="w-6 h-6" /> Coupon Administration
-            </h1>
-            <p className="text-[#44474c] mt-1">Global discount codes, assigned to whichever properties should accept them.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => loadData(true)}
-              disabled={isRefreshing}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] disabled:opacity-60 transition-colors"
-            >
-              {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              Refresh
-            </button>
-            <button
-              onClick={openCreateModal}
-              className="inline-flex items-center gap-2 bg-[#041627] hover:bg-[#041627]/90 text-white px-4 py-2 rounded-full font-semibold transition-colors"
-            >
-              <Plus className="w-4 h-4" /> New Coupon
-            </button>
-          </div>
-        </div>
-
+    <AdminShell
+      title="Coupon Administration"
+      subtitle="Global discount codes, assigned to whichever properties should accept them."
+      access="admin"
+      activeKey="coupons"
+      maxWidthClass="max-w-[1280px]"
+      signInTitle="Coupon Admin Access"
+      signInMessage="Sign in with an admin account to manage coupons."
+      deniedTitle="Admin role required"
+      deniedMessage="Your current account does not have permission to manage coupons."
+      actions={(
+        <>
+          <button
+            onClick={() => loadData(true)}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] disabled:opacity-60 transition-colors"
+          >
+            {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            Refresh
+          </button>
+          <button
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-2 bg-[#041627] hover:bg-[#041627]/90 text-white px-4 py-2 rounded-full font-semibold transition-colors"
+          >
+            <Plus className="w-4 h-4" /> New Coupon
+          </button>
+        </>
+      )}
+    >
         {errorMsg && (
           <div className="mb-5 border border-red-200 bg-red-50 text-red-700 rounded-2xl px-4 py-3 text-sm flex items-center justify-between gap-3">
             <span>{errorMsg}</span>
@@ -361,9 +312,6 @@ const AdminCouponsPage: React.FC = () => {
             </div>
           )}
         </section>
-      </main>
-      <Footer />
-      <MobileBottomNav />
 
       {modalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -499,7 +447,7 @@ const AdminCouponsPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </AdminShell>
   );
 };
 

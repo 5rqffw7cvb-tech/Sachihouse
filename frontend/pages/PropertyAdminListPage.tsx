@@ -1,18 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, Archive, Loader2, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
-import { TopNavBar } from '../components/TopNavBar';
-import { MobileBottomNav } from '../components/MobileBottomNav';
-import { getCurrentUser, checkAuth, subscribeToAuth } from '../services/auth';
+import { useNavigate } from 'react-router-dom';
+import { Archive, Loader2, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { AdminShell } from '../components/AdminShell';
+import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { deletePropertyData, getAllProperties, setPropertyArchived, setPropertyReviewStatus } from '../services/storage';
 import { ApiUser } from '../services/api';
 import { PropertyData } from '../types';
 
 const PropertyAdminListPage: React.FC = () => {
   const navigate = useNavigate();
-  const { pathname, search } = useLocation();
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(checkAuth());
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
   const [allProperties, setAllProperties] = useState<(PropertyData & { id: string })[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,10 +26,7 @@ const PropertyAdminListPage: React.FC = () => {
 
   useEffect(() => {
     let unsubscribe = () => {};
-    subscribeToAuth((user) => {
-      setAuthUser(user);
-      setIsAuthenticated(!!user);
-    }).then((unsub) => {
+    subscribeToAuth((user) => setAuthUser(user)).then((unsub) => {
       unsubscribe = unsub;
     });
 
@@ -81,10 +75,6 @@ const PropertyAdminListPage: React.FC = () => {
     const assignedProperties = allProperties.filter((property) => assignedIds.has(property.id));
     return assignedProperties;
   }, [allProperties, authUser]);
-
-  const handleLogin = () => {
-    navigate(`/login?redirect=${encodeURIComponent(pathname + search)}`);
-  };
 
   const handleEdit = (property: PropertyData & { id: string }) => {
     navigate(`/${property.metalink || property.id}/admin`);
@@ -153,78 +143,39 @@ const PropertyAdminListPage: React.FC = () => {
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center px-4 pt-20">
-        <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-200 w-full max-w-md">
-          <div className="flex justify-center mb-6">
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-700">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-          </div>
-          <h2 className="text-2xl font-bold text-center text-gray-900 mb-2">Property Admin Access</h2>
-          <p className="text-sm text-gray-500 text-center mb-6">Sign in with an admin or host account to manage your properties.</p>
-          <button
-            onClick={handleLogin}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg"
-          >
-            Login
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!canAccess) {
-    return (
-      <div className="min-h-screen bg-[#e8e5e6]">
-        <TopNavBar />
-        <div className="max-w-3xl mx-auto px-4 pt-[110px] pb-12">
-          <div className="bg-white border border-[#e4e2e3] rounded-2xl p-8 shadow-sm text-center">
-            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-bold text-[#1b1c1d] mb-2">Host or admin role required</h1>
-            <p className="text-[#44474c] mb-6">Your current account does not have permission to access property admin.</p>
-            <Link to="/" className="inline-flex items-center px-5 py-2.5 rounded-full border border-[#041627] text-[#041627] font-semibold hover:bg-[#efedef] transition-colors">
-              Back to listings
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#e8e5e6] text-[#1b1c1d]">
-      <TopNavBar />
-      <main className="max-w-[1280px] mx-auto px-3 md:px-6 pt-[110px] pb-24 md:pb-10">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-[28px] font-bold leading-tight">Property Administration</h1>
-            <p className="text-[#44474c]">Manage properties you currently host.</p>
-          </div>
-          <div className="flex items-center gap-2 self-start md:self-auto">
-            {authUser?.role === 'ADMIN' && (
-              <button
-                onClick={handleCreateNew}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#041627] text-white font-semibold hover:bg-[#041627]/90 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                New Property
-              </button>
-            )}
+    <AdminShell
+      title="Property Administration"
+      subtitle="Manage properties you currently host."
+      access="host"
+      activeKey="properties"
+      maxWidthClass="max-w-[1280px]"
+      signInTitle="Property Admin Access"
+      signInMessage="Sign in with an admin or host account to manage your properties."
+      deniedTitle="Host or admin role required"
+      deniedMessage="Your current account does not have permission to access property admin."
+      actions={(
+        <>
+          {authUser?.role === 'ADMIN' && (
             <button
-              onClick={() => loadProperties(true)}
-              disabled={isRefreshing}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] disabled:opacity-60 transition-colors"
+              onClick={handleCreateNew}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#041627] text-white font-semibold hover:bg-[#041627]/90 transition-colors"
             >
-              {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Refresh
+              <Plus className="w-4 h-4" />
+              New Property
             </button>
-          </div>
-        </div>
-
+          )}
+          <button
+            onClick={() => loadProperties(true)}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c4c6cd] bg-white text-[#1b1c1d] font-semibold hover:bg-[#efedef] disabled:opacity-60 transition-colors"
+          >
+            {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Refresh
+          </button>
+        </>
+      )}
+    >
         {errorMsg && (
           <div className="mb-6 border border-red-200 bg-red-50 text-red-700 rounded-xl px-4 py-3 text-sm">
             {errorMsg}
@@ -370,9 +321,7 @@ const PropertyAdminListPage: React.FC = () => {
             </div>
           )}
         </section>
-      </main>
-      <MobileBottomNav />
-    </div>
+    </AdminShell>
   );
 };
 

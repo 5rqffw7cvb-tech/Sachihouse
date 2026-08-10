@@ -9,7 +9,7 @@ import { getCurrentUser } from '../services/auth';
 import { financeApi, transactionsToCsvRows, FINANCE_HEADERS, FinancialProperty } from '../services/finance';
 import { processFinancials, ACCOUNT_TYPE_MAP } from '../utils/accountingUtils';
 import { FinancialReport, CsvRow, AccountType, FinancialTransaction } from '../types/finance';
-import { TopNavBar } from '../components/TopNavBar';
+import { AdminShell } from '../components/AdminShell';
 
 const Dashboard    = lazy(() => import('../components/finance/Dashboard'));
 const PLStatement  = lazy(() => import('../components/finance/PLStatement'));
@@ -199,18 +199,8 @@ const FinancePage: React.FC = () => {
   };
 
   if (!authUser) return null;
-  // Finance is reserved for admins and host level 4 only.
-  const hasFinanceAccess = authUser.role === 'ADMIN' || (authUser.role === 'HOST' && (authUser.hostLevel ?? 0) >= 4);
-  if (!hasFinanceAccess) {
-    return (
-      <>
-        <TopNavBar />
-        <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center">
-          <p className="text-red-600 font-semibold">アクセス権限がありません。</p>
-        </div>
-      </>
-    );
-  }
+  // Access is enforced by AdminShell's access="finance" below, which applies the
+  // same rule (admins, or hosts at level 4) and renders the refusal screen.
 
   const selectedLabel = selectedPropertyIds.length === 0
     ? 'プロパティを選択'
@@ -218,353 +208,280 @@ const FinancePage: React.FC = () => {
       ? (allProperties.find(p => p.id === selectedPropertyIds[0])?.name || selectedPropertyIds[0])
       : `${selectedPropertyIds.length} プロパティ選択中`;
 
-  // ── Header: only the sidebar toggle button ─────────────────────────────
-  const financeToolbar = (
-    <div className="hidden md:flex items-center no-print">
-      <button
-        onClick={toggleSidebar}
-        className="flex items-center gap-2 px-3 py-1.5 bg-white text-[#1b1c1d] rounded-lg text-sm font-semibold border border-[#ccc9ca] hover:bg-[#f5f3f4] active:scale-[.97] transition-all shadow-sm"
-      >
-        <Menu className="w-4 h-4 text-[#1b1c1d]" />
-        <span className="text-[#1b1c1d] font-bold">Menu</span>
-      </button>
-    </div>
-  );
+  const headerActions = (
+    <div className="flex flex-wrap items-center gap-2 no-print">
+      {/* Property Selector Trigger */}
+      {allProperties.length > 0 && (
+        <button
+          onClick={() => {
+            setTempSelectedPropertyIds([...selectedPropertyIds]);
+            setModalSearchTerm('');
+            setIsPropDrawerOpen(true);
+          }}
+          className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+        >
+          <Building className="w-3.5 h-3.5 text-blue-600" />
+          <span className="max-w-[140px] truncate">{selectedLabel}</span>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+        </button>
+      )}
 
-  const mobileToolbar = (
-    <div className="flex items-center no-print">
+      {/* Year Selector */}
+      <div className="relative">
+        <select
+          value={selectedYear}
+          onChange={e => setSelectedYear(parseInt(e.target.value))}
+          className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 appearance-none pr-7 cursor-pointer shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          {Array.from({ length: 10 }, (_, i) => currentYear + 1 - i).map(y => (
+            <option key={y} value={y}>{y}年</option>
+          ))}
+        </select>
+        <ChevronsUpDown className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+      </div>
+
+      {/* Refresh */}
       <button
-        onClick={toggleSidebar}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-[#1b1c1d] rounded-lg text-sm font-semibold border border-[#ccc9ca] hover:bg-[#f5f3f4]"
+        onClick={handleRefresh}
+        disabled={isRefreshing}
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all shadow-sm"
       >
-        <Menu className="w-4 h-4 text-[#1b1c1d]" />
+        <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+        <span>更新</span>
       </button>
+
+      {/* Print */}
+      {report && (
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
+        >
+          <Printer className="w-3.5 h-3.5 text-slate-600" />
+          <span>印刷</span>
+        </button>
+      )}
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#e8e5e6] print:bg-white relative">
-      <TopNavBar
-        navTitleOverride="財務管理"
-        actionButton={financeToolbar}
-        mobileActionButton={mobileToolbar}
-      />
-
-      {/* ── Sidebar (fixed, slides from left, High-Contrast Styles) ──────────────────────────── */}
-      <aside
-        className={`no-print fixed top-[72px] left-0 z-40 h-[calc(100vh-72px)] bg-white border-r border-[#ccc9ca] shadow-md flex flex-col transition-transform duration-300 ease-in-out overflow-hidden`}
-        style={{ width: SIDEBAR_W, transform: sidebarOpen ? 'translateX(0)' : `translateX(-${SIDEBAR_W}px)` }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#ccc9ca] bg-[#f5f3f4]/30 shrink-0">
-          <span className="font-extrabold text-[#1b1c1d] text-sm uppercase tracking-wide">メニュー</span>
-          <button onClick={() => setSidebarOpen(false)} className="p-1 text-gray-500 hover:text-black rounded-md hover:bg-slate-100 transition-colors">
-            <X className="w-4 h-4 text-[#1b1c1d]" />
-          </button>
-        </div>
-
-        {/* Direct Action Property Selector (Triggers Drawer Instantly) */}
-        {allProperties.length > 0 && (
-          <div className="px-4 py-3.5 border-b border-[#ccc9ca] shrink-0">
-            <p className="text-[11px] font-bold text-gray-800 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-              <Building className="w-3.5 h-3.5 text-blue-700" />
-              <span>プロパティ</span>
-            </p>
-            <button
-              onClick={() => {
-                setTempSelectedPropertyIds([...selectedPropertyIds]);
-                setModalSearchTerm('');
-                setIsPropDrawerOpen(!isPropDrawerOpen);
-              }}
-              className={`w-full flex items-center justify-between border rounded-xl px-3 py-2.5 text-xs font-bold transition-all text-left shadow-sm ${
-                isPropDrawerOpen
-                  ? 'bg-blue-50 border-blue-600 text-blue-950 ring-1 ring-blue-600'
-                  : 'bg-white border-[#ccc9ca] text-gray-900 hover:bg-slate-50'
-              }`}
-            >
-              <span className="truncate pr-3">{selectedLabel}</span>
-              <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${isPropDrawerOpen ? 'rotate-90 text-blue-700' : 'text-gray-600'}`} />
-            </button>
-          </div>
-        )}
-
-        {/* Year Selector styled and optimized (High-Contrast) */}
-        <div className="px-4 py-3.5 border-b border-[#ccc9ca] shrink-0">
-          <p className="text-[11px] font-bold text-gray-800 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-            <CalendarDays className="w-3.5 h-3.5 text-blue-700" />
-            <span>会計年度 (10年)</span>
-          </p>
-          <div className="relative">
-            <select
-              value={selectedYear}
-              onChange={e => setSelectedYear(parseInt(e.target.value))}
-              className="w-full bg-white border border-[#ccc9ca] rounded-xl px-3 py-2 text-xs font-bold text-gray-900 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-all appearance-none cursor-pointer shadow-sm"
-            >
-              {Array.from({ length: 10 }, (_, i) => currentYear + 1 - i).map(y => (
-                <option key={y} value={y}>{y}年</option>
-              ))}
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-600">
-              <ChevronsUpDown className="w-3.5 h-3.5" />
-            </div>
-          </div>
-        </div>
-
-        {/* Nav items (High-Contrast) */}
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto bg-white">
-          <p className="text-[11px] font-bold text-gray-800 uppercase tracking-widest px-3 pt-1.5 pb-2">レポート</p>
-          {NAV_ITEMS.filter(item => !item.adminOnly || authUser.role === 'ADMIN').map(item => (
+    <AdminShell
+      access="finance"
+      activeKey="finance"
+      title="財務管理 (Finance)"
+      subtitle="青色申告・損益計算書 (P&L)・貸借対照表 (B/S)"
+      actions={headerActions}
+    >
+      {/* Sub-tab Navigation Bar */}
+      <div className="mb-6 border-b border-slate-200 bg-white rounded-xl p-1.5 shadow-sm no-print flex flex-wrap gap-1">
+        {NAV_ITEMS.filter(item => !item.adminOnly || authUser.role === 'ADMIN').map(item => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          return (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${
-                activeTab === item.id
-                  ? 'bg-[#1b1c1d] text-white shadow-sm'
-                  : 'text-gray-900 hover:bg-[#f5f3f4] hover:text-black'
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <item.icon className={`w-4 h-4 shrink-0 ${activeTab === item.id ? 'text-white' : 'text-gray-700'}`} />
-              {item.label}
+              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+              <span>{item.label}</span>
             </button>
-          ))}
-        </nav>
-
-        {/* Footer (High-Contrast) */}
-        <div className="p-3 border-t border-[#ccc9ca] flex gap-2 shrink-0 bg-[#f5f3f4]/10">
-          <button
-            onClick={() => { handleRefresh(); }}
-            disabled={isRefreshing}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-[#ccc9ca] rounded-lg text-xs font-bold text-gray-900 hover:bg-slate-100 disabled:opacity-40 transition-colors shadow-sm bg-white"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-gray-700 ${isRefreshing ? 'animate-spin' : ''}`} />
-            更新
-          </button>
-          {report && (
-            <button
-              onClick={() => window.print()}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-[#ccc9ca] rounded-lg text-xs font-bold text-gray-900 hover:bg-slate-100 transition-colors shadow-sm bg-white"
-            >
-              <Printer className="w-3.5 h-3.5 text-gray-700" />
-              印刷
-            </button>
-          )}
-        </div>
-      </aside>
-
-      {/* Mobile backdrop (overlay on small screens only) */}
-      {sidebarOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/40 z-30 no-print"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* ── Main content — shifts right on desktop when sidebar open ─────── */}
-      <div
-        className="pt-[72px] print:pt-0 print:ml-0 transition-[margin] duration-300 ease-in-out"
-        style={{ marginLeft: sidebarOpen ? SIDEBAR_W : 0 }}
-      >
-        {/* Print-only header */}
-        <div className="hidden print:block text-center py-4 mb-2 font-mincho border-b border-gray-300">
-          <p className="text-sm font-medium text-gray-700">{selectedLabel} — {selectedYear}年</p>
-        </div>
-
-        <div className="w-full px-4 py-3 print:px-0 print:py-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-20 text-gray-400">
-              <Loader2 className="w-8 h-8 animate-spin" />
-            </div>
-          ) : (
-            <Suspense fallback={<SuspenseFallback />}>
-              {activeTab === 'dashboard' && report && (
-                <Dashboard
-                  report={report}
-                  lastUpdated={lastUpdated}
-                  onRefresh={handleRefresh}
-                  isRefreshing={isRefreshing}
-                  onYearChange={handleYearChange}
-                />
-              )}
-              {activeTab === 'pl'      && report && <PLStatement  report={report} />}
-              {activeTab === 'bs'      && report && <BSStatement  report={report} />}
-              {activeTab === 'monthly' && report && <MonthlyReport report={report} />}
-              {activeTab === 'journal' && (
-                <Journal
-                  report={report ?? EMPTY_REPORT(selectedYear)}
-                  propertyId={selectedPropertyIds[0] || ''}
-                  propertyName={allProperties.find(p => p.id === selectedPropertyIds[0])?.name}
-                  selectedPropertyIds={selectedPropertyIds}
-                  allProperties={allProperties}
-                  onRefresh={handleRefresh}
-                  rawData={rawData ?? undefined}
-                  headers={journalHeaders}
-                />
-              )}
-              {activeTab === 'pending' && (
-                <PendingJournal
-                  propertyId={selectedPropertyIds[0] || ''}
-                  propertyName={allProperties.find(p => p.id === selectedPropertyIds[0])?.name}
-                  selectedPropertyIds={selectedPropertyIds}
-                  allProperties={allProperties}
-                  onApproved={handleRefresh}
-                />
-              )}
-              {activeTab === 'ingest' && authUser.role === 'ADMIN' && (
-                <IngestRules allProperties={allProperties} />
-              )}
-              {!report && activeTab !== 'journal' && activeTab !== 'pending' && activeTab !== 'ingest' && (
-                <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
-                  <BookOpen className="w-10 h-10 opacity-30" />
-                  <p className="text-sm">データがありません。プロパティを選択してください。</p>
-                </div>
-              )}
-            </Suspense>
-          )}
-        </div>
+          );
+        })}
       </div>
 
-      {/* ── Sliding Property Selector Sidebar Drawer (Side-by-Side overlay) ── */}
-      <div
-        className={`no-print fixed top-[72px] h-[calc(100vh-72px)] bg-white shadow-2xl transition-transform duration-300 ease-in-out flex flex-col border-r border-[#ccc9ca] font-sans w-full left-0 z-[60] md:z-30 md:max-w-[520px] ${
-          sidebarOpen ? 'md:left-[272px]' : 'md:left-0'
-        }`}
-        style={{
-          transform: isPropDrawerOpen ? 'translateX(0)' : 'translateX(-100%)',
-        }}
-      >
-        {/* Drawer Header */}
-        <div className="px-5 py-4 bg-[#f5f3f4] border-b border-[#ccc9ca] flex justify-between items-center sticky top-0 z-10 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Building className="w-5 h-5 text-[#003580]" />
-            <h3 className="font-extrabold text-[#1b1c1d] text-sm">プロパティ詳細・売上順選択</h3>
-          </div>
-          <button
-            onClick={() => setIsPropDrawerOpen(false)}
-            className="text-gray-700 hover:text-black p-1.5 hover:bg-slate-200 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5 text-[#1b1c1d]" />
-          </button>
-        </div>
+      {/* Print Header */}
+      <div className="hidden print:block text-center py-4 mb-4 font-mincho border-b border-gray-300">
+        <p className="text-sm font-medium text-gray-700">{selectedLabel} — {selectedYear}年</p>
+      </div>
 
-        {/* Drawer Body */}
-        <div className="p-4 flex-1 overflow-y-auto space-y-4">
-          {/* Search and stats bar */}
-          <div className="flex flex-col gap-3 bg-[#f5f3f4] p-4 rounded-xl border border-[#ccc9ca]">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="物件名・IDで検索..."
-                value={modalSearchTerm}
-                onChange={e => setModalSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-white border border-[#ccc9ca] rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 font-semibold"
+      {/* Tab Content */}
+      <div className="w-full">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20 text-gray-400">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </div>
+        ) : (
+          <Suspense fallback={<SuspenseFallback />}>
+            {activeTab === 'dashboard' && report && (
+              <Dashboard
+                report={report}
+                lastUpdated={lastUpdated}
+                onRefresh={handleRefresh}
+                isRefreshing={isRefreshing}
+                onYearChange={handleYearChange}
               />
+            )}
+            {activeTab === 'pl'      && report && <PLStatement  report={report} />}
+            {activeTab === 'bs'      && report && <BSStatement  report={report} />}
+            {activeTab === 'monthly' && report && <MonthlyReport report={report} />}
+            {activeTab === 'journal' && (
+              <Journal
+                report={report ?? EMPTY_REPORT(selectedYear)}
+                propertyId={selectedPropertyIds[0] || ''}
+                propertyName={allProperties.find(p => p.id === selectedPropertyIds[0])?.name}
+                selectedPropertyIds={selectedPropertyIds}
+                allProperties={allProperties}
+                onRefresh={handleRefresh}
+                rawData={rawData ?? undefined}
+                headers={journalHeaders}
+              />
+            )}
+            {activeTab === 'pending' && (
+              <PendingJournal
+                propertyId={selectedPropertyIds[0] || ''}
+                propertyName={allProperties.find(p => p.id === selectedPropertyIds[0])?.name}
+                selectedPropertyIds={selectedPropertyIds}
+                allProperties={allProperties}
+                onApproved={handleRefresh}
+              />
+            )}
+            {activeTab === 'ingest' && authUser.role === 'ADMIN' && (
+              <IngestRules allProperties={allProperties} />
+            )}
+            {!report && activeTab !== 'journal' && activeTab !== 'pending' && activeTab !== 'ingest' && (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3 bg-white rounded-xl border border-slate-200 p-8">
+                <BookOpen className="w-10 h-10 opacity-30 text-slate-500" />
+                <p className="text-sm font-medium text-slate-600">データがありません。プロパティを選択してください。</p>
+              </div>
+            )}
+          </Suspense>
+        )}
+      </div>
+
+      {/* Property Selector Drawer Modal */}
+      {isPropDrawerOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 no-print">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
+            {/* Header */}
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Building className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-slate-800 text-sm">プロパティ詳細・売上順選択</h3>
+              </div>
+              <button
+                onClick={() => setIsPropDrawerOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <div className="flex items-center justify-between text-xs font-bold text-gray-800">
-              <span>選択中: <b className="text-blue-700 text-sm font-mono">{tempSelectedPropertyIds.length}</b> / {allProperties.length} 棟</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTempSelectedPropertyIds(allProperties.map(p => p.id))}
-                  className="px-3 py-1.5 bg-white border border-[#ccc9ca] hover:bg-slate-100 rounded-lg text-[10px] font-bold shadow-sm transition-colors"
-                >
-                  全て選択
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTempSelectedPropertyIds([])}
-                  className="px-3 py-1.5 bg-white border border-[#ccc9ca] hover:bg-slate-100 rounded-lg text-[10px] font-bold shadow-sm transition-colors"
-                >
-                  全解除
-                </button>
+
+            {/* Body */}
+            <div className="p-6 flex-1 overflow-y-auto space-y-4">
+              <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="物件名・IDで検索..."
+                    value={modalSearchTerm}
+                    onChange={e => setModalSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500 text-slate-800 font-semibold"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span>選択中: <b className="text-blue-600 text-sm font-mono">{tempSelectedPropertyIds.length}</b> / {allProperties.length} 棟</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTempSelectedPropertyIds(allProperties.map(p => p.id))}
+                      className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-[10px] font-bold shadow-sm transition-colors text-slate-700"
+                    >
+                      全て選択
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTempSelectedPropertyIds([])}
+                      className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-[10px] font-bold shadow-sm transition-colors text-slate-700"
+                    >
+                      全解除
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-left text-slate-700 h-10">
+                      <th className="py-2.5 px-2.5 font-extrabold text-center w-12 border-r border-slate-200">選択</th>
+                      <th className="py-2.5 px-2.5 font-extrabold border-r border-slate-200">物件ID</th>
+                      <th className="py-2.5 px-2.5 font-extrabold border-r border-slate-200">物件名</th>
+                      <th className="py-2.5 px-2.5 font-extrabold text-center border-r border-slate-200 w-20">登録年</th>
+                      <th className="py-2.5 px-2.5 font-extrabold text-right pr-4 w-32">総売上高</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
+                    {sortedProperties.map((prop, idx) => {
+                      const isChecked = tempSelectedPropertyIds.includes(prop.id);
+                      const regYear = getRegYear(prop.id);
+                      const revenue = propertyRevenues[prop.id] || 0;
+
+                      const toggleTempProp = () => {
+                        setTempSelectedPropertyIds(prev =>
+                          prev.includes(prop.id) ? prev.filter(id => id !== prop.id) : [...prev, prop.id]
+                        );
+                      };
+
+                      return (
+                        <tr
+                          key={prop.id}
+                          onClick={toggleTempProp}
+                          className={`h-11 cursor-pointer hover:bg-blue-50/50 transition-colors ${isChecked ? 'bg-blue-50/30' : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30')}`}
+                        >
+                          <td className="text-center py-2 px-2.5 border-r border-slate-200">
+                            <div className="flex justify-center">
+                              <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+                                {isChecked && <Check className="w-2.5 h-2.5 text-white" />}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-2 px-2.5 font-mono text-[11px] text-slate-500 border-r border-slate-200">{prop.id}</td>
+                          <td className="py-2 px-2.5 font-bold text-slate-800 border-r border-slate-200 break-words">{prop.name}</td>
+                          <td className="py-2 px-2.5 text-center font-mono text-slate-600 border-r border-slate-200">{regYear}年</td>
+                          <td className="py-2 px-2.5 text-right pr-4 font-mono font-bold text-blue-700">{formatCurrency(revenue)}</td>
+                        </tr>
+                      );
+                    })}
+                    {sortedProperties.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="text-center py-10 text-slate-400">該当物件なし</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-          </div>
 
-          {/* High-Contrast List Table of properties sorted by revenue descending */}
-          <div className="overflow-x-auto rounded-xl border border-[#ccc9ca] shadow-sm bg-white">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="bg-[#f5f3f4] border-b border-[#ccc9ca] text-left text-gray-800 h-10">
-                  <th className="py-2.5 px-2.5 font-extrabold text-center w-12 border-r border-[#ccc9ca]">選択</th>
-                  <th className="py-2.5 px-2.5 font-extrabold border-r border-[#ccc9ca]">物件ID</th>
-                  <th className="py-2.5 px-2.5 font-extrabold border-r border-[#ccc9ca]">物件名</th>
-                  <th className="py-2.5 px-2.5 font-extrabold text-center border-r border-[#ccc9ca] w-20">登録年</th>
-                  <th className="py-2.5 px-2.5 font-extrabold text-right pr-4 w-32">総売上高</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#ccc9ca] text-gray-900 font-medium">
-                {sortedProperties.map((prop, idx) => {
-                  const isChecked = tempSelectedPropertyIds.includes(prop.id);
-                  const regYear = getRegYear(prop.id);
-                  const revenue = propertyRevenues[prop.id] || 0;
-
-                  const toggleTempProp = () => {
-                    setTempSelectedPropertyIds(prev =>
-                      prev.includes(prop.id) ? prev.filter(id => id !== prop.id) : [...prev, prop.id]
-                    );
-                  };
-
-                  return (
-                    <tr
-                      key={prop.id}
-                      onClick={toggleTempProp}
-                      className={`h-11 cursor-pointer hover:bg-slate-100 transition-colors ${isChecked ? 'bg-blue-50/20' : (idx % 2 === 0 ? 'bg-white' : 'bg-[#f5f3f4]/15')}`}
-                    >
-                      <td className="text-center py-2 px-2.5 border-r border-[#ccc9ca]">
-                        <div className="flex justify-center">
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? 'bg-[#003580] border-[#003580]' : 'border-gray-400'}`}>
-                            {isChecked && <Check className="w-2.5 h-2.5 text-white" />}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-2 px-2.5 font-mono text-[11px] text-gray-600 border-r border-[#ccc9ca]">{prop.id}</td>
-                      <td className="py-2 px-2.5 font-bold text-gray-900 border-r border-[#ccc9ca] break-words">{prop.name}</td>
-                      <td className="py-2 px-2.5 text-center font-mono text-gray-800 border-r border-[#ccc9ca]">{regYear}年</td>
-                      <td className="py-2 px-2.5 text-right pr-4 font-mono font-bold text-blue-900">{formatCurrency(revenue)}</td>
-                    </tr>
-                  );
-                })}
-                {sortedProperties.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="text-center py-10 text-gray-500">該当物件なし</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => setIsPropDrawerOpen(false)}
+                className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-xl font-bold hover:bg-slate-100 text-xs shadow-sm transition-all"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedPropertyIds(tempSelectedPropertyIds);
+                  setIsPropDrawerOpen(false);
+                }}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all text-center"
+              >
+                適用する ({tempSelectedPropertyIds.length}棟)
+              </button>
+            </div>
           </div>
         </div>
-
-        {/* Drawer Footer */}
-        <div className="px-5 py-4 border-t border-[#ccc9ca] flex gap-3 bg-[#f5f3f4] flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsPropDrawerOpen(false)}
-            className="flex-1 px-4 py-3 bg-white border border-[#ccc9ca] text-gray-900 rounded-xl font-bold hover:bg-slate-100 text-xs shadow-sm transition-all"
-          >
-            キャンセル
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedPropertyIds(tempSelectedPropertyIds);
-              setIsPropDrawerOpen(false);
-            }}
-            className="flex-[2] px-4 py-3 bg-[#003580] hover:bg-brand-700 text-white rounded-xl font-bold text-xs shadow-md transition-all text-center"
-          >
-            適用する ({tempSelectedPropertyIds.length}棟)
-          </button>
-        </div>
-      </div>
-
-      {/* Backdrop for sliding drawer (dims right content container selectively on desktop, covers menu on mobile) */}
-      {isPropDrawerOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 md:z-20 no-print"
-          onClick={() => setIsPropDrawerOpen(false)}
-        />
       )}
-    </div>
+    </AdminShell>
   );
 };
 
