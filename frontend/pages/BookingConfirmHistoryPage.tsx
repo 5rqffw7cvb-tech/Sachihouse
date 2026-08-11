@@ -215,7 +215,6 @@ const BookingConfirmHistoryPage: React.FC = () => {
       subtitle="Booking confirmations you have issued, and the revenue they represent."
       access="host"
       activeKey="bookingConfirm"
-      maxWidthClass="max-w-none"
       signInMessage="Please login as host/admin to view booking confirmations."
       deniedTitle="Host or admin role required"
       deniedMessage="Your current account does not have permission to view booking confirmations."

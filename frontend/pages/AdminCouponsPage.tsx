@@ -206,7 +206,6 @@ const AdminCouponsPage: React.FC = () => {
       subtitle="Global discount codes, assigned to whichever properties should accept them."
       access="admin"
       activeKey="coupons"
-      maxWidthClass="max-w-[1280px]"
       signInTitle="Coupon Admin Access"
       signInMessage="Sign in with an admin account to manage coupons."
       deniedTitle="Admin role required"

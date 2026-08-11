@@ -598,7 +598,6 @@ const CheckInManagementPage: React.FC = () => {
       subtitle="Review, search, and edit guest ID records."
       access="host"
       activeKey="checkins"
-      maxWidthClass="max-w-none"
       paddingXClass="px-0 md:px-8 xl:px-12"
       headerClassName="px-4 md:px-0"
       signInMessage="Please login as host/admin to access check-in management."

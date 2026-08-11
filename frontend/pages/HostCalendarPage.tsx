@@ -370,7 +370,6 @@ const HostCalendarPage: React.FC = () => {
       subtitle="Block dates manually and sync availability with other platforms via iCal."
       access="host"
       activeKey="calendar"
-      maxWidthClass="max-w-6xl"
       signInMessage="Please login as host/admin to manage the calendar."
       deniedTitle="Host or admin role required"
       deniedMessage="Your current account does not have permission to manage the calendar."

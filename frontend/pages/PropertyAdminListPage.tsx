@@ -150,7 +150,6 @@ const PropertyAdminListPage: React.FC = () => {
       subtitle="Manage properties you currently host."
       access="host"
       activeKey="properties"
-      maxWidthClass="max-w-[1280px]"
       signInTitle="Property Admin Access"
       signInMessage="Sign in with an admin or host account to manage your properties."
       deniedTitle="Host or admin role required"
@@ -178,7 +177,7 @@ const PropertyAdminListPage: React.FC = () => {
           />
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-5">
           {managedProperties.map((property) => {
             const isArchiving = pendingArchiveId === property.id;
             const isDeleting = pendingDeleteId === property.id;

@@ -512,7 +512,6 @@ const AdminUsersPage: React.FC = () => {
       subtitle="Manage user accounts, roles, and property assignments."
       access="admin"
       activeKey="users"
-      maxWidthClass="max-w-[1280px]"
       signInTitle="User Admin Access"
       signInMessage="Sign in with an admin account to manage users and host assignments."
       deniedTitle="Admin role required"

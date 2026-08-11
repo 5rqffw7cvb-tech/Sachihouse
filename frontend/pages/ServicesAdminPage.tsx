@@ -116,7 +116,6 @@ const ServicesAdminPage: React.FC = () => {
       access="admin"
       activeKey="services"
       badges={{ services: pendingCount }}
-      maxWidthClass="max-w-[1100px]"
       deniedTitle="Admin role required"
       deniedMessage="Your current account does not have permission to manage services."
       signInTitle="Services Admin Access"

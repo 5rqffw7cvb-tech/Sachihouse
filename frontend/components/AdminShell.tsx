@@ -109,8 +109,11 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   activeKey,
   badges,
   isLoading = false,
-  maxWidthClass = 'max-w-[1200px]',
-  paddingXClass = 'px-3 md:px-8',
+  // Full width by default: these are operational screens where a wide table
+  // beats a centred column. Pages that need a reading measure constrain their
+  // own content rather than narrowing the whole page.
+  maxWidthClass = 'max-w-none',
+  paddingXClass = 'px-3 md:px-8 xl:px-12',
   headerClassName = '',
   deniedTitle = 'Permission required',
   deniedMessage = 'Your current account does not have permission to view this page.',

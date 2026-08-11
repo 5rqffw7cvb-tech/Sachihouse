@@ -24,7 +24,6 @@ const BookingConfirmPage: React.FC = () => {
       subtitle="Generate a PDF confirmation for a direct booking and send it to your guest."
       access="host"
       activeKey="bookingConfirm"
-      maxWidthClass="max-w-[960px]"
       signInMessage="Please login as host/admin to create booking confirmations."
       deniedTitle="Host or admin role required"
       deniedMessage="Your current account does not have permission to create booking confirmations."
@@ -38,12 +37,14 @@ const BookingConfirmPage: React.FC = () => {
         </button>
       )}
     >
-        <BookingConfirmForm
-          authUser={authUser}
-          onCreated={signalBookingConfirmCreated}
-          onDone={goToRevenue}
-          doneLabel="View revenue"
-        />
+        <div className="max-w-[960px]">
+          <BookingConfirmForm
+            authUser={authUser}
+            onCreated={signalBookingConfirmCreated}
+            onDone={goToRevenue}
+            doneLabel="View revenue"
+          />
+        </div>
     </AdminShell>
   );
 };
