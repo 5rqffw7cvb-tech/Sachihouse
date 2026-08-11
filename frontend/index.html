@@ -37,9 +37,13 @@
     <noscript>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     </noscript>
-    <!-- Critical CSS inlined to prevent render-blocking: sets bg, font, and loading spinner appearance -->
+    <!-- Critical CSS inlined to prevent render-blocking: sets bg, font, and loading spinner appearance.
+         Deliberately no border reset here. Tailwind v4 emits utilities inside @layer utilities, and an
+         unlayered rule outranks a layered one whatever its specificity — so `border-width:0` on * in this
+         block silently defeated every border/border-b/border-l in the app. Tailwind's own preflight already
+         performs this reset, from a layer, where the utilities can override it. -->
     <style>
-      *,::before,::after{box-sizing:border-box;border-width:0;border-style:solid}
+      *,::before,::after{box-sizing:border-box}
       html{line-height:1.5;-webkit-text-size-adjust:100%;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
       body{margin:0;background-color:#e8e5e6;color:#1b1c1d;-webkit-font-smoothing:antialiased}
       #root{min-height:100vh;background-color:#e8e5e6}

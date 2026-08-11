@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSegments, countVacant, Night } from './timeline';
+import { buildSegments, Night } from './timeline';
 
 const days = ['2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13', '2026-08-14'];
 const nights = (entries: [string, Night][]) => new Map(entries);
@@ -68,24 +68,5 @@ describe('buildSegments', () => {
 
   it('returns nothing for an empty range', () => {
     expect(buildSegments([], nights([]))).toEqual([]);
-  });
-});
-
-describe('countVacant', () => {
-  it('counts the properties free on each day', () => {
-    const a = nights([['2026-08-11', { kind: 'booking', label: 'X' }]] as [string, Night][]);
-    const b = nights([
-      ['2026-08-11', { kind: 'manual' }],
-      ['2026-08-12', { kind: 'imported', label: 'Airbnb' }],
-    ] as [string, Night][]);
-    expect(countVacant(days, [a, b])).toEqual([2, 0, 1, 2, 2]);
-  });
-
-  it('counts every day as free when no property has any occupancy', () => {
-    expect(countVacant(days, [nights([]), nights([])])).toEqual([2, 2, 2, 2, 2]);
-  });
-
-  it('reports zero everywhere when there are no properties at all', () => {
-    expect(countVacant(days, [])).toEqual([0, 0, 0, 0, 0]);
   });
 });

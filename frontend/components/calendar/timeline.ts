@@ -53,13 +53,3 @@ export function buildSegments(days: string[], nights: Map<string, Night>): Segme
 
   return segments;
 }
-
-/**
- * How many properties are free on each day — the number a host actually scans
- * for when someone asks "can you take us on the 14th?".
- */
-export function countVacant(days: string[], rows: Map<string, Night>[]): number[] {
-  return days.map((iso) =>
-    rows.reduce((free, nights) => free + ((nights.get(iso)?.kind ?? 'free') === 'free' ? 1 : 0), 0),
-  );
-}

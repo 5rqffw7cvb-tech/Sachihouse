@@ -1,7 +1,7 @@
 import React from 'react';
 import { format, parseISO } from 'date-fns';
 import { Building2, Settings2 } from 'lucide-react';
-import { buildSegments, countVacant, Night, Segment } from './timeline';
+import { buildSegments, Night, Segment } from './timeline';
 
 /**
  * Every property against one run of dates, one row each.
@@ -73,7 +73,6 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
   activePropertyId,
   busyNights,
 }) => {
-  const vacant = countVacant(days, rows.map((r) => r.nights));
   const gridStyle: React.CSSProperties = {
     gridTemplateColumns: `${NAME_COL} repeat(${days.length}, ${DAY_COL})`,
   };
@@ -90,14 +89,14 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
 
         {/* Date header */}
         <div className="grid sticky top-0 z-10 bg-surface" style={gridStyle}>
-          <div className="border-b border-line" />
+          <div className="border-b border-line-strong" />
           {days.map((iso) => {
             const d = parseISO(iso);
             const today = iso === todayIso;
             return (
               <div
                 key={iso}
-                className={`border-b border-l border-line py-2 text-center ${
+                className={`border-b border-l border-line-strong py-2 text-center ${
                   today ? 'bg-brand-tint' : isWeekend(iso) ? 'bg-subtle' : ''
                 }`}
               >
@@ -110,24 +109,6 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
               </div>
             );
           })}
-        </div>
-
-        {/* Vacant summary — the row a host scans before answering an enquiry. */}
-        <div className="grid" style={gridStyle}>
-          <div className="flex items-center px-3 py-2 text-[12px] font-bold uppercase tracking-wide text-ink-soft border-b border-line">
-            Vacant
-          </div>
-          {days.map((iso, i) => (
-            <div
-              key={iso}
-              className={`border-b border-l border-line py-2 text-center text-[13px] tabular-nums ${
-                iso === todayIso ? 'bg-brand-tint' : isWeekend(iso) ? 'bg-subtle' : ''
-              } ${vacant[i] === 0 ? 'text-danger font-bold' : 'text-ink-soft font-semibold'}`}
-              title={`${vacant[i]} of ${rows.length} free`}
-            >
-              {vacant[i]}
-            </div>
-          ))}
         </div>
 
         {/* One row per property */}
@@ -143,7 +124,7 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
                 disabled={!onSelectProperty}
                 onClick={() => onSelectProperty?.(row.id)}
                 title={onSelectProperty ? `${row.name} — open settings` : row.name}
-                className={`flex items-center gap-2.5 px-3 py-2.5 border-b border-line min-w-0 h-full text-left
+                className={`flex items-center gap-2.5 px-3 py-2.5 border-b border-line-strong min-w-0 h-full text-left
                   transition-colors ${
                     row.id === activePropertyId ? 'bg-brand-tint' : onSelectProperty ? 'hover:bg-subtle' : ''
                   } ${onSelectProperty ? 'cursor-pointer' : 'cursor-default'}`}
@@ -164,7 +145,7 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
               {days.map((iso, i) => (
                 <div
                   key={iso}
-                  className={`border-b border-l border-line h-[46px] ${
+                  className={`border-b border-l border-line-strong h-[46px] ${
                     iso === todayIso ? 'bg-brand-tint/60' : isWeekend(iso) ? 'bg-subtle' : ''
                   }`}
                   style={{ gridRow: 1, gridColumn: i + 2 }}
