@@ -1,6 +1,6 @@
 import React from 'react';
 import { format, parseISO } from 'date-fns';
-import { Building2 } from 'lucide-react';
+import { Building2, Settings2 } from 'lucide-react';
 import { buildSegments, countVacant, Night, Segment } from './timeline';
 
 /**
@@ -32,6 +32,10 @@ export interface PropertyTimelineProps {
   onToggleNight?: (propertyId: string, iso: string) => void;
   /** Clicking an occupied bar. */
   onSelectSegment?: (propertyId: string, segment: Segment) => void;
+  /** Clicking a property's name — opens its settings. */
+  onSelectProperty?: (propertyId: string) => void;
+  /** The property whose settings are currently open, highlighted in the list. */
+  activePropertyId?: string;
   /** Nights mid-request, shown dimmed so a double click is obviously ignored. */
   busyNights?: Set<string>;
 }
@@ -65,6 +69,8 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
   todayIso,
   onToggleNight,
   onSelectSegment,
+  onSelectProperty,
+  activePropertyId,
   busyNights,
 }) => {
   const vacant = countVacant(days, rows.map((r) => r.nights));
@@ -132,8 +138,15 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
             // the background cells collide with the bars and get pushed to a
             // second row, splitting each property across two bands.
             <div key={row.id} className="grid items-center" style={gridStyle}>
-              <div
-                className="flex items-center gap-2.5 px-3 py-2.5 border-b border-line min-w-0 h-full"
+              <button
+                type="button"
+                disabled={!onSelectProperty}
+                onClick={() => onSelectProperty?.(row.id)}
+                title={onSelectProperty ? `${row.name} — open settings` : row.name}
+                className={`flex items-center gap-2.5 px-3 py-2.5 border-b border-line min-w-0 h-full text-left
+                  transition-colors ${
+                    row.id === activePropertyId ? 'bg-brand-tint' : onSelectProperty ? 'hover:bg-subtle' : ''
+                  } ${onSelectProperty ? 'cursor-pointer' : 'cursor-default'}`}
                 style={{ gridRow: 1, gridColumn: 1 }}
               >
                 {row.imageUrl ? (
@@ -143,8 +156,9 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
                     <Building2 className="w-4 h-4 text-ink-muted" />
                   </div>
                 )}
-                <span className="text-[14px] font-semibold text-ink truncate" title={row.name}>{row.name}</span>
-              </div>
+                <span className="text-[14px] font-semibold text-ink truncate">{row.name}</span>
+                {onSelectProperty && <Settings2 className="w-3.5 h-3.5 text-ink-muted shrink-0 ml-auto" />}
+              </button>
 
               {/* Background cells keep the column rules visible under the bars. */}
               {days.map((iso, i) => (
