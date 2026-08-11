@@ -11,8 +11,11 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Loader2, RefreshCw, Plus, Settings2, Sparkles, Trash2 } from 'lucide-react';
+import { Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Loader2, RefreshCw, Plus, Settings2, Sparkles, Trash2 } from 'lucide-react';
 import { AdminShell } from '../components/AdminShell';
+import { Alert, Button, Card, EmptyState, Select, Spinner } from '../components/ui';
+import { PropertyTimeline, TimelineRow } from '../components/calendar/PropertyTimeline';
+import { Night, Segment } from '../components/calendar/timeline';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { getAllProperties } from '../services/storage';
 import {
@@ -104,6 +107,10 @@ const HostCalendarPage: React.FC = () => {
   const [properties, setProperties] = useState<PropertyItem[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState('');
   const [calendar, setCalendar] = useState<PropertyCalendar | null>(null);
+  // Every accessible property's calendar, keyed by id. The timeline needs them
+  // all at once; the panels below still work off the selected one.
+  const [allCalendars, setAllCalendars] = useState<Map<string, PropertyCalendar>>(new Map());
+  const [loadingTimeline, setLoadingTimeline] = useState(true);
   const [viewMonth, setViewMonth] = useState<Date>(startOfMonth(new Date()));
   const [loadingProps, setLoadingProps] = useState(true);
   const [loadingCal, setLoadingCal] = useState(false);
@@ -219,6 +226,27 @@ const HostCalendarPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPropertyId]);
 
+  // Fetch every accessible calendar for the timeline. allSettled so one broken
+  // feed does not blank the whole board — that property simply shows as free.
+  useEffect(() => {
+    if (scopedProperties.length === 0) { setLoadingTimeline(false); return; }
+    let cancelled = false;
+    (async () => {
+      setLoadingTimeline(true);
+      const results = await Promise.allSettled(
+        scopedProperties.map((p) => getPropertyCalendar(p.id).then((c) => [p.id, c] as const)),
+      );
+      if (cancelled) return;
+      const next = new Map<string, PropertyCalendar>();
+      for (const r of results) {
+        if (r.status === 'fulfilled') next.set(r.value[0], r.value[1]);
+      }
+      setAllCalendars(next);
+      setLoadingTimeline(false);
+    })();
+    return () => { cancelled = true; };
+  }, [scopedProperties]);
+
   const manualSet = useMemo(() => new Set(calendar?.manualBlockedDates ?? []), [calendar]);
   const importedSet = useMemo(() => new Set(calendar?.importedBlockedDates ?? []), [calendar]);
   const occupancyMap = useMemo(() => buildOccupancyMap(calendar), [calendar]);
@@ -232,6 +260,91 @@ const HostCalendarPage: React.FC = () => {
   }, [viewMonth]);
 
   const todayIso = format(new Date(), 'yyyy-MM-dd');
+
+  // The timeline shows the selected month, one column per day.
+  const timelineDays = useMemo(
+    () => eachDayOfInterval({ start: startOfMonth(viewMonth), end: endOfMonth(viewMonth) })
+      .map((d) => format(d, 'yyyy-MM-dd')),
+    [viewMonth],
+  );
+
+  // Precedence matters: a paid stay outranks a hold, which outranks an imported
+  // block, which outranks a manual one. Whichever claims a night decides how it
+  // is drawn and whether it can be clicked.
+  const timelineRows: TimelineRow[] = useMemo(() => scopedProperties.map((property) => {
+    const cal = allCalendars.get(property.id);
+    const nights = new Map<string, Night>();
+
+    for (const iso of cal?.manualBlockedDates ?? []) nights.set(iso, { kind: 'manual' });
+
+    for (const event of cal?.importedEvents ?? []) {
+      const label = event.channelName || event.feedName || 'iCal';
+      for (const iso of event.dates) nights.set(iso, { kind: 'imported', label, ref: `${event.feedId}:${event.checkInDate}` });
+    }
+    // Imported nights with no event attached still have to look blocked.
+    for (const iso of cal?.importedBlockedDates ?? []) {
+      if (!nights.has(iso) || nights.get(iso)!.kind === 'manual') {
+        nights.set(iso, { kind: 'imported', label: 'iCal' });
+      }
+    }
+
+    for (const booking of cal?.directBookings ?? []) {
+      const kind = booking.status === 'confirmed' ? 'booking' : 'hold';
+      for (const iso of eachDayOfInterval({
+        start: parseISO(booking.checkInDate),
+        end: parseISO(booking.checkOutDate),
+      }).slice(0, -1).map((d) => format(d, 'yyyy-MM-dd'))) {
+        nights.set(iso, { kind, label: booking.guestName, ref: booking.id });
+      }
+    }
+
+    return {
+      id: property.id,
+      name: property.name || property.id,
+      imageUrl: property.galleryImages?.[0]?.url || property.hostImageUrl,
+      nights,
+    };
+  }), [scopedProperties, allCalendars]);
+
+  /** Block or free a night on any property, not just the selected one. */
+  const toggleNight = async (propertyId: string, iso: string) => {
+    const key = `${propertyId}:${iso}`;
+    if (busyDates.has(key)) return;
+    const cal = allCalendars.get(propertyId);
+    if (!cal) return;
+    const isBlocked = (cal.manualBlockedDates ?? []).includes(iso);
+
+    setBusyDates((prev) => new Set(prev).add(key));
+    setErrorMsg(null);
+    try {
+      const next = isBlocked
+        ? await removeBlockedDates(propertyId, [iso])
+        : await addBlockedDates(propertyId, [iso]);
+      setAllCalendars((prev) => {
+        const clone = new Map(prev);
+        const entry = clone.get(propertyId);
+        if (entry) clone.set(propertyId, { ...entry, manualBlockedDates: next });
+        return clone;
+      });
+      setCalendar((prev) => (prev && prev.propertyId === propertyId ? { ...prev, manualBlockedDates: next } : prev));
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to update the date.');
+    } finally {
+      setBusyDates((prev) => {
+        const clone = new Set(prev);
+        clone.delete(key);
+        return clone;
+      });
+    }
+  };
+
+  /** Opening an imported bar shows the raw event, same as the old grid did. */
+  const handleSelectSegment = (propertyId: string, segment: Segment) => {
+    if (segment.kind !== 'imported') return;
+    const iso = timelineDays[segment.start];
+    const event = (allCalendars.get(propertyId)?.importedEvents ?? []).find((e) => e.dates.includes(iso));
+    if (event) setSelectedImportedEvent(event);
+  };
 
   const toggleDay = async (iso: string) => {
     if (!calendar) return;
@@ -411,102 +524,82 @@ const HostCalendarPage: React.FC = () => {
           </div>
         )}
 
-        {/* Property selector */}
+        {errorMsg && <Alert tone="danger" onDismiss={() => setErrorMsg(null)}>{errorMsg}</Alert>}
+
+        {/* Every property against the month, so "who can I put where" is one glance. */}
+        <Card padded={false} className="mb-5">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-line">
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={ChevronLeft}
+                aria-label="Previous month"
+                onClick={() => setViewMonth((m) => subMonths(m, 1))}
+              />
+              <span className="text-[15px] font-bold text-ink min-w-[9.5rem] text-center">
+                {format(viewMonth, 'MMMM yyyy')}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={ChevronRight}
+                aria-label="Next month"
+                onClick={() => setViewMonth((m) => addMonths(m, 1))}
+              />
+              <Button size="sm" className="ml-2" onClick={() => setViewMonth(startOfMonth(new Date()))}>Today</Button>
+            </div>
+            {loadingTimeline && <Loader2 className="h-4 w-4 animate-spin text-ink-muted" />}
+          </div>
+
+          {loadingTimeline ? (
+            <Spinner label="Loading calendars…" />
+          ) : timelineRows.length === 0 ? (
+            <EmptyState
+              icon={Building2}
+              title="No properties to show"
+              description="Properties assigned to your account will appear here."
+            />
+          ) : (
+            <PropertyTimeline
+              days={timelineDays}
+              rows={timelineRows}
+              todayIso={todayIso}
+              busyNights={busyDates}
+              onToggleNight={toggleNight}
+              onSelectSegment={handleSelectSegment}
+            />
+          )}
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 border-t border-line text-[12px] text-ink-soft">
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-brand" /> Direct booking</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-hold-tint ring-1 ring-inset ring-hold/30" /> Unpaid hold</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-info-tint ring-1 ring-inset ring-info/25" /> Imported from a channel</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-ink-muted/25 ring-1 ring-inset ring-ink-muted/30" /> Blocked by you</span>
+            <span className="text-ink-muted">Click an empty night to block it, a blocked bar to free it, an imported bar for its raw details.</span>
+          </div>
+        </Card>
+
+        {/* Property selector — scopes the panels below, not the timeline. */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
-          <label className="text-[13px] font-medium text-ink-soft">Property</label>
-          <select
+          <label className="text-[13px] font-medium text-ink-soft">Settings for</label>
+          <Select
             value={selectedPropertyId}
             onChange={(e) => setSelectedPropertyId(e.target.value)}
             disabled={loadingProps}
-            className="rounded-control border border-line-strong bg-surface px-3 py-2 text-[13px] text-ink outline-none focus:border-brand transition-colors min-w-[220px]"
+            className="w-auto min-w-[220px]"
           >
             {loadingProps && <option>Loading…</option>}
             {!loadingProps && scopedProperties.length === 0 && <option value="">No properties available</option>}
             {scopedProperties.map((p) => (
               <option key={p.id} value={p.id}>{p.name || p.id}</option>
             ))}
-          </select>
+          </Select>
           {loadingCal && <Loader2 className="h-4 w-4 animate-spin text-ink-muted" />}
         </div>
 
-        {errorMsg && <div className="mb-4 rounded-control border border-danger/25 bg-danger-tint px-4 py-3 text-[13px] text-danger">{errorMsg}</div>}
-
         {calendar && (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5 items-start">
-            {/* Calendar card */}
-            <section className="bg-surface border border-line rounded-card p-4 md:p-5">
-              <div className="flex items-center justify-between mb-4">
-                <button type="button" onClick={() => setViewMonth((m) => subMonths(m, 1))} className="p-2 rounded-control hover:bg-subtle transition-colors" aria-label="Previous month">
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <div className="text-[15px] md:text-[17px] font-semibold">{format(viewMonth, 'MMMM yyyy')}</div>
-                <button type="button" onClick={() => setViewMonth((m) => addMonths(m, 1))} className="p-2 rounded-control hover:bg-subtle transition-colors" aria-label="Next month">
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-7 gap-1 mb-1">
-                {WEEKDAYS.map((d) => (
-                  <div key={d} className="text-center text-[11px] font-semibold text-ink-muted py-1">{d}</div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1">
-                {gridDays.map((day) => {
-                  const iso = format(day, 'yyyy-MM-dd');
-                  const inMonth = isSameMonth(day, viewMonth);
-                  const isManual = manualSet.has(iso);
-                  const isImported = importedSet.has(iso);
-                  const importedEvent = importedEventMap.get(iso);
-                  const occupancy = occupancyMap.get(iso);
-                  const isBusy = busyDates.has(iso);
-                  const readOnly = isImported || !!occupancy;
-                  const isToday = iso === todayIso;
-
-                  let cellClass = 'bg-surface hover:bg-subtle text-ink';
-                  let label = '';
-                  if (occupancy?.kind === 'booking') { cellClass = 'bg-info-tint text-info cursor-default'; label = 'Booked'; }
-                  else if (occupancy?.kind === 'hold') { cellClass = 'bg-hold-tint text-hold cursor-default'; label = 'Hold'; }
-                  else if (isImported) { cellClass = `${importedEventStyle(importedEvent?.channelName).chip} ${importedEvent ? 'cursor-pointer' : 'cursor-default'}`; label = importedEvent?.channelName || importedEvent?.feedName || 'iCal'; }
-                  else if (isManual) { cellClass = 'bg-brand text-white hover:bg-[#333]'; label = 'Blocked'; }
-
-                  const title = occupancy
-                    ? `${occupancy.kind === 'hold' ? 'Unpaid hold' : 'Booked'} — ${occupancy.name}`
-                    : importedEvent
-                      ? `Blocked by ${importedEvent.channelName || importedEvent.feedName} — click for details`
-                      : (isImported ? 'Imported from another platform' : (isManual ? 'Blocked (click to unblock)' : 'Available (click to block)'));
-
-                  return (
-                    <button
-                      key={iso}
-                      type="button"
-                      disabled={(readOnly && !importedEvent) || isBusy}
-                      onClick={() => (importedEvent ? setSelectedImportedEvent(importedEvent) : toggleDay(iso))}
-                      title={title}
-                      className={`relative aspect-square rounded-control border ${isToday ? 'border-info' : 'border-transparent'} flex flex-col items-center justify-center text-[13px] transition-colors ${cellClass} ${!inMonth ? 'opacity-35' : ''} ${readOnly && !importedEvent ? '' : 'cursor-pointer'}`}
-                    >
-                      <span className="font-medium leading-none">{format(day, 'd')}</span>
-                      {label && <span className="mt-0.5 max-w-full truncate px-0.5 text-[8px] uppercase tracking-wide leading-none">{label}</span>}
-                      {isBusy && <Loader2 className="absolute h-3.5 w-3.5 animate-spin" />}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Legend */}
-              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-ink-soft">
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-surface border border-line-strong" /> Available</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-brand" /> Manually blocked</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-danger" /> Airbnb</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-info" /> Booking.com</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-ok" /> Hostex Direct</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-warn-tint border border-warn/30" /> Other imported (tap for details)</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-info-tint border border-info/30" /> Direct booking</span>
-                <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-hold-tint border border-info/30" /> Unpaid hold</span>
-              </div>
-              <p className="mt-3 text-[11px] text-ink-muted">Click an available day to block it, or a blocked day to free it. iCal-imported days show which platform sent them — tap one for the raw details. Direct bookings are managed elsewhere.</p>
-            </section>
-
             {/* Imported-block details, shown on tap */}
             {selectedImportedEvent && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm" onClick={() => setSelectedImportedEvent(null)}>
