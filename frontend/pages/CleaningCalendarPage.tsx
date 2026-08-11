@@ -325,6 +325,10 @@ const CleaningCalendarPage: React.FC = () => {
                 const isBusy = checkouts.length > 1;
                 const rowCount = Math.max(1, propertyRows.length);
 
+                // Today's tint yields to the busy-day orange: a cleaner scanning
+                // this page needs "two properties to turn around" more than they
+                // need "this is today", and the circled number marks the day
+                // either way.
                 return (
                   <button
                     key={iso}
@@ -332,10 +336,21 @@ const CleaningCalendarPage: React.FC = () => {
                     onClick={() => setSelectedDate(iso)}
                     disabled={!hasAnything}
                     style={{ minHeight: `${30 + rowCount * 16}px` }}
-                    className={`relative border-b-2 py-1 flex flex-col items-center gap-1 text-[12px] transition-colors ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} ${!inMonth ? 'opacity-30' : ''} ${hasAnything ? 'hover:bg-[#f5f5f5] cursor-pointer' : 'cursor-default'} ${isBusy ? 'bg-[#fff1e6] ring-1 ring-inset ring-[#fb923c]' : ''}`}
+                    className={`relative border-b-2 py-1 flex flex-col items-center gap-1 text-[12px] transition-colors ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} ${!inMonth ? 'opacity-30' : ''} ${hasAnything ? 'hover:bg-[#f5f5f5] cursor-pointer' : 'cursor-default'} ${isBusy ? 'bg-[#fff1e6] ring-1 ring-inset ring-[#fb923c]' : isToday ? 'bg-[#eaf1fd]' : ''}`}
                   >
                     <span className="flex items-center gap-0.5 leading-none">
-                      <span className="font-medium">{format(day, 'd')}</span>
+                      {/* The filled circle is the universal calendar convention for
+                          today, and unlike a background tint it stays legible on top
+                          of the busy day's orange. */}
+                      <span
+                        className={
+                          isToday
+                            ? 'inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-[#0b57d0] px-1 font-bold text-white'
+                            : 'font-medium'
+                        }
+                      >
+                        {format(day, 'd')}
+                      </span>
                       {hasCleaning && (
                         <span className={`flex items-center text-[10px] font-bold ${isBusy ? 'text-[#c2410c]' : ''}`} title={isBusy ? `${checkouts.length} properties need cleaning` : 'Cleaning day'}>
                           🧹{isBusy && <span>×{checkouts.length}</span>}
@@ -410,6 +425,7 @@ const CleaningCalendarPage: React.FC = () => {
               <span className="rounded bg-[#111827] px-1 py-0.5 text-[7px] font-bold uppercase text-white">In</span>
               <span className="rounded bg-[#111827] px-1 py-0.5 text-[7px] font-bold uppercase text-white">Out</span>
             </span>
+            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-[#0b57d0]" /> today</span>
             <span>🧹 cleaning</span>
             <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-[#f59e0b]" /> turnover</span>
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded ring-1 ring-inset ring-[#fb923c] bg-[#fff1e6]" /> busy (2+)</span>
