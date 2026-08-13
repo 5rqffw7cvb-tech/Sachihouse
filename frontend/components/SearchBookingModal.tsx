@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CalendarDays, Search, Users, X } from 'lucide-react';
+import { CalendarDays, ChevronDown, MapPin, Search, Users, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 export interface SearchModalLocation {
@@ -28,6 +28,9 @@ interface SearchBookingModalProps {
   // Today as YYYY-MM-DD in the guest's own timezone, so `min` on the date
   // inputs matches the day they think it is.
   todayYmd: string;
+  // Optional photo behind the title. Without one the header falls back to a
+  // flat brand wash, which still reads as designed rather than broken.
+  heroImageUrl?: string;
 }
 
 const addDaysYmd = (ymd: string, days: number): string => {
@@ -37,6 +40,35 @@ const addDaysYmd = (ymd: string, days: number): string => {
   return date.toLocaleDateString('sv-SE');
 };
 
+// One cell of the grouped search box: a caption above its control, with the
+// whole cell acting as the control's click target.
+const Cell: React.FC<{
+  htmlFor: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}> = ({ htmlFor, icon: Icon, label, children, className = '' }) => (
+  <label htmlFor={htmlFor} className={`block cursor-pointer px-4 py-3 transition-colors hover:bg-subtle ${className}`}>
+    <span className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+      <Icon className="h-3.5 w-3.5" /> {label}
+    </span>
+    {children}
+  </label>
+);
+
+// Native controls, stripped bare so the surrounding cell supplies the frame.
+const BARE_CONTROL = 'w-full border-0 bg-transparent p-0 text-[15px] font-semibold text-ink focus:outline-none';
+
+const BareSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = ({ children, ...rest }) => (
+  <span className="relative block">
+    <select {...rest} className={`${BARE_CONTROL} cursor-pointer appearance-none pr-6`}>
+      {children}
+    </select>
+    <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+  </span>
+);
+
 const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
   open,
   onClose,
@@ -44,6 +76,7 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
   allowedLocations,
   guestOptions,
   todayYmd,
+  heroImageUrl,
 }) => {
   const { t } = useLanguage();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -93,12 +126,9 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
     onSubmit({ countryCode, provinceCode, checkIn, checkOut, minGuests });
   };
 
-  const fieldClass = 'w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2.5 text-[15px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]';
-  const labelClass = 'mb-1.5 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]';
-
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-4"
+      className="animate-dialog-backdrop fixed inset-0 z-[60] flex items-end justify-center bg-ink/60 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-4"
       onClick={onClose}
       role="presentation"
     >
@@ -109,137 +139,138 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
         aria-modal="true"
         aria-labelledby="search-modal-title"
         onClick={(event) => event.stopPropagation()}
-        className="relative w-full max-w-md max-h-full overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl outline-none sm:p-8"
+        className="animate-dialog-panel relative max-h-full w-full max-w-md overflow-y-auto rounded-3xl bg-surface shadow-2xl outline-none"
       >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('search_modal_skip')}
-          className="absolute right-4 top-4 rounded-full p-2 text-[#63768a] transition-colors hover:bg-[#efedef] hover:text-[#1b1c1d]"
-        >
-          <X className="h-5 w-5" />
-        </button>
-
-        <h2
-          id="search-modal-title"
-          className="font-['Plus_Jakarta_Sans'] pr-10 text-[24px] font-bold uppercase leading-[1.2] tracking-[0.02em] text-[#041627]"
-        >
-          {t('search_modal_title')}
-        </h2>
-        <p className="mt-2 text-[14px] leading-[1.6] text-[#44474c]">{t('search_modal_subtitle')}</p>
-
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          {hasLocationFilter && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="search-modal-country" className={labelClass}>{t('listing_country')}</label>
-                <select
-                  id="search-modal-country"
-                  value={countryCode}
-                  onChange={(event) => {
-                    setCountryCode(event.target.value.toUpperCase());
-                    setProvinceCode('');
-                  }}
-                  className={fieldClass}
-                >
-                  <option value="">{t('listing_all_countries')}</option>
-                  {countryOptions.map((country) => (
-                    <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="search-modal-province" className={labelClass}>{t('listing_province')}</label>
-                <select
-                  id="search-modal-province"
-                  value={provinceCode}
-                  disabled={!countryCode}
-                  onChange={(event) => setProvinceCode(event.target.value.toUpperCase())}
-                  className={`${fieldClass} disabled:bg-[#f5f3f4] disabled:text-[#8a8d92]`}
-                >
-                  <option value="">{t('listing_all_provinces')}</option>
-                  {provinceOptions.map((province) => (
-                    <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+        {/* Header — photo, brand wash, title over the top of both. */}
+        <div className="relative h-36 overflow-hidden sm:h-40">
+          {heroImageUrl && (
+            <img src={heroImageUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
           )}
+          <div className="absolute inset-0 bg-gradient-to-t from-brand via-brand/85 to-brand/45" />
 
-          <div>
-            <label htmlFor="search-modal-checkin" className={labelClass}>
-              <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> {t('listing_checkin')}</span>
-            </label>
-            <input
-              id="search-modal-checkin"
-              type="date"
-              value={checkIn}
-              min={todayYmd}
-              onChange={(event) => {
-                const next = event.target.value;
-                setCheckIn(next);
-                // Keep the stay valid: a check-out that no longer sits after
-                // check-in jumps to the following night.
-                if (next && checkOut && checkOut <= next) {
-                  setCheckOut(addDaysYmd(next, 1));
-                }
-              }}
-              className={fieldClass}
-            />
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('search_modal_skip')}
+            className="absolute right-3 top-3 rounded-full bg-white/15 p-2 text-white backdrop-blur-sm transition-colors hover:bg-white/30"
+          >
+            <X className="h-4 w-4" />
+          </button>
 
-          <div>
-            <label htmlFor="search-modal-checkout" className={labelClass}>
-              <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> {t('listing_checkout')}</span>
-            </label>
-            <input
-              id="search-modal-checkout"
-              type="date"
-              value={checkOut}
-              min={checkIn ? addDaysYmd(checkIn, 1) : todayYmd}
-              onChange={(event) => setCheckOut(event.target.value)}
-              className={fieldClass}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="search-modal-guests" className={labelClass}>
-              <span className="inline-flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {t('listing_guests')}</span>
-            </label>
-            <select
-              id="search-modal-guests"
-              value={minGuests}
-              onChange={(event) => setMinGuests(event.target.value)}
-              className={fieldClass}
+          <div className="relative flex h-full flex-col justify-end p-6">
+            <h2
+              id="search-modal-title"
+              className="font-['Plus_Jakarta_Sans'] text-[24px] font-bold leading-[1.2] text-white"
             >
-              <option value="">{t('listing_any')}</option>
-              {guestOptions.map((value) => (
-                <option key={value} value={value}>{value}+ {t('listing_guests')}</option>
-              ))}
-            </select>
+              {t('search_modal_title')}
+            </h2>
+            <p className="mt-1 text-[13px] leading-[1.5] text-white/80">{t('search_modal_subtitle')}</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 sm:p-6">
+          {/* One grouped box rather than four loose fields — it reads as a
+              single search bar, the way booking sites present this. */}
+          <div className="divide-y divide-line overflow-hidden rounded-card border border-line-strong">
+            {hasLocationFilter && (
+              <div className="grid grid-cols-2 divide-x divide-line">
+                <Cell htmlFor="search-modal-country" icon={MapPin} label={t('listing_country')}>
+                  <BareSelect
+                    id="search-modal-country"
+                    value={countryCode}
+                    onChange={(event) => {
+                      setCountryCode(event.target.value.toUpperCase());
+                      setProvinceCode('');
+                    }}
+                  >
+                    <option value="">{t('listing_all_countries')}</option>
+                    {countryOptions.map((country) => (
+                      <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>
+                    ))}
+                  </BareSelect>
+                </Cell>
+                <Cell htmlFor="search-modal-province" icon={MapPin} label={t('listing_province')}>
+                  <BareSelect
+                    id="search-modal-province"
+                    value={provinceCode}
+                    disabled={!countryCode}
+                    onChange={(event) => setProvinceCode(event.target.value.toUpperCase())}
+                  >
+                    <option value="">{t('listing_all_provinces')}</option>
+                    {provinceOptions.map((province) => (
+                      <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
+                    ))}
+                  </BareSelect>
+                </Cell>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 divide-x divide-line">
+              <Cell htmlFor="search-modal-checkin" icon={CalendarDays} label={t('listing_checkin')}>
+                <input
+                  id="search-modal-checkin"
+                  type="date"
+                  value={checkIn}
+                  min={todayYmd}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setCheckIn(next);
+                    // Keep the stay valid: a check-out that no longer sits
+                    // after check-in jumps to the following night.
+                    if (next && checkOut && checkOut <= next) {
+                      setCheckOut(addDaysYmd(next, 1));
+                    }
+                  }}
+                  className={BARE_CONTROL}
+                />
+              </Cell>
+              <Cell htmlFor="search-modal-checkout" icon={CalendarDays} label={t('listing_checkout')}>
+                <input
+                  id="search-modal-checkout"
+                  type="date"
+                  value={checkOut}
+                  min={checkIn ? addDaysYmd(checkIn, 1) : todayYmd}
+                  onChange={(event) => setCheckOut(event.target.value)}
+                  className={BARE_CONTROL}
+                />
+              </Cell>
+            </div>
+
+            <Cell htmlFor="search-modal-guests" icon={Users} label={t('listing_guests')}>
+              <BareSelect
+                id="search-modal-guests"
+                value={minGuests}
+                onChange={(event) => setMinGuests(event.target.value)}
+              >
+                <option value="">{t('listing_any')}</option>
+                {guestOptions.map((value) => (
+                  <option key={value} value={value}>{value}+ {t('listing_guests')}</option>
+                ))}
+              </BareSelect>
+            </Cell>
           </div>
 
           {!datesValid && (
-            <p className="text-[13px] text-[#ba1a1a]">{t('search_modal_date_error')}</p>
+            <p className="mt-3 text-[13px] text-danger">{t('search_modal_date_error')}</p>
           )}
 
           <button
             type="submit"
             disabled={!datesValid}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#041627] px-4 py-3.5 text-[15px] font-bold uppercase tracking-[0.04em] text-white transition-colors hover:bg-[#041627]/90 disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-control bg-brand px-4 py-3.5 text-[15px] font-bold tracking-[0.02em] text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Search className="h-4 w-4" />
             {t('search_modal_submit')}
           </button>
-        </form>
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-3 w-full rounded-lg px-4 py-2 text-[13px] font-semibold text-[#63768a] transition-colors hover:bg-[#efedef] hover:text-[#1b1c1d]"
-        >
-          {t('search_modal_skip')}
-        </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-2 w-full rounded-control px-4 py-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:bg-subtle hover:text-ink"
+          >
+            {t('search_modal_skip')}
+          </button>
+        </form>
       </div>
     </div>
   );

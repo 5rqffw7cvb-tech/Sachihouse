@@ -15,6 +15,8 @@ import { ApiUser } from '../services/api';
 // Once the welcome search prompt has been used or dismissed, it stays gone for
 // the rest of the browser session.
 const SEARCH_MODAL_SEEN_KEY = 'search_modal_seen';
+// How long the listings get to themselves before the prompt appears over them.
+const SEARCH_MODAL_DELAY_MS = 3000;
 
 export interface ListingsPageProps {
   properties: (PropertyData & { id: string })[];
@@ -439,7 +441,10 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     } catch {
       // No storage available — showing it is the safer default.
     }
-    setIsSearchModalOpen(true);
+    // Let the listings land first. Opening on arrival reads as an ad, and the
+    // guest has not yet seen what it is they would be searching through.
+    const timer = window.setTimeout(() => setIsSearchModalOpen(true), SEARCH_MODAL_DELAY_MS);
+    return () => window.clearTimeout(timer);
     // Runs once on arrival: later filter changes must not re-open the prompt.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -464,6 +469,15 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
   const visibleProperties = displayedProperties.slice(0, visibleCardCount);
 
+  // The first listing's own photo becomes the search prompt's header image, so
+  // the dialog shows the guest what they are about to search through.
+  const searchModalHeroUrl = (() => {
+    const heroImage = properties
+      .flatMap((property) => property.galleryImages ?? [])
+      .find((image) => image && image.showOnHome && image.url);
+    return heroImage ? buildOptimizedImageUrl(heroImage.url, 640) : undefined;
+  })();
+
   return (
     <div className="bg-[#e8e5e6] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
       <SearchBookingModal
@@ -473,6 +487,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         allowedLocations={allowedLocations}
         guestOptions={guestOptions}
         todayYmd={todayYmd}
+        heroImageUrl={searchModalHeroUrl}
       />
       <TopNavBar
         navTitleOverride={settings.navTitle}

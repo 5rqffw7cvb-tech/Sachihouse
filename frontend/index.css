@@ -92,6 +92,35 @@ body {
   }
 }
 
+/* ─── Dialog entrance ─────────────────────────────────────────
+   For dialogs that open on their own rather than from a click (the
+   arrival search prompt): appearing without motion reads as a glitch,
+   so the panel rises into place while the backdrop fades in. */
+@keyframes dialog-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes dialog-panel-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-dialog-backdrop {
+  animation: dialog-backdrop-in 220ms ease-out both;
+}
+
+.animate-dialog-panel {
+  animation: dialog-panel-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-dialog-backdrop,
+  .animate-dialog-panel {
+    animation: none;
+  }
+}
+
 /* Hide scrollbar for clean horizontal scrolling */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
