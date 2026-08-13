@@ -15,6 +15,33 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
 import { AppliedCoupon, getQuote, QuoteResult } from '../services/pricing';
 
+// The three pieces of state a date picker needs: the chosen range, plus which
+// end the next click lands on. Bundled so a caller can own the whole selection.
+export interface BookingDateSelection {
+  checkIn: Date | null;
+  checkOut: Date | null;
+  selecting: 'checkIn' | 'checkOut';
+}
+
+// Shared range-picking rule, exported so a second calendar (the desktop Pricing
+// page's availability panel) behaves identically to the one inside this widget.
+export const applyDatePick = (selection: BookingDateSelection, day: Date): BookingDateSelection => {
+  const { checkIn, checkOut, selecting } = selection;
+
+  if (selecting === 'checkIn') {
+    // Keep an existing check-out only while it still falls after the new check-in.
+    const keepsCheckOut = checkOut && !isBefore(checkOut, day) && !isSameDay(checkOut, day);
+    return { checkIn: day, checkOut: keepsCheckOut ? checkOut : null, selecting: 'checkOut' };
+  }
+
+  // Picking a check-out on or before the check-in reads as "start over here".
+  if (!checkIn || isBefore(day, checkIn) || isSameDay(day, checkIn)) {
+    return { checkIn: day, checkOut: null, selecting: 'checkOut' };
+  }
+
+  return { checkIn, checkOut: day, selecting: 'checkIn' };
+};
+
 interface BookingWidgetProps {
   pricing: PricingConfig;
   className?: string;
@@ -23,6 +50,11 @@ interface BookingWidgetProps {
   // it keeps the original "email the host" behaviour.
   propertyId?: string;
   directBooking?: PropertyData['directBooking'];
+  // Pass both to drive the dates from outside (the desktop Pricing page does
+  // this so its full-size availability calendar and this panel share one
+  // selection). Omit them and the widget keeps its own state as before.
+  selection?: BookingDateSelection;
+  onSelectionChange?: (selection: BookingDateSelection) => void;
   // Denser layout for space-constrained contexts (the mobile "Book Direct"
   // page) — drops the header/footer copy and tightens padding so the whole
   // card fits without scrolling. Booking mechanics are unchanged; only the
@@ -49,15 +81,28 @@ const startOfMonth = (date: Date): Date => {
   return newDate;
 };
 
-const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, adminEmail, propertyId, directBooking, compact }) => {
+const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, adminEmail, propertyId, directBooking, compact, selection, onSelectionChange }) => {
   const { t, language } = useLanguage();
   const dateLocale = getDateFnsLocale(language);
   const weekdayLabels = [t('weekday_sun'), t('weekday_mon'), t('weekday_tue'), t('weekday_wed'), t('weekday_thu'), t('weekday_fri'), t('weekday_sat')];
   const today = startOfDay(new Date());
   
   // State for values
-  const [checkIn, setCheckIn] = useState<Date | null>(today);
-  const [checkOut, setCheckOut] = useState<Date | null>(addDays(today, 3));
+  const [ownSelection, setOwnSelection] = useState<BookingDateSelection>({
+    checkIn: today,
+    checkOut: addDays(today, 3),
+    selecting: 'checkIn',
+  });
+  const isSelectionControlled = Boolean(selection && onSelectionChange);
+  const dateSelection = isSelectionControlled ? selection! : ownSelection;
+  const { checkIn, checkOut, selecting: selectingField } = dateSelection;
+  const setSelection = (next: BookingDateSelection) => {
+    if (isSelectionControlled) onSelectionChange!(next);
+    else setOwnSelection(next);
+  };
+  const setSelectingField = (field: BookingDateSelection['selecting']) =>
+    setSelection({ ...dateSelection, selecting: field });
+
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0); 
   const [infants, setInfants] = useState(0);
@@ -66,7 +111,6 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
   const [isGuestDropdownOpen, setIsGuestDropdownOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarViewMonth, setCalendarViewMonth] = useState(today);
-  const [selectingField, setSelectingField] = useState<'checkIn' | 'checkOut'>('checkIn');
   const [isBookingFormOpen, setIsBookingFormOpen] = useState(false);
   // Compact mode (mobile "Book Direct") hides the price breakdown behind a
   // toggle by default so the sticky bottom CTA is reachable without scrolling.
@@ -191,25 +235,10 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
   };
 
   const handleDateSelect = (day: Date) => {
-    if (selectingField === 'checkIn') {
-        setCheckIn(day);
-        setSelectingField('checkOut');
-        // If checkout is before new checkin, reset it
-        if (checkOut && (isBefore(checkOut, day) || isSameDay(checkOut, day))) {
-            setCheckOut(null);
-        }
-    } else {
-        // Selecting Check-out
-        if (isBefore(day, checkIn!) || isSameDay(day, checkIn!)) {
-            // User clicked a date before check-in, treat it as new check-in
-            setCheckIn(day);
-            setCheckOut(null);
-            setSelectingField('checkOut');
-        } else {
-            setCheckOut(day);
-            setIsCalendarOpen(false); // Close after full selection
-        }
-    }
+    const next = applyDatePick(dateSelection, day);
+    setSelection(next);
+    // Close only once the guest has both ends of the stay.
+    if (next.checkOut) setIsCalendarOpen(false);
   };
 
   const handleEmailInquiry = () => {
@@ -408,7 +437,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                             <span className="w-2 h-2 rounded-full bg-gray-900"></span> {t('sim_legend_selected')}
                         </div>
                         <button
-                            onClick={() => { setCheckIn(null); setCheckOut(null); }}
+                            onClick={() => setSelection({ checkIn: null, checkOut: null, selecting: 'checkIn' })}
                             className="underline hover:text-blue-600"
                         >
                             {t('sim_clear_dates')}
@@ -752,8 +781,7 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
             // the clash and reopen the calendar so the guest can pick again.
             setIsBookingFormOpen(false);
             setTakenDates(conflicts);
-            setCheckOut(null);
-            setSelectingField('checkIn');
+            setSelection({ ...dateSelection, checkOut: null, selecting: 'checkIn' });
             setIsCalendarOpen(true);
             refreshBlockedDates(propertyId!).catch(() => undefined);
           }}

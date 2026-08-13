@@ -9,7 +9,12 @@ import { TopNavBar } from '../components/TopNavBar';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { Footer } from '../components/Footer';
+import SearchBookingModal, { SearchModalValues } from '../components/SearchBookingModal';
 import { ApiUser } from '../services/api';
+
+// Once the welcome search prompt has been used or dismissed, it stays gone for
+// the rest of the browser session.
+const SEARCH_MODAL_SEEN_KEY = 'search_modal_seen';
 
 export interface ListingsPageProps {
   properties: (PropertyData & { id: string })[];
@@ -38,6 +43,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const [coHostQuery, setCoHostQuery] = useState('');
   const [visibleCardCount, setVisibleCardCount] = useState(3);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [draftCountryCode, setDraftCountryCode] = useState('');
   const [draftProvinceCode, setDraftProvinceCode] = useState('');
   const [draftMinBedrooms, setDraftMinBedrooms] = useState('');
@@ -396,6 +402,48 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     setIsMobileFiltersOpen(false);
   };
 
+  const markSearchModalSeen = () => {
+    try {
+      sessionStorage.setItem(SEARCH_MODAL_SEEN_KEY, '1');
+    } catch {
+      // Private browsing can refuse storage; the prompt simply reappears.
+    }
+  };
+
+  const closeSearchModal = () => {
+    markSearchModalSeen();
+    setIsSearchModalOpen(false);
+  };
+
+  const handleSearchModalSubmit = (values: SearchModalValues) => {
+    markSearchModalSeen();
+    setIsSearchModalOpen(false);
+    updateQueryParams({
+      countryCode: values.countryCode || null,
+      provinceCode: values.provinceCode || null,
+      minGuests: values.minGuests || null,
+      checkIn: values.checkIn,
+      checkOut: values.checkOut,
+    });
+  };
+
+  // Greet arriving guests with the search prompt. Deliberately skipped for
+  // signed-in staff (they open this page to manage listings, not to book) and
+  // for links that already carry a search, which would otherwise be buried
+  // under a dialog asking for the search the visitor just made.
+  useEffect(() => {
+    if (isAdmin || isHost) return;
+    if (activeFilterCount > 0) return;
+    try {
+      if (sessionStorage.getItem(SEARCH_MODAL_SEEN_KEY)) return;
+    } catch {
+      // No storage available — showing it is the safer default.
+    }
+    setIsSearchModalOpen(true);
+    // Runs once on arrival: later filter changes must not re-open the prompt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const initialCount = Math.min(3, displayedProperties.length);
     setVisibleCardCount(initialCount);
@@ -418,6 +466,14 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
   return (
     <div className="bg-[#e8e5e6] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
+      <SearchBookingModal
+        open={isSearchModalOpen}
+        onClose={closeSearchModal}
+        onSubmit={handleSearchModalSubmit}
+        allowedLocations={allowedLocations}
+        guestOptions={guestOptions}
+        todayYmd={todayYmd}
+      />
       <TopNavBar
         navTitleOverride={settings.navTitle}
         actionButton={
