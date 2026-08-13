@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
-import { Baby, CalendarDays, ChevronDown, ChevronLeft, MapPin, Minus, Plus, Search, User, Users, X } from 'lucide-react';
-import { BookingDateSelection, applyDatePick } from './BookingWidget';
+import { CalendarDays, ChevronDown, ChevronLeft, MapPin, Minus, Plus, Search, Users, X } from 'lucide-react';
+import { BookingDateSelection, applyDatePick } from '../utils/dateRange';
 import DateRangeCalendar from './DateRangeCalendar';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
+import { RememberedSearch } from '../utils/searchMemory';
 
 export interface SearchModalLocation {
   countryCode: string;
@@ -20,6 +21,7 @@ export interface SearchModalValues {
   checkOut: string;
   adults: number;
   children: number;
+  infants: number;
 }
 
 interface SearchBookingModalProps {
@@ -41,6 +43,8 @@ interface SearchBookingModalProps {
   // Optional photo behind the title. Without one the header falls back to a
   // flat brand wash, which still reads as designed rather than broken.
   heroImageUrl?: string;
+  // A search the guest made minutes ago, so they are not made to re-enter it.
+  initialSearch?: RememberedSearch | null;
 }
 
 const startOfDay = (date: Date): Date => {
@@ -56,6 +60,16 @@ const addDays = (date: Date, days: number): Date => {
 };
 
 const toYmd = (date: Date): string => date.toLocaleDateString('sv-SE');
+
+// Local-date parse: `new Date('2026-08-16')` is UTC midnight, a day early for
+// anyone west of Greenwich.
+const fromYmd = (value: string): Date | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setHours(0, 0, 0, 0);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
 // Which panel of the dialog is showing. Swapping the body rather than stacking
 // popovers keeps the calendar and the guest steppers usable at phone width.
@@ -97,41 +111,39 @@ const Cell: React.FC<{
 
 const VALUE_TEXT = 'block truncate text-[15px] font-semibold text-ink';
 
-// A labelled +/- stepper, used for both guest kinds.
-const Stepper: React.FC<{
-  icon: React.ComponentType<{ className?: string }>;
+// A guest row: title, the rule that applies to it, and a round -/+ pair. Laid
+// out to match the booking widget on each property page, so the control a guest
+// meets here is the same one they meet at the point of booking.
+const GuestRow: React.FC<{
   title: string;
   hint: string;
   value: number;
   min: number;
   onChange: (next: number) => void;
   canIncrease: boolean;
-}> = ({ icon: Icon, title, hint, value, min, onChange, canIncrease }) => (
+}> = ({ title, hint, value, min, onChange, canIncrease }) => (
   <div className="flex items-center justify-between gap-4 py-4">
-    <div className="flex items-start gap-3">
-      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-ink-muted" />
-      <div>
-        <div className="text-[15px] font-bold text-ink">{title}</div>
-        <div className="text-[12px] text-ink-muted">{hint}</div>
-      </div>
+    <div>
+      <div className="text-[15px] font-bold text-ink">{title}</div>
+      <div className="text-[12px] text-ink-muted">{hint}</div>
     </div>
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-4">
       <button
         type="button"
         onClick={() => onChange(value - 1)}
         disabled={value <= min}
         aria-label={`${title} −`}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-line-strong text-ink-soft transition-colors hover:border-brand hover:text-brand disabled:opacity-30 disabled:hover:border-line-strong disabled:hover:text-ink-soft"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-line-strong text-ink-soft transition-colors hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-line-strong disabled:hover:text-ink-soft"
       >
         <Minus className="h-4 w-4" />
       </button>
-      <span className="w-6 text-center text-[15px] font-bold text-ink">{value}</span>
+      <span className="w-6 text-center text-[16px] font-semibold text-ink">{value}</span>
       <button
         type="button"
         onClick={() => onChange(value + 1)}
         disabled={!canIncrease}
         aria-label={`${title} +`}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-line-strong text-ink-soft transition-colors hover:border-brand hover:text-brand disabled:opacity-30 disabled:hover:border-line-strong disabled:hover:text-ink-soft"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-line-strong text-ink-soft transition-colors hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-line-strong disabled:hover:text-ink-soft"
       >
         <Plus className="h-4 w-4" />
       </button>
@@ -148,24 +160,34 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
   isDateUnavailable,
   onAreaChange,
   heroImageUrl,
+  initialSearch,
 }) => {
   const { t, language } = useLanguage();
   const dateLocale = getDateFnsLocale(language);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const [view, setView] = useState<ModalView>('form');
-  const [countryCode, setCountryCode] = useState('');
-  const [provinceCode, setProvinceCode] = useState('');
-  // Pre-filled with tonight so the guest can search in one tap; they only
-  // touch the fields they actually want to change.
+  const [countryCode, setCountryCode] = useState(initialSearch?.countryCode ?? '');
+  const [provinceCode, setProvinceCode] = useState(initialSearch?.provinceCode ?? '');
+  // Falls back to tonight so the guest can search in one tap; they only touch
+  // the fields they actually want to change.
   const [selection, setSelection] = useState<BookingDateSelection>(() => {
     const today = startOfDay(new Date());
+    const remembered = initialSearch ? fromYmd(initialSearch.checkIn) : null;
+    const rememberedOut = initialSearch ? fromYmd(initialSearch.checkOut) : null;
+    // A remembered stay that has since started is no use; fall back to tonight.
+    if (remembered && rememberedOut && remembered >= today) {
+      return { checkIn: remembered, checkOut: rememberedOut, selecting: 'checkIn' };
+    }
     return { checkIn: today, checkOut: addDays(today, 1), selecting: 'checkIn' };
   });
   // Split rather than one total because children are priced separately, and a
   // party of "4" costs differently depending on how many of them are kids.
-  const [adults, setAdults] = useState(2);
-  const [children, setChildren] = useState(0);
+  const [adults, setAdults] = useState(initialSearch?.adults ?? 2);
+  const [children, setChildren] = useState(initialSearch?.children ?? 0);
+  // Free, and outside the paying tiers — mirrors how the booking widget counts
+  // them, so the party carried to the property page needs no translation.
+  const [infants, setInfants] = useState(initialSearch?.infants ?? 0);
 
   const countryOptions = useMemo(
     () => Array.from(new Map(allowedLocations.map((location) => [location.countryCode, location])).values()),
@@ -176,7 +198,8 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
 
   const { checkIn, checkOut } = selection;
   const datesValid = !!checkIn && !!checkOut && checkIn < checkOut;
-  const totalGuests = adults + children;
+  // Infants sit outside the paying tiers, so they do not consume capacity.
+  const payingGuests = adults + children;
 
   // Tell the page which area to compute sold-out nights for.
   useEffect(() => {
@@ -215,6 +238,7 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
       checkOut: toYmd(checkOut!),
       adults,
       children,
+      infants,
     });
   };
 
@@ -222,8 +246,9 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
     date ? format(date, 'EEE, d MMM', { locale: dateLocale }) : t('sim_add_dates');
 
   const guestSummary = [
-    `${adults} ${adults === 1 ? t('search_modal_adult') : t('search_modal_adults')}`,
-    children > 0 ? `${children} ${children === 1 ? t('search_modal_child') : t('search_modal_children')}` : '',
+    `${adults} ${t('sim_adults').toLowerCase()}`,
+    children > 0 ? `${children} ${t('sim_children').toLowerCase()}` : '',
+    infants > 0 ? `${infants} ${t('sim_infants').toLowerCase()}` : '',
   ].filter(Boolean).join(', ');
 
   const openCalendar = (selecting: BookingDateSelection['selecting']) => {
@@ -425,23 +450,29 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
           {view === 'guests' && (
             <>
               <div className="divide-y divide-line">
-                <Stepper
-                  icon={User}
-                  title={t('search_modal_adults')}
+                <GuestRow
+                  title={t('sim_adults')}
                   hint={t('search_modal_adults_hint')}
                   value={adults}
                   min={1}
                   onChange={setAdults}
-                  canIncrease={totalGuests < maxGuests}
+                  canIncrease={payingGuests < maxGuests}
                 />
-                <Stepper
-                  icon={Baby}
-                  title={t('search_modal_children')}
+                <GuestRow
+                  title={t('sim_children')}
                   hint={t('search_modal_children_hint')}
                   value={children}
                   min={0}
                   onChange={setChildren}
-                  canIncrease={totalGuests < maxGuests}
+                  canIncrease={payingGuests < maxGuests}
+                />
+                <GuestRow
+                  title={t('sim_infants')}
+                  hint={t('search_modal_infants_hint')}
+                  value={infants}
+                  min={0}
+                  onChange={setInfants}
+                  canIncrease={infants < 3}
                 />
               </div>
 

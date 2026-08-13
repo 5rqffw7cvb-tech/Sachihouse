@@ -7,11 +7,12 @@ import {
   format, addMonths, addDays, endOfMonth, eachDayOfInterval,
   isBefore, isSameDay, isWithinInterval, differenceInDays,
 } from 'date-fns';
-import BookingWidget, { BookingDateSelection, applyDatePick } from '../components/BookingWidget';
+import BookingWidget from '../components/BookingWidget';
+import { BookingDateSelection, applyDatePick } from '../utils/dateRange';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
-import { readStayFromParams } from '../utils/stayParams';
+import { readStayForPage } from '../utils/stayParams';
 
 interface PricingPageProps {
   data: PropertyData;
@@ -36,7 +37,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
   const [searchParams] = useSearchParams();
   // Dates and party carried over from the listings search, if the guest came
   // from there.
-  const [arrivingStay] = useState(() => readStayFromParams(searchParams));
+  const [arrivingStay] = useState(() => readStayForPage(searchParams));
   // The page owns the stay dates so the big availability calendar and the
   // booking panel beside it are always showing the same selection.
   const [selection, setSelection] = useState<BookingDateSelection>(() => {

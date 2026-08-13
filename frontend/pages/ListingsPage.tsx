@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { PropertyData, SiteSettings } from '../types';
 import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train, Globe, Plus } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -10,7 +10,15 @@ import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { MobileBottomNav } from '../components/MobileBottomNav';
 import { Footer } from '../components/Footer';
 import SearchBookingModal, { SearchModalValues } from '../components/SearchBookingModal';
+import StayPriceSummary from '../components/StayPriceSummary';
+import DateRangeField from '../components/DateRangeField';
+import { calculateHomestayPrice } from '../utils/pricing';
+import { forgetSearch, recallSearch, rememberSearch } from '../utils/searchMemory';
 import { ApiUser } from '../services/api';
+
+// Only pulled in when a guest actually books from a card, which keeps the
+// booking form out of the listings entry bundle.
+const BookingGuestForm = lazy(() => import('../components/BookingGuestForm'));
 
 // Once the welcome search prompt has been used or dismissed, it stays gone for
 // the rest of the browser session.
@@ -54,6 +62,17 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   // calendar then disables nothing rather than guessing.
   const [blockedByProperty, setBlockedByProperty] = useState<Map<string, Set<string>> | null>(null);
   const [searchArea, setSearchArea] = useState({ countryCode: '', provinceCode: '' });
+  // A search from the last ten minutes, used to prefill the prompt and to
+  // restore the results when the guest comes back from a property page.
+  const [rememberedSearch] = useState(() => recallSearch());
+  // Which card's "Book now" is open, and any nights that were taken while the
+  // guest was filling the form in.
+  const [bookingProperty, setBookingProperty] = useState<(PropertyData & { id: string }) | null>(null);
+  const [bookingConflicts, setBookingConflicts] = useState<string[]>([]);
+  const [availabilityNonce, setAvailabilityNonce] = useState(0);
+  // Set the first time any calendar is opened, so the availability lookup is
+  // paid for only by visitors who actually open one.
+  const [calendarDataWanted, setCalendarDataWanted] = useState(false);
   const [draftCountryCode, setDraftCountryCode] = useState('');
   const [draftProvinceCode, setDraftProvinceCode] = useState('');
   const [draftMinBedrooms, setDraftMinBedrooms] = useState('');
@@ -84,8 +103,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   // opens with the same guests — children are priced separately there.
   const selectedAdults = Number(searchParams.get('adults') || 0);
   const selectedChildren = Number(searchParams.get('children') || 0);
+  const selectedInfants = Number(searchParams.get('infants') || 0);
   const datesActive = !!(selectedCheckIn && selectedCheckOut && selectedCheckIn < selectedCheckOut);
-  const todayYmd = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD in local time
 
   useEffect(() => {
     setProperties(initialProperties);
@@ -141,7 +160,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     return () => {
       cancelled = true;
     };
-  }, [datesActive, selectedCheckIn, selectedCheckOut, t]);
+  }, [datesActive, selectedCheckIn, selectedCheckOut, availabilityNonce, t]);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -427,8 +446,11 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     setDraftCheckOut('');
     updateQueryParams({
       countryCode: null, provinceCode: null, minBedrooms: null, minGuests: null,
-      checkIn: null, checkOut: null, adults: null, children: null,
+      checkIn: null, checkOut: null, adults: null, children: null, infants: null,
     });
+    // Clearing the filters is an explicit "start again", so the remembered
+    // search goes with them rather than reappearing on the next visit.
+    forgetSearch();
     setIsMobileFiltersOpen(false);
   };
 
@@ -456,8 +478,18 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
       minGuests: String(values.adults + values.children),
       adults: String(values.adults),
       children: values.children > 0 ? String(values.children) : null,
+      infants: values.infants > 0 ? String(values.infants) : null,
       checkIn: values.checkIn,
       checkOut: values.checkOut,
+    });
+    rememberSearch({
+      countryCode: values.countryCode,
+      provinceCode: values.provinceCode,
+      checkIn: values.checkIn,
+      checkOut: values.checkOut,
+      adults: values.adults,
+      children: values.children,
+      infants: values.infants,
     });
   };
 
@@ -468,6 +500,8 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   useEffect(() => {
     if (isAdmin || isHost) return;
     if (activeFilterCount > 0) return;
+    // They searched minutes ago; that search is being restored above.
+    if (rememberedSearch) return;
     try {
       if (sessionStorage.getItem(SEARCH_MODAL_SEEN_KEY)) return;
     } catch {
@@ -481,11 +515,31 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Bring back the search the guest made minutes ago, so returning from a
+  // property page lands them back on their own results rather than the full
+  // list. Only when the URL carries none of its own — a shared link wins.
+  useEffect(() => {
+    if (!rememberedSearch) return;
+    if (activeFilterCount > 0) return;
+    updateQueryParams({
+      countryCode: rememberedSearch.countryCode || null,
+      provinceCode: rememberedSearch.provinceCode || null,
+      minGuests: String(rememberedSearch.adults + rememberedSearch.children),
+      adults: String(rememberedSearch.adults),
+      children: rememberedSearch.children > 0 ? String(rememberedSearch.children) : null,
+      infants: rememberedSearch.infants > 0 ? String(rememberedSearch.infants) : null,
+      checkIn: rememberedSearch.checkIn,
+      checkOut: rememberedSearch.checkOut,
+    });
+    // Restores once, on arrival; clearing the filters afterwards must stick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Availability behind the prompt's calendar. Fetched for every property in
   // one go and intersected on the client, so narrowing the area re-marks the
   // calendar instantly instead of costing another round trip.
   useEffect(() => {
-    if (!isSearchModalOpen || blockedByProperty) return;
+    if ((!isSearchModalOpen && !calendarDataWanted) || blockedByProperty) return;
 
     let cancelled = false;
     const from = new Date();
@@ -506,7 +560,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     return () => {
       cancelled = true;
     };
-  }, [isSearchModalOpen, blockedByProperty]);
+  }, [isSearchModalOpen, calendarDataWanted, blockedByProperty]);
 
   useEffect(() => {
     const initialCount = Math.min(3, displayedProperties.length);
@@ -528,6 +582,28 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
   const visibleProperties = displayedProperties.slice(0, visibleCardCount);
 
+  // The stay as Dates, for the booking form and the per-property price.
+  const parseYmd = (value: string): Date | null => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setHours(0, 0, 0, 0);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+  const stayCheckIn = datesActive ? parseYmd(selectedCheckIn) : null;
+  const stayCheckOut = datesActive ? parseYmd(selectedCheckOut) : null;
+  const stayNights = stayCheckIn && stayCheckOut
+    ? Math.round((stayCheckOut.getTime() - stayCheckIn.getTime()) / 86_400_000)
+    : 0;
+  // A priced stay needs both the nights and who is staying; without a party
+  // the cards fall back to the "from" price alone.
+  const canPriceStay = stayNights > 0 && selectedAdults > 0;
+
+  const priceStayFor = (property: PropertyData & { id: string }) =>
+    canPriceStay && property.pricing
+      ? calculateHomestayPrice(selectedAdults, selectedChildren, selectedInfants, stayNights, property.pricing)
+      : null;
+
   // The search the guest just made, handed to the property page so its booking
   // widget opens on the same dates and party instead of asking again.
   const stayQuery = (() => {
@@ -538,6 +614,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     }
     if (selectedAdults > 0) params.set('adults', String(selectedAdults));
     if (selectedChildren > 0) params.set('children', String(selectedChildren));
+    if (selectedInfants > 0) params.set('infants', String(selectedInfants));
     const query = params.toString();
     return query ? `?${query}` : '';
   })();
@@ -549,13 +626,23 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
   // A night is only closed off once every property in the area is taken —
   // otherwise the guest would be barred from a date some listing could serve.
-  const isSearchDateUnavailable = (day: Date) => {
-    if (!blockedByProperty || searchAreaPropertyIds.length === 0) {
+  const makeDateUnavailableChecker = (propertyIds: string[]) => (day: Date) => {
+    if (!blockedByProperty || propertyIds.length === 0) {
       return false;
     }
     const ymd = day.toLocaleDateString('sv-SE');
-    return searchAreaPropertyIds.every((id) => blockedByProperty.get(id)?.has(ymd) ?? false);
+    return propertyIds.every((id) => blockedByProperty.get(id)?.has(ymd) ?? false);
   };
+
+  const isSearchDateUnavailable = makeDateUnavailableChecker(searchAreaPropertyIds);
+
+  // The filter's own calendar answers for the area being edited in the filter
+  // bar, which is not necessarily the one the prompt was last set to.
+  const draftAreaDateUnavailable = makeDateUnavailableChecker(
+    properties
+      .filter((property) => matchesArea(property, draftCountryCode, draftProvinceCode))
+      .map((property) => property.id),
+  );
 
   // The first listing's own photo becomes the search prompt's header image, so
   // the dialog shows the guest what they are about to search through.
@@ -568,6 +655,30 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
   return (
     <div className="bg-[#e8e5e6] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
+      {bookingProperty && stayCheckIn && stayCheckOut && (
+        <Suspense fallback={null}>
+          <BookingGuestForm
+            propertyId={bookingProperty.id}
+            checkIn={stayCheckIn}
+            checkOut={stayCheckOut}
+            nights={stayNights}
+            adults={selectedAdults}
+            children={selectedChildren}
+            infants={selectedInfants}
+            estimatedTotal={priceStayFor(bookingProperty)?.total ?? 0}
+            freeCancellationDays={bookingProperty.directBooking?.freeCancellationDays}
+            onClose={() => setBookingProperty(null)}
+            onDatesUnavailable={(conflicts) => {
+              // Someone paid for these nights first. Drop the form, say which
+              // dates went, and re-ask the server what is still free.
+              setBookingProperty(null);
+              setBookingConflicts(conflicts);
+              setBlockedByProperty(null);
+              setAvailabilityNonce((value) => value + 1);
+            }}
+          />
+        </Suspense>
+      )}
       <SearchBookingModal
         open={isSearchModalOpen}
         onClose={closeSearchModal}
@@ -577,6 +688,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         isDateUnavailable={isSearchDateUnavailable}
         onAreaChange={setSearchArea}
         heroImageUrl={searchModalHeroUrl}
+        initialSearch={rememberedSearch}
       />
       <TopNavBar
         navTitleOverride={settings.navTitle}
@@ -607,6 +719,20 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             <p className="text-[16px] text-[#44474c] leading-[1.6] whitespace-pre-wrap">{settings.headerSubtitle}</p>
           </div>
         </div>
+
+        {bookingConflicts.length > 0 && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-[#f5c563] bg-[#fef3c7] px-4 py-3 text-[13px] text-[#92400e]">
+            <span className="flex-1">{t('book_err_conflict')} {bookingConflicts.join(', ')}</span>
+            <button
+              type="button"
+              onClick={() => setBookingConflicts([])}
+              aria-label={t('search_modal_back')}
+              className="shrink-0 rounded p-0.5 hover:bg-[#92400e]/10"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         <div className="mb-4 md:hidden">
           <div className="flex items-center gap-2">
@@ -694,34 +820,17 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="mobile-listing-checkin" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_checkin')}</label>
-                  <input
-                    id="mobile-listing-checkin"
-                    type="date"
-                    value={draftCheckIn}
-                    min={todayYmd}
-                    onChange={(event) => {
-                      setDraftCheckIn(event.target.value);
-                      if (draftCheckOut && event.target.value && draftCheckOut <= event.target.value) {
-                        setDraftCheckOut('');
-                      }
-                    }}
-                    className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="mobile-listing-checkout" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_checkout')}</label>
-                  <input
-                    id="mobile-listing-checkout"
-                    type="date"
-                    value={draftCheckOut}
-                    min={draftCheckIn || todayYmd}
-                    onChange={(event) => setDraftCheckOut(event.target.value)}
-                    className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-                  />
-                </div>
+              <div>
+                <span className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">
+                  {t('listing_checkin')} – {t('listing_checkout')}
+                </span>
+                <DateRangeField
+                  checkIn={draftCheckIn}
+                  checkOut={draftCheckOut}
+                  onChange={(from, to) => { setDraftCheckIn(from); setDraftCheckOut(to); }}
+                  isDateUnavailable={draftAreaDateUnavailable}
+                  onOpen={() => setCalendarDataWanted(true)}
+                />
               </div>
               <button
                 type="button"
@@ -789,30 +898,13 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               <option key={value} value={value}>{value}+ {t('listing_guests')}</option>
             ))}
           </select>
-          <input
-            id="desktop-listing-checkin"
-            type="date"
-            aria-label={t('listing_checkin')}
-            title={t('listing_checkin')}
-            value={draftCheckIn}
-            min={todayYmd}
-            onChange={(event) => {
-              setDraftCheckIn(event.target.value);
-              if (draftCheckOut && event.target.value && draftCheckOut <= event.target.value) {
-                setDraftCheckOut('');
-              }
-            }}
-            className="h-10 w-[145px] rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-          />
-          <input
-            id="desktop-listing-checkout"
-            type="date"
-            aria-label={t('listing_checkout')}
-            title={t('listing_checkout')}
-            value={draftCheckOut}
-            min={draftCheckIn || todayYmd}
-            onChange={(event) => setDraftCheckOut(event.target.value)}
-            className="h-10 w-[145px] rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
+          <DateRangeField
+            checkIn={draftCheckIn}
+            checkOut={draftCheckOut}
+            onChange={(from, to) => { setDraftCheckIn(from); setDraftCheckOut(to); }}
+            isDateUnavailable={draftAreaDateUnavailable}
+            onOpen={() => setCalendarDataWanted(true)}
+            className="w-[190px]"
           />
           <button
             type="button"
@@ -904,14 +996,18 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               ? property.baths === 1 ? t('listing_shower_room') : t('listing_shower_rooms')
               : property.baths === 1 ? t('listing_bathroom') : t('listing_bathrooms')}`;
             const rates = property.pricing?.rates ?? [];
-            const fromPrice = datesActive
+            const stayPrice = priceStayFor(property);
+            // The per-night "from" line steps aside once the exact stay total
+            // is known — two prices side by side just invite doubt.
+            const fromPrice = datesActive && !stayPrice?.isValid
               ? (availability?.priceById.get(property.id)
                 ?? (rates.length ? Math.min(...rates.map((rate) => rate.price)) : null))
               : null;
+            const propertyHref = `/${property.metalink || property.id}${stayQuery}`;
 
             return (
               <div key={property.id} className="bg-[#ffffff] rounded-2xl md:rounded-xl border border-[#ecebea] md:border-[#e4e2e3] shadow-[0_2px_10px_rgba(15,23,42,0.05)] md:shadow-[0_4px_20px_rgba(0,0,0,0.05)] md:hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] active:scale-[0.99] md:active:scale-100 overflow-hidden transition-all duration-300 flex flex-col h-full relative group">
-                <Link to={`/${property.metalink || property.id}${stayQuery}`} className="flex flex-row md:flex-col flex-grow cursor-pointer p-3 md:p-0">
+                <Link to={propertyHref} className="flex flex-row md:flex-col flex-grow cursor-pointer p-3 md:p-0">
                   {/* Image Container */}
                   <div className="relative w-[104px] h-[104px] shrink-0 rounded-xl md:rounded-none md:w-full md:h-auto md:aspect-[4/3] overflow-hidden bg-[#e4e2e3]">
                     <img
@@ -1022,6 +1118,37 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                     </div>
                   </div>
                 </Link>
+
+                {/* Priced stay + the two ways on from here. Outside the Link
+                    above on purpose: buttons must not nest inside an anchor. */}
+                {stayPrice?.isValid && (
+                  <div className="px-3 pb-3 md:px-6 md:pb-6">
+                    <StayPriceSummary
+                      pricing={property.pricing}
+                      nights={stayNights}
+                      adults={selectedAdults}
+                      children={selectedChildren}
+                      infants={selectedInfants}
+                    />
+                    <div className="mt-3 flex gap-2">
+                      {property.directBooking?.enabled && (
+                        <button
+                          type="button"
+                          onClick={() => { setBookingConflicts([]); setBookingProperty(property); }}
+                          className="flex-1 rounded-full bg-[#041627] px-4 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
+                        >
+                          {t('book_now')}
+                        </button>
+                      )}
+                      <Link
+                        to={propertyHref}
+                        className="flex-1 rounded-full border border-[#041627] bg-white px-4 py-2.5 text-center text-[14px] font-semibold text-[#041627] transition-colors hover:bg-[#e4e2e3]"
+                      >
+                        {t('listing_view_details')}
+                      </Link>
+                    </div>
+                  </div>
+                )}
 
                 {/* Admin Actions Overlay */}
                 {isAdmin && (

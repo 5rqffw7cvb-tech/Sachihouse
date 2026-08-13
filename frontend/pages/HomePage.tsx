@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import BookingWidget from '../components/BookingWidget';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { readStayFromParams } from '../utils/stayParams';
+import { readStayForPage } from '../utils/stayParams';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface HomePageProps {
@@ -321,7 +321,7 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
   const [searchParams] = useSearchParams();
   // Dates and party the guest chose on the listings search, if they came from
   // there. Read once so later edits inside the widget are not overwritten.
-  const [arrivingStay] = useState(() => readStayFromParams(searchParams));
+  const [arrivingStay] = useState(() => readStayForPage(searchParams));
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeSlide, setActiveSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);

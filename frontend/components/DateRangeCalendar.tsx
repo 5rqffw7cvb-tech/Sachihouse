@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { addMonths, eachDayOfInterval, endOfMonth, format, isBefore, isSameDay, isWithinInterval } from 'date-fns';
-import { BookingDateSelection } from './BookingWidget';
+import { BookingDateSelection } from '../utils/dateRange';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
 

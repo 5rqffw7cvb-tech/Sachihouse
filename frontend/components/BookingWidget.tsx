@@ -2,45 +2,17 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { PricingConfig, PropertyData } from '../types';
 import BookingGuestForm from './BookingGuestForm';
+import DateRangeCalendar from './DateRangeCalendar';
+import { BookingDateSelection, applyDatePick } from '../utils/dateRange';
 import { PriceResult } from '../utils/pricing';
-import { 
-    differenceInDays, addDays, format, isBefore, eachDayOfInterval, 
-    endOfMonth, getDay, isSameDay, isWithinInterval, addMonths 
-} from 'date-fns';
-import { Star, Minus, Plus, ChevronDown, ChevronUp, Mail, Calculator, Calendar as CalendarIcon, Users, AlertCircle, ChevronLeft, ChevronRight, X, Baby, Lock, Tag, Loader2, Check } from 'lucide-react';
+import { differenceInDays, addDays, format, isBefore, eachDayOfInterval, isSameDay } from 'date-fns';
+import { Star, Minus, Plus, ChevronDown, ChevronUp, Mail, Calculator, Calendar as CalendarIcon, Users, AlertCircle, X, Lock, Tag, Loader2, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { calculateHomestayPrice } from '../utils/pricing';
 import { isDateBlocked, refreshBlockedDates } from '../services/storage';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
 import { AppliedCoupon, getQuote, QuoteResult } from '../services/pricing';
-
-// The three pieces of state a date picker needs: the chosen range, plus which
-// end the next click lands on. Bundled so a caller can own the whole selection.
-export interface BookingDateSelection {
-  checkIn: Date | null;
-  checkOut: Date | null;
-  selecting: 'checkIn' | 'checkOut';
-}
-
-// Shared range-picking rule, exported so a second calendar (the desktop Pricing
-// page's availability panel) behaves identically to the one inside this widget.
-export const applyDatePick = (selection: BookingDateSelection, day: Date): BookingDateSelection => {
-  const { checkIn, checkOut, selecting } = selection;
-
-  if (selecting === 'checkIn') {
-    // Keep an existing check-out only while it still falls after the new check-in.
-    const keepsCheckOut = checkOut && !isBefore(checkOut, day) && !isSameDay(checkOut, day);
-    return { checkIn: day, checkOut: keepsCheckOut ? checkOut : null, selecting: 'checkOut' };
-  }
-
-  // Picking a check-out on or before the check-in reads as "start over here".
-  if (!checkIn || isBefore(day, checkIn) || isSameDay(day, checkIn)) {
-    return { checkIn: day, checkOut: null, selecting: 'checkOut' };
-  }
-
-  return { checkIn, checkOut: day, selecting: 'checkIn' };
-};
 
 interface BookingWidgetProps {
   pricing: PricingConfig;
@@ -58,7 +30,7 @@ interface BookingWidgetProps {
   // Opening state for the uncontrolled case, used when the guest arrived from
   // the listings search with a stay already chosen. Read once, at mount.
   initialSelection?: BookingDateSelection | null;
-  initialGuests?: { adults: number; children: number } | null;
+  initialGuests?: { adults: number; children: number; infants: number } | null;
   // Denser layout for space-constrained contexts (the mobile "Book Direct"
   // page) — drops the header/footer copy and tightens padding so the whole
   // card fits without scrolling. Booking mechanics are unchanged; only the
@@ -74,13 +46,6 @@ type CalculationResult =
 // Helper functions to replace missing date-fns exports
 const startOfDay = (date: Date): Date => {
   const newDate = new Date(date);
-  newDate.setHours(0, 0, 0, 0);
-  return newDate;
-};
-
-const startOfMonth = (date: Date): Date => {
-  const newDate = new Date(date);
-  newDate.setDate(1);
   newDate.setHours(0, 0, 0, 0);
   return newDate;
 };
@@ -107,12 +72,11 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
 
   const [adults, setAdults] = useState(initialGuests?.adults ?? 2);
   const [children, setChildren] = useState(initialGuests?.children ?? 0);
-  const [infants, setInfants] = useState(0);
+  const [infants, setInfants] = useState(initialGuests?.infants ?? 0);
 
   // State for UI toggles
   const [isGuestDropdownOpen, setIsGuestDropdownOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [calendarViewMonth, setCalendarViewMonth] = useState(today);
   const [isBookingFormOpen, setIsBookingFormOpen] = useState(false);
   // Compact mode (mobile "Book Direct") hides the price breakdown behind a
   // toggle by default so the sticky bottom CTA is reachable without scrolling.
@@ -276,68 +240,11 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
       return parts.join(', ');
   };
 
-  // Render Logic for Custom Calendar
-  const renderCalendar = () => {
-    const start = startOfMonth(calendarViewMonth);
-    const end = endOfMonth(calendarViewMonth);
-    const days = eachDayOfInterval({ start, end });
-    const startDayOfWeek = getDay(start); // 0 = Sunday
-    const emptyDays = Array(startDayOfWeek).fill(null);
-
-    return (
-        <div className="p-4">
-            <div className="flex justify-between items-center mb-4">
-                <button onClick={() => setCalendarViewMonth(addMonths(calendarViewMonth, -1))} disabled={isBefore(calendarViewMonth, startOfMonth(today))} className="p-1 hover:bg-gray-100 rounded-full disabled:opacity-30">
-                    <ChevronLeft className="w-5 h-5" />
-                </button>
-                <span className="font-bold text-gray-900">{format(calendarViewMonth, 'MMMM yyyy', { locale: dateLocale })}</span>
-                <button onClick={() => setCalendarViewMonth(addMonths(calendarViewMonth, 1))} className="p-1 hover:bg-gray-100 rounded-full">
-                    <ChevronRight className="w-5 h-5" />
-                </button>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center mb-2">
-                {weekdayLabels.map((d, i) => (
-                    <div key={i} className="text-xs font-bold text-gray-400">{d}</div>
-                ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-                {emptyDays.map((_, i) => <div key={`empty-${i}`} />)}
-                {days.map(day => {
-                    const isPast = isBefore(day, today);
-                    const blocked = isDateBlocked(day);
-                    const isDisabled = isPast || blocked;
-                    
-                    const isSelectedStart = checkIn && isSameDay(day, checkIn);
-                    const isSelectedEnd = checkOut && isSameDay(day, checkOut);
-                    const isInRange = checkIn && checkOut && isWithinInterval(day, { start: checkIn, end: checkOut });
-                    
-                    let buttonClass = "w-9 h-9 text-sm rounded-full flex items-center justify-center transition-all relative z-10 ";
-                    
-                    if (isDisabled) {
-                        buttonClass += "text-gray-300 decoration-slate-300 line-through cursor-not-allowed ";
-                    } else if (isSelectedStart || isSelectedEnd) {
-                        buttonClass += "bg-[var(--color-primary-600)] text-white font-bold ";
-                    } else if (isInRange) {
-                        buttonClass += "bg-[var(--color-primary-50)] text-[var(--color-primary-700)] ";
-                    } else {
-                        buttonClass += "hover:bg-gray-100 text-gray-700 font-medium hover:border-gray-900 border border-transparent ";
-                    }
-
-                    return (
-                        <button 
-                            key={day.toISOString()}
-                            disabled={isDisabled}
-                            onClick={() => handleDateSelect(day)}
-                            className={buttonClass}
-                        >
-                            {format(day, 'd')}
-                        </button>
-                    )
-                })}
-            </div>
-        </div>
-    );
-  };
+  // How far ahead the calendar may be walked. Hosts who cap advance bookings
+  // set the ceiling; otherwise two years is further than anyone plans.
+  const calendarMonthsAhead = directBooking?.maxAdvanceDays
+    ? Math.max(1, Math.ceil(directBooking.maxAdvanceDays / 30))
+    : 24;
 
   return (
     <div className={`bg-white rounded-2xl shadow-xl border border-gray-200 overflow-visible lg:sticky lg:top-24 ${className}`} ref={calendarRef}>
@@ -430,7 +337,14 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
                             <X className="w-5 h-5"/>
                         </button>
                     </div>
-                    {renderCalendar()}
+                    <div className="p-4">
+                        <DateRangeCalendar
+                            selection={dateSelection}
+                            onSelectDay={handleDateSelect}
+                            isDateUnavailable={isDateBlocked}
+                            maxMonthsAhead={calendarMonthsAhead}
+                        />
+                    </div>
                     
                     {/* Calendar Footer Info */}
                     <div className="px-4 pb-4 pt-2 flex items-center justify-between text-xs text-gray-500 border-t border-gray-100 mt-2">
