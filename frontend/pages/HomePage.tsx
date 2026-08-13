@@ -8,7 +8,8 @@ import {
     Refrigerator, Microwave, ShowerHead, ChevronUp, Medal, Train, Navigation, CheckCircle2, Baby, CalendarDays
 } from 'lucide-react';
 import BookingWidget from '../components/BookingWidget';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { readStayFromParams } from '../utils/stayParams';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface HomePageProps {
@@ -317,6 +318,10 @@ const RatesTable: React.FC<{ pricing: PropertyData['pricing'] }> = ({ pricing })
 const HomePage: React.FC<HomePageProps> = ({ data }) => {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
+  const [searchParams] = useSearchParams();
+  // Dates and party the guest chose on the listings search, if they came from
+  // there. Read once so later edits inside the widget are not overwritten.
+  const [arrivingStay] = useState(() => readStayFromParams(searchParams));
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeSlide, setActiveSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -691,6 +696,8 @@ const HomePage: React.FC<HomePageProps> = ({ data }) => {
                     adminEmail={data.adminEmail}
                     propertyId={data.id}
                     directBooking={data.directBooking}
+                    initialSelection={arrivingStay.selection}
+                    initialGuests={arrivingStay.guests}
                 />
                 
                 {/* Mobile Only: Platform Links (Now below BookingWidget) */}

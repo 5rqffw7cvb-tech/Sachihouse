@@ -8,9 +8,10 @@ import {
   isBefore, isSameDay, isWithinInterval, differenceInDays,
 } from 'date-fns';
 import BookingWidget, { BookingDateSelection, applyDatePick } from '../components/BookingWidget';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
+import { readStayFromParams } from '../utils/stayParams';
 
 interface PricingPageProps {
   data: PropertyData;
@@ -32,9 +33,14 @@ const startOfMonth = (date: Date): Date => {
 const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
   const today = startOfDay(new Date());
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
+  const [searchParams] = useSearchParams();
+  // Dates and party carried over from the listings search, if the guest came
+  // from there.
+  const [arrivingStay] = useState(() => readStayFromParams(searchParams));
   // The page owns the stay dates so the big availability calendar and the
   // booking panel beside it are always showing the same selection.
   const [selection, setSelection] = useState<BookingDateSelection>(() => {
+    if (arrivingStay.selection) return arrivingStay.selection;
     const start = startOfDay(new Date());
     return { checkIn: start, checkOut: addDays(start, 3), selecting: 'checkIn' };
   });
@@ -146,6 +152,9 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
           adminEmail={data.adminEmail}
           propertyId={data.id}
           directBooking={data.directBooking}
+          selection={selection}
+          onSelectionChange={setSelection}
+          initialGuests={arrivingStay.guests}
           compact
         />
       </div>
@@ -306,6 +315,7 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
                   directBooking={data.directBooking}
                   selection={selection}
                   onSelectionChange={setSelection}
+                  initialGuests={arrivingStay.guests}
               />
           </div>
       </div>

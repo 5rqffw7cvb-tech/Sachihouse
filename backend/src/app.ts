@@ -1155,6 +1155,63 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     });
   });
 
+  // Per-property blocked nights across a date window, for calendars that have
+  // to grey out days before a stay is chosen. The caller intersects the lists
+  // itself: on the listings search a day is only unbookable once *every*
+  // property in view is taken, and only the caller knows which those are.
+  // Registered before `/:id` so "blocked-dates" is not read as a property id.
+  app.get('/api/properties/blocked-dates', async (req, res) => {
+    const fromRaw = req.query.from;
+    const toRaw = req.query.to;
+
+    if (typeof fromRaw !== 'string' || typeof toRaw !== 'string') {
+      return res.status(400).json({ error: 'from and to are required.' });
+    }
+    if (!isIsoDate(fromRaw) || !isIsoDate(toRaw)) {
+      return res.status(400).json({ error: 'from and to must be YYYY-MM-DD dates.' });
+    }
+    if (!(fromRaw < toRaw)) {
+      return res.status(400).json({ error: 'to must be after from.' });
+    }
+    // A year of nights is all any booking calendar shows; without a ceiling a
+    // single request could walk every property's feed over a decade.
+    if (daysBetweenDates(fromRaw, toRaw) > 400) {
+      return res.status(400).json({ error: 'Range must be 400 days or fewer.' });
+    }
+
+    // Optional id filter, so a region-filtered calendar asks only about the
+    // properties it is actually offering.
+    const idsRaw = req.query.ids;
+    const requestedIds = typeof idsRaw === 'string' && idsRaw.trim()
+      ? new Set(idsRaw.split(',').map((id) => id.trim()).filter(Boolean))
+      : null;
+
+    const properties = await store.listProperties(false);
+    const visible = properties.filter((property) => {
+      if (property.archivedAt) {
+        return false;
+      }
+      if (property.reviewStatus === 'pending_review' && !canViewPendingProperty(req.authUser, property.id)) {
+        return false;
+      }
+      return requestedIds ? requestedIds.has(property.id) : true;
+    });
+
+    const results = await Promise.all(
+      visible.map(async (property) => {
+        const blocked = await getEffectiveBlockedDates(property, 'stale-ok');
+        return {
+          id: property.id,
+          // Clipped to the window so the payload stays proportional to what
+          // the calendar can actually display.
+          blockedDates: blocked.filter((date) => date >= fromRaw && date < toRaw).sort(),
+        };
+      }),
+    );
+
+    res.json({ from: fromRaw, to: toRaw, properties: results });
+  });
+
   app.get('/api/properties/:id', async (req, res) => {
     const lang = toLanguageCode(req.query.lang);
     const property = await store.getProperty(req.params.id);

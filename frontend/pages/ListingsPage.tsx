@@ -4,7 +4,7 @@ import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Settings, Trash2, Loa
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
-import { saveSiteSettings, setPropertyArchived, getAvailableProperties } from '../services/storage';
+import { saveSiteSettings, setPropertyArchived, getAvailableProperties, getBlockedDatesWindow } from '../services/storage';
 import { TopNavBar } from '../components/TopNavBar';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { MobileBottomNav } from '../components/MobileBottomNav';
@@ -17,6 +17,9 @@ import { ApiUser } from '../services/api';
 const SEARCH_MODAL_SEEN_KEY = 'search_modal_seen';
 // How long the listings get to themselves before the prompt appears over them.
 const SEARCH_MODAL_DELAY_MS = 3000;
+// How far ahead the prompt's calendar can be walked, and therefore how much
+// availability it has to know about.
+const SEARCH_CALENDAR_MONTHS = 12;
 
 export interface ListingsPageProps {
   properties: (PropertyData & { id: string })[];
@@ -46,6 +49,11 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const [visibleCardCount, setVisibleCardCount] = useState(3);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  // Blocked nights per property, so the prompt's calendar can grey out days on
+  // which nothing in the chosen area is free. Null means "not known" — the
+  // calendar then disables nothing rather than guessing.
+  const [blockedByProperty, setBlockedByProperty] = useState<Map<string, Set<string>> | null>(null);
+  const [searchArea, setSearchArea] = useState({ countryCode: '', provinceCode: '' });
   const [draftCountryCode, setDraftCountryCode] = useState('');
   const [draftProvinceCode, setDraftProvinceCode] = useState('');
   const [draftMinBedrooms, setDraftMinBedrooms] = useState('');
@@ -72,6 +80,10 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const minGuests = Number(searchParams.get('minGuests') || 0);
   const selectedCheckIn = searchParams.get('checkIn') || '';
   const selectedCheckOut = searchParams.get('checkOut') || '';
+  // Party split, carried through to each property page so the booking widget
+  // opens with the same guests — children are priced separately there.
+  const selectedAdults = Number(searchParams.get('adults') || 0);
+  const selectedChildren = Number(searchParams.get('children') || 0);
   const datesActive = !!(selectedCheckIn && selectedCheckOut && selectedCheckIn < selectedCheckOut);
   const todayYmd = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD in local time
 
@@ -324,8 +336,37 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   );
   const provinceOptions = allowedLocations.filter((location) => location.countryCode === selectedCountryCode);
   const draftProvinceOptions = allowedLocations.filter((location) => location.countryCode === draftCountryCode);
-  const selectedCountry = countryOptions.find((country) => country.countryCode === selectedCountryCode);
-  const selectedProvince = provinceOptions.find((province) => province.provinceCode === selectedProvinceCode);
+
+  // "Is this property in that area?" — shared by the listings filter and the
+  // search prompt's calendar, which must agree on the set of properties or the
+  // calendar would grey out nights the results still offer. Configured
+  // country/province codes win; the address text is the fallback for older
+  // records saved before those fields existed.
+  const matchesArea = (property: PropertyData & { id: string }, countryCode: string, provinceCode: string) => {
+    const address = (property.address || '').toLowerCase();
+
+    if (countryCode) {
+      const country = countryOptions.find((option) => option.countryCode === countryCode);
+      const matches = property.location?.countryCode?.toUpperCase() === countryCode
+        || (!!country && address.includes(country.countryName.toLowerCase()));
+      if (!matches) {
+        return false;
+      }
+    }
+
+    if (provinceCode) {
+      const province = allowedLocations.find(
+        (location) => location.countryCode === countryCode && location.provinceCode === provinceCode,
+      );
+      const matches = property.location?.provinceCode?.toUpperCase() === provinceCode
+        || (!!province && address.includes(province.provinceName.toLowerCase()));
+      if (!matches) {
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   const scopedProperties = isHost && activeScope === 'mine'
     ? properties.filter((property) => authUser?.assignedPropertyIds?.includes(property.id))
@@ -337,23 +378,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const guestOptions = Array.from({ length: Math.max(maxGuestsAvailable, 1) }, (_, index) => index + 1);
 
   const filteredProperties = scopedProperties.filter((property) => {
-    const propertyCountryCode = property.location?.countryCode?.toUpperCase();
-    const propertyProvinceCode = property.location?.provinceCode?.toUpperCase();
-    const propertyAddress = (property.address || '').toLowerCase();
-
-    const matchesCountryByAddress = !!selectedCountry && propertyAddress.includes(selectedCountry.countryName.toLowerCase());
-    const matchesCountry = !selectedCountryCode
-      || matchesCountryByAddress
-      || propertyCountryCode === selectedCountryCode;
-    if (!matchesCountry) {
-      return false;
-    }
-
-    const matchesProvinceByAddress = !!selectedProvince && propertyAddress.includes(selectedProvince.provinceName.toLowerCase());
-    const matchesProvince = !selectedProvinceCode
-      || matchesProvinceByAddress
-      || propertyProvinceCode === selectedProvinceCode;
-    if (!matchesProvince) {
+    if (!matchesArea(property, selectedCountryCode, selectedProvinceCode)) {
       return false;
     }
     if (Number.isFinite(minBedrooms) && minBedrooms > 0 && property.bedrooms < minBedrooms) {
@@ -400,7 +425,10 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     setDraftMinGuests('');
     setDraftCheckIn('');
     setDraftCheckOut('');
-    updateQueryParams({ countryCode: null, provinceCode: null, minBedrooms: null, minGuests: null, checkIn: null, checkOut: null });
+    updateQueryParams({
+      countryCode: null, provinceCode: null, minBedrooms: null, minGuests: null,
+      checkIn: null, checkOut: null, adults: null, children: null,
+    });
     setIsMobileFiltersOpen(false);
   };
 
@@ -423,7 +451,11 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     updateQueryParams({
       countryCode: values.countryCode || null,
       provinceCode: values.provinceCode || null,
-      minGuests: values.minGuests || null,
+      // Children still occupy beds, so capacity is filtered on the whole party
+      // while the split rides along for the booking widget's price breakdown.
+      minGuests: String(values.adults + values.children),
+      adults: String(values.adults),
+      children: values.children > 0 ? String(values.children) : null,
       checkIn: values.checkIn,
       checkOut: values.checkOut,
     });
@@ -449,6 +481,33 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Availability behind the prompt's calendar. Fetched for every property in
+  // one go and intersected on the client, so narrowing the area re-marks the
+  // calendar instantly instead of costing another round trip.
+  useEffect(() => {
+    if (!isSearchModalOpen || blockedByProperty) return;
+
+    let cancelled = false;
+    const from = new Date();
+    const to = new Date(from);
+    to.setMonth(to.getMonth() + SEARCH_CALENDAR_MONTHS + 1);
+
+    getBlockedDatesWindow(from.toLocaleDateString('sv-SE'), to.toLocaleDateString('sv-SE'))
+      .then((rows) => {
+        if (cancelled) return;
+        setBlockedByProperty(new Map(rows.map((row) => [row.id, new Set(row.blockedDates)])));
+      })
+      .catch((error) => {
+        // Leave it unknown: the calendar then bars nothing but past dates,
+        // which is the safe direction — the booking page checks again anyway.
+        console.error('Calendar availability lookup failed', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSearchModalOpen, blockedByProperty]);
+
   useEffect(() => {
     const initialCount = Math.min(3, displayedProperties.length);
     setVisibleCardCount(initialCount);
@@ -469,6 +528,35 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
   const visibleProperties = displayedProperties.slice(0, visibleCardCount);
 
+  // The search the guest just made, handed to the property page so its booking
+  // widget opens on the same dates and party instead of asking again.
+  const stayQuery = (() => {
+    const params = new URLSearchParams();
+    if (datesActive) {
+      params.set('checkIn', selectedCheckIn);
+      params.set('checkOut', selectedCheckOut);
+    }
+    if (selectedAdults > 0) params.set('adults', String(selectedAdults));
+    if (selectedChildren > 0) params.set('children', String(selectedChildren));
+    const query = params.toString();
+    return query ? `?${query}` : '';
+  })();
+
+  // Properties the prompt's calendar is answering for right now.
+  const searchAreaPropertyIds = properties
+    .filter((property) => matchesArea(property, searchArea.countryCode, searchArea.provinceCode))
+    .map((property) => property.id);
+
+  // A night is only closed off once every property in the area is taken —
+  // otherwise the guest would be barred from a date some listing could serve.
+  const isSearchDateUnavailable = (day: Date) => {
+    if (!blockedByProperty || searchAreaPropertyIds.length === 0) {
+      return false;
+    }
+    const ymd = day.toLocaleDateString('sv-SE');
+    return searchAreaPropertyIds.every((id) => blockedByProperty.get(id)?.has(ymd) ?? false);
+  };
+
   // The first listing's own photo becomes the search prompt's header image, so
   // the dialog shows the guest what they are about to search through.
   const searchModalHeroUrl = (() => {
@@ -485,8 +573,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         onClose={closeSearchModal}
         onSubmit={handleSearchModalSubmit}
         allowedLocations={allowedLocations}
-        guestOptions={guestOptions}
-        todayYmd={todayYmd}
+        maxGuests={Math.max(maxGuestsAvailable, 1)}
+        isDateUnavailable={isSearchDateUnavailable}
+        onAreaChange={setSearchArea}
         heroImageUrl={searchModalHeroUrl}
       />
       <TopNavBar
@@ -822,7 +911,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
             return (
               <div key={property.id} className="bg-[#ffffff] rounded-2xl md:rounded-xl border border-[#ecebea] md:border-[#e4e2e3] shadow-[0_2px_10px_rgba(15,23,42,0.05)] md:shadow-[0_4px_20px_rgba(0,0,0,0.05)] md:hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] active:scale-[0.99] md:active:scale-100 overflow-hidden transition-all duration-300 flex flex-col h-full relative group">
-                <Link to={`/${property.metalink || property.id}`} className="flex flex-row md:flex-col flex-grow cursor-pointer p-3 md:p-0">
+                <Link to={`/${property.metalink || property.id}${stayQuery}`} className="flex flex-row md:flex-col flex-grow cursor-pointer p-3 md:p-0">
                   {/* Image Container */}
                   <div className="relative w-[104px] h-[104px] shrink-0 rounded-xl md:rounded-none md:w-full md:h-auto md:aspect-[4/3] overflow-hidden bg-[#e4e2e3]">
                     <img

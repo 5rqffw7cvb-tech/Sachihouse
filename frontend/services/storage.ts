@@ -214,6 +214,30 @@ export const getAvailableProperties = async (
   return apiRequest<AvailabilityResponse>(`/properties/availability?${query.toString()}`);
 };
 
+export interface PropertyBlockedDates {
+  id: string;
+  blockedDates: string[];
+}
+
+// Blocked nights for several properties at once, over a date window, so a
+// calendar can grey out days before any stay has been picked. `to` is
+// exclusive. Callers decide what to do with the lists: the listings search
+// only bars a day once every property in view is taken.
+export const getBlockedDatesWindow = async (
+  from: string,
+  to: string,
+  propertyIds?: string[],
+): Promise<PropertyBlockedDates[]> => {
+  const query = new URLSearchParams({ from, to });
+  if (propertyIds && propertyIds.length > 0) {
+    query.set('ids', propertyIds.join(','));
+  }
+  const response = await apiRequest<{ properties: PropertyBlockedDates[] }>(
+    `/properties/blocked-dates?${query.toString()}`,
+  );
+  return response.properties ?? [];
+};
+
 export const getPropertyData = async (propertyId: string = 'main', lang?: string): Promise<PropertyData> => {
   const suffix = lang?.trim() ? `?lang=${encodeURIComponent(lang.trim().toLowerCase())}` : '';
   const response = await apiRequest<{ property: PropertyData & { id: string } }>(`/properties/${propertyId}${suffix}`);

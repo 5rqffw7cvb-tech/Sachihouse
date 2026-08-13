@@ -55,6 +55,10 @@ interface BookingWidgetProps {
   // selection). Omit them and the widget keeps its own state as before.
   selection?: BookingDateSelection;
   onSelectionChange?: (selection: BookingDateSelection) => void;
+  // Opening state for the uncontrolled case, used when the guest arrived from
+  // the listings search with a stay already chosen. Read once, at mount.
+  initialSelection?: BookingDateSelection | null;
+  initialGuests?: { adults: number; children: number } | null;
   // Denser layout for space-constrained contexts (the mobile "Book Direct"
   // page) — drops the header/footer copy and tightens padding so the whole
   // card fits without scrolling. Booking mechanics are unchanged; only the
@@ -81,18 +85,16 @@ const startOfMonth = (date: Date): Date => {
   return newDate;
 };
 
-const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, adminEmail, propertyId, directBooking, compact, selection, onSelectionChange }) => {
+const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, adminEmail, propertyId, directBooking, compact, selection, onSelectionChange, initialSelection, initialGuests }) => {
   const { t, language } = useLanguage();
   const dateLocale = getDateFnsLocale(language);
   const weekdayLabels = [t('weekday_sun'), t('weekday_mon'), t('weekday_tue'), t('weekday_wed'), t('weekday_thu'), t('weekday_fri'), t('weekday_sat')];
   const today = startOfDay(new Date());
   
   // State for values
-  const [ownSelection, setOwnSelection] = useState<BookingDateSelection>({
-    checkIn: today,
-    checkOut: addDays(today, 3),
-    selecting: 'checkIn',
-  });
+  const [ownSelection, setOwnSelection] = useState<BookingDateSelection>(
+    initialSelection ?? { checkIn: today, checkOut: addDays(today, 3), selecting: 'checkIn' },
+  );
   const isSelectionControlled = Boolean(selection && onSelectionChange);
   const dateSelection = isSelectionControlled ? selection! : ownSelection;
   const { checkIn, checkOut, selecting: selectingField } = dateSelection;
@@ -103,8 +105,8 @@ const BookingWidget: React.FC<BookingWidgetProps> = ({ pricing, className, admin
   const setSelectingField = (field: BookingDateSelection['selecting']) =>
     setSelection({ ...dateSelection, selecting: field });
 
-  const [adults, setAdults] = useState(2);
-  const [children, setChildren] = useState(0); 
+  const [adults, setAdults] = useState(initialGuests?.adults ?? 2);
+  const [children, setChildren] = useState(initialGuests?.children ?? 0);
   const [infants, setInfants] = useState(0);
 
   // State for UI toggles
