@@ -53,6 +53,21 @@ interface DayActivity {
   checkins: CleaningStay[];
 }
 
+// How much work a cleaning day is depends on how many guests just left, so
+// the departing party sizes ride along with the broom on the cell itself —
+// a cleaner planning their day shouldn't have to open every day to find out.
+// Two checkouts read as "4+2" (which already says there are two of them, so
+// the ×N counter steps aside); a feed that never states a count shows "?"
+// rather than silently rounding it down to nothing.
+function checkoutGuestLabel(checkouts: CleaningStay[]): string | null {
+  if (checkouts.every((s) => s.guestCount == null)) return null;
+  return checkouts.map((s) => s.guestCount ?? '?').join('+');
+}
+
+function guestsLabel(count: number): string {
+  return `${count} guest${count === 1 ? '' : 's'}`;
+}
+
 function buildDayMap(stays: CleaningStay[]): Map<string, DayActivity> {
   const map = new Map<string, DayActivity>();
   const ensure = (iso: string) => {
@@ -323,6 +338,7 @@ const CleaningCalendarPage: React.FC = () => {
                 // real capacity problem for staff — call it out distinctly
                 // from an ordinary single-property cleaning day.
                 const isBusy = checkouts.length > 1;
+                const guestLabel = checkoutGuestLabel(checkouts);
                 const rowCount = Math.max(1, propertyRows.length);
 
                 // Today's tint yields to the busy-day orange: a cleaner scanning
@@ -352,8 +368,15 @@ const CleaningCalendarPage: React.FC = () => {
                         {format(day, 'd')}
                       </span>
                       {hasCleaning && (
-                        <span className={`flex items-center text-[10px] font-bold ${isBusy ? 'text-[#c2410c]' : ''}`} title={isBusy ? `${checkouts.length} properties need cleaning` : 'Cleaning day'}>
-                          🧹{isBusy && <span>×{checkouts.length}</span>}
+                        <span
+                          className={`flex items-center text-[10px] font-bold ${isBusy ? 'text-[#c2410c]' : ''}`}
+                          title={[
+                            isBusy ? `${checkouts.length} properties need cleaning` : 'Cleaning day',
+                            guestLabel ? `guests checking out: ${guestLabel}` : null,
+                          ].filter(Boolean).join(' — ')}
+                        >
+                          🧹
+                          {guestLabel ? <span>{guestLabel}</span> : isBusy && <span>×{checkouts.length}</span>}
                         </span>
                       )}
                     </span>
@@ -426,7 +449,7 @@ const CleaningCalendarPage: React.FC = () => {
               <span className="rounded bg-[#111827] px-1 py-0.5 text-[7px] font-bold uppercase text-white">Out</span>
             </span>
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-[#0b57d0]" /> today</span>
-            <span>🧹 cleaning</span>
+            <span>🧹4 cleaning, guests leaving</span>
             <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-[#f59e0b]" /> turnover</span>
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded ring-1 ring-inset ring-[#fb923c] bg-[#fff1e6]" /> busy (2+)</span>
             {properties.map((p) => {
@@ -472,7 +495,12 @@ const CleaningCalendarPage: React.FC = () => {
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-[#44474c]">
                     <span>🧹 Out {stay.checkOutTime}</span>
-                    {stay.guestCount != null && <span>👤 {stay.guestCount}</span>}
+                    {/* The party that just left sizes the job — stated plainly,
+                        and stated as unknown when the feed never said, so an
+                        absent count is never mistaken for a small booking. */}
+                    <span className="font-semibold text-[#1b1c1d]">
+                      👤 {stay.guestCount != null ? guestsLabel(stay.guestCount) : 'guests not stated'}
+                    </span>
                     {sameDayTurnover && (
                       <span className="inline-flex items-center gap-0.5 rounded-full bg-[#fef3c7] px-1.5 py-0.5 text-[10px] font-bold text-[#92400e]">
                         <Zap className="h-2.5 w-2.5" /> turnover
@@ -491,7 +519,7 @@ const CleaningCalendarPage: React.FC = () => {
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-[#44474c]">
                   <span>🛬 In {stay.checkInTime}</span>
-                  {stay.guestCount != null && <span>👤 {stay.guestCount}</span>}
+                  {stay.guestCount != null && <span className="font-semibold text-[#1b1c1d]">👤 {guestsLabel(stay.guestCount)}</span>}
                 </div>
               </div>
             ))}
@@ -504,7 +532,7 @@ const CleaningCalendarPage: React.FC = () => {
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-[#44474c]">
                   <span>🏠 Staying</span>
-                  {seg.stay.guestCount != null && <span>👤 {seg.stay.guestCount}</span>}
+                  {seg.stay.guestCount != null && <span className="font-semibold text-[#1b1c1d]">👤 {guestsLabel(seg.stay.guestCount)}</span>}
                   <span>out {seg.stay.checkOutDate}</span>
                 </div>
               </div>
