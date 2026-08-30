@@ -63,6 +63,22 @@ const Dashboard: React.FC<DashboardProps> = ({ report, onRefresh, isRefreshing =
     経費: (report.monthlyExpense[i]?.amount || 0) + (report.monthlyCostOfSales[i]?.amount || 0),
   }));
   
+  // Build cumulative revenue array
+  const cumulativeRevenueArray = report.monthlyRevenue.reduce<number[]>((acc, r) => {
+    const prevTotal = acc.length ? acc[acc.length - 1] : 0;
+    acc.push(prevTotal + r.amount);
+    return acc;
+  }, []);
+  
+  // Build cumulative expense array
+  const cumulativeExpenseArray: number[] = [];
+  let cumulativeExp = 0;
+  for (let i = 0; i < report.monthlyRevenue.length; i++) {
+    const monthlyExp = (report.monthlyExpense[i]?.amount || 0) + (report.monthlyCostOfSales[i]?.amount || 0);
+    cumulativeExp += monthlyExp;
+    cumulativeExpenseArray.push(cumulativeExp);
+  }
+  
   // Build cumulative profit array
   const cumulativeProfitArray = report.monthlyProfit.reduce<number[]>((acc, p) => {
     const prevTotal = acc.length ? acc[acc.length - 1] : 0;
@@ -70,13 +86,12 @@ const Dashboard: React.FC<DashboardProps> = ({ report, onRefresh, isRefreshing =
     return acc;
   }, []);
   
-  // Build profit line data with revenue, expenses, and cumulative profit
+  // Build profit line data with cumulative revenue, expenses, and cumulative profit
   const profitLine = report.monthlyRevenue.map((r, i) => {
-    const expense = (report.monthlyExpense[i]?.amount || 0) + (report.monthlyCostOfSales[i]?.amount || 0);
     return {
       name: r.month.split('/')[1] + '月',
-      売上: r.amount,
-      経費: expense,
+      売上累計: cumulativeRevenueArray[i] || 0,
+      経費累計: cumulativeExpenseArray[i] || 0,
       累計純利益: cumulativeProfitArray[i] || 0,
     };
   });
@@ -232,8 +247,8 @@ const Dashboard: React.FC<DashboardProps> = ({ report, onRefresh, isRefreshing =
               <span className="w-1 h-4 bg-emerald-500 rounded-full" />純利益の推移（累計）
             </h3>
             <div className="flex items-center gap-3 text-[10px] font-bold flex-wrap justify-end">
-              <span className="flex items-center gap-1 text-[#44474c]"><span className="w-2 h-2 rounded-full bg-[#2563EB]" />売上</span>
-              <span className="flex items-center gap-1 text-[#44474c]"><span className="w-2 h-2 rounded-full bg-[#f43f5e]" />経費</span>
+              <span className="flex items-center gap-1 text-[#44474c]"><span className="w-2 h-2 rounded-full bg-[#2563EB]" />売上累計</span>
+              <span className="flex items-center gap-1 text-[#44474c]"><span className="w-2 h-2 rounded-full bg-[#f43f5e]" />経費累計</span>
               <span className="flex items-center gap-1 text-[#44474c]"><span className="w-2 h-2 rounded-full bg-[#10b981]" />累計純利益</span>
             </div>
           </div>
@@ -259,14 +274,14 @@ const Dashboard: React.FC<DashboardProps> = ({ report, onRefresh, isRefreshing =
                 <YAxis fontSize={9} tickFormatter={(v) => `¥${v / 1000}k`} tickLine={false} axisLine={false} width={38} stroke="#74777d" />
                 <Tooltip
                   formatter={(value: number, name) => {
-                    const labels: Record<string, string> = { '売上': '売上', '経費': '経費', '累計純利益': '累計純利益' };
+                    const labels: Record<string, string> = { '売上累計': '売上累計', '経費累計': '経費累計', '累計純利益': '累計純利益' };
                     return [fmt(value), labels[name as string] || name];
                   }}
                   contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e4e2e3', fontSize: '11px' }}
                 />
-                <Area type="monotone" dataKey="売上" stroke="#2563EB" strokeWidth={2} fill="url(#revenueFill)"
+                <Area type="monotone" dataKey="売上累計" stroke="#2563EB" strokeWidth={2} fill="url(#revenueFill)"
                   dot={false} activeDot={{ r: 4 }} />
-                <Area type="monotone" dataKey="経費" stroke="#f43f5e" strokeWidth={2} fill="url(#expenseFill)"
+                <Area type="monotone" dataKey="経費累計" stroke="#f43f5e" strokeWidth={2} fill="url(#expenseFill)"
                   dot={false} activeDot={{ r: 4 }} />
                 <Area type="monotone" dataKey="累計純利益" stroke="#10b981" strokeWidth={2.5} fill="url(#profitFill)"
                   dot={{ r: 2.5, fill: '#10b981', strokeWidth: 0 }} activeDot={{ r: 5 }} />
