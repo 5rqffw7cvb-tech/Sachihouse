@@ -3,7 +3,7 @@ import { FinancialReport, AccountType } from '../../types/finance';
 import { ACCOUNT_TYPE_MAP } from '../../utils/accountingUtils';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  AreaChart, Area,
+  AreaChart, Area, Label,
 } from 'recharts';
 import {
   RefreshCw, ChevronLeft, ChevronRight, ChevronsUpDown, Info,
@@ -284,7 +284,17 @@ const Dashboard: React.FC<DashboardProps> = ({ report, onRefresh, isRefreshing =
                 <Area type="monotone" dataKey="経費累計" stroke="#f43f5e" strokeWidth={2} fill="url(#expenseFill)"
                   dot={false} activeDot={{ r: 4 }} />
                 <Area type="monotone" dataKey="累計純利益" stroke="#10b981" strokeWidth={2.5} fill="url(#profitFill)"
-                  dot={{ r: 2.5, fill: '#10b981', strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                  dot={{ r: 3, fill: '#10b981', strokeWidth: 1, stroke: '#fff' }} 
+                  activeDot={{ r: 6 }}
+                  label={{
+                    position: 'top',
+                    fontSize: 9,
+                    fontWeight: 'bold',
+                    fill: '#10b981',
+                    formatter: (value: number) => fmt(value),
+                    offset: 8,
+                  }}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
