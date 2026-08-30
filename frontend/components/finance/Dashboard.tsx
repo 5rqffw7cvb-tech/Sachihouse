@@ -62,11 +62,24 @@ const Dashboard: React.FC<DashboardProps> = ({ report, onRefresh, isRefreshing =
     売上: r.amount,
     経費: (report.monthlyExpense[i]?.amount || 0) + (report.monthlyCostOfSales[i]?.amount || 0),
   }));
-  const profitLine = report.monthlyProfit.reduce<{ name: string; amount: number }[]>((acc, p) => {
-    const prevTotal = acc.length ? acc[acc.length - 1].amount : 0;
-    acc.push({ name: p.month.split('/')[1] + '月', amount: prevTotal + p.amount });
+  
+  // Build cumulative profit array
+  const cumulativeProfitArray = report.monthlyProfit.reduce<number[]>((acc, p) => {
+    const prevTotal = acc.length ? acc[acc.length - 1] : 0;
+    acc.push(prevTotal + p.amount);
     return acc;
   }, []);
+  
+  // Build profit line data with revenue, expenses, and cumulative profit
+  const profitLine = report.monthlyRevenue.map((r, i) => {
+    const expense = (report.monthlyExpense[i]?.amount || 0) + (report.monthlyCostOfSales[i]?.amount || 0);
+    return {
+      name: r.month.split('/')[1] + '月',
+      売上: r.amount,
+      経費: expense,
+      累計純利益: cumulativeProfitArray[i] || 0,
+    };
+  });
 
   const kpis = [
     {
@@ -218,11 +231,24 @@ const Dashboard: React.FC<DashboardProps> = ({ report, onRefresh, isRefreshing =
             <h3 className="text-xs font-bold text-[#1b1c1d] flex items-center gap-2">
               <span className="w-1 h-4 bg-emerald-500 rounded-full" />純利益の推移（累計）
             </h3>
+            <div className="flex items-center gap-3 text-[10px] font-bold flex-wrap justify-end">
+              <span className="flex items-center gap-1 text-[#44474c]"><span className="w-2 h-2 rounded-full bg-[#2563EB]" />売上</span>
+              <span className="flex items-center gap-1 text-[#44474c]"><span className="w-2 h-2 rounded-full bg-[#f43f5e]" />経費</span>
+              <span className="flex items-center gap-1 text-[#44474c]"><span className="w-2 h-2 rounded-full bg-[#10b981]" />累計純利益</span>
+            </div>
           </div>
           <div className="h-56 md:h-60 w-full font-sans -ml-4">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={profitLine} margin={{ left: 5, right: 5, top: 6, bottom: 0 }}>
                 <defs>
+                  <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2563EB" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="#2563EB" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="expenseFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="#f43f5e" stopOpacity={0} />
+                  </linearGradient>
                   <linearGradient id="profitFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
                     <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
@@ -232,10 +258,17 @@ const Dashboard: React.FC<DashboardProps> = ({ report, onRefresh, isRefreshing =
                 <XAxis dataKey="name" fontSize={9} tickLine={false} axisLine={false} stroke="#74777d" />
                 <YAxis fontSize={9} tickFormatter={(v) => `¥${v / 1000}k`} tickLine={false} axisLine={false} width={38} stroke="#74777d" />
                 <Tooltip
-                  formatter={(value: number) => [fmt(value), '累計純利益']}
+                  formatter={(value: number, name) => {
+                    const labels: Record<string, string> = { '売上': '売上', '経費': '経費', '累計純利益': '累計純利益' };
+                    return [fmt(value), labels[name as string] || name];
+                  }}
                   contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e4e2e3', fontSize: '11px' }}
                 />
-                <Area type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={2.5} fill="url(#profitFill)"
+                <Area type="monotone" dataKey="売上" stroke="#2563EB" strokeWidth={2} fill="url(#revenueFill)"
+                  dot={false} activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="経費" stroke="#f43f5e" strokeWidth={2} fill="url(#expenseFill)"
+                  dot={false} activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="累計純利益" stroke="#10b981" strokeWidth={2.5} fill="url(#profitFill)"
                   dot={{ r: 2.5, fill: '#10b981', strokeWidth: 0 }} activeDot={{ r: 5 }} />
               </AreaChart>
             </ResponsiveContainer>
