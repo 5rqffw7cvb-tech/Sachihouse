@@ -286,7 +286,9 @@ export class IcalSyncService {
         // Only reconcile cancellations when every configured feed answered
         // this round — a feed that timed out must never look like "the OTA
         // has nothing left" and wipe real future bookings from that feed.
-        if (allFeedsOk) {
+        // Also require at least one feed to be configured to prevent accidental
+        // data loss if feeds are accidentally cleared.
+        if (allFeedsOk && feeds.length > 0) {
           const cutoff = format(new Date(), 'yyyy-MM-dd');
           await this.store.pruneMissingImportedEvents(propertyId, events.map((e) => e.externalId), cutoff);
         }

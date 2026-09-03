@@ -1013,6 +1013,9 @@ export class PostgresStore implements DataStore {
   }
 
   async pruneMissingImportedEvents(propertyId: string, keepExternalIds: string[], cutoffDateIso: string): Promise<void> {
+    // Safety: Only deletes FUTURE events (check_out_date >= cutoff).
+    // This method should only be called when feeds are actually configured and synced.
+    // The iCal sync service enforces this by checking feeds.length > 0 before calling.
     await this.pool.query(
       `DELETE FROM imported_events
        WHERE property_id = $1 AND check_out_date >= $2 AND NOT (external_id = ANY($3::text[]))`,

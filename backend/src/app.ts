@@ -1344,6 +1344,8 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   });
 
   // Replaces the property's iCal import feeds. Body: { feeds: [{ id, name, url, lastSynced }] }.
+  // SAFETY: If all feeds are cleared (feeds array becomes empty), the import system will NOT
+  // delete existing imported events. This prevents accidental data loss if feeds are cleared.
   app.put('/api/properties/:id/ical-feeds', requireAuth, requireHostOrAdmin, async (req, res) => {
     const property = await store.getProperty(getParam(req.params.id));
     if (!property) {
@@ -1361,6 +1363,13 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
         lastSynced: typeof feed?.lastSynced === 'string' ? feed.lastSynced : '',
       }))
       .filter((feed: { url: string }) => feed.url.length > 0);
+    
+    // Log a warning if clearing all feeds to help with debugging data loss issues
+    const hadFeeds = property.icalFeeds && property.icalFeeds.length > 0;
+    if (hadFeeds && feeds.length === 0) {
+      console.warn(`[ICAL_FEEDS] Property ${property.id} had iCal feeds removed. Existing imported events will be retained.`);
+    }
+    
     const updated = await store.updateIcalFeeds(property.id, feeds, req.authUser!);
     res.json({ icalFeeds: updated.icalFeeds ?? [] });
   });
