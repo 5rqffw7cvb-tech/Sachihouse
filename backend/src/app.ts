@@ -43,6 +43,7 @@ import {
 import { getParam } from './types/params.js';
 import { Role } from './types/domain.js';
 import { IcalSyncService } from './services/icalSync.js';
+import { OwnStayNights, splitEchoedEvents } from './domain/importedEchoes.js';
 import { buildPropertyIcs } from './services/icsExport.js';
 import { IdProcessingService } from './services/idProcessing.js';
 import { ObjectStorageService } from './services/objectStorage.js';
@@ -404,12 +405,46 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     property: PropertyData & { id: string },
     mode: 'stale-ok' | 'fresh-if-stale',
   ): Promise<string[]> {
-    const [baseDates, heldDates] = await Promise.all([
-      store.listBlockedDates(property.id),
-      store.listHeldDates(property.id),
+    const own = await collectOwnStayNights(property.id);
+    // Sorted: callers that serialise this straight to JSON have always handed
+    // the client an ascending list of dates.
+    return (await icalSync.getBlockedDates(property, [...own.nights], mode)).sort();
+  }
+
+  // Every night this property is already spoken for by our *own* records —
+  // manual blocks, unpaid holds, off-platform confirmations and direct
+  // bookings. Two things read this. It is the base of the effective calendar,
+  // so a stay the host recorded here holds its own nights instead of leaning
+  // on some other platform to block them for us. And it is what tells an
+  // imported block apart from an echo: these are exactly the nights our iCal
+  // export advertises, so an anonymous block sitting entirely inside them is
+  // our own feed coming back through a channel manager, not news from an OTA.
+  async function collectOwnStayNights(propertyId: string): Promise<OwnStayNights> {
+    const [blocked, held, confirmations, bookings] = await Promise.all([
+      store.listBlockedDates(propertyId),
+      store.listHeldDates(propertyId),
+      store.listBookingConfirmations({ propertyId }),
+      store.listBookings({ propertyId, statuses: ACTIVE_BOOKING_STATUSES }),
     ]);
-    const withIcal = await icalSync.getBlockedDates(property, baseDates, mode);
-    return Array.from(new Set([...withIcal, ...heldDates]));
+
+    const nights = new Set<string>([...blocked, ...held]);
+    const claim = (checkInDate: string, checkOutDate: string) => {
+      try {
+        for (const date of getStayDates(checkInDate, checkOutDate)) nights.add(date);
+      } catch {
+        // A malformed range claims nothing; it must not take the request down.
+      }
+    };
+    // Online bookings are mirrored into this table as well, and a cancelled
+    // one keeps its row — claiming those nights would leave them unsellable
+    // for good. The live booking rows below already hold them while the stay
+    // is active, so only off-platform confirmations are read here.
+    for (const confirmation of confirmations) {
+      if (confirmation.source === 'manual') claim(confirmation.checkInDate, confirmation.checkOutDate);
+    }
+    for (const booking of bookings) claim(booking.checkInDate, booking.checkOutDate);
+
+    return { nights };
   }
 
 
@@ -1254,12 +1289,23 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
 
     const manualBlockedDates = await store.listBlockedDates(property.id);
     const effective = await getEffectiveBlockedDates(property, 'fresh-if-stale');
-    const heldDates = await store.listHeldDates(property.id);
-    // "Imported" is what is left after removing the sources we can name.
-    // Without subtracting held nights too, a night sold on our own site would
-    // be mislabelled on the host calendar as coming from another platform.
-    const accountedFor = new Set([...manualBlockedDates, ...heldDates]);
-    const importedBlockedDates = effective.filter((date) => !accountedFor.has(date));
+
+    // "Imported" is what is left after removing the sources we can name —
+    // every night one of our own records already accounts for. Without this a
+    // night sold on our own site would be mislabelled on the host calendar as
+    // coming from another platform.
+    const ownNights = await collectOwnStayNights(property.id);
+
+    // Blocks a channel manager built out of our own export feed and handed
+    // straight back are dropped here, or the same stay would be drawn twice:
+    // once as the host's own booking, once as an unattributed import.
+    const { kept: importedEvents, echoOnlyNights } = splitEchoedEvents(
+      await icalSync.getImportedEvents(property, 'fresh-if-stale'),
+      ownNights,
+    );
+    const importedBlockedDates = effective.filter(
+      (date) => !ownNights.nights.has(date) && !echoOnlyNights.has(date),
+    );
 
     // Online bookings are mirrored into booking_confirmations for the PDF and
     // accounting flows, but that mirror would double up with the same stay's
@@ -1286,8 +1332,6 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       amountTotal: booking.amountTotal,
       currency: booking.currency,
     }));
-
-    const importedEvents = await icalSync.getImportedEvents(property, 'fresh-if-stale');
 
     const token = await store.ensureIcalExportToken(property.id);
 
@@ -1474,8 +1518,15 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
         });
       }
 
-      const imported = (await icalSync.getImportedEvents(property, 'stale-ok'))
-        .filter((ev) => overlapsWindow(ev.checkInDate, ev.checkOutDate));
+      // Same de-duplication as the host calendar: a stay the host entered here
+      // and our export then handed to a channel manager comes back as an
+      // anonymous block, and without this every night of it would look like a
+      // same-day turnover to the cleaner reading this page.
+      const { kept: importedKept } = splitEchoedEvents(
+        await icalSync.getImportedEvents(property, 'stale-ok'),
+        await collectOwnStayNights(property.id),
+      );
+      const imported = importedKept.filter((ev) => overlapsWindow(ev.checkInDate, ev.checkOutDate));
       for (const ev of imported) {
         stays.push({
           propertyId: property.id,

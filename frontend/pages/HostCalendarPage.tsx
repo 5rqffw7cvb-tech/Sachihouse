@@ -267,9 +267,10 @@ const HostCalendarPage: React.FC = () => {
     [viewMonth],
   );
 
-  // Precedence matters: a paid stay outranks a hold, which outranks an imported
-  // block, which outranks a manual one. Whichever claims a night decides how it
-  // is drawn and whether it can be clicked.
+  // Precedence matters: a stay we hold the record for — a paid direct booking
+  // or a confirmation the host entered — outranks an unpaid hold, which
+  // outranks an imported block, which outranks a manual one. Whichever claims
+  // a night decides how it is drawn and whether it can be clicked.
   const timelineRows: TimelineRow[] = useMemo(() => scopedProperties.map((property) => {
     const cal = allCalendars.get(property.id);
     const nights = new Map<string, Night>();
@@ -287,12 +288,27 @@ const HostCalendarPage: React.FC = () => {
       }
     }
 
+    // Nights of a stay, check-out morning excluded — the guest is gone by then.
+    const stayNights = (checkInDate: string, checkOutDate: string): string[] => {
+      const start = parseISO(checkInDate);
+      const end = parseISO(checkOutDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(start < end)) return [];
+      return eachDayOfInterval({ start, end }).slice(0, -1).map((d) => format(d, 'yyyy-MM-dd'));
+    };
+
+    // Off-platform stays the host recorded here. Without these the timeline
+    // showed a manually confirmed booking as an empty night — or, once our
+    // export had gone round through a channel manager, as somebody else's
+    // block sitting on top of the host's own guest.
+    for (const booking of cal?.bookings ?? []) {
+      for (const iso of stayNights(booking.checkInDate, booking.checkOutDate)) {
+        nights.set(iso, { kind: 'booking', label: booking.guestName || 'Reserved', ref: booking.id });
+      }
+    }
+
     for (const booking of cal?.directBookings ?? []) {
       const kind = booking.status === 'confirmed' ? 'booking' : 'hold';
-      for (const iso of eachDayOfInterval({
-        start: parseISO(booking.checkInDate),
-        end: parseISO(booking.checkOutDate),
-      }).slice(0, -1).map((d) => format(d, 'yyyy-MM-dd'))) {
+      for (const iso of stayNights(booking.checkInDate, booking.checkOutDate)) {
         nights.set(iso, { kind, label: booking.guestName, ref: booking.id });
       }
     }
@@ -551,7 +567,7 @@ const HostCalendarPage: React.FC = () => {
           )}
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 border-t border-line text-[12px] text-ink-soft">
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-brand" /> Direct booking</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-brand" /> Booked stay</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-hold-tint ring-1 ring-inset ring-hold/30" /> Unpaid hold</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-info-tint ring-1 ring-inset ring-info/25" /> Imported from a channel</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-ink-muted/25 ring-1 ring-inset ring-ink-muted/30" /> Blocked by you</span>
