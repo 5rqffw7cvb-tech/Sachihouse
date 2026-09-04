@@ -435,6 +435,16 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
                   <span className="h-3.5 w-3.5 rounded bg-brand" />
                   {t('sim_legend_selected')}
                 </span>
+                {/* Half a range narrows the calendar to the nights that stay
+                    reachable, so there has to be a way back out of it — the
+                    other three calendars have carried this button all along. */}
+                <button
+                  type="button"
+                  onClick={() => setSelection({ checkIn: null, checkOut: null, selecting: 'checkIn' })}
+                  className="ml-auto underline transition-colors hover:text-ink"
+                >
+                  {t('sim_clear_dates')}
+                </button>
               </div>
 
               <button

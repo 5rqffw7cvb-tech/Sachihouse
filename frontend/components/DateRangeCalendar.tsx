@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { addMonths, eachDayOfInterval, endOfMonth, format, isBefore, isSameDay, isWithinInterval } from 'date-fns';
-import { BookingDateSelection } from '../utils/dateRange';
+import { BookingDateSelection, isDayPickable } from '../utils/dateRange';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
 
@@ -22,7 +22,8 @@ interface DateRangeCalendarProps {
   selection: BookingDateSelection;
   /** Called with the clicked day; the caller decides what it does to the range. */
   onSelectDay: (day: Date) => void;
-  /** Nights that cannot be booked at all, on top of the automatic past-date rule. */
+  /** Whether that *night* is taken. Asked per night, never about a check-out
+   *  morning — see isDayPickable for which of the two a given click is. */
   isDateUnavailable?: (day: Date) => boolean;
   /** How far ahead the month arrows may walk. */
   maxMonthsAhead?: number;
@@ -92,8 +93,14 @@ const DateRangeCalendar: React.FC<DateRangeCalendarProps> = ({
         {padding.map((_, index) => <div key={`pad-${index}`} />)}
         {days.map((day) => {
           const isPast = isBefore(day, today);
-          const isUnavailable = isDateUnavailable?.(day) ?? false;
-          const isDisabled = isPast || isUnavailable;
+          const isNightTaken = isDateUnavailable?.(day) ?? false;
+          // A taken night is still a valid check-out — the stay ends that
+          // morning, before whoever has it arrives.
+          const isPickable = isDayPickable(selection, day, isDateUnavailable ?? (() => false));
+          const isDisabled = isPast || !isPickable;
+          // The cross means "you cannot pick this", so it is only earned by a
+          // taken night the guest is actually being refused.
+          const showTakenMark = isNightTaken && !isPast && !isPickable;
 
           const isStart = !!checkIn && isSameDay(day, checkIn);
           const isEnd = !!checkOut && isSameDay(day, checkOut);
@@ -121,14 +128,18 @@ const DateRangeCalendar: React.FC<DateRangeCalendarProps> = ({
               key={day.toISOString()}
               disabled={isDisabled}
               onClick={() => onSelectDay(day)}
-              aria-label={format(day, 'PPP', { locale: dateLocale })}
+              aria-label={
+                isNightTaken && isPickable
+                  ? `${format(day, 'PPP', { locale: dateLocale })} — ${t('calendar_checkout_only')}`
+                  : format(day, 'PPP', { locale: dateLocale })
+              }
               className={cellClass}
             >
-              <span className={isUnavailable && !isPast ? 'leading-none' : ''}>{format(day, 'd')}</span>
+              <span className={showTakenMark ? 'leading-none' : ''}>{format(day, 'd')}</span>
               {/* Booked-out days carry the cross from the day grid rather than
                   relying on colour alone, which the strikethrough elsewhere in
                   the app does not survive at this size. */}
-              {isUnavailable && !isPast && <X className="mt-0.5 h-3 w-3" strokeWidth={2.5} />}
+              {showTakenMark && <X className="mt-0.5 h-3 w-3" strokeWidth={2.5} />}
             </button>
           );
         })}

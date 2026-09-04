@@ -8,7 +8,7 @@ import {
   isBefore, isSameDay, isWithinInterval, differenceInDays,
 } from 'date-fns';
 import BookingWidget from '../components/BookingWidget';
-import { BookingDateSelection, applyDatePick } from '../utils/dateRange';
+import { BookingDateSelection, applyDatePick, isDayPickable } from '../utils/dateRange';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getDateFnsLocale } from '../utils/translations';
@@ -91,15 +91,21 @@ const PricingPage: React.FC<PricingPageProps> = ({ data }) => {
           {padding.map((_, i) => <div key={`pad-${i}`} />)}
           {days.map((day) => {
             const isPast = isBefore(day, today);
-            const blocked = isDateBlocked(day);
-            const isDisabled = isPast || blocked;
+            const nightTaken = isDateBlocked(day);
+            // A taken night is still a valid check-out — the stay ends that
+            // morning. Beyond it nothing is reachable, since the stay would
+            // have to pass through the night someone else has.
+            const isPickable = isDayPickable(selection, day, isDateBlocked);
+            const isDisabled = isPast || !isPickable;
             const isStart = checkIn && isSameDay(day, checkIn);
             const isEnd = checkOut && isSameDay(day, checkOut);
             const inRange = checkIn && checkOut && isWithinInterval(day, { start: checkIn, end: checkOut });
 
             let dayClass = 'aspect-square flex items-center justify-center rounded-lg text-sm transition-all duration-150 ';
             if (isDisabled) {
-              dayClass += 'bg-gray-50 text-gray-300 line-through decoration-gray-300 cursor-not-allowed';
+              // Struck through only where a taken night is what refuses the
+              // click; a free day merely out of reach is just greyed out.
+              dayClass += `bg-gray-50 text-gray-300 cursor-not-allowed${nightTaken && !isPast ? ' line-through decoration-gray-300' : ''}`;
             } else if (isStart || isEnd) {
               dayClass += 'bg-[var(--color-primary-600)] text-white font-bold shadow-sm';
             } else if (inRange) {
