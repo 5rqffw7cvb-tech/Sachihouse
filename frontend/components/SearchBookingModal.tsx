@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
-import { CalendarDays, ChevronDown, ChevronLeft, MapPin, Minus, Plus, Search, Users, X } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, MapPin, Minus, Plus, Search, X } from 'lucide-react';
 import { BookingDateSelection, applyDatePick } from '../utils/dateRange';
 import DateRangeCalendar from './DateRangeCalendar';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -40,9 +40,6 @@ interface SearchBookingModalProps {
   // Region the unavailability above was computed for, so the calendar can be
   // recomputed when the guest narrows the area.
   onAreaChange?: (area: { countryCode: string; provinceCode: string }) => void;
-  // Optional photo behind the title. Without one the header falls back to a
-  // flat brand wash, which still reads as designed rather than broken.
-  heroImageUrl?: string;
   // A search the guest made minutes ago, so they are not made to re-enter it.
   initialSearch?: RememberedSearch | null;
 }
@@ -71,9 +68,9 @@ const fromYmd = (value: string): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-// Which panel of the dialog is showing. Swapping the body rather than stacking
-// popovers keeps the calendar and the guest steppers usable at phone width.
-type ModalView = 'form' | 'calendar' | 'guests';
+// Which panel of the dialog is showing. Only the calendar earns one: it needs
+// the whole width, while everything else answers in place.
+type ModalView = 'form' | 'calendar';
 
 // One cell of the grouped search box: a caption above its value, with the whole
 // cell acting as the click target.
@@ -113,7 +110,8 @@ const VALUE_TEXT = 'block truncate text-[15px] font-semibold text-ink';
 
 // A guest row: title, the rule that applies to it, and a round -/+ pair. Laid
 // out to match the booking widget on each property page, so the control a guest
-// meets here is the same one they meet at the point of booking.
+// meets here is the same one they meet at the point of booking. Padded to line
+// up with the cells above it, since it now sits in the same box.
 const GuestRow: React.FC<{
   title: string;
   hint: string;
@@ -122,7 +120,7 @@ const GuestRow: React.FC<{
   onChange: (next: number) => void;
   canIncrease: boolean;
 }> = ({ title, hint, value, min, onChange, canIncrease }) => (
-  <div className="flex items-center justify-between gap-4 py-4">
+  <div className="flex items-center justify-between gap-4 px-4 py-3">
     <div>
       <div className="text-[15px] font-bold text-ink">{title}</div>
       <div className="text-[12px] text-ink-muted">{hint}</div>
@@ -159,7 +157,6 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
   maxGuests,
   isDateUnavailable,
   onAreaChange,
-  heroImageUrl,
   initialSearch,
 }) => {
   const { t, language } = useLanguage();
@@ -167,8 +164,17 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const [view, setView] = useState<ModalView>('form');
-  const [countryCode, setCountryCode] = useState(initialSearch?.countryCode ?? '');
-  const [provinceCode, setProvinceCode] = useState(initialSearch?.provinceCode ?? '');
+  // Start in the area the site actually operates in rather than "everywhere":
+  // with one configured location that choice is not a question, and with
+  // several the first is still a better opening bid than none. A remembered
+  // search wins, including its explicit "all countries" (an empty string is a
+  // real answer here, so ?? and not ||).
+  const [countryCode, setCountryCode] = useState(
+    initialSearch?.countryCode ?? allowedLocations[0]?.countryCode ?? '',
+  );
+  const [provinceCode, setProvinceCode] = useState(
+    initialSearch?.provinceCode ?? allowedLocations[0]?.provinceCode ?? '',
+  );
   // Falls back to tonight so the guest can search in one tap; they only touch
   // the fields they actually want to change.
   const [selection, setSelection] = useState<BookingDateSelection>(() => {
@@ -194,7 +200,17 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
     [allowedLocations],
   );
   const provinceOptions = allowedLocations.filter((location) => location.countryCode === countryCode);
-  const hasLocationFilter = countryOptions.length > 0;
+  // One configured location is not a choice — it is a fact about the site, and
+  // belongs under the title rather than behind two dropdowns whose only other
+  // option is "all". Two or more and the dropdowns come back.
+  const soleLocation = allowedLocations.length === 1 ? allowedLocations[0] : null;
+  const hasLocationChoice = allowedLocations.length > 1;
+  // With no dropdowns on screen the area is not the guest's to choose, so it is
+  // read off the configuration rather than off state a stale remembered search
+  // could have emptied. Where there is a choice, an empty code means the guest
+  // asked for everywhere and must be left alone.
+  const areaCountryCode = hasLocationChoice ? countryCode : soleLocation?.countryCode ?? '';
+  const areaProvinceCode = hasLocationChoice ? provinceCode : soleLocation?.provinceCode ?? '';
 
   const { checkIn, checkOut } = selection;
   const datesValid = !!checkIn && !!checkOut && checkIn < checkOut;
@@ -203,8 +219,8 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
 
   // Tell the page which area to compute sold-out nights for.
   useEffect(() => {
-    onAreaChange?.({ countryCode, provinceCode });
-  }, [countryCode, provinceCode, onAreaChange]);
+    onAreaChange?.({ countryCode: areaCountryCode, provinceCode: areaProvinceCode });
+  }, [areaCountryCode, areaProvinceCode, onAreaChange]);
 
   // Escape to dismiss, and keep the page behind from scrolling under the sheet.
   useEffect(() => {
@@ -232,8 +248,8 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
   const handleSubmit = () => {
     if (!datesValid) return;
     onSubmit({
-      countryCode,
-      provinceCode,
+      countryCode: areaCountryCode,
+      provinceCode: areaProvinceCode,
       checkIn: toYmd(checkIn!),
       checkOut: toYmd(checkOut!),
       adults,
@@ -245,12 +261,6 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
   const formatDate = (date: Date | null) =>
     date ? format(date, 'EEE, d MMM', { locale: dateLocale }) : t('sim_add_dates');
 
-  const guestSummary = [
-    `${adults} ${t('sim_adults').toLowerCase()}`,
-    children > 0 ? `${children} ${t('sim_children').toLowerCase()}` : '',
-    infants > 0 ? `${infants} ${t('sim_infants').toLowerCase()}` : '',
-  ].filter(Boolean).join(', ');
-
   const openCalendar = (selecting: BookingDateSelection['selecting']) => {
     setSelection((current) => ({ ...current, selecting }));
     setView('calendar');
@@ -258,9 +268,7 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
 
   const headerTitle = view === 'calendar'
     ? (selection.selecting === 'checkIn' ? t('search_modal_pick_checkin') : t('search_modal_pick_checkout'))
-    : view === 'guests'
-      ? t('listing_guests')
-      : t('search_modal_title');
+    : t('search_modal_title');
 
   return (
     <div
@@ -277,53 +285,56 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
         onClick={(event) => event.stopPropagation()}
         className="animate-dialog-panel relative max-h-full w-full max-w-md overflow-y-auto rounded-3xl bg-surface shadow-2xl outline-none"
       >
-        {/* Header — photo, brand wash, title over the top of both. */}
-        <div className="relative h-32 overflow-hidden sm:h-36">
-          {heroImageUrl && (
-            <img src={heroImageUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-brand via-brand/85 to-brand/45" />
-
-          {view === 'form' ? (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={t('search_modal_skip')}
-              className="absolute right-3 top-3 rounded-full bg-white/15 p-2 text-white backdrop-blur-sm transition-colors hover:bg-white/30"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          ) : (
+        {/* Header. The photo that used to fill 140px here was decoration in a
+            dialog whose whole job is to take three answers and get out of the
+            way — on a phone it pushed the search button below the fold. */}
+        <div className="flex items-start gap-3 px-5 pt-5 sm:px-6 sm:pt-6">
+          {view === 'calendar' && (
             <button
               type="button"
               onClick={() => setView('form')}
               aria-label={t('search_modal_back')}
-              className="absolute left-3 top-3 rounded-full bg-white/15 p-2 text-white backdrop-blur-sm transition-colors hover:bg-white/30"
+              className="-ml-1.5 shrink-0 rounded-full p-1.5 text-ink-soft transition-colors hover:bg-subtle hover:text-ink"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-5 w-5" />
             </button>
           )}
 
-          <div className="relative flex h-full flex-col justify-end p-6">
+          <div className="min-w-0 flex-1">
             <h2
               id="search-modal-title"
-              className="font-['Plus_Jakarta_Sans'] text-[22px] font-bold leading-[1.2] text-white"
+              className="font-['Plus_Jakarta_Sans'] text-[19px] font-bold leading-[1.25] text-ink"
             >
               {headerTitle}
             </h2>
             {view === 'form' && (
-              <p className="mt-1 text-[13px] leading-[1.5] text-white/80">{t('search_modal_subtitle')}</p>
+              <p className="mt-0.5 text-[13px] leading-[1.5] text-ink-muted">
+                {soleLocation
+                  ? `${soleLocation.provinceName}, ${soleLocation.countryName}`
+                  : t('search_modal_subtitle')}
+              </p>
             )}
           </div>
+
+          {view === 'form' && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={t('search_modal_skip')}
+              className="-mr-1.5 shrink-0 rounded-full p-1.5 text-ink-muted transition-colors hover:bg-subtle hover:text-ink"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
 
-        <div className="p-5 sm:p-6">
+        <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
           {view === 'form' && (
             <>
               {/* One grouped box rather than loose fields — it reads as a
                   single search bar, the way booking sites present this. */}
               <div className="divide-y divide-line overflow-hidden rounded-card border border-line-strong">
-                {hasLocationFilter && (
+                {hasLocationChoice && (
                   <div className="grid grid-cols-2 divide-x divide-line">
                     <Cell icon={MapPin} label={t('listing_country')}>
                       <span className="relative block">
@@ -381,10 +392,42 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
                   </Cell>
                 </div>
 
-                <Cell icon={Users} label={t('listing_guests')} onClick={() => setView('guests')}>
-                  <span className={VALUE_TEXT}>{guestSummary}</span>
-                </Cell>
+                {/* Inline rather than behind a sub-view: two taps to say "3
+                    adults" was a page transition each way for a number the
+                    guest can set right here. */}
+                <GuestRow
+                  title={t('sim_adults')}
+                  hint={t('search_modal_adults_hint')}
+                  value={adults}
+                  min={1}
+                  onChange={setAdults}
+                  canIncrease={payingGuests < maxGuests}
+                />
+                <GuestRow
+                  title={t('sim_children')}
+                  hint={t('search_modal_children_hint')}
+                  value={children}
+                  min={0}
+                  onChange={setChildren}
+                  canIncrease={payingGuests < maxGuests}
+                />
+                <GuestRow
+                  title={t('sim_infants')}
+                  hint={t('search_modal_infants_hint')}
+                  value={infants}
+                  min={0}
+                  onChange={setInfants}
+                  canIncrease={infants < 3}
+                />
               </div>
+
+              {/* Only once the guest is actually stopped by it — a standing
+                  note about capacity is noise until the + stops responding. */}
+              {payingGuests >= maxGuests && (
+                <p className="mt-2 text-[12px] leading-[1.5] text-ink-muted">
+                  {t('search_modal_guests_note').replace('{max}', String(maxGuests))}
+                </p>
+              )}
 
               {!datesValid && (
                 <p className="mt-3 text-[13px] text-danger">{t('search_modal_date_error')}</p>
@@ -457,48 +500,6 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
             </>
           )}
 
-          {view === 'guests' && (
-            <>
-              <div className="divide-y divide-line">
-                <GuestRow
-                  title={t('sim_adults')}
-                  hint={t('search_modal_adults_hint')}
-                  value={adults}
-                  min={1}
-                  onChange={setAdults}
-                  canIncrease={payingGuests < maxGuests}
-                />
-                <GuestRow
-                  title={t('sim_children')}
-                  hint={t('search_modal_children_hint')}
-                  value={children}
-                  min={0}
-                  onChange={setChildren}
-                  canIncrease={payingGuests < maxGuests}
-                />
-                <GuestRow
-                  title={t('sim_infants')}
-                  hint={t('search_modal_infants_hint')}
-                  value={infants}
-                  min={0}
-                  onChange={setInfants}
-                  canIncrease={infants < 3}
-                />
-              </div>
-
-              <p className="mt-4 text-[12px] leading-[1.5] text-ink-muted">
-                {t('search_modal_guests_note').replace('{max}', String(maxGuests))}
-              </p>
-
-              <button
-                type="button"
-                onClick={() => setView('form')}
-                className="mt-4 w-full rounded-control bg-brand px-4 py-3 text-[15px] font-bold text-white transition-colors hover:bg-brand/90"
-              >
-                {t('sim_done')}
-              </button>
-            </>
-          )}
         </div>
       </div>
     </div>

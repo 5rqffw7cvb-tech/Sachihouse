@@ -644,15 +644,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
       .map((property) => property.id),
   );
 
-  // The first listing's own photo becomes the search prompt's header image, so
-  // the dialog shows the guest what they are about to search through.
-  const searchModalHeroUrl = (() => {
-    const heroImage = properties
-      .flatMap((property) => property.galleryImages ?? [])
-      .find((image) => image && image.showOnHome && image.url);
-    return heroImage ? buildOptimizedImageUrl(heroImage.url, 640) : undefined;
-  })();
-
   return (
     <div className="bg-[#e8e5e6] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
       {bookingProperty && stayCheckIn && stayCheckOut && (
@@ -687,7 +678,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         maxGuests={Math.max(maxGuestsAvailable, 1)}
         isDateUnavailable={isSearchDateUnavailable}
         onAreaChange={setSearchArea}
-        heroImageUrl={searchModalHeroUrl}
         initialSearch={rememberedSearch}
       />
       <TopNavBar
