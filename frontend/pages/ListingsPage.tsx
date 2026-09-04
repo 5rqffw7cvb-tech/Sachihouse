@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { PropertyData, SiteSettings } from '../types';
-import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train, Globe, Plus } from 'lucide-react';
+import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train, Globe, Plus, Search } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -467,6 +467,11 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     setIsSearchModalOpen(false);
   };
 
+  // The prompt shows itself once per session and then stays out of the way,
+  // which left no route back to it — this is that route. It keeps whatever the
+  // guest last entered, since the dialog stays mounted between openings.
+  const openSearchModal = () => setIsSearchModalOpen(true);
+
   const handleSearchModalSubmit = (values: SearchModalValues) => {
     markSearchModalSeen();
     setIsSearchModalOpen(false);
@@ -723,6 +728,15 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             </button>
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={openSearchModal}
+          className="mb-4 flex w-full items-center gap-2.5 rounded-full border border-[#c4c6cd] bg-white px-5 py-3 text-left shadow-sm transition-colors hover:bg-[#f5f3f4] md:w-auto"
+        >
+          <Search className="h-4 w-4 shrink-0 text-[#63768a]" />
+          <span className="truncate text-[14px] font-semibold text-[#1b1c1d]">{t('search_modal_title')}</span>
+        </button>
 
         <div className="mb-4 md:hidden">
           <div className="flex items-center gap-2">

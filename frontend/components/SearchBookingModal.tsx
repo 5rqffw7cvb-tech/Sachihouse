@@ -222,6 +222,15 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
     onAreaChange?.({ countryCode: areaCountryCode, provinceCode: areaProvinceCode });
   }, [areaCountryCode, areaProvinceCode, onAreaChange]);
 
+  // Reopening always lands on the form. The dialog stays mounted between
+  // openings — which is what keeps the guest's answers — so without this,
+  // dismissing it from the calendar would bring it back to the calendar.
+  // Keyed on `open` alone: the effect below re-runs on every parent render,
+  // and resetting the view from there would eject a guest mid-pick.
+  useEffect(() => {
+    if (open) setView('form');
+  }, [open]);
+
   // Escape to dismiss, and keep the page behind from scrolling under the sheet.
   useEffect(() => {
     if (!open) return;
