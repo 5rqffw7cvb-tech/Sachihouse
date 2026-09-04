@@ -43,3 +43,9 @@ pnpm-debug.log*
 # IDE
 .vscode/
 .idea/
+
+# Local diagnostic scripts. These are written ad hoc against the production
+# database and carry its connection string in plaintext, so they must never
+# be committed — not even by a stray `git add .`.
+/diagnostic.mjs
+/diagnostic_query.py
