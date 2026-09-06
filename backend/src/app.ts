@@ -1667,6 +1667,75 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     res.json({ property });
   });
 
+  /**
+   * The entry details on their own: door code, wifi, emergency contact.
+   *
+   * The host phone app needs to read and change the door code without ever
+   * holding the whole property document. PUT /properties/:id replaces the
+   * record wholesale, so a read-modify-write from a phone would put every
+   * other field at the mercy of whatever that phone happened to have loaded.
+   * These two routes touch one nested object and nothing else.
+   */
+  const CHECK_IN_INFO_FIELDS = [
+    'wifiName',
+    'wifiPassword',
+    'entryCode',
+    'emergencyContactPhone',
+    'googleMapsUrl',
+  ] as const;
+
+  app.get('/api/properties/:id/check-in-info', requireAuth, async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.id));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    // These are the keys to the house, so reading them needs the same standing
+    // as the console: an admin, or the host this property is assigned to.
+    if (!canAccessProperty(req.authUser!, property.id)) {
+      return res.status(403).json({ error: 'Property access not allowed.' });
+    }
+    return res.json({ checkInInfo: property.checkInInfo ?? {} });
+  });
+
+  app.patch('/api/properties/:id/check-in-info', requireAuth, async (req, res) => {
+    const current = await store.getProperty(getParam(req.params.id));
+    if (!current) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (!canPerformAction(req.authUser!, 'property.write', current.id)) {
+      return res.status(403).json({ error: 'Property write not allowed.' });
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const next: Record<string, string> = { ...(current.checkInInfo ?? {}) } as Record<string, string>;
+    let touched = false;
+
+    for (const field of CHECK_IN_INFO_FIELDS) {
+      if (!(field in body)) continue;
+      const value = body[field];
+      if (typeof value !== 'string') {
+        return res.status(400).json({ error: `${field} must be a string.` });
+      }
+      const trimmed = value.trim();
+      // An emptied field is a removed one. Storing "" would leave a blank row
+      // in the guest's welcome email instead of dropping it.
+      if (trimmed) next[field] = trimmed;
+      else delete next[field];
+      touched = true;
+    }
+
+    if (!touched) {
+      return res.status(400).json({ error: 'Nothing to update.' });
+    }
+
+    const property = await store.saveProperty(
+      current.id,
+      { ...current, checkInInfo: next },
+      req.authUser!,
+    );
+    return res.json({ checkInInfo: property.checkInInfo ?? {} });
+  });
+
   // Upload a property media image (gallery/room/host/manual). Compresses + converts
   // to AVIF and stores it in the public bucket, returning a stable public URL.
   app.post('/api/properties/:id/images', requireAuth, async (req, res) => {

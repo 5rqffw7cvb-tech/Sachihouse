@@ -6,7 +6,7 @@ const formatDateYMD = (date: Date): string => {
   return `${y}-${m}-${d}`;
 };
 import { ApiError, apiRequest } from './api';
-import { PropertyData, SiteSettings } from '../types';
+import { CheckInInfo, PropertyData, SiteSettings } from '../types';
 
 const STORAGE_KEY = 'tokyo_zen_stay_data';
 let blockedDatesCache: Set<string> = new Set();
@@ -245,6 +245,33 @@ export const getPropertyData = async (propertyId: string = 'main', lang?: string
     throw new Error('Invalid property payload');
   }
   return response.property;
+};
+
+/**
+ * The entry details on their own — door code, wifi, emergency contact.
+ *
+ * Separate from getPropertyData/savePropertyData on purpose: saving a property
+ * replaces the whole record, and a caller that only wants to change the door
+ * code should not be in a position to overwrite anything else. Reading them
+ * needs to be an admin or the assigned host; changing them needs host level 2.
+ */
+export const getCheckInInfo = async (propertyId: string): Promise<CheckInInfo> => {
+  const response = await apiRequest<{ checkInInfo: CheckInInfo }>(
+    `/properties/${encodeURIComponent(propertyId)}/check-in-info`,
+  );
+  return response.checkInInfo ?? {};
+};
+
+/** Merges the given fields. An empty string removes that field entirely. */
+export const updateCheckInInfo = async (
+  propertyId: string,
+  patch: Partial<CheckInInfo>,
+): Promise<CheckInInfo> => {
+  const response = await apiRequest<{ checkInInfo: CheckInInfo }>(
+    `/properties/${encodeURIComponent(propertyId)}/check-in-info`,
+    { method: 'PATCH', body: JSON.stringify(patch) },
+  );
+  return response.checkInInfo ?? {};
 };
 
 export const savePropertyData = async (data: PropertyData, propertyId: string = 'main'): Promise<void> => {

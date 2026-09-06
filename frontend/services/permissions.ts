@@ -23,6 +23,10 @@ export type AdminAccess =
   /** Admins, or hosts at level 3+. Guest ID records — mirrors the rule
    *  GET /api/checkins enforces, so a nav can hide what the API would refuse. */
   | 'checkins'
+  /** Admins, or hosts at level 2+. Changing a property — mirrors the level part
+   *  of the backend's 'property.write'. The per-property assignment half is not
+   *  expressible here; callers work from a list already scoped to the user. */
+  | 'propertyWrite'
   /** Admins, or anyone flagged as a blog editor. */
   | 'blog';
 
@@ -37,6 +41,8 @@ export function hasAccess(user: ApiUser | null | undefined, access: AdminAccess)
       return user.role === 'ADMIN' || (user.role === 'HOST' && (user.hostLevel ?? 0) >= 4);
     case 'checkins':
       return user.role === 'ADMIN' || (user.role === 'HOST' && (user.hostLevel ?? 0) >= 3);
+    case 'propertyWrite':
+      return user.role === 'ADMIN' || (user.role === 'HOST' && (user.hostLevel ?? 0) >= 2);
     case 'blog':
       return user.role === 'ADMIN' || Boolean(user.canEditBlog);
     default:

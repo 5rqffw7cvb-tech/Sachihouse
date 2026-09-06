@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ExternalLink,
   FileText,
+  KeyRound,
   Loader2,
   LogOut,
   Share,
@@ -13,9 +14,11 @@ import {
 } from 'lucide-react';
 import { HostCard, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
+import { EntryCodeSheet } from '../../components/host/EntryCodeSheet';
 import { logout } from '../../services/auth';
 import { getCleaningCalendarLink } from '../../services/cleaningCalendar';
-import { copyText } from '../../services/hostApp';
+import { copyText, HostProperty } from '../../services/hostApp';
+import { hasAccess } from '../../services/permissions';
 
 const Row: React.FC<{
   Icon: React.ComponentType<{ className?: string }>;
@@ -44,6 +47,7 @@ const AccountPage: React.FC = () => {
   const { user, properties, propertiesError } = useHostContext();
 
   const [showProperties, setShowProperties] = useState(false);
+  const [openProperty, setOpenProperty] = useState<HostProperty | null>(null);
   const [showInstall, setShowInstall] = useState(false);
   const [cleaningLinkState, setCleaningLinkState] = useState<'idle' | 'loading' | 'copied'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +56,9 @@ const AccountPage: React.FC = () => {
   // cuts off every cleaner. The API keeps it admin-only for that reason and
   // this row follows the same rule rather than offering a 403.
   const isAdmin = user.role === 'ADMIN';
+  // The backend wants host level 2 to write a property; below that the sheet
+  // stays readable and says why the edit button is missing.
+  const canEditProperty = hasAccess(user, 'propertyWrite');
 
   const initials = (user.name || user.email)
     .split(/[\s@.]+/)
@@ -117,8 +124,17 @@ const AccountPage: React.FC = () => {
             {properties.length === 0 ? (
               <li className="px-4 py-3 text-[13px] text-ink-muted">Nothing assigned to your account yet.</li>
             ) : properties.map((property) => (
-              <li key={property.id} className="px-4 py-2.5 text-[14px] text-ink-soft border-b border-line last:border-b-0">
-                {property.name}
+              <li key={property.id} className="border-b border-line last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => setOpenProperty(property)}
+                  className="w-full flex items-center gap-3 px-4 h-14 text-left active:bg-brand-tint"
+                >
+                  <KeyRound className="w-4 h-4 text-ink-muted shrink-0" />
+                  <span className="flex-1 min-w-0 text-[14px] text-ink-soft truncate">{property.name}</span>
+                  <span className="text-[12px] text-ink-muted shrink-0">Entry code</span>
+                  <ChevronRight className="w-4 h-4 text-line-strong shrink-0" />
+                </button>
               </li>
             ))}
           </ul>
@@ -187,6 +203,14 @@ const AccountPage: React.FC = () => {
       <p className="text-center text-[12px] text-ink-muted pt-1">
         Signed in on this device until you sign out.
       </p>
+
+      {openProperty && (
+        <EntryCodeSheet
+          property={openProperty}
+          canEdit={canEditProperty}
+          onClose={() => setOpenProperty(null)}
+        />
+      )}
     </HostScreen>
   );
 };
