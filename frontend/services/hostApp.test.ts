@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   arrivalsBetween,
   arrivalsOn,
+  datesInRange,
   departuresOn,
   formatMoney,
   HostStay,
   nightsBetween,
+  propertyColor,
   stayingOn,
+  stayNights,
   toIsoDate,
 } from './hostApp';
 
@@ -121,5 +124,60 @@ describe('the booking detail sheet fields', () => {
 
   it('falls back to the code for anything that is not yen', () => {
     expect(formatMoney(1200, 'USD')).toBe('USD 1,200');
+  });
+});
+
+describe('selecting days on the calendar', () => {
+  it('returns an inclusive run of dates', () => {
+    expect(datesInRange('2026-09-10', '2026-09-12')).toEqual(['2026-09-10', '2026-09-11', '2026-09-12']);
+  });
+
+  it('treats a single day as a run of one', () => {
+    expect(datesInRange('2026-09-10', '2026-09-10')).toEqual(['2026-09-10']);
+  });
+
+  it('crosses a month and a year boundary without dropping a day', () => {
+    expect(datesInRange('2026-08-30', '2026-09-02')).toEqual([
+      '2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02',
+    ]);
+    expect(datesInRange('2026-12-31', '2027-01-01')).toEqual(['2026-12-31', '2027-01-01']);
+  });
+
+  it('includes the leap day when the year has one', () => {
+    expect(datesInRange('2028-02-28', '2028-03-01')).toEqual(['2028-02-28', '2028-02-29', '2028-03-01']);
+  });
+
+  it('gives back nothing for a backwards or unparsable range', () => {
+    expect(datesInRange('2026-09-12', '2026-09-10')).toEqual([]);
+    expect(datesInRange('nonsense', '2026-09-10')).toEqual([]);
+  });
+});
+
+describe('the nights a stay occupies', () => {
+  it('excludes the check-out day, which is free again by morning', () => {
+    expect(stayNights({ checkInDate: '2026-09-10', checkOutDate: '2026-09-13' }))
+      .toEqual(['2026-09-10', '2026-09-11', '2026-09-12']);
+  });
+
+  it('gives one night for a one-night stay', () => {
+    expect(stayNights({ checkInDate: '2026-09-10', checkOutDate: '2026-09-11' })).toEqual(['2026-09-10']);
+  });
+
+  it('gives no nights when check-out is not after check-in', () => {
+    expect(stayNights({ checkInDate: '2026-09-10', checkOutDate: '2026-09-10' })).toEqual([]);
+    expect(stayNights({ checkInDate: '2026-09-11', checkOutDate: '2026-09-10' })).toEqual([]);
+  });
+
+  it('agrees with nightsBetween, which the detail sheet prints', () => {
+    expect(stayNights({ checkInDate: '2026-09-10', checkOutDate: '2026-09-13' }))
+      .toHaveLength(nightsBetween('2026-09-10', '2026-09-13'));
+  });
+});
+
+describe('property colours', () => {
+  it('is stable per position and wraps past the end of the palette', () => {
+    expect(propertyColor(0)).toBe(propertyColor(0));
+    expect(propertyColor(0)).not.toBe(propertyColor(1));
+    expect(propertyColor(5)).toBe(propertyColor(0));
   });
 });

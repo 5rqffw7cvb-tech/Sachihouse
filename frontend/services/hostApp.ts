@@ -1,6 +1,7 @@
 import { ApiUser } from './api';
 import { getPropertyCalendar, PropertyCalendar } from './calendar';
 import { getAllProperties } from './storage';
+import { PricingConfig } from '../types';
 
 /**
  * Data layer for the host phone app.
@@ -17,6 +18,25 @@ import { getAllProperties } from './storage';
 export interface HostProperty {
   id: string;
   name: string;
+  address: string;
+  /** Public slug, when the property has one — the property URL printed on a
+   *  booking confirmation is built from it. */
+  metalink?: string;
+  /** The rate card a quote is computed from. */
+  pricing: PricingConfig;
+}
+
+/**
+ * Colours the calendar draws one property's band in.
+ *
+ * The same five, in the same order, as the cleaning calendar. A host who uses
+ * both should not have to learn that blue means Ikebukuro on one screen and
+ * Asakusa on the other.
+ */
+const PROPERTY_COLORS = ['#2563eb', '#db2777', '#059669', '#d97706', '#7c3aed'];
+
+export function propertyColor(index: number): string {
+  return PROPERTY_COLORS[index % PROPERTY_COLORS.length];
 }
 
 export type StayKind = 'booking' | 'hold' | 'imported';
@@ -105,7 +125,18 @@ export async function listHostProperties(user: ApiUser | null): Promise<HostProp
     ? all
     : all.filter((property) => (user.assignedPropertyIds ?? []).includes(property.id));
 
-  return visible.map((property) => ({ id: property.id, name: property.name }));
+  // Alphabetical and stable: the calendar gives each property a fixed band row
+  // and colour by position, so a list that reordered between loads would move
+  // a property's colour under the host mid-glance.
+  return visible
+    .map((property) => ({
+      id: property.id,
+      name: property.name,
+      address: property.address,
+      metalink: property.metalink,
+      pricing: property.pricing,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Flattens one property's calendar into stays. Exported for the calendar
@@ -203,6 +234,71 @@ export async function loadStays(
   });
 
   return { stays, failedPropertyIds };
+}
+
+/** Every night a stay occupies: check-in through the night before check-out. */
+export function stayNights(stay: Pick<HostStay, 'checkInDate' | 'checkOutDate'>): string[] {
+  return datesInRange(stay.checkInDate, stay.checkOutDate).slice(0, -1);
+}
+
+/** Inclusive run of calendar dates. Steps by whole days on local midnights, so
+ *  a DST change cannot drop or duplicate one. */
+export function datesInRange(fromIso: string, toIso: string): string[] {
+  const start = new Date(`${fromIso}T00:00:00`);
+  const end = new Date(`${toIso}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [];
+
+  const dates: string[] = [];
+  for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+    dates.push(toIsoDate(cursor));
+  }
+  return dates;
+}
+
+/** One property's calendar, as the calendar screen needs it. */
+export interface HostCalendarData {
+  propertyId: string;
+  stays: HostStay[];
+  /** Nights the host blocked by hand. The only ones this app can lift again —
+   *  an iCal import belongs to the platform that sent it. */
+  manualBlockedDates: Set<string>;
+  /** Every unavailable night: manual blocks, imports, and booked nights. What
+   *  a quote has to check before it promises a guest anything. */
+  blockedDates: Set<string>;
+}
+
+function toCalendarData(calendar: PropertyCalendar): HostCalendarData {
+  const stays = staysFromCalendar(calendar);
+  const manual = new Set(calendar.manualBlockedDates);
+  const blocked = new Set<string>([...manual, ...calendar.importedBlockedDates]);
+  stays.forEach((stay) => stayNights(stay).forEach((night) => blocked.add(night)));
+  return { propertyId: calendar.propertyId, stays, manualBlockedDates: manual, blockedDates: blocked };
+}
+
+/**
+ * Every property's calendar at once, keyed by id.
+ *
+ * One property failing must not blank the month — a single expired iCal feed
+ * would otherwise take the whole grid down — so failures are reported
+ * alongside whatever did load.
+ */
+export async function loadCalendars(
+  propertyIds: string[],
+): Promise<{ calendars: Map<string, HostCalendarData>; failedPropertyIds: string[] }> {
+  const results = await Promise.allSettled(propertyIds.map((id) => getPropertyCalendar(id)));
+
+  const calendars = new Map<string, HostCalendarData>();
+  const failedPropertyIds: string[] = [];
+
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      calendars.set(propertyIds[index], toCalendarData(result.value));
+    } else {
+      failedPropertyIds.push(propertyIds[index]);
+    }
+  });
+
+  return { calendars, failedPropertyIds };
 }
 
 export function arrivalsOn(stays: HostStay[], iso: string): HostStay[] {
