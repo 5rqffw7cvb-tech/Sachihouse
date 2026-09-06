@@ -1,20 +1,30 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { format } from 'date-fns';
+import { addDays, format, parseISO } from 'date-fns';
 import { AlertCircle, Check, ChevronRight, Link2, RefreshCw, Sparkles } from 'lucide-react';
 import { HostCard, HostCount, HostEmpty, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
 import {
-  arrivalsOn,
+  arrivalsBetween,
   buildCheckInUrl,
   copyText,
   departuresOn,
   HostStay,
   loadStays,
+  stayingOn,
+  toIsoDate,
   todayIso,
 } from '../../services/hostApp';
 import { listCheckIns } from '../../services/checkin';
 import { hasAccess } from '../../services/permissions';
 import { CheckInSubmission } from '../../types';
+
+/** How far ahead "next arrivals" looks. Two weeks is roughly how far out a
+ *  host can still do something about a booking — chase an ID, book a cleaner. */
+const HORIZON_DAYS = 14;
+/** An ID that has not arrived yet is only worth shouting about when the guest
+ *  is nearly here. Beyond that it is noise on the one screen that must stay
+ *  glanceable. */
+const ID_CHASE_DAYS = 1;
 
 /** First letter of the guest's name, or of the channel when an OTA feed
  *  withheld it — never an empty circle. */
@@ -25,10 +35,10 @@ const displayName = (stay: HostStay): string => stay.guestName || `${stay.channe
 
 const StayRow: React.FC<{
   stay: HostStay;
-  time?: string;
+  subtitle: string;
   badge?: React.ReactNode;
   last?: boolean;
-}> = ({ stay, time, badge, last = false }) => (
+}> = ({ stay, subtitle, badge, last = false }) => (
   <div className={`flex items-center gap-3 px-4 py-3.5 ${last ? '' : 'border-b border-line'}`}>
     <div className="w-10 h-10 rounded-[14px] bg-brand-tint shrink-0 flex items-center justify-center
       font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-ink-soft">
@@ -36,11 +46,7 @@ const StayRow: React.FC<{
     </div>
     <div className="flex-1 min-w-0 flex flex-col">
       <span className="text-[15px] font-semibold text-ink truncate">{displayName(stay)}</span>
-      <span className="text-[13px] text-ink-muted truncate">
-        {[time, stay.propertyName, stay.guestCount ? `${stay.guestCount} guests` : null]
-          .filter(Boolean)
-          .join(' · ')}
-      </span>
+      <span className="text-[13px] text-ink-muted truncate">{subtitle}</span>
     </div>
     {badge}
     <ChevronRight className="w-[18px] h-[18px] text-line-strong shrink-0" />
@@ -50,6 +56,8 @@ const StayRow: React.FC<{
 const TodayPage: React.FC = () => {
   const { user, properties, propertiesError } = useHostContext();
   const today = todayIso();
+  const tomorrow = toIsoDate(addDays(new Date(), 1));
+  const horizon = toIsoDate(addDays(new Date(), HORIZON_DAYS));
 
   const [stays, setStays] = useState<HostStay[]>([]);
   const [submissions, setSubmissions] = useState<CheckInSubmission[] | null>(null);
@@ -73,8 +81,10 @@ const TodayPage: React.FC = () => {
 
     const propertyIds = properties.map((property) => property.id);
     const staysPromise = loadStays(propertyIds);
+    // The whole arrival window, not just today: an ID is worth checking while
+    // there is still time to ask for it.
     const submissionsPromise = canSeeCheckIns
-      ? listCheckIns({ fromDate: today, toDate: today }).catch(() => null)
+      ? listCheckIns({ fromDate: today, toDate: horizon }).catch(() => null)
       : Promise.resolve(null);
 
     Promise.all([staysPromise, submissionsPromise])
@@ -91,7 +101,7 @@ const TodayPage: React.FC = () => {
       })
       .catch((cause: unknown) => {
         if (cancelled) return;
-        setError(cause instanceof Error ? cause.message : "Could not load today's schedule.");
+        setError(cause instanceof Error ? cause.message : "Could not load your schedule.");
       })
       .finally(() => {
         if (cancelled) return;
@@ -100,9 +110,13 @@ const TodayPage: React.FC = () => {
       });
 
     return () => { cancelled = true; };
-  }, [properties, today, canSeeCheckIns, reloadKey]);
+  }, [properties, today, horizon, canSeeCheckIns, reloadKey]);
 
-  const arrivals = useMemo(() => arrivalsOn(stays, today), [stays, today]);
+  const nextArrivals = useMemo(
+    () => arrivalsBetween(stays, today, horizon),
+    [stays, today, horizon],
+  );
+  const staying = useMemo(() => stayingOn(stays, today), [stays, today]);
   const departures = useMemo(() => departuresOn(stays, today), [stays, today]);
 
   /** A stay counts as checked in when a submission exists for the same
@@ -115,8 +129,26 @@ const TodayPage: React.FC = () => {
 
   const missingId = useMemo(() => {
     if (!submittedKeys) return [];
-    return arrivals.filter((stay) => !submittedKeys.has(`${stay.propertyId}:${stay.checkInDate}`));
-  }, [arrivals, submittedKeys]);
+    const chaseBy = toIsoDate(addDays(new Date(), ID_CHASE_DAYS));
+    return nextArrivals.filter((stay) => (
+      stay.checkInDate <= chaseBy && !submittedKeys.has(`${stay.propertyId}:${stay.checkInDate}`)
+    ));
+  }, [nextArrivals, submittedKeys]);
+
+  /** "Today" and "Tomorrow" carry more than a date does on the one screen a
+   *  host checks in the morning. Anything further out gets the real date. */
+  const dayLabel = (iso: string): string => {
+    if (iso === today) return 'Today';
+    if (iso === tomorrow) return 'Tomorrow';
+    try {
+      return format(parseISO(iso), 'EEE d MMM');
+    } catch {
+      return iso;
+    }
+  };
+
+  const guestsLabel = (stay: HostStay): string | null =>
+    stay.guestCount ? `${stay.guestCount} guests` : null;
 
   const handleCopyLink = async (propertyId: string) => {
     await copyText(buildCheckInUrl(propertyId));
@@ -175,7 +207,7 @@ const TodayPage: React.FC = () => {
               <div className="flex-1 min-w-0 flex flex-col">
                 <span className="text-[14px] font-bold text-warn">Guest ID not submitted</span>
                 <span className="text-[13px] text-warn truncate">
-                  {displayName(stay)} · {stay.propertyName}
+                  {displayName(stay)} · {stay.propertyName} · {dayLabel(stay.checkInDate)}
                 </span>
               </div>
               <button
@@ -191,32 +223,46 @@ const TodayPage: React.FC = () => {
             </div>
           ))}
 
-          <HostCard
-            title="Arrivals"
-            action={<HostCount>{arrivals.length}</HostCount>}
-          >
-            {arrivals.length === 0
-              ? <HostEmpty>No one arrives today.</HostEmpty>
-              : arrivals.map((stay, index) => (
+          <HostCard title="Next arrivals" action={<HostCount>{nextArrivals.length}</HostCount>}>
+            {nextArrivals.length === 0
+              ? <HostEmpty>No arrivals in the next {HORIZON_DAYS} days.</HostEmpty>
+              : nextArrivals.map((stay, index) => (
                 <StayRow
                   key={stay.key}
                   stay={stay}
+                  subtitle={[dayLabel(stay.checkInDate), stay.propertyName, guestsLabel(stay)]
+                    .filter(Boolean).join(' · ')}
                   badge={idBadge(stay)}
-                  last={index === arrivals.length - 1}
+                  last={index === nextArrivals.length - 1}
                 />
               ))}
           </HostCard>
 
-          <HostCard
-            title="Departures"
-            action={<HostCount>{departures.length}</HostCount>}
-          >
+          <HostCard title="Staying" action={<HostCount>{staying.length}</HostCount>}>
+            {staying.length === 0
+              ? <HostEmpty>Nobody is in the houses tonight.</HostEmpty>
+              : staying.map((stay, index) => (
+                <StayRow
+                  key={stay.key}
+                  stay={stay}
+                  subtitle={[stay.propertyName, `leaves ${dayLabel(stay.checkOutDate)}`, guestsLabel(stay)]
+                    .filter(Boolean).join(' · ')}
+                  last={index === staying.length - 1}
+                />
+              ))}
+          </HostCard>
+
+          <HostCard title="Departures today" action={<HostCount>{departures.length}</HostCount>}>
             {departures.length === 0 ? (
               <HostEmpty>No one leaves today.</HostEmpty>
             ) : (
               <>
                 {departures.map((stay) => (
-                  <StayRow key={stay.key} stay={stay} />
+                  <StayRow
+                    key={stay.key}
+                    stay={stay}
+                    subtitle={[stay.propertyName, guestsLabel(stay)].filter(Boolean).join(' · ')}
+                  />
                 ))}
                 {/* Every departure is a turnover. Listing the cleaning under it
                     is what a host actually plans the afternoon around. */}

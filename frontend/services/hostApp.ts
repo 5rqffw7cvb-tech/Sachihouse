@@ -164,6 +164,34 @@ export function arrivalsOn(stays: HostStay[], iso: string): HostStay[] {
     .sort((a, b) => a.propertyName.localeCompare(b.propertyName));
 }
 
+/**
+ * Arrivals still ahead, soonest first — who the host has to let in next.
+ *
+ * The window is inclusive at both ends, so `fromIso` being today keeps
+ * this afternoon's check-in at the top where it belongs.
+ */
+export function arrivalsBetween(stays: HostStay[], fromIso: string, toIso: string): HostStay[] {
+  return stays
+    .filter((stay) => stay.checkInDate >= fromIso && stay.checkInDate <= toIso)
+    .sort((a, b) => (
+      a.checkInDate.localeCompare(b.checkInDate) || a.propertyName.localeCompare(b.propertyName)
+    ));
+}
+
+/**
+ * Stays already under way on `iso`: checked in before it, not yet checked out.
+ *
+ * Deliberately disjoint from arrivalsBetween and departuresOn. Someone
+ * arriving this afternoon is still an arrival, not a guest in the house, and
+ * someone leaving this morning is a departure — a guest appearing in two
+ * sections at once is the fastest way to make the screen unreadable.
+ */
+export function stayingOn(stays: HostStay[], iso: string): HostStay[] {
+  return stays
+    .filter((stay) => stay.checkInDate < iso && stay.checkOutDate > iso)
+    .sort((a, b) => a.propertyName.localeCompare(b.propertyName));
+}
+
 export function departuresOn(stays: HostStay[], iso: string): HostStay[] {
   return stays
     .filter((stay) => stay.checkOutDate === iso)
