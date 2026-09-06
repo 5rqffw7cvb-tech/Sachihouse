@@ -18,7 +18,7 @@ import {
   toJstDateString,
   validateBookingWindow,
 } from './domain/booking.js';
-import { signCheckInToken, verifyCheckInToken, verifyToken, signToken } from './auth/jwt.js';
+import { signCheckInToken, verifyCheckInToken, verifyToken, signToken, shouldRenewToken } from './auth/jwt.js';
 import {
   ACTIVE_BOOKING_STATUSES,
   AuthUser,
@@ -783,11 +783,13 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     const token = getBearerToken(req.headers.authorization);
     if (!token) {
       req.authUser = null;
+      req.authTokenPayload = null;
       return next();
     }
 
     try {
       const payload = verifyToken(token);
+      req.authTokenPayload = payload;
       req.authUser = await store.getUserById(payload.sub);
 
       if (req.authUser) {
@@ -806,6 +808,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       next();
     } catch {
       req.authUser = null;
+      req.authTokenPayload = null;
       next();
     }
   });
@@ -862,7 +865,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   });
 
   app.post('/api/auth/login', async (req, res) => {
-    const { email, password, turnstileToken } = req.body ?? {};
+    const { email, password, turnstileToken, remember } = req.body ?? {};
     if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
@@ -893,7 +896,9 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     }
 
     clearLoginFailure(attemptKey);
-    return res.json({ token: signToken(user), user });
+    // `remember` is the host phone app asking for a session that survives being
+    // closed. Anything else — the browser console included — keeps the short one.
+    return res.json({ token: signToken(user, remember === true), user });
   });
 
   // Public self-registration: anyone can create their own HOST account at
@@ -931,8 +936,14 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return res.status(201).json({ token: signToken(user), user });
   });
 
+  // The client calls this on every boot. That makes it the natural place to
+  // slide a remembered session forward: an app opened at least once inside the
+  // renewal window never reaches its expiry, and one that isn't still does.
   app.get('/api/auth/me', requireAuth, async (req, res) => {
-    res.json({ user: req.authUser });
+    if (shouldRenewToken(req.authTokenPayload)) {
+      return res.json({ user: req.authUser, token: signToken(req.authUser!, true) });
+    }
+    return res.json({ user: req.authUser });
   });
 
   app.get('/api/users', requireAdmin, async (_req, res) => {

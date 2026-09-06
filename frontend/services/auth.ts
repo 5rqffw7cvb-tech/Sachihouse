@@ -1,4 +1,4 @@
-import { apiRequest, ApiUser, clearSession, getStoredUser, storeSession } from './api';
+import { apiRequest, ApiUser, clearSession, getStoredUser, storeSession, storeToken } from './api';
 
 export interface LoginResult {
   success: boolean;
@@ -14,7 +14,12 @@ const emit = () => {
 
 const syncSession = async () => {
   try {
-    const response = await apiRequest<{ user: ApiUser }>('/auth/me');
+    const response = await apiRequest<{ user: ApiUser; token?: string }>('/auth/me');
+    // A remembered session the server slid forward. Store it before anything
+    // else can fire a request with the token it is replacing.
+    if (response.token) {
+      storeToken(response.token);
+    }
     currentUser = response.user;
     emit();
   } catch {
@@ -44,6 +49,9 @@ export const login = async (
   email: string,
   password: string,
   turnstileToken: string,
+  /** Ask for a long, self-renewing session. The host phone app sets this; the
+   *  browser console leaves it off and keeps the short one. */
+  remember = false,
 ): Promise<LoginResult> => {
   if (!email || !password) {
     return { success: false, error: 'Email and password are required.' };
@@ -56,6 +64,7 @@ export const login = async (
         email,
         password,
         turnstileToken,
+        remember,
       }),
     });
     storeSession(response.token, response.user);

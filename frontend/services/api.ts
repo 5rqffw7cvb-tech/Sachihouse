@@ -55,6 +55,12 @@ export function storeSession(token: string, user: ApiUser): void {
   window.localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
+/** Replaces the token without touching the cached user — for a session the
+ *  server slid forward on /auth/me. */
+export function storeToken(token: string): void {
+  window.localStorage.setItem(TOKEN_KEY, token);
+}
+
 export function clearSession(): void {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
