@@ -12,6 +12,12 @@ function isoDaysFromNow(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+// A stay in progress. A booking-specific check-in link stops matching two days
+// after checkout, so a fixed date here is a test that passes until the calendar
+// walks past it and then reports the welcome email as broken when it is not.
+const STAY_CHECK_IN = isoDaysFromNow(-1);
+const STAY_CHECK_OUT = isoDaysFromNow(1);
+
 async function login(email: string, password: string): Promise<string> {
   const res = await request(app).post('/api/auth/login').send({ email, password }).expect(200);
   return res.body.token as string;
@@ -38,7 +44,7 @@ async function setCheckInInfo() {
 
 async function createManualConfirmation(
   guestEmail: string,
-  dates: { checkInDate: string; checkOutDate: string } = { checkInDate: '2026-09-01', checkOutDate: '2026-09-03' },
+  dates: { checkInDate: string; checkOutDate: string } = { checkInDate: STAY_CHECK_IN, checkOutDate: STAY_CHECK_OUT },
 ) {
   const token = await login('admin@sachihouse.com', 'admin123');
   const res = await request(app)
@@ -149,8 +155,8 @@ describe('post-checkin welcome email', () => {
       .post('/api/properties/main/checkins/submit')
       .send({
         checkinToken: session.body.checkinToken,
-        checkInDate: '2026-09-01',
-        checkOutDate: '2026-09-03',
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
         guests: [minimalGuest('g1', 'hanako@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
         bk: confirmation.confirmationNo,
@@ -176,8 +182,8 @@ describe('post-checkin welcome email', () => {
       .post('/api/properties/main/checkins/submit')
       .send({
         checkinToken: session.body.checkinToken,
-        checkInDate: '2026-09-01',
-        checkOutDate: '2026-09-03',
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
         guests: [minimalGuest('g1', 'guest-personal@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
         bk: confirmation.confirmationNo,
@@ -200,8 +206,8 @@ describe('post-checkin welcome email', () => {
       .post('/api/properties/main/checkins/submit')
       .send({
         checkinToken: session.body.checkinToken,
-        checkInDate: '2026-09-01',
-        checkOutDate: '2026-09-03',
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
         guests: [minimalGuest('g1', 'HANAKO@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
         bk: confirmation.confirmationNo,
@@ -220,8 +226,8 @@ describe('post-checkin welcome email', () => {
       .post('/api/properties/main/checkins/submit')
       .send({
         checkinToken: session.body.checkinToken,
-        checkInDate: '2026-09-01',
-        checkOutDate: '2026-09-03',
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
         // No bk, and the lead guest's contact is a phone number, not an
         // email — nothing on this submission could ever receive the
         // house-access info, so the server refuses it outright.
@@ -241,8 +247,8 @@ describe('post-checkin welcome email', () => {
       .post('/api/properties/main/checkins/submit')
       .send({
         checkinToken: session.body.checkinToken,
-        checkInDate: '2026-09-01',
-        checkOutDate: '2026-09-03',
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
         guests: [minimalGuest('g1', 'airbnb-guest@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
       })
@@ -262,8 +268,8 @@ describe('post-checkin welcome email', () => {
       .post('/api/properties/main/checkins/submit')
       .send({
         checkinToken: session.body.checkinToken,
-        checkInDate: '2026-09-01',
-        checkOutDate: '2026-09-03',
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
         guests: [minimalGuest('g1', 'nomatch-guest@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
         bk: 'BC-99999999-ZZZZ',
@@ -314,8 +320,8 @@ describe('resident check-in (no ID evidence)', () => {
       .post('/api/properties/main/checkins/submit')
       .send({
         checkinToken: session.body.checkinToken,
-        checkInDate: '2026-09-01',
-        checkOutDate: '2026-09-03',
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
         guests: [residentGuest('g1', 'guest@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
       })
@@ -331,8 +337,8 @@ describe('resident check-in (no ID evidence)', () => {
       .post('/api/properties/main/checkins/submit')
       .send({
         checkinToken: session.body.checkinToken,
-        checkInDate: '2026-09-01',
-        checkOutDate: '2026-09-03',
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
         guests: [residentGuest('g1', 'guest@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
         residency: 'foreign',
@@ -347,8 +353,8 @@ describe('resident check-in (no ID evidence)', () => {
       .post('/api/properties/main/checkins/submit')
       .send({
         checkinToken: session.body.checkinToken,
-        checkInDate: '2026-09-01',
-        checkOutDate: '2026-09-03',
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
         guests: [residentGuest('g1', 'guest@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
         residency: 'resident',
@@ -367,8 +373,8 @@ describe('resident check-in (no ID evidence)', () => {
       .post('/api/properties/main/checkins/submit')
       .send({
         checkinToken: session.body.checkinToken,
-        checkInDate: '2026-09-01',
-        checkOutDate: '2026-09-03',
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
         guests: [residentGuest('g1', 'resident-guest@example.com')],
         consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
         residency: 'resident',
