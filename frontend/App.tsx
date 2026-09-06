@@ -42,7 +42,7 @@ const CleaningCalendarPage = lazy(() => import('./pages/CleaningCalendarPage'));
 // no footer, no language switcher, and its own sign-in screen.
 const HostShell = lazy(() => import('./components/host/HostShell'));
 const HostLoginPage = lazy(() => import('./pages/host/LoginPage'));
-const HostTodayPage = lazy(() => import('./pages/host/TodayPage'));
+const HostStaysPage = lazy(() => import('./pages/host/StaysPage'));
 const HostAppCalendarPage = lazy(() => import('./pages/host/CalendarPage'));
 const HostCheckInsPage = lazy(() => import('./pages/host/CheckInsPage'));
 const HostReceiptPage = lazy(() => import('./pages/host/ReceiptPage'));
@@ -615,7 +615,7 @@ const App: React.FC = () => {
                             read as a property slug. */}
                         <Route path="/app/login" element={<Suspense fallback={HostAppFallback}><HostLoginPage /></Suspense>} />
                         <Route path="/app" element={<Suspense fallback={HostAppFallback}><HostShell /></Suspense>}>
-                            <Route index element={<HostTodayPage />} />
+                            <Route index element={<HostStaysPage />} />
                             <Route path="calendar" element={<HostAppCalendarPage />} />
                             <Route path="checkins" element={<HostCheckInsPage />} />
                             <Route path="receipt" element={<HostReceiptPage />} />

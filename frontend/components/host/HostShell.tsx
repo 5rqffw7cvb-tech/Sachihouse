@@ -15,7 +15,7 @@ import { HostTabBar } from './HostTabBar';
  * whole point of the app is that none of that is there. So the host app guards
  * itself and sends people to its own sign-in screen.
  *
- * It also owns the property list. Today, Calendar and Check-in all need it,
+ * It also owns the property list. Stays, Calendar and Check-in all need it,
  * and fetching it three times on every tab switch is three requests for an
  * answer that changes about once a year.
  */

@@ -61,7 +61,7 @@ const StayRow: React.FC<{
   </button>
 );
 
-const TodayPage: React.FC = () => {
+const StaysPage: React.FC = () => {
   const { user, properties, propertiesError } = useHostContext();
   const today = todayIso();
   const tomorrow = toIsoDate(addDays(new Date(), 1));
@@ -199,7 +199,7 @@ const TodayPage: React.FC = () => {
 
   return (
     <HostScreen
-      title="Today"
+      title="Stays"
       subtitle={format(new Date(), 'EEEE, d MMMM')}
       error={propertiesError ?? error}
       isLoading={isLoading}
@@ -321,4 +321,4 @@ const TodayPage: React.FC = () => {
   );
 };
 
-export default TodayPage;
+export default StaysPage;

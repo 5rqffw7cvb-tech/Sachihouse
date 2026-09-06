@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { CalendarDays, ClipboardCheck, Home, Receipt, User } from 'lucide-react';
+import { BedDouble, CalendarDays, ClipboardCheck, Receipt, User } from 'lucide-react';
 import { ApiUser } from '../../services/api';
 import { AdminAccess, hasAccess } from '../../services/permissions';
 
@@ -26,7 +26,7 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { to: '/app', label: 'Today', Icon: Home, end: true },
+  { to: '/app', label: 'Stays', Icon: BedDouble, end: true },
   { to: '/app/calendar', label: 'Calendar', Icon: CalendarDays },
   { to: '/app/checkins', label: 'Check-in', Icon: ClipboardCheck, access: 'checkins' },
   { to: '/app/receipt', label: 'Receipt', Icon: Receipt, access: 'finance' },
