@@ -3,7 +3,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) report real
+         values, which the host app's bottom tab bar and every fixed mobile bar
+         use to clear the iPhone home indicator. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#ffffff" />
     <meta
       name="description"
@@ -26,6 +29,11 @@
     <title>SachiHouse | Property Listings</title>
     <link rel="canonical" href="https://sachi-house.net/" />
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2111/2111320.png" />
+    <!-- The home-screen icon. The rest of the install metadata (manifest,
+         standalone display, app name) is injected only on /app — see
+         components/host/HostAppMeta.tsx — so a guest adding a property page to
+         their home screen does not get the host app. -->
+    <link rel="apple-touch-icon" href="/sachi-house-icon.png" />
     
     <!-- PERFORMANCE OPTIMIZATION: Preconnect to key domains -->
     <link rel="preconnect" href="https://fonts.googleapis.com">

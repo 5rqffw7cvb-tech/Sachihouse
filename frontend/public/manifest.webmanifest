@@ -1,0 +1,32 @@
+{
+  "name": "Sachi House Host",
+  "short_name": "Sachi Host",
+  "description": "Today's arrivals and departures, the calendar, guest check-ins and receipt upload for Sachi House hosts.",
+  "start_url": "/#/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e8e5e6",
+  "theme_color": "#e8e5e6",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/host-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/host-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/sachi-house-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

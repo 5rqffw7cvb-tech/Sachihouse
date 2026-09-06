@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, Suspense, lazy } from 'react';
-import { HashRouter as Router, Routes, Route, ScrollRestoration, useLocation, Outlet, useParams } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, ScrollRestoration, useLocation, Outlet, useParams, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import SEOHead from './components/SEOHead';
 import { PropertyData, SiteSettings } from './types';
@@ -36,6 +36,23 @@ const BookingConfirmPage = lazy(() => import('./pages/BookingConfirmPage'));
 const BookingConfirmHistoryPage = lazy(() => import('./pages/BookingConfirmHistoryPage'));
 const HostCalendarPage = lazy(() => import('./pages/HostCalendarPage'));
 const CleaningCalendarPage = lazy(() => import('./pages/CleaningCalendarPage'));
+
+// The host phone app (/app). A separate tree on purpose: it shares the API
+// layer and the design tokens with the console, and nothing else — no top nav,
+// no footer, no language switcher, and its own sign-in screen.
+const HostShell = lazy(() => import('./components/host/HostShell'));
+const HostLoginPage = lazy(() => import('./pages/host/LoginPage'));
+const HostTodayPage = lazy(() => import('./pages/host/TodayPage'));
+const HostAppCalendarPage = lazy(() => import('./pages/host/CalendarPage'));
+const HostCheckInsPage = lazy(() => import('./pages/host/CheckInsPage'));
+const HostReceiptPage = lazy(() => import('./pages/host/ReceiptPage'));
+const HostAccountPage = lazy(() => import('./pages/host/AccountPage'));
+
+const HostAppFallback = (
+    <div className="min-h-[100dvh] bg-[#e8e5e6] flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-[#74777d]" />
+    </div>
+);
 
 // ScrollToTop component to fix scroll position on route change in HashRouter
 const ScrollToTop = () => {
@@ -594,6 +611,17 @@ const App: React.FC = () => {
                         <Route path="/admin/booking-confirm/new" element={<ProtectedRoute><Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BookingConfirmPage /></Suspense></ProtectedRoute>} />
                         <Route path="/admin/booking-confirm/history" element={<ProtectedRoute><Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BookingConfirmHistoryPage /></Suspense></ProtectedRoute>} />
                         <Route path="/admin/calendar" element={<ProtectedRoute><Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><HostCalendarPage /></Suspense></ProtectedRoute>} />
+                        {/* Host phone app. Kept above /:id/* so "app" is never
+                            read as a property slug. */}
+                        <Route path="/app/login" element={<Suspense fallback={HostAppFallback}><HostLoginPage /></Suspense>} />
+                        <Route path="/app" element={<Suspense fallback={HostAppFallback}><HostShell /></Suspense>}>
+                            <Route index element={<HostTodayPage />} />
+                            <Route path="calendar" element={<HostAppCalendarPage />} />
+                            <Route path="checkins" element={<HostCheckInsPage />} />
+                            <Route path="receipt" element={<HostReceiptPage />} />
+                            <Route path="account" element={<HostAccountPage />} />
+                            <Route path="*" element={<Navigate to="/app" replace />} />
+                        </Route>
                         <Route path="/cleaning/:token" element={<Suspense fallback={<div className="min-h-screen bg-[#111827] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><CleaningCalendarPage /></Suspense>} />
                         <Route path="/blog/:id" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BlogPostPage /></Suspense>} />
                         <Route path="/:id/*" element={<Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><PropertyRoutes /></Suspense>} />

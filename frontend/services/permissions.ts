@@ -20,6 +20,9 @@ export type AdminAccess =
   | 'admin'
   /** Admins, or hosts at level 4. Finance and receipts. */
   | 'finance'
+  /** Admins, or hosts at level 3+. Guest ID records — mirrors the rule
+   *  GET /api/checkins enforces, so a nav can hide what the API would refuse. */
+  | 'checkins'
   /** Admins, or anyone flagged as a blog editor. */
   | 'blog';
 
@@ -32,6 +35,8 @@ export function hasAccess(user: ApiUser | null | undefined, access: AdminAccess)
       return user.role === 'ADMIN' || user.role === 'HOST';
     case 'finance':
       return user.role === 'ADMIN' || (user.role === 'HOST' && (user.hostLevel ?? 0) >= 4);
+    case 'checkins':
+      return user.role === 'ADMIN' || (user.role === 'HOST' && (user.hostLevel ?? 0) >= 3);
     case 'blog':
       return user.role === 'ADMIN' || Boolean(user.canEditBlog);
     default:
