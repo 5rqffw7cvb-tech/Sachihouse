@@ -367,6 +367,10 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   // Guests read their own language; the host reads one, set once.
   const hostMailLocale = (process.env.MAIL_HOST_LOCALE ?? 'ja').trim().toLowerCase();
   const hostMailFallback = (process.env.MAIL_HOST_FALLBACK ?? '').trim();
+  // Blind-copied on the welcome mail a guest gets once they finish checking in,
+  // so the office can see exactly which house details went out and to whom
+  // without having to ask the guest. Set to an empty string to turn it off.
+  const checkInMailBcc = (process.env.MAIL_CHECKIN_BCC ?? 'sachihouse.ad@gmail.com').trim();
   const ocrRateMap = new Map<string, { count: number; resetAt: number }>();
   const bookingRateMap = new Map<string, { count: number; resetAt: number }>();
   const checkinMatchRateMap = new Map<string, { count: number; resetAt: number }>();
@@ -2341,7 +2345,12 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       rulesUrl: buildSiteUrl(publicSiteUrl, `/${encodeURIComponent(slug)}/rules`),
       locale,
     });
-    await mailer.send({ ...mail, to: email });
+    // Never copy an address onto its own mail — a guest whose own address is
+    // the configured copy would otherwise receive it twice.
+    const bcc = checkInMailBcc && checkInMailBcc.toLowerCase() !== email.trim().toLowerCase()
+      ? checkInMailBcc
+      : undefined;
+    await mailer.send({ ...mail, to: email, bcc });
   }
 
   // Wraps sendCheckInWelcomeEmailTo so a mail-server failure on one recipient

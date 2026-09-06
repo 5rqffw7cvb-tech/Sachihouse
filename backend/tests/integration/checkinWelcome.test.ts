@@ -166,10 +166,59 @@ describe('post-checkin welcome email', () => {
 
     const mail = mailer.to('hanako@example.com');
     expect(mail).toHaveLength(1);
+    // Sent from an address nobody reads, and the subject says so before the
+    // guest opens it.
+    expect(mail[0].subject).toContain('[No reply]');
     expect(mail[0].text).toContain('welcome2026');
     expect(mail[0].text).toContain('Keybox code: 4821');
     expect(mail[0].text).toContain('+81 90 1234 5678');
     expect(mail[0].text).toContain('maps.app.goo.gl');
+  });
+
+  it('blind-copies the office on what the guest was sent', async () => {
+    await setCheckInInfo();
+    const confirmation = await createManualConfirmation('hanako@example.com');
+    mailer.sent.length = 0;
+
+    const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
+    await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: session.body.checkinToken,
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
+        guests: [minimalGuest('g1', 'hanako@example.com')],
+        consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
+        bk: confirmation.confirmationNo,
+        locale: 'en',
+      })
+      .expect(201);
+
+    const mail = mailer.to('hanako@example.com');
+    expect(mail).toHaveLength(1);
+    expect(mail[0].bcc).toBe('sachihouse.ad@gmail.com');
+    // The copy is the guest's own mail, not a summary of it — the point is to
+    // see the entry code and wifi password that actually went out.
+    expect(mail[0].text).toContain('Keybox code: 4821');
+  });
+
+  it('blind-copies the office on the generic link too, where there is no booking to match', async () => {
+    await setCheckInInfo();
+
+    const session = await request(app).post('/api/properties/main/checkins/start').expect(201);
+    await request(app)
+      .post('/api/properties/main/checkins/submit')
+      .send({
+        checkinToken: session.body.checkinToken,
+        checkInDate: STAY_CHECK_IN,
+        checkOutDate: STAY_CHECK_OUT,
+        guests: [minimalGuest('g1', 'walkin@example.com')],
+        consent: { accepted: true, acceptedAt: Date.now(), noticeVersion: session.body.consentPolicy.noticeVersion },
+        locale: 'en',
+      })
+      .expect(201);
+
+    expect(mailer.to('walkin@example.com')[0].bcc).toBe('sachihouse.ad@gmail.com');
   });
 
   it('also emails the check-in form address when it differs from the booking email on file', async () => {

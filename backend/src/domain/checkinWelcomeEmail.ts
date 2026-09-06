@@ -30,9 +30,15 @@ interface Labels {
   footer: string;
 }
 
+// Every subject opens with the same untranslated "[No reply]". The mail goes
+// out from a send-only address, and a guest who replies to it is talking to
+// nobody — the marker has to survive being skimmed in a crowded inbox, which a
+// phrase buried in the body does not. Left in English on purpose: it reads as
+// the same recognisable tag in every locale, and a guest reading a subject in
+// their own language still sees the same warning as everyone else.
 const LABELS: Record<string, Labels> = {
   en: {
-    subject: 'Everything you need for your stay',
+    subject: '[No reply] Everything you need for your stay',
     heading: 'You\'re all checked in',
     intro: 'Thanks for completing check-in. Here is everything you need to get into the property and settle in.',
     address: 'Address',
@@ -46,7 +52,7 @@ const LABELS: Record<string, Labels> = {
     footer: 'Sachi House',
   },
   vi: {
-    subject: 'Thông tin cần thiết cho kỳ nghỉ của bạn',
+    subject: '[No reply] Thông tin cần thiết cho kỳ nghỉ của bạn',
     heading: 'Bạn đã check-in xong',
     intro: 'Cảm ơn bạn đã hoàn tất check-in. Dưới đây là mọi thông tin để vào nhà và ổn định chỗ ở.',
     address: 'Địa chỉ',
@@ -60,7 +66,7 @@ const LABELS: Record<string, Labels> = {
     footer: 'Sachi House',
   },
   ja: {
-    subject: 'ご滞在に必要な情報',
+    subject: '[No reply] ご滞在に必要な情報',
     heading: 'チェックインが完了しました',
     intro: 'チェックインいただきありがとうございます。入室に必要な情報は以下のとおりです。',
     address: '住所',
@@ -74,7 +80,7 @@ const LABELS: Record<string, Labels> = {
     footer: 'Sachi House',
   },
   zh: {
-    subject: '入住所需的全部信息',
+    subject: '[No reply] 入住所需的全部信息',
     heading: '您已完成登记',
     intro: '感谢您完成入住登记。以下是进入房屋并安顿所需的全部信息。',
     address: '地址',
@@ -88,7 +94,7 @@ const LABELS: Record<string, Labels> = {
     footer: 'Sachi House',
   },
   ko: {
-    subject: '숙박에 필요한 모든 정보',
+    subject: '[No reply] 숙박에 필요한 모든 정보',
     heading: '체크인이 완료되었습니다',
     intro: '체크인을 완료해 주셔서 감사합니다. 입실에 필요한 모든 정보는 아래와 같습니다.',
     address: '주소',

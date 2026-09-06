@@ -7,6 +7,10 @@ export interface MailAttachment {
 
 export interface MailMessage {
   to: string;
+  // Blind: the copy exists so the office can read what a guest was sent, which
+  // is nobody's business but the office's. A visible one would also invite a
+  // reply to an address the guest was never given for that purpose.
+  bcc?: string;
   subject: string;
   text: string;
   html: string;
@@ -44,7 +48,10 @@ export class ResendMailer implements Mailer {
     if (!this.apiKey || !this.from) {
       // Without credentials the app still runs; the message is logged so local
       // development and staging show what would have been sent.
-      console.log(`[mailer disabled] would send "${message.subject}" to ${message.to}`);
+      console.log(
+        `[mailer disabled] would send "${message.subject}" to ${message.to}`
+        + (message.bcc ? ` (bcc ${message.bcc})` : ''),
+      );
       return;
     }
 
@@ -57,6 +64,9 @@ export class ResendMailer implements Mailer {
       body: JSON.stringify({
         from: this.from,
         to: message.to,
+        // Left out of the payload entirely when unset — JSON.stringify drops
+        // an undefined value, and Resend rejects an explicit null here.
+        bcc: message.bcc,
         subject: message.subject,
         text: message.text,
         html: message.html,
