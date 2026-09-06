@@ -3,6 +3,7 @@ import { addDays, format, parseISO } from 'date-fns';
 import { AlertCircle, Check, ChevronRight, Link2, RefreshCw, Sparkles } from 'lucide-react';
 import { HostCard, HostCount, HostEmpty, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
+import { StayDetailSheet } from '../../components/host/StayDetailSheet';
 import {
   arrivalsBetween,
   buildCheckInUrl,
@@ -38,19 +39,26 @@ const StayRow: React.FC<{
   subtitle: string;
   badge?: React.ReactNode;
   last?: boolean;
-}> = ({ stay, subtitle, badge, last = false }) => (
-  <div className={`flex items-center gap-3 px-4 py-3.5 ${last ? '' : 'border-b border-line'}`}>
-    <div className="w-10 h-10 rounded-[14px] bg-brand-tint shrink-0 flex items-center justify-center
+  onOpen: (stay: HostStay) => void;
+}> = ({ stay, subtitle, badge, last = false, onOpen }) => (
+  <button
+    type="button"
+    onClick={() => onOpen(stay)}
+    className={`w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-subtle ${
+      last ? '' : 'border-b border-line'
+    }`}
+  >
+    <span className="w-10 h-10 rounded-[14px] bg-brand-tint shrink-0 flex items-center justify-center
       font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-ink-soft">
       {initialFor(stay)}
-    </div>
-    <div className="flex-1 min-w-0 flex flex-col">
+    </span>
+    <span className="flex-1 min-w-0 flex flex-col">
       <span className="text-[15px] font-semibold text-ink truncate">{displayName(stay)}</span>
       <span className="text-[13px] text-ink-muted truncate">{subtitle}</span>
-    </div>
+    </span>
     {badge}
     <ChevronRight className="w-[18px] h-[18px] text-line-strong shrink-0" />
-  </div>
+  </button>
 );
 
 const TodayPage: React.FC = () => {
@@ -65,6 +73,7 @@ const TodayPage: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedPropertyId, setCopiedPropertyId] = useState<string | null>(null);
+  const [openStay, setOpenStay] = useState<HostStay | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Level 1–2 hosts cannot read guest ID records at all, so this screen shows
@@ -122,18 +131,31 @@ const TodayPage: React.FC = () => {
   /** A stay counts as checked in when a submission exists for the same
    *  property and arrival date. Names cannot be matched — OTA feeds do not
    *  carry them — so the date and property are all there is to go on. */
-  const submittedKeys = useMemo(() => {
+  const submissionByKey = useMemo(() => {
     if (!submissions) return null;
-    return new Set(submissions.map((row) => `${row.propertyId}:${row.checkInDate}`));
+    return new Map(submissions.map((row) => [`${row.propertyId}:${row.checkInDate}`, row]));
   }, [submissions]);
 
   const missingId = useMemo(() => {
-    if (!submittedKeys) return [];
+    if (!submissionByKey) return [];
     const chaseBy = toIsoDate(addDays(new Date(), ID_CHASE_DAYS));
     return nextArrivals.filter((stay) => (
-      stay.checkInDate <= chaseBy && !submittedKeys.has(`${stay.propertyId}:${stay.checkInDate}`)
+      stay.checkInDate <= chaseBy && !submissionByKey.has(`${stay.propertyId}:${stay.checkInDate}`)
     ));
-  }, [nextArrivals, submittedKeys]);
+  }, [nextArrivals, submissionByKey]);
+
+  /**
+   * What the detail sheet may claim about a booking's ID record.
+   *
+   * Submissions were only fetched for arrivals from today onwards, so for a
+   * guest already in the house — or one who left this morning — we simply did
+   * not look. Returning `undefined` there hides the block; returning `null`
+   * would tell the host no record exists, which we do not know.
+   */
+  const submissionFor = (stay: HostStay): CheckInSubmission | null | undefined => {
+    if (!submissionByKey || stay.checkInDate < today) return undefined;
+    return submissionByKey.get(`${stay.propertyId}:${stay.checkInDate}`) ?? null;
+  };
 
   /** "Today" and "Tomorrow" carry more than a date does on the one screen a
    *  host checks in the morning. Anything further out gets the real date. */
@@ -162,8 +184,8 @@ const TodayPage: React.FC = () => {
   };
 
   const idBadge = (stay: HostStay) => {
-    if (!submittedKeys) return null;
-    const done = submittedKeys.has(`${stay.propertyId}:${stay.checkInDate}`);
+    if (!submissionByKey) return null;
+    const done = submissionByKey.has(`${stay.propertyId}:${stay.checkInDate}`);
     return done ? (
       <span className="inline-flex items-center gap-1 bg-ok-tint text-ok rounded-full px-2 py-0.5 text-[11px] font-semibold shrink-0">
         <Check className="w-3 h-3" strokeWidth={3} />ID
@@ -234,6 +256,7 @@ const TodayPage: React.FC = () => {
                     .filter(Boolean).join(' · ')}
                   badge={idBadge(stay)}
                   last={index === nextArrivals.length - 1}
+                  onOpen={setOpenStay}
                 />
               ))}
           </HostCard>
@@ -248,6 +271,7 @@ const TodayPage: React.FC = () => {
                   subtitle={[stay.propertyName, `leaves ${dayLabel(stay.checkOutDate)}`, guestsLabel(stay)]
                     .filter(Boolean).join(' · ')}
                   last={index === staying.length - 1}
+                  onOpen={setOpenStay}
                 />
               ))}
           </HostCard>
@@ -262,6 +286,7 @@ const TodayPage: React.FC = () => {
                     key={stay.key}
                     stay={stay}
                     subtitle={[stay.propertyName, guestsLabel(stay)].filter(Boolean).join(' · ')}
+                    onOpen={setOpenStay}
                   />
                 ))}
                 {/* Every departure is a turnover. Listing the cleaning under it
@@ -284,6 +309,14 @@ const TodayPage: React.FC = () => {
           </HostCard>
         </>
       )}
+
+      <StayDetailSheet
+        stay={openStay}
+        submission={openStay ? submissionFor(openStay) : undefined}
+        onClose={() => setOpenStay(null)}
+        onCopyCheckInLink={(propertyId) => { void handleCopyLink(propertyId); }}
+        copied={openStay ? copiedPropertyId === openStay.propertyId : false}
+      />
     </HostScreen>
   );
 };

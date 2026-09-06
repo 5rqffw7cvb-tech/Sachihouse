@@ -34,6 +34,35 @@ export interface HostStay {
   checkOutDate: string;
   guestCount: number | null;
   kind: StayKind;
+  /** The underlying record, where one has an id we could act on later. */
+  bookingId: string | null;
+  /** Direct bookings only — what the guest paid us, in whole currency units. */
+  amountTotal: number | null;
+  currency: string | null;
+  /** iCal imports only: the feed's own text. Most OTAs strip the guest's name
+   *  but leave the reservation code in here, which is the only handle a host
+   *  has when they need to look the booking up on the platform itself. */
+  summary: string | null;
+  description: string | null;
+  /** The feed an import arrived on, which is not always the channel it names. */
+  feedName: string | null;
+}
+
+/** Nights, counted the way the calendar blocks them: check-out morning frees
+ *  the room, so it is not a night. */
+export function nightsBetween(checkInDate: string, checkOutDate: string): number {
+  const start = Date.parse(`${checkInDate}T00:00:00`);
+  const end = Date.parse(`${checkOutDate}T00:00:00`);
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 0;
+  return Math.round((end - start) / (24 * 60 * 60 * 1000));
+}
+
+/** Money the way the rest of the app writes it — see HostCalendarPage, which
+ *  has printed direct-booking totals as plain yen since before this screen. */
+export function formatMoney(amount: number, currency: string | null): string {
+  const code = (currency || 'JPY').toUpperCase();
+  if (code === 'JPY') return `¥${amount.toLocaleString()}`;
+  return `${code} ${amount.toLocaleString()}`;
 }
 
 /**
@@ -95,6 +124,12 @@ export function staysFromCalendar(calendar: PropertyCalendar): HostStay[] {
       checkOutDate: booking.checkOutDate,
       guestCount: null,
       kind: 'booking',
+      bookingId: booking.id || null,
+      amountTotal: null,
+      currency: null,
+      summary: null,
+      description: null,
+      feedName: null,
     });
   });
 
@@ -112,6 +147,12 @@ export function staysFromCalendar(calendar: PropertyCalendar): HostStay[] {
       // It still blocks the calendar, so it belongs here — just not as a stay
       // the host should go and clean for.
       kind: booking.status === 'confirmed' ? 'booking' : 'hold',
+      bookingId: booking.id || null,
+      amountTotal: booking.amountTotal,
+      currency: booking.currency,
+      summary: null,
+      description: null,
+      feedName: null,
     });
   });
 
@@ -126,6 +167,12 @@ export function staysFromCalendar(calendar: PropertyCalendar): HostStay[] {
       checkOutDate: event.checkOutDate,
       guestCount: event.guestCount,
       kind: 'imported',
+      bookingId: null,
+      amountTotal: null,
+      currency: null,
+      summary: event.summary || null,
+      description: event.description || null,
+      feedName: event.feedName || null,
     });
   });
 

@@ -13,6 +13,7 @@ import {
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { HostCard, HostEmpty, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
+import { StayDetailSheet } from '../../components/host/StayDetailSheet';
 import { getPropertyCalendar } from '../../services/calendar';
 import {
   arrivalsOn,
@@ -86,6 +87,7 @@ const CalendarPage: React.FC = () => {
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openStay, setOpenStay] = useState<HostStay | null>(null);
 
   useEffect(() => {
     if (!propertyId && properties.length > 0) {
@@ -263,9 +265,11 @@ const CalendarPage: React.FC = () => {
                 ...selectedDepartures.map((stay) => ({ stay, kind: 'out' as const })),
                 ...selectedArrivals.map((stay) => ({ stay, kind: 'in' as const })),
               ].map(({ stay, kind }, index, all) => (
-                <div
+                <button
+                  type="button"
                   key={`${kind}-${stay.key}`}
-                  className={`flex items-center gap-3 px-4 py-2.5 min-h-14 ${
+                  onClick={() => setOpenStay(stay)}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 min-h-14 text-left active:bg-subtle ${
                     index === all.length - 1 ? '' : 'border-b border-line'
                   }`}
                 >
@@ -286,12 +290,17 @@ const CalendarPage: React.FC = () => {
                       ].filter(Boolean).join(' · ')}
                     </span>
                   </div>
-                </div>
+                  <ChevronRight className="w-[18px] h-[18px] text-line-strong shrink-0" />
+                </button>
               ))
             )}
           </HostCard>
         </>
       )}
+
+      {/* No `submission` prop: this screen never fetches ID records, and
+          claiming none exists would be a guess. */}
+      <StayDetailSheet stay={openStay} onClose={() => setOpenStay(null)} />
     </HostScreen>
   );
 };

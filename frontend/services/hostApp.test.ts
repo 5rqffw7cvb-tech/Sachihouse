@@ -3,7 +3,9 @@ import {
   arrivalsBetween,
   arrivalsOn,
   departuresOn,
+  formatMoney,
   HostStay,
+  nightsBetween,
   stayingOn,
   toIsoDate,
 } from './hostApp';
@@ -18,6 +20,12 @@ const stay = (over: Partial<HostStay>): HostStay => ({
   checkOutDate: '2026-09-05',
   guestCount: 2,
   kind: 'booking',
+  bookingId: null,
+  amountTotal: null,
+  currency: null,
+  summary: null,
+  description: null,
+  feedName: null,
   ...over,
 });
 
@@ -84,5 +92,34 @@ describe("the Today screen's three sections", () => {
   it('ignores a one-night stay that ended before today', () => {
     expect(stayingOn([alreadyGone], TODAY)).toHaveLength(0);
     expect(departuresOn([alreadyGone], TODAY)).toHaveLength(0);
+  });
+});
+
+describe('the booking detail sheet fields', () => {
+  it('counts nights, not days: check-out morning is not a night', () => {
+    expect(nightsBetween('2026-09-06', '2026-09-09')).toBe(3);
+    expect(nightsBetween('2026-09-06', '2026-09-07')).toBe(1);
+  });
+
+  it('survives a month boundary and a leap day', () => {
+    expect(nightsBetween('2026-09-28', '2026-10-02')).toBe(4);
+    expect(nightsBetween('2028-02-27', '2028-03-01')).toBe(3);
+  });
+
+  it('refuses to invent a night from a broken or backwards range', () => {
+    expect(nightsBetween('2026-09-09', '2026-09-06')).toBe(0);
+    expect(nightsBetween('2026-09-06', '2026-09-06')).toBe(0);
+    expect(nightsBetween('not-a-date', '2026-09-06')).toBe(0);
+  });
+
+  it('writes yen the way the rest of the console does', () => {
+    expect(formatMoney(128000, 'JPY')).toBe('¥128,000');
+    expect(formatMoney(128000, 'jpy')).toBe('¥128,000');
+    // No currency recorded is still yen here — every property is in Japan.
+    expect(formatMoney(128000, null)).toBe('¥128,000');
+  });
+
+  it('falls back to the code for anything that is not yen', () => {
+    expect(formatMoney(1200, 'USD')).toBe('USD 1,200');
   });
 });
