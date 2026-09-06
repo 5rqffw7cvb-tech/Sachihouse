@@ -3,6 +3,7 @@ import { format, parseISO } from 'date-fns';
 import { Check, ChevronRight, Link2, Lock, Search, X } from 'lucide-react';
 import { HostCard, HostEmpty, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
+import { CheckInDetailSheet } from '../../components/host/CheckInDetailSheet';
 import { listCheckIns } from '../../services/checkin';
 import { buildCheckInUrl, copyText, todayIso } from '../../services/hostApp';
 import { hasAccess } from '../../services/permissions';
@@ -44,6 +45,7 @@ const CheckInsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [openSubmission, setOpenSubmission] = useState<CheckInSubmission | null>(null);
   const [linkSheetOpen, setLinkSheetOpen] = useState(false);
   const [copiedPropertyId, setCopiedPropertyId] = useState<string | null>(null);
 
@@ -188,22 +190,24 @@ const CheckInsPage: React.FC = () => {
           </HostEmpty>
         ) : (
           visible.map((row, index) => (
-            <div
+            <button
+              type="button"
               key={row.id}
-              className={`flex items-center gap-3 px-4 h-[76px] ${
+              onClick={() => setOpenSubmission(row)}
+              className={`w-full flex items-center gap-3 px-4 h-[76px] text-left active:bg-subtle ${
                 index === visible.length - 1 ? '' : 'border-b border-line'
               }`}
             >
-              <div className="w-[42px] h-[42px] rounded-[14px] bg-brand-tint shrink-0 flex items-center justify-center
+              <span className="w-[42px] h-[42px] rounded-[14px] bg-brand-tint shrink-0 flex items-center justify-center
                 font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-ink-soft">
                 {guestLabel(row).charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0 flex flex-col">
+              </span>
+              <span className="flex-1 min-w-0 flex flex-col">
                 <span className="text-[15px] font-semibold text-ink truncate">{guestLabel(row)}</span>
                 <span className="text-[13px] text-ink-muted truncate">
                   {propertyNames.get(row.propertyId) ?? row.propertyId} · {dateRange(row)}
                 </span>
-              </div>
+              </span>
               {isComplete(row) ? (
                 <span className="bg-ok-tint text-ok rounded-full px-2 py-0.5 text-[11px] font-semibold shrink-0">
                   Complete
@@ -214,10 +218,18 @@ const CheckInsPage: React.FC = () => {
                 </span>
               )}
               <ChevronRight className="w-[18px] h-[18px] text-line-strong shrink-0" />
-            </div>
+            </button>
           ))
         )}
       </HostCard>
+
+      <CheckInDetailSheet
+        submission={openSubmission}
+        propertyName={openSubmission
+          ? propertyNames.get(openSubmission.propertyId) ?? openSubmission.propertyId
+          : ''}
+        onClose={() => setOpenSubmission(null)}
+      />
 
       {linkSheetOpen && (
         <div
