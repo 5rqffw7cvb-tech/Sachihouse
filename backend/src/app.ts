@@ -253,6 +253,13 @@ function redactPropertyForViewer(
   delete (clone as unknown as Record<string, unknown>).emailJs;
   // The export token guards the public iCal URL; never expose it to non-owners.
   delete (clone as unknown as Record<string, unknown>).icalExportToken;
+  // checkInInfo is the keys to the house: the door code, the wifi password and
+  // the emergency contact. It is only ever meant to reach a guest who has
+  // already submitted their check-in, by email, from sendCheckInWelcomeEmailTo
+  // — which reads the property straight out of the store and is unaffected by
+  // this redaction. Nothing on the public site reads it, so it has no business
+  // riding along on an anonymous GET /api/properties.
+  delete (clone as unknown as Record<string, unknown>).checkInInfo;
   return clone;
 }
 
