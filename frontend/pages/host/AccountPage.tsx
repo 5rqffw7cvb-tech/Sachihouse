@@ -13,12 +13,14 @@ import {
   Settings2,
   Share,
   Sparkles,
+  Ticket,
 } from 'lucide-react';
 import { HostCard, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
 import { EntryCodeSheet } from '../../components/host/EntryCodeSheet';
 import { InvoiceSheet } from '../../components/host/InvoiceSheet';
 import { InvoiceSettingsSheet } from '../../components/host/InvoiceSettingsSheet';
+import { CouponSheet } from '../../components/host/CouponSheet';
 import { logout } from '../../services/auth';
 import { getCleaningCalendarLink } from '../../services/cleaningCalendar';
 import { copyText, HostProperty } from '../../services/hostApp';
@@ -55,6 +57,7 @@ const AccountPage: React.FC = () => {
   const [showInstall, setShowInstall] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [showInvoiceSettings, setShowInvoiceSettings] = useState(false);
+  const [showCoupons, setShowCoupons] = useState(false);
   const [cleaningLinkState, setCleaningLinkState] = useState<'idle' | 'loading' | 'copied'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -167,6 +170,17 @@ const AccountPage: React.FC = () => {
           />
         )}
 
+        {/* Admin-only for the same reason the row above is: /api/coupons is
+            requireAdmin, and a code is global to the deployment rather than
+            scoped to one host's properties. */}
+        {isAdmin && (
+          <Row
+            Icon={Ticket}
+            label="Coupons"
+            onClick={() => setShowCoupons(true)}
+          />
+        )}
+
         <Row
           Icon={FileText}
           label="Booking confirmations"
@@ -244,6 +258,10 @@ const AccountPage: React.FC = () => {
 
       {showInvoiceSettings && (
         <InvoiceSettingsSheet onClose={() => setShowInvoiceSettings(false)} />
+      )}
+
+      {showCoupons && (
+        <CouponSheet properties={properties} onClose={() => setShowCoupons(false)} />
       )}
     </HostScreen>
   );
