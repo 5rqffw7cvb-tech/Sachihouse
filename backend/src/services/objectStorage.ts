@@ -68,7 +68,11 @@ export class ObjectStorageService {
     || process.env.GCS_RECEIPT_BUCKET
     || process.env.GCS_BUCKET
     || '';
-  private readonly invoiceProjectId = process.env.GCP_INVOICE_PROJECT_ID || process.env.GCP_PROJECT_ID;
+  // Mirrors the bucket chain above, deliberately: whatever bucket this lands on,
+  // the project and credentials must be the ones that bucket was granted to.
+  private readonly invoiceProjectId = process.env.GCP_INVOICE_PROJECT_ID
+    || process.env.GCP_RECEIPT_PROJECT_ID
+    || process.env.GCP_PROJECT_ID;
   // Public bucket for property media (gallery/room/host images). Unlike receipts,
   // these are shown on the public website, so they need stable public URLs (no
   // signed-URL expiry). The bucket must be world-readable via IAM allUsers.
@@ -85,7 +89,7 @@ export class ObjectStorageService {
   private readonly receiptStorage = this.receiptBucketName
     ? new Storage({ projectId: this.receiptProjectId || undefined, ...ObjectStorageService.receiptCredentialsOption() })
     : null;
-  // Invoices can use a dedicated SA; falls back to the shared credentials.
+  // Invoices can use a dedicated SA; see invoiceCredentialsOption for the chain.
   private readonly invoiceStorage = this.invoiceBucketName
     ? new Storage({ projectId: this.invoiceProjectId || undefined, ...ObjectStorageService.invoiceCredentialsOption() })
     : null;
@@ -127,12 +131,22 @@ export class ObjectStorageService {
     return dedicated.credentials ? dedicated : ObjectStorageService.credentialsOption();
   }
 
+  /**
+   * Credentials for the invoice bucket, falling back exactly the way the bucket
+   * name does: invoice, then receipt, then shared.
+   *
+   * Falling back straight to the shared account was a bug. The invoice bucket
+   * defaults to the receipt bucket, so on a deployment with a dedicated receipt
+   * service account the upload was signed by the shared one — an account that
+   * bucket had never been granted, and every archive failed with
+   * `storage.objects.create denied`. The two chains have to agree.
+   */
   private static invoiceCredentialsOption(): { credentials?: object } {
     const dedicated = ObjectStorageService.parseCredentials(
       process.env.GCP_INVOICE_SERVICE_ACCOUNT_JSON,
       process.env.GCP_INVOICE_SERVICE_ACCOUNT_JSON_B64,
     );
-    return dedicated.credentials ? dedicated : ObjectStorageService.credentialsOption();
+    return dedicated.credentials ? dedicated : ObjectStorageService.receiptCredentialsOption();
   }
 
   private static publicCredentialsOption(): { credentials?: object } {

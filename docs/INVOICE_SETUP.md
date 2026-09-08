@@ -72,6 +72,20 @@ If the deployment already stores receipts, setting nothing at all works: invoice
 land in the receipt bucket under an `invoices/` prefix, signed with the same
 credentials.
 
+Note that both chains fall back the same way — invoice, then receipt, then
+shared — so the account signing the upload is always the one the bucket it
+landed on was granted to. If you point `GCS_INVOICE_BUCKET` at a bucket the
+receipt service account cannot write to, give it `GCP_INVOICE_SERVICE_ACCOUNT_JSON`
+as well, or grant that account on the bucket.
+
+The error to expect when they disagree names the account, which is the fastest
+way to see which one is actually running:
+
+```
+<account>@<project>.iam.gserviceaccount.com does not have storage.objects.create
+access to the Google Cloud Storage object.
+```
+
 ### Where the files land
 
 ```
