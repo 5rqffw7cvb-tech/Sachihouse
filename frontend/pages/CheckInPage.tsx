@@ -76,6 +76,16 @@ const RequiredLabel: React.FC<{ text: string; required?: boolean }> = ({ text, r
   </p>
 );
 
+/* Check-in and check-out each read as one moment, so the date and the time
+   sit on a single row. The date takes the slack because Safari sizes it from
+   the widest value its locale can produce; the time needs only enough for
+   "15:00" or "3:00 PM". min-w-0 on both keeps a flex item from refusing to
+   shrink below that intrinsic width, which is what used to overlap them. */
+const DATE_FIELD_CLASS =
+  'block min-w-0 flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900';
+const TIME_FIELD_CLASS =
+  'block w-28 min-w-0 shrink-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900';
+
 const isFilledString = (value?: string | null): boolean => Boolean(value && value.trim());
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -1039,42 +1049,44 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         )}
 
         {/* Dates + Times */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="space-y-3">
           <div className="min-w-0">
             <RequiredLabel text={t('checkin_date_in')} required />
-            <input
-              type="date"
-              value={checkInDate}
-              onChange={(event) => setCheckInDate(event.target.value)}
-              className="block w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
-            />
+            <div className="flex gap-2">
+              <input
+                type="date"
+                aria-label={t('checkin_date_in')}
+                value={checkInDate}
+                onChange={(event) => setCheckInDate(event.target.value)}
+                className={DATE_FIELD_CLASS}
+              />
+              <input
+                type="time"
+                aria-label={t('checkin_time_in')}
+                value={checkInTime}
+                onChange={(event) => setCheckInTime(event.target.value)}
+                className={TIME_FIELD_CLASS}
+              />
+            </div>
           </div>
           <div className="min-w-0">
             <RequiredLabel text={t('checkin_date_out')} required />
-            <input
-              type="date"
-              value={checkOutDate}
-              onChange={(event) => setCheckOutDate(event.target.value)}
-              className="block w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
-            />
-          </div>
-          <div className="min-w-0">
-            <RequiredLabel text={t('checkin_time_in')} required />
-            <input
-              type="time"
-              value={checkInTime}
-              onChange={(event) => setCheckInTime(event.target.value)}
-              className="block w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
-            />
-          </div>
-          <div className="min-w-0">
-            <RequiredLabel text={t('checkin_time_out')} required />
-            <input
-              type="time"
-              value={checkOutTime}
-              onChange={(event) => setCheckOutTime(event.target.value)}
-              className="block w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
-            />
+            <div className="flex gap-2">
+              <input
+                type="date"
+                aria-label={t('checkin_date_out')}
+                value={checkOutDate}
+                onChange={(event) => setCheckOutDate(event.target.value)}
+                className={DATE_FIELD_CLASS}
+              />
+              <input
+                type="time"
+                aria-label={t('checkin_time_out')}
+                value={checkOutTime}
+                onChange={(event) => setCheckOutTime(event.target.value)}
+                className={TIME_FIELD_CLASS}
+              />
+            </div>
           </div>
         </div>
 
