@@ -956,7 +956,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   }
 
   return (
-    <div className="min-h-screen bg-white text-gray-900">
+    <div className="min-h-screen overflow-x-clip bg-white text-gray-900">
       {/* Mobile header with hamburger */}
       <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/95 backdrop-blur-sm md:hidden" ref={menuRef}>
         <div className="flex items-center justify-between px-4 py-3">
@@ -1039,41 +1039,41 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         )}
 
         {/* Dates + Times */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="min-w-0">
             <RequiredLabel text={t('checkin_date_in')} required />
             <input
               type="date"
               value={checkInDate}
               onChange={(event) => setCheckInDate(event.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
+              className="block w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <RequiredLabel text={t('checkin_date_out')} required />
             <input
               type="date"
               value={checkOutDate}
               onChange={(event) => setCheckOutDate(event.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
+              className="block w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <RequiredLabel text={t('checkin_time_in')} required />
             <input
               type="time"
               value={checkInTime}
               onChange={(event) => setCheckInTime(event.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
+              className="block w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <RequiredLabel text={t('checkin_time_out')} required />
             <input
               type="time"
               value={checkOutTime}
               onChange={(event) => setCheckOutTime(event.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
+              className="block w-full min-w-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900"
             />
           </div>
         </div>
@@ -1209,7 +1209,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
                       <p className="mb-2 text-xs text-red-600">{editorError}</p>
                     )}
 
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 [&>div]:min-w-0">
                       <div className="col-span-2">
                         <RequiredLabel text={t('checkin_popup_fullname')} required />
                         <input
@@ -1412,7 +1412,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       </main>
 
       {/* Fixed bottom bar — mobile */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-gray-100 bg-white px-4 pb-4 pt-3 md:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-gray-100 bg-white px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] md:hidden">
         <button
           type="button"
           disabled={!canSubmit || isSubmitting}

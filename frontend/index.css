@@ -226,3 +226,40 @@ body {
     display: none !important;
   }
 }
+
+/* ─── Native date / time controls ─────────────────────────────
+   Safari (iOS especially) gives <input type="date"> and friends an
+   intrinsic width derived from the widest possible locale-formatted
+   value, and grid/flex items default to min-width:auto — so width:100%
+   loses and the control spills out of its track. That is how the guest
+   check-in form ended up with the two date fields overlapping and the
+   page wide enough to swipe sideways. Dropping the native appearance and
+   pinning min-width to 0 lets the declared width win again. */
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'],
+input[type='month'],
+input[type='week'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  /* Safari centres the value inside the control; text inputs sit left. */
+  text-align: left;
+}
+
+/* The value lives in a shadow child that carries its own intrinsic width
+   and padding — both have to give as well, or the text still overflows. */
+input[type='date']::-webkit-date-and-time-value,
+input[type='time']::-webkit-date-and-time-value,
+input[type='datetime-local']::-webkit-date-and-time-value {
+  text-align: left;
+  min-width: 0;
+  margin: 0;
+}
+
+input[type='date']::-webkit-datetime-edit,
+input[type='time']::-webkit-datetime-edit,
+input[type='datetime-local']::-webkit-datetime-edit {
+  padding: 0;
+}
