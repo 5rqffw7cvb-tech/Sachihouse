@@ -39,7 +39,21 @@ import {
   HostPlanCode,
   BillingCycle,
   PLAN_TO_HOST_LEVEL,
+  Invoice,
+  InvoiceLineItem,
+  InvoiceListFilters,
+  InvoiceRoundingMode,
+  InvoiceSourceKind,
 } from './store/types.js';
+import {
+  computeInvoiceTotals,
+  generateLineItemId,
+  invoiceSourceKey,
+  isInvoiceTaxCategory,
+  isValidRegistrationNumber,
+  nightsBetween,
+  normalizeRegistrationNumber,
+} from './domain/invoice.js';
 import { getParam } from './types/params.js';
 import { Role } from './types/domain.js';
 import { IcalSyncService } from './services/icalSync.js';
@@ -66,6 +80,16 @@ const ALLOWED_ROLES: Role[] = ['ADMIN', 'HOST', 'GUEST'];
 // exactly — a mismatch silently JSON-parses the webhook and breaks signatures.
 const STRIPE_WEBHOOK_PATH = '/api/stripe/webhook';
 const CHECKIN_OCR_MAX_IMAGE_BYTES = Number(process.env.CHECKIN_OCR_MAX_IMAGE_MB ?? 20) * 1024 * 1024;
+
+const INVOICE_SOURCE_KINDS: InvoiceSourceKind[] = [
+  'booking_confirmation',
+  'direct_booking',
+  'imported',
+  'manual',
+];
+// A single-page invoice rasterized at 2x lands well under a megabyte; this cap
+// only exists so a malformed client cannot post an arbitrarily large body.
+const INVOICE_PDF_MAX_BASE64_CHARS = 12 * 1024 * 1024;
 
 function isRole(value: unknown): value is Role {
   return typeof value === 'string' && ALLOWED_ROLES.includes(value as Role);
@@ -4650,9 +4674,603 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return res.status(201).json({ imported: results.length, transactions: results });
   });
 
+
+  // ---------------------------------------------------------------------------
+  // Qualified invoices (適格請求書 / インボイス制度)
+  //
+  // Gated on requireFinanceAccess — host level 4 — because issuing under a
+  // registration number is an act of the host's own business, and the number is
+  // held per host rather than per property.
+  // ---------------------------------------------------------------------------
+
+  // The stay list an invoice is raised from. Deliberately every stay the host
+  // runs, not just the ones we sold: an Airbnb guest asking for a 適格請求書 is
+  // the common case, and those arrive over iCal with neither a name nor a
+  // price, so they are listed with blanks for the host to fill rather than
+  // hidden because we happen to know less about them.
+  interface InvoiceCandidate {
+    key: string;
+    sourceKind: InvoiceSourceKind;
+    sourceId: string | null;
+    sourceLabel: string;
+    propertyId: string;
+    propertyName: string;
+    propertyAddress: string;
+    guestName: string | null;
+    checkInDate: string;
+    checkOutDate: string;
+    nights: number;
+    numGuests: number | null;
+    currency: string;
+    // Prefilled from whatever the record knows. Zero for OTA imports.
+    roomFee: number;
+    cleaningFee: number;
+    extraFee: number;
+    extraFeeLabel?: string;
+    discountAmount: number;
+    discountLabel?: string;
+    totalAmount: number;
+    reference: string | null;
+    // The check-in form's main guest, when one was submitted for this stay.
+    // This is the name and address that go on the invoice.
+    checkIn: {
+      submissionId: string;
+      fullName: string;
+      address: string;
+      nationality: string;
+      contactInfo?: string;
+      guestCount: number;
+    } | null;
+    // An invoice already issued against this stay, so the picker can say so
+    // instead of letting the host raise a second one by accident.
+    existingInvoice: { id: string; invoiceNo: string; issueDate: string } | null;
+  }
+
+  /**
+   * Adds a short-lived signed URL for the archived PDF.
+   *
+   * The stored value is a gcs:// path, never a URL — signed ones expire, and a
+   * statutory archive copy has to be addressable in ten years. The link is
+   * minted per read, which is the same treatment receipt evidence gets.
+   */
+  async function withInvoicePdfUrl(invoice: Invoice): Promise<Invoice & { pdfUrl?: string }> {
+    if (!invoice.pdfObjectPath) {
+      return invoice;
+    }
+    try {
+      return { ...invoice, pdfUrl: await objectStorage.getEvidenceAccessUrl(invoice.pdfObjectPath) };
+    } catch (error) {
+      // A bucket that will not sign is not a reason to hide the invoice.
+      console.error(`[invoice] could not sign ${invoice.invoiceNo}`, error);
+      return invoice;
+    }
+  }
+
+  /** The properties this actor may invoice for, honouring an explicit filter. */
+  async function invoicePropertyScope(
+    actor: AuthUser,
+    propertyId?: string,
+  ): Promise<Array<PropertyData & { id: string }>> {
+    const all = await store.listProperties(true);
+    return all.filter((property) => {
+      if (propertyId && property.id !== propertyId) return false;
+      return canAccessProperty(actor, property.id);
+    });
+  }
+
+  /**
+   * The check-in submission that belongs to a stay.
+   *
+   * An exact check-in date is the reliable signal; failing that any submission
+   * whose stay overlaps is taken, because guests who arrive a day late still
+   * fill the form in for the same booking. Newest wins when several match — a
+   * resubmitted form is a correction of the earlier one.
+   */
+  function matchCheckInForStay(
+    submissions: CheckInSubmission[],
+    checkInDate: string,
+    checkOutDate: string,
+  ): CheckInSubmission | null {
+    const exact = submissions.filter((row) => row.checkInDate === checkInDate);
+    const pool = exact.length > 0
+      ? exact
+      : submissions.filter((row) => row.checkInDate < checkOutDate && row.checkOutDate > checkInDate);
+    return pool.sort((a, b) => b.createdAt - a.createdAt)[0] ?? null;
+  }
+
+  app.get('/api/invoice-settings', requireAuth, requireFinanceAccess, async (req, res) => {
+    const settings = await store.getHostInvoiceSettings(req.authUser!.id);
+    return res.json({
+      settings,
+      // The client cannot see the server's env, and "is a copy kept for me or
+      // is my download the only one?" changes what the issue screen should say.
+      archiveConfigured: objectStorage.invoiceArchiveEnabled,
+    });
+  });
+
+  app.put('/api/invoice-settings', requireAuth, requireFinanceAccess, async (req, res) => {
+    const body = req.body as Record<string, unknown>;
+    const registrationNumber = normalizeRegistrationNumber(String(body.registrationNumber ?? '').trim());
+    const issuerName = String(body.issuerName ?? '').trim();
+    const issuerAddress = String(body.issuerAddress ?? '').trim();
+
+    if (!isValidRegistrationNumber(registrationNumber)) {
+      return res.status(400).json({
+        error: 'The registration number must be the letter T followed by 13 digits (e.g. T1234567890123).',
+      });
+    }
+    if (!issuerName) {
+      return res.status(400).json({ error: 'The issuer name is required.' });
+    }
+    if (!issuerAddress) {
+      return res.status(400).json({ error: 'The issuer address is required.' });
+    }
+
+    const roundingMode = body.roundingMode;
+    if (roundingMode !== undefined && !['floor', 'round', 'ceil'].includes(String(roundingMode))) {
+      return res.status(400).json({ error: 'roundingMode must be floor, round or ceil.' });
+    }
+    if (body.defaultTaxCategory !== undefined && !isInvoiceTaxCategory(body.defaultTaxCategory)) {
+      return res.status(400).json({ error: 'defaultTaxCategory must be standard10, reduced8 or exempt.' });
+    }
+
+    const settings = await store.saveHostInvoiceSettings(req.authUser!.id, {
+      registrationNumber,
+      issuerName,
+      issuerAddress,
+      issuerPhone: String(body.issuerPhone ?? '').trim() || undefined,
+      issuerEmail: String(body.issuerEmail ?? '').trim() || undefined,
+      bankInfo: String(body.bankInfo ?? '').trim() || undefined,
+      invoicePrefix: String(body.invoicePrefix ?? '').trim() || undefined,
+      roundingMode: roundingMode as InvoiceRoundingMode | undefined,
+      defaultTaxCategory: isInvoiceTaxCategory(body.defaultTaxCategory) ? body.defaultTaxCategory : undefined,
+      defaultNotes: String(body.defaultNotes ?? '').trim() || undefined,
+    });
+
+    return res.json({ settings, archiveConfigured: objectStorage.invoiceArchiveEnabled });
+  });
+
+  /**
+   * Every stay the host could raise an invoice for, newest arrival first.
+   *
+   * Three sources are merged. Online bookings are already mirrored into
+   * booking_confirmations, so those mirrors are matched by sourceBookingId and
+   * the underlying Booking is dropped — otherwise the same stay would appear
+   * twice under two different ids and the host would invoice it twice.
+   */
+  app.get('/api/invoices/stays', requireAuth, requireFinanceAccess, async (req, res) => {
+    const actor = req.authUser!;
+    const propertyIdRaw = req.query.propertyId;
+    const propertyId = typeof propertyIdRaw === 'string' && propertyIdRaw ? propertyIdRaw : undefined;
+
+    if (propertyId && !canAccessProperty(actor, propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+
+    const fromDate = typeof req.query.fromDate === 'string' && isIsoDate(req.query.fromDate)
+      ? req.query.fromDate
+      : undefined;
+    const toDate = typeof req.query.toDate === 'string' && isIsoDate(req.query.toDate)
+      ? req.query.toDate
+      : undefined;
+
+    const properties = await invoicePropertyScope(actor, propertyId);
+    const issued = await store.listInvoices({
+      propertyIds: properties.map((property) => property.id),
+      status: 'issued',
+    });
+    const invoiceBySourceKey = new Map(
+      issued
+        .filter((invoice): invoice is typeof invoice & { sourceKey: string } => Boolean(invoice.sourceKey))
+        .map((invoice) => [invoice.sourceKey, invoice]),
+    );
+
+    const candidates: InvoiceCandidate[] = [];
+
+    for (const property of properties) {
+      const [confirmations, bookings, imported, checkIns] = await Promise.all([
+        store.listBookingConfirmations({ propertyId: property.id, fromDate, toDate }),
+        store.listBookings({
+          propertyId: property.id,
+          statuses: ['confirmed'],
+          fromDate,
+          toDate,
+        }),
+        store.listImportedEvents(property.id),
+        store.listCheckInSubmissions({ propertyId: property.id }),
+      ]);
+
+      const mirroredBookingIds = new Set(
+        confirmations.map((row) => row.sourceBookingId).filter(Boolean) as string[],
+      );
+
+      const attachCheckIn = (checkInDate: string, checkOutDate: string): InvoiceCandidate['checkIn'] => {
+        const submission = matchCheckInForStay(checkIns, checkInDate, checkOutDate);
+        const mainGuest = submission?.guests[0];
+        if (!submission || !mainGuest) return null;
+        return {
+          submissionId: submission.id,
+          fullName: mainGuest.fullName,
+          address: mainGuest.address,
+          nationality: mainGuest.nationality,
+          contactInfo: mainGuest.contactInfo,
+          guestCount: submission.guests.length,
+        };
+      };
+
+      const push = (candidate: Omit<InvoiceCandidate, 'key' | 'nights' | 'checkIn' | 'existingInvoice'>) => {
+        const key = `${candidate.sourceKind}:${candidate.sourceId ?? `${candidate.propertyId}|${candidate.checkInDate}`}`;
+        const existing = candidate.sourceId
+          ? invoiceBySourceKey.get(`${candidate.sourceKind}:${candidate.sourceId}`)
+          : undefined;
+        candidates.push({
+          ...candidate,
+          key,
+          nights: nightsBetween(candidate.checkInDate, candidate.checkOutDate),
+          checkIn: attachCheckIn(candidate.checkInDate, candidate.checkOutDate),
+          existingInvoice: existing
+            ? { id: existing.id, invoiceNo: existing.invoiceNo, issueDate: existing.issueDate }
+            : null,
+        });
+      };
+
+      for (const row of confirmations) {
+        push({
+          sourceKind: 'booking_confirmation',
+          sourceId: row.id,
+          sourceLabel: row.source === 'online' ? 'Direct booking' : 'Manual',
+          propertyId: property.id,
+          propertyName: property.name,
+          propertyAddress: property.address,
+          guestName: row.guestName,
+          checkInDate: row.checkInDate,
+          checkOutDate: row.checkOutDate,
+          numGuests: row.numGuests,
+          currency: row.currency,
+          roomFee: row.roomFee,
+          cleaningFee: row.cleaningFee,
+          extraFee: row.extraFee,
+          extraFeeLabel: row.extraFeeLabel,
+          discountAmount: row.discountAmount,
+          discountLabel: row.discountLabel,
+          totalAmount: row.totalAmount,
+          reference: row.confirmationNo,
+        });
+      }
+
+      for (const booking of bookings) {
+        if (mirroredBookingIds.has(booking.id)) continue;
+        // The cleaning fee is the one line the quote snapshot always names, so
+        // it is split out; whatever is left is the accommodation charge. Any
+        // coupon is already inside amountTotal, which is what the guest paid
+        // and therefore what the invoice must total.
+        const cleaningFee = Math.min(booking.quote?.cleaningFee ?? 0, booking.amountTotal);
+        push({
+          sourceKind: 'direct_booking',
+          sourceId: booking.id,
+          sourceLabel: 'Direct booking',
+          propertyId: property.id,
+          propertyName: property.name,
+          propertyAddress: property.address,
+          guestName: booking.guestName,
+          checkInDate: booking.checkInDate,
+          checkOutDate: booking.checkOutDate,
+          numGuests: booking.adults + booking.children + booking.infants,
+          currency: booking.currency,
+          roomFee: booking.amountTotal - cleaningFee,
+          cleaningFee,
+          extraFee: 0,
+          discountAmount: 0,
+          totalAmount: booking.amountTotal,
+          reference: booking.confirmationNo ?? booking.id,
+        });
+      }
+
+      for (const event of imported) {
+        if (fromDate && event.checkInDate < fromDate) continue;
+        if (toDate && event.checkInDate > toDate) continue;
+        // OTA feeds strip the guest and never carry money, so both are left at
+        // zero for the host to type. The reservation code in the feed's own
+        // text is the only handle they have to look the stay up on the platform.
+        push({
+          sourceKind: 'imported',
+          sourceId: `${property.id}|${event.externalId}`,
+          sourceLabel: event.channelName || event.feedName,
+          propertyId: property.id,
+          propertyName: property.name,
+          propertyAddress: property.address,
+          guestName: null,
+          checkInDate: event.checkInDate,
+          checkOutDate: event.checkOutDate,
+          numGuests: event.guestCount,
+          currency: 'JPY',
+          roomFee: 0,
+          cleaningFee: 0,
+          extraFee: 0,
+          discountAmount: 0,
+          totalAmount: 0,
+          reference: event.summary || null,
+        });
+      }
+    }
+
+    candidates.sort((a, b) => (
+      b.checkInDate.localeCompare(a.checkInDate) || a.propertyName.localeCompare(b.propertyName)
+    ));
+
+    return res.json({ stays: candidates });
+  });
+
+  app.get('/api/invoices', requireAuth, requireFinanceAccess, async (req, res) => {
+    const actor = req.authUser!;
+    const propertyIdRaw = req.query.propertyId;
+    const propertyId = typeof propertyIdRaw === 'string' && propertyIdRaw ? propertyIdRaw : undefined;
+
+    if (propertyId && !canAccessProperty(actor, propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+
+    const filters: InvoiceListFilters = {};
+    if (propertyId) {
+      filters.propertyId = propertyId;
+    } else if (actor.role !== 'ADMIN') {
+      filters.propertyIds = actor.assignedPropertyIds;
+    }
+    if (typeof req.query.fromDate === 'string' && isIsoDate(req.query.fromDate)) {
+      filters.fromDate = req.query.fromDate;
+    }
+    if (typeof req.query.toDate === 'string' && isIsoDate(req.query.toDate)) {
+      filters.toDate = req.query.toDate;
+    }
+    if (req.query.status === 'issued' || req.query.status === 'void') {
+      filters.status = req.query.status;
+    }
+
+    const invoices = await store.listInvoices(filters);
+    return res.json({ invoices: await Promise.all(invoices.map(withInvoicePdfUrl)) });
+  });
+
+  app.get('/api/invoices/:id', requireAuth, requireFinanceAccess, async (req, res) => {
+    const invoice = await store.getInvoice(getParam(req.params.id));
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found.' });
+    }
+    if (!canAccessProperty(req.authUser!, invoice.propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+    return res.json({ invoice: await withInvoicePdfUrl(invoice) });
+  });
+
+  /**
+   * Issues an invoice.
+   *
+   * The issuer half comes from the host's saved profile, never from the
+   * request: a registration number typed into a form is one that can be typed
+   * wrong, and this document exists to assert who issued it.
+   */
+  app.post('/api/invoices', requireAuth, requireFinanceAccess, async (req, res) => {
+    const actor = req.authUser!;
+    const body = req.body as Record<string, unknown>;
+
+    const settings = await store.getHostInvoiceSettings(actor.id);
+    if (!settings || !isValidRegistrationNumber(settings.registrationNumber)) {
+      return res.status(400).json({
+        error: 'Set your invoice registration number (T number) before issuing an invoice.',
+        code: 'INVOICE_SETTINGS_MISSING',
+      });
+    }
+
+    const propertyId = String(body.propertyId ?? '').trim();
+    const property = propertyId ? await store.getProperty(propertyId) : null;
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (!canAccessProperty(actor, property.id)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+
+    if (!INVOICE_SOURCE_KINDS.includes(body.sourceKind as InvoiceSourceKind)) {
+      return res.status(400).json({ error: `sourceKind must be one of ${INVOICE_SOURCE_KINDS.join(', ')}.` });
+    }
+    const sourceKind = body.sourceKind as InvoiceSourceKind;
+
+    const checkInDate = String(body.checkInDate ?? '');
+    const checkOutDate = String(body.checkOutDate ?? '');
+    if (!isIsoDate(checkInDate) || !isIsoDate(checkOutDate) || checkOutDate <= checkInDate) {
+      return res.status(400).json({
+        error: 'checkInDate and checkOutDate must be YYYY-MM-DD, with check-out after check-in.',
+      });
+    }
+
+    const issueDate = isIsoDate(body.issueDate) ? String(body.issueDate) : toJstDateString(Date.now());
+
+    const customerName = String(body.customerName ?? '').trim();
+    if (!customerName) {
+      return res.status(400).json({
+        error: 'The customer name is required — an invoice must name who it is issued to.',
+      });
+    }
+
+    const rawLines = Array.isArray(body.lineItems) ? body.lineItems : [];
+    if (rawLines.length === 0) {
+      return res.status(400).json({ error: 'At least one line item is required.' });
+    }
+    if (rawLines.length > 30) {
+      return res.status(400).json({ error: 'An invoice may carry at most 30 line items.' });
+    }
+
+    const lineItems: InvoiceLineItem[] = [];
+    for (const raw of rawLines as Array<Record<string, unknown>>) {
+      const description = String(raw.description ?? '').trim();
+      if (!description) {
+        return res.status(400).json({ error: 'Every line item needs a description (取引内容).' });
+      }
+      const taxCategory = isInvoiceTaxCategory(raw.taxCategory) ? raw.taxCategory : settings.defaultTaxCategory;
+      const quantity = Number(raw.quantity ?? 1);
+      const unitPrice = Number(raw.unitPrice ?? 0);
+      // A typed total wins over quantity × unit price: a host who agreed a
+      // round number with the guest has to be able to print that number.
+      const amount = Math.round(Number(raw.amount ?? quantity * unitPrice));
+      if (!Number.isFinite(quantity) || !Number.isFinite(unitPrice) || !Number.isFinite(amount)) {
+        return res.status(400).json({ error: 'Line item amounts must be numbers.' });
+      }
+      lineItems.push({
+        id: generateLineItemId(),
+        description,
+        quantity,
+        unitPrice: Math.round(unitPrice),
+        amount,
+        taxCategory,
+      });
+    }
+
+    if (computeInvoiceTotals(lineItems, settings.roundingMode).totalAmount <= 0) {
+      return res.status(400).json({ error: 'The invoice total must be greater than zero.' });
+    }
+
+    const sourceId = String(body.sourceId ?? '').trim() || undefined;
+    const sourceKey = invoiceSourceKey(sourceKind, sourceId ?? null);
+    if (sourceKey && body.allowDuplicate !== true) {
+      const already = await store.listInvoices({ sourceKey, status: 'issued' });
+      if (already.length > 0) {
+        return res.status(409).json({
+          error: `This booking was already invoiced as ${already[0].invoiceNo}.`,
+          code: 'INVOICE_ALREADY_ISSUED',
+          invoice: already[0],
+        });
+      }
+    }
+
+    const customerSource = ['checkin', 'booking', 'manual'].includes(String(body.customerSource))
+      ? (body.customerSource as 'checkin' | 'booking' | 'manual')
+      : 'manual';
+
+    const invoice = await store.createInvoice({
+      issuerUserId: actor.id,
+      issuerRegistrationNumber: settings.registrationNumber,
+      issuerName: settings.issuerName,
+      issuerAddress: settings.issuerAddress,
+      issuerPhone: settings.issuerPhone,
+      issuerEmail: settings.issuerEmail,
+      bankInfo: settings.bankInfo,
+      roundingMode: settings.roundingMode,
+      invoicePrefix: settings.invoicePrefix,
+      propertyId: property.id,
+      propertyName: property.name,
+      propertyAddress: property.address,
+      sourceKind,
+      sourceId,
+      sourceLabel: String(body.sourceLabel ?? '').trim() || undefined,
+      checkInDate,
+      checkOutDate,
+      nights: nightsBetween(checkInDate, checkOutDate),
+      customerName,
+      customerAddress: String(body.customerAddress ?? '').trim() || undefined,
+      customerEmail: String(body.customerEmail ?? '').trim() || undefined,
+      customerPhone: String(body.customerPhone ?? '').trim() || undefined,
+      customerSource,
+      checkInSubmissionId: String(body.checkInSubmissionId ?? '').trim() || undefined,
+      issueDate,
+      currency: String(body.currency ?? 'JPY').trim().toUpperCase() || 'JPY',
+      lineItems,
+      notes: String(body.notes ?? '').trim() || undefined,
+      createdByUserId: actor.id,
+      createdByName: actor.name || actor.email,
+    });
+
+    return res.status(201).json({
+      invoice,
+      archiveConfigured: objectStorage.invoiceArchiveEnabled,
+    });
+  });
+
+  /**
+   * Archives the rendered PDF into the invoice bucket.
+   *
+   * The invoice row is already committed by the time this runs, so a storage
+   * outage costs the host their archive copy rather than the document — the
+   * client has downloaded the same bytes either way.
+   */
+  app.post('/api/invoices/:id/pdf', requireAuth, requireFinanceAccess, async (req, res) => {
+    const actor = req.authUser!;
+    const invoice = await store.getInvoice(getParam(req.params.id));
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found.' });
+    }
+    if (!canAccessProperty(actor, invoice.propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+
+    const base64 = String((req.body as Record<string, unknown>).pdfBase64 ?? '');
+    if (!base64) {
+      return res.status(400).json({ error: 'pdfBase64 is required.' });
+    }
+    if (base64.length > INVOICE_PDF_MAX_BASE64_CHARS) {
+      return res.status(413).json({ error: 'The rendered invoice PDF is too large to archive.' });
+    }
+    if (!objectStorage.invoiceArchiveEnabled) {
+      return res.status(503).json({
+        error: 'No invoice bucket is configured, so the PDF was not archived.',
+        code: 'INVOICE_ARCHIVE_NOT_CONFIGURED',
+      });
+    }
+
+    try {
+      const uploaded = await objectStorage.uploadInvoicePdf({
+        pdfBuffer: Buffer.from(base64, 'base64'),
+        issuerUserId: invoice.issuerUserId,
+        fiscalYear: invoice.fiscalYear,
+        invoiceNo: invoice.invoiceNo,
+        fileNameHint: invoice.customerName,
+      });
+      const updated = await store.attachInvoicePdf(invoice.id, { objectPath: uploaded.objectPath });
+      return res.json({ invoice: updated ? await withInvoicePdfUrl(updated) : updated });
+    } catch (error) {
+      console.error(`[invoice] archiving ${invoice.invoiceNo} failed`, error);
+      return res.status(502).json({
+        error: error instanceof Error ? error.message : 'Could not archive the PDF.',
+        code: 'INVOICE_ARCHIVE_FAILED',
+      });
+    }
+  });
+
+  // Void, never delete. A missing number in an issued sequence is the first
+  // thing a tax audit asks about, so the row stays and says why.
+  app.post('/api/invoices/:id/void', requireAuth, requireFinanceAccess, async (req, res) => {
+    const invoice = await store.getInvoice(getParam(req.params.id));
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found.' });
+    }
+    if (!canAccessProperty(req.authUser!, invoice.propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+    if (invoice.status === 'void') {
+      return res.json({ invoice });
+    }
+
+    const reason = String((req.body as Record<string, unknown>).reason ?? '').trim();
+    if (!reason) {
+      return res.status(400).json({ error: 'A reason is required when voiding an invoice.' });
+    }
+
+    const updated = await store.voidInvoice(invoice.id, reason);
+    return res.json({ invoice: updated });
+  });
+
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    if (typeof error === 'object' && error && 'code' in error && (error as { code?: string }).code === '23505') {
+    const pgCode = typeof error === 'object' && error && 'code' in error
+      ? (error as { code?: string }).code
+      : undefined;
+    if (pgCode === '23505') {
       return res.status(409).json({ error: 'Custom URL is already taken.' });
+    }
+    // Issued invoices hold their property and issuer with ON DELETE RESTRICT,
+    // because a tax document must outlive the records it was raised from.
+    // Without this the refusal reaches the console as an opaque 500.
+    if (pgCode === '23503') {
+      return res.status(409).json({
+        error: 'This record is referenced by an issued invoice and cannot be deleted. Archive it instead.',
+      });
     }
     console.error(error);
     const message = error instanceof Error ? error.message : 'Unexpected server error.';

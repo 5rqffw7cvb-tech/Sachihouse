@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Mail, User, Settings, LogOut, Receipt, Building2, ClipboardCheck, Newspaper, Users, Tag, Ticket, FileText, CalendarDays } from 'lucide-react';
+import { Home, Mail, User, Settings, LogOut, Receipt, Building2, ClipboardCheck, Newspaper, Users, Tag, Ticket, FileText, CalendarDays,
+  ReceiptJapaneseYen,
+} from 'lucide-react';
 import { getCurrentUser, logout, subscribeToAuth } from '../services/auth';
 import { CheckInLinkPicker } from './CheckInLinkPicker';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -173,6 +175,14 @@ export const MobileBottomNav: React.FC = () => {
                    className="w-full text-left px-4 py-3 text-sm text-[#44474c] hover:bg-[#f5f3f4] active:bg-gray-100 transition-colors flex items-center gap-2.5"
                  >
                    <Receipt className="w-4 h-4 text-[#74777d]" /> 領収書アップロード
+                 </button>
+               )}
+               {canUseFinance && (
+                 <button
+                   onClick={() => { setIsDropdownOpen(false); navigate('/admin/invoices'); }}
+                   className="w-full text-left px-4 py-3 text-sm text-[#44474c] hover:bg-[#f5f3f4] active:bg-gray-100 transition-colors flex items-center gap-2.5"
+                 >
+                   <ReceiptJapaneseYen className="w-4 h-4 text-[#74777d]" /> 請求書 Invoices
                  </button>
                )}
                <button

@@ -36,10 +36,21 @@ import {
   SubscriptionRequestStatus,
   HostPlanCode,
   BillingCycle,
+  HostInvoiceSettings,
+  HostInvoiceSettingsInput,
+  Invoice,
+  InvoiceInput,
+  InvoiceListFilters,
 } from './types.js';
 import { Role } from '../types/domain.js';
 import { generateBookingId, generateGuestToken, getStayDates } from '../domain/booking.js';
 import { normalizeCouponCode } from '../domain/coupon.js';
+import {
+  buildInvoiceNo,
+  computeInvoiceTotals,
+  generateInvoiceId,
+  invoiceSourceKey,
+} from '../domain/invoice.js';
 
 export class PostgresStore implements DataStore {
   constructor(private readonly pool: Pool) {}
@@ -351,6 +362,53 @@ export class PostgresStore implements DataStore {
         property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
         PRIMARY KEY (coupon_id, property_id)
       );
+
+      -- One qualified-invoice issuer profile per host (registration number,
+      -- trading name, address). Keyed by user because the T number belongs to
+      -- the business, not to a property.
+      CREATE TABLE IF NOT EXISTS host_invoice_settings (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        data JSONB NOT NULL,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+
+      -- Invoice numbering. Held as its own row so issuing can take the next
+      -- number under a row lock; deriving it from MAX(sequence) would hand the
+      -- same number to two concurrent issues.
+      CREATE TABLE IF NOT EXISTS invoice_sequences (
+        issuer_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        fiscal_year INTEGER NOT NULL,
+        last_sequence INTEGER NOT NULL,
+        PRIMARY KEY (issuer_user_id, fiscal_year)
+      );
+
+      CREATE TABLE IF NOT EXISTS invoices (
+        id TEXT PRIMARY KEY,
+        invoice_no TEXT NOT NULL,
+        issuer_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        fiscal_year INTEGER NOT NULL,
+        sequence INTEGER NOT NULL,
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE RESTRICT,
+        issue_date DATE NOT NULL,
+        status TEXT NOT NULL,
+        source_key TEXT,
+        data JSONB NOT NULL,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+
+      -- The numbering guarantee, enforced rather than assumed.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_issuer_no
+      ON invoices(issuer_user_id, invoice_no);
+
+      CREATE INDEX IF NOT EXISTS idx_invoices_property_issue_date
+      ON invoices(property_id, issue_date DESC);
+
+      -- Answers "has this stay already been invoiced?" before a second one is
+      -- issued. Not unique: a voided invoice may legitimately be reissued.
+      CREATE INDEX IF NOT EXISTS idx_invoices_source_key
+      ON invoices(source_key) WHERE source_key IS NOT NULL;
     `);
 
     const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
@@ -2151,5 +2209,219 @@ export class PostgresStore implements DataStore {
     );
     await this.writeAudit(actor.id, 'DELETE_INGEST_RULE', 'finance_ingest_rule', email);
     return result.rows.length > 0;
+  }
+
+  async getHostInvoiceSettings(userId: number): Promise<HostInvoiceSettings | null> {
+    const result = await this.pool.query<{ data: HostInvoiceSettings }>(
+      'SELECT data FROM host_invoice_settings WHERE user_id = $1',
+      [userId],
+    );
+    return result.rows[0]?.data ?? null;
+  }
+
+  async saveHostInvoiceSettings(userId: number, input: HostInvoiceSettingsInput): Promise<HostInvoiceSettings> {
+    const now = Date.now();
+    const existing = await this.getHostInvoiceSettings(userId);
+    const next: HostInvoiceSettings = {
+      userId,
+      registrationNumber: input.registrationNumber,
+      issuerName: input.issuerName,
+      issuerAddress: input.issuerAddress,
+      issuerPhone: input.issuerPhone,
+      issuerEmail: input.issuerEmail,
+      bankInfo: input.bankInfo,
+      invoicePrefix: input.invoicePrefix ?? existing?.invoicePrefix ?? 'INV',
+      roundingMode: input.roundingMode ?? existing?.roundingMode ?? 'floor',
+      defaultTaxCategory: input.defaultTaxCategory ?? existing?.defaultTaxCategory ?? 'standard10',
+      defaultNotes: input.defaultNotes,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+
+    await this.pool.query(
+      `INSERT INTO host_invoice_settings (user_id, data, created_at, updated_at)
+       VALUES ($1, $2::jsonb, $3, $4)
+       ON CONFLICT (user_id) DO UPDATE SET data = $2::jsonb, updated_at = $4`,
+      [userId, JSON.stringify(next), next.createdAt, next.updatedAt],
+    );
+
+    return structuredClone(next);
+  }
+
+  /**
+   * Issues an invoice and claims its number in the same transaction.
+   *
+   * The UPSERT on invoice_sequences takes a row lock, so two hosts pressing
+   * "issue" at the same instant queue rather than both reading sequence 7. If
+   * the insert then fails the whole thing rolls back and the number is given
+   * back — a gap in a qualified-invoice sequence is an audit finding.
+   */
+  async createInvoice(input: InvoiceInput): Promise<Invoice> {
+    const now = Date.now();
+    const fiscalYear = Number(input.issueDate.slice(0, 4)) || new Date(now).getFullYear();
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const sequenceResult = await client.query<{ last_sequence: number }>(
+        `INSERT INTO invoice_sequences (issuer_user_id, fiscal_year, last_sequence)
+         VALUES ($1, $2, 1)
+         ON CONFLICT (issuer_user_id, fiscal_year)
+         DO UPDATE SET last_sequence = invoice_sequences.last_sequence + 1
+         RETURNING last_sequence`,
+        [input.issuerUserId, fiscalYear],
+      );
+      const sequence = sequenceResult.rows[0].last_sequence;
+
+      const totals = computeInvoiceTotals(input.lineItems, input.roundingMode);
+      const invoice: Invoice = {
+        id: generateInvoiceId(),
+        invoiceNo: buildInvoiceNo(input.invoicePrefix, fiscalYear, sequence),
+        sequence,
+        fiscalYear,
+        issuerUserId: input.issuerUserId,
+        issuerRegistrationNumber: input.issuerRegistrationNumber,
+        issuerName: input.issuerName,
+        issuerAddress: input.issuerAddress,
+        issuerPhone: input.issuerPhone,
+        issuerEmail: input.issuerEmail,
+        bankInfo: input.bankInfo,
+        roundingMode: input.roundingMode,
+        propertyId: input.propertyId,
+        propertyName: input.propertyName,
+        propertyAddress: input.propertyAddress,
+        sourceKind: input.sourceKind,
+        sourceId: input.sourceId,
+        sourceKey: invoiceSourceKey(input.sourceKind, input.sourceId ?? null) ?? undefined,
+        sourceLabel: input.sourceLabel,
+        checkInDate: input.checkInDate,
+        checkOutDate: input.checkOutDate,
+        nights: input.nights,
+        customerName: input.customerName,
+        customerAddress: input.customerAddress,
+        customerEmail: input.customerEmail,
+        customerPhone: input.customerPhone,
+        customerSource: input.customerSource,
+        checkInSubmissionId: input.checkInSubmissionId,
+        issueDate: input.issueDate,
+        currency: input.currency,
+        lineItems: structuredClone(input.lineItems),
+        taxBreakdown: totals.taxBreakdown,
+        subtotalTaxExclusive: totals.subtotalTaxExclusive,
+        totalTax: totals.totalTax,
+        totalAmount: totals.totalAmount,
+        notes: input.notes,
+        status: 'issued',
+        voidedAt: null,
+        pdfStoredAt: null,
+        createdByUserId: input.createdByUserId,
+        createdByName: input.createdByName,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await client.query(
+        `INSERT INTO invoices
+           (id, invoice_no, issuer_user_id, fiscal_year, sequence, property_id,
+            issue_date, status, source_key, data, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12)`,
+        [
+          invoice.id, invoice.invoiceNo, invoice.issuerUserId, invoice.fiscalYear,
+          invoice.sequence, invoice.propertyId, invoice.issueDate, invoice.status,
+          invoice.sourceKey ?? null, JSON.stringify(invoice), invoice.createdAt, invoice.updatedAt,
+        ],
+      );
+
+      await client.query('COMMIT');
+      return structuredClone(invoice);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listInvoices(filters?: InvoiceListFilters): Promise<Invoice[]> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (filters?.issuerUserId !== undefined) {
+      values.push(filters.issuerUserId);
+      conditions.push(`issuer_user_id = $${values.length}`);
+    }
+    if (filters?.propertyId) {
+      values.push(filters.propertyId);
+      conditions.push(`property_id = $${values.length}`);
+    }
+    if (filters?.propertyIds) {
+      // An empty allowlist means "no properties", which must return nothing
+      // rather than everything — ANY('{}') is what gets that right.
+      values.push(filters.propertyIds);
+      conditions.push(`property_id = ANY($${values.length}::text[])`);
+    }
+    if (filters?.fromDate) {
+      values.push(filters.fromDate);
+      conditions.push(`issue_date >= $${values.length}`);
+    }
+    if (filters?.toDate) {
+      values.push(filters.toDate);
+      conditions.push(`issue_date <= $${values.length}`);
+    }
+    if (filters?.status) {
+      values.push(filters.status);
+      conditions.push(`status = $${values.length}`);
+    }
+    if (filters?.sourceKey) {
+      values.push(filters.sourceKey);
+      conditions.push(`source_key = $${values.length}`);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const result = await this.pool.query<{ data: Invoice }>(
+      `SELECT data FROM invoices ${where} ORDER BY created_at DESC`,
+      values,
+    );
+    return result.rows.map((row) => row.data);
+  }
+
+  async getInvoice(id: string): Promise<Invoice | null> {
+    const result = await this.pool.query<{ data: Invoice }>(
+      'SELECT data FROM invoices WHERE id = $1',
+      [id],
+    );
+    return result.rows[0]?.data ?? null;
+  }
+
+  async attachInvoicePdf(id: string, file: { objectPath: string }): Promise<Invoice | null> {
+    const current = await this.getInvoice(id);
+    if (!current) return null;
+
+    const now = Date.now();
+    const next: Invoice = {
+      ...current,
+      pdfObjectPath: file.objectPath,
+      pdfStoredAt: now,
+      updatedAt: now,
+    };
+    await this.pool.query(
+      'UPDATE invoices SET data = $2::jsonb, updated_at = $3 WHERE id = $1',
+      [id, JSON.stringify(next), now],
+    );
+    return next;
+  }
+
+  async voidInvoice(id: string, reason: string): Promise<Invoice | null> {
+    const current = await this.getInvoice(id);
+    if (!current) return null;
+
+    const now = Date.now();
+    const next: Invoice = { ...current, status: 'void', voidReason: reason, voidedAt: now, updatedAt: now };
+    await this.pool.query(
+      'UPDATE invoices SET data = $2::jsonb, status = $3, updated_at = $4 WHERE id = $1',
+      [id, JSON.stringify(next), next.status, now],
+    );
+    return next;
   }
 }

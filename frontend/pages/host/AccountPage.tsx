@@ -9,12 +9,16 @@ import {
   KeyRound,
   Loader2,
   LogOut,
+  ReceiptJapaneseYen,
+  Settings2,
   Share,
   Sparkles,
 } from 'lucide-react';
 import { HostCard, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
 import { EntryCodeSheet } from '../../components/host/EntryCodeSheet';
+import { InvoiceSheet } from '../../components/host/InvoiceSheet';
+import { InvoiceSettingsSheet } from '../../components/host/InvoiceSettingsSheet';
 import { logout } from '../../services/auth';
 import { getCleaningCalendarLink } from '../../services/cleaningCalendar';
 import { copyText, HostProperty } from '../../services/hostApp';
@@ -49,6 +53,8 @@ const AccountPage: React.FC = () => {
   const [showProperties, setShowProperties] = useState(false);
   const [openProperty, setOpenProperty] = useState<HostProperty | null>(null);
   const [showInstall, setShowInstall] = useState(false);
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [showInvoiceSettings, setShowInvoiceSettings] = useState(false);
   const [cleaningLinkState, setCleaningLinkState] = useState<'idle' | 'loading' | 'copied'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +65,10 @@ const AccountPage: React.FC = () => {
   // The backend wants host level 2 to write a property; below that the sheet
   // stays readable and says why the edit button is missing.
   const canEditProperty = hasAccess(user, 'propertyWrite');
+  // Issuing under a registration number is a level-4 act, the same bar the
+  // finance screens sit behind — and the same one /api/invoices enforces, so
+  // this row never offers a screen the API would refuse.
+  const canIssueInvoices = hasAccess(user, 'finance');
 
   const initials = (user.name || user.email)
     .split(/[\s@.]+/)
@@ -166,6 +176,22 @@ const AccountPage: React.FC = () => {
         />
       </HostCard>
 
+      {canIssueInvoices && (
+        <HostCard>
+          <Row
+            Icon={ReceiptJapaneseYen}
+            label="請求書を発行 / Issue invoice"
+            onClick={() => setShowInvoice(true)}
+          />
+          <Row
+            Icon={Settings2}
+            label="Invoice settings (T number)"
+            onClick={() => setShowInvoiceSettings(true)}
+            last
+          />
+        </HostCard>
+      )}
+
       <HostCard>
         <Row
           Icon={Share}
@@ -210,6 +236,14 @@ const AccountPage: React.FC = () => {
           canEdit={canEditProperty}
           onClose={() => setOpenProperty(null)}
         />
+      )}
+
+      {showInvoice && (
+        <InvoiceSheet properties={properties} onClose={() => setShowInvoice(false)} />
+      )}
+
+      {showInvoiceSettings && (
+        <InvoiceSettingsSheet onClose={() => setShowInvoiceSettings(false)} />
       )}
     </HostScreen>
   );

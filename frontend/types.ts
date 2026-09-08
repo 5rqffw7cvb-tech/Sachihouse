@@ -387,3 +387,130 @@ export interface CheckInSubmission {
   createdAt: number;
   updatedAt: number;
 }
+
+// ---------------------------------------------------------------------------
+// Qualified invoices (適格請求書 / インボイス制度)
+// Mirrors backend/src/store/types.ts — change one, change the other.
+// ---------------------------------------------------------------------------
+
+export type InvoiceRoundingMode = 'floor' | 'round' | 'ceil';
+export type InvoiceTaxCategory = 'standard10' | 'reduced8' | 'exempt';
+export type InvoiceSourceKind = 'booking_confirmation' | 'direct_booking' | 'imported' | 'manual';
+
+export interface HostInvoiceSettings {
+  userId: number;
+  registrationNumber: string;
+  issuerName: string;
+  issuerAddress: string;
+  issuerPhone?: string;
+  issuerEmail?: string;
+  bankInfo?: string;
+  invoicePrefix: string;
+  roundingMode: InvoiceRoundingMode;
+  defaultTaxCategory: InvoiceTaxCategory;
+  defaultNotes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface InvoiceLineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  taxCategory: InvoiceTaxCategory;
+}
+
+export interface InvoiceTaxBreakdownRow {
+  taxCategory: InvoiceTaxCategory;
+  taxRate: number;
+  taxInclusiveTotal: number;
+  taxExclusiveTotal: number;
+  taxAmount: number;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNo: string;
+  sequence: number;
+  fiscalYear: number;
+  issuerUserId: number;
+  issuerRegistrationNumber: string;
+  issuerName: string;
+  issuerAddress: string;
+  issuerPhone?: string;
+  issuerEmail?: string;
+  bankInfo?: string;
+  roundingMode: InvoiceRoundingMode;
+  propertyId: string;
+  propertyName: string;
+  propertyAddress: string;
+  sourceKind: InvoiceSourceKind;
+  sourceId?: string;
+  sourceKey?: string;
+  sourceLabel?: string;
+  checkInDate: string;
+  checkOutDate: string;
+  nights: number;
+  customerName: string;
+  customerAddress?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerSource: 'checkin' | 'booking' | 'manual';
+  checkInSubmissionId?: string;
+  issueDate: string;
+  currency: string;
+  lineItems: InvoiceLineItem[];
+  taxBreakdown: InvoiceTaxBreakdownRow[];
+  subtotalTaxExclusive: number;
+  totalTax: number;
+  totalAmount: number;
+  notes?: string;
+  status: 'issued' | 'void';
+  voidedAt?: number | null;
+  voidReason?: string;
+  /** Canonical gcs://bucket/object path of the archived copy. */
+  pdfObjectPath?: string;
+  /** Short-lived signed URL, minted per read — never stored. */
+  pdfUrl?: string;
+  pdfStoredAt?: number | null;
+  createdByUserId: number;
+  createdByName: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** One stay the host could invoice, as GET /invoices/stays returns it. */
+export interface InvoiceCandidate {
+  key: string;
+  sourceKind: InvoiceSourceKind;
+  sourceId: string | null;
+  sourceLabel: string;
+  propertyId: string;
+  propertyName: string;
+  propertyAddress: string;
+  guestName: string | null;
+  checkInDate: string;
+  checkOutDate: string;
+  nights: number;
+  numGuests: number | null;
+  currency: string;
+  roomFee: number;
+  cleaningFee: number;
+  extraFee: number;
+  extraFeeLabel?: string;
+  discountAmount: number;
+  discountLabel?: string;
+  totalAmount: number;
+  reference: string | null;
+  checkIn: {
+    submissionId: string;
+    fullName: string;
+    address: string;
+    nationality: string;
+    contactInfo?: string;
+    guestCount: number;
+  } | null;
+  existingInvoice: { id: string; invoiceNo: string; issueDate: string } | null;
+}

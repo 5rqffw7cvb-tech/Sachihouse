@@ -29,6 +29,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const CheckInPage = lazy(() => import('./pages/CheckInPage'));
 const CheckInManagementPage = lazy(() => import('./pages/CheckInManagementPage'));
 const FinancePage = lazy(() => import('./pages/FinancePage'));
+const InvoicePage = lazy(() => import('./pages/InvoicePage'));
 const UploadReceiptPage = lazy(() => import('./pages/UploadReceiptPage'));
 const BecomeHostPage = lazy(() => import('./pages/BecomeHostPage'));
 const ServicesAdminPage = lazy(() => import('./pages/ServicesAdminPage'));
@@ -606,6 +607,7 @@ const App: React.FC = () => {
                         <Route path="/admin/properties" element={<ProtectedRoute><Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><PropertyAdminListPage /></Suspense></ProtectedRoute>} />
                         <Route path="/admin/checkin-management" element={<ProtectedRoute><Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><CheckInManagementPage /></Suspense></ProtectedRoute>} />
                         <Route path="/admin/finance" element={<ProtectedRoute><Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><FinancePage /></Suspense></ProtectedRoute>} />
+                        <Route path="/admin/invoices" element={<ProtectedRoute><Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><InvoicePage /></Suspense></ProtectedRoute>} />
                         <Route path="/admin/upload-receipt" element={<ProtectedRoute><Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><UploadReceiptPage /></Suspense></ProtectedRoute>} />
                         <Route path="/admin/booking-confirm" element={<ProtectedRoute><Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BookingConfirmHistoryPage /></Suspense></ProtectedRoute>} />
                         <Route path="/admin/booking-confirm/new" element={<ProtectedRoute><Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}><BookingConfirmPage /></Suspense></ProtectedRoute>} />

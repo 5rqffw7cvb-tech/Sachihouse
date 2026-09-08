@@ -9,6 +9,7 @@ import {
   Lock,
   Newspaper,
   Receipt,
+  ReceiptJapaneseYen,
   Tag,
   Ticket,
   Users,
@@ -42,6 +43,7 @@ export type AdminNavKey =
   | 'checkins'
   | 'bookingConfirm'
   | 'finance'
+  | 'invoices'
   | 'receipts'
   | 'users'
   | 'coupons'
@@ -153,6 +155,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       title: 'Finance',
       items: [
         { key: 'finance', to: '/admin/finance', label: t('common_admin_finance'), Icon: Wallet, access: 'finance' },
+        { key: 'invoices', to: '/admin/invoices', label: 'Invoices', Icon: ReceiptJapaneseYen, access: 'finance' },
         { key: 'receipts', to: '/admin/upload-receipt', label: 'Upload Receipt', Icon: Receipt, access: 'finance' },
       ],
     },

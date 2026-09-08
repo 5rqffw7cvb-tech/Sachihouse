@@ -34,10 +34,21 @@ import {
   SubscriptionRequestStatus,
   HostPlanCode,
   BillingCycle,
+  HostInvoiceSettings,
+  HostInvoiceSettingsInput,
+  Invoice,
+  InvoiceInput,
+  InvoiceListFilters,
 } from './types.js';
 import { Role } from '../types/domain.js';
 import { generateBookingId, generateGuestToken, getStayDates } from '../domain/booking.js';
 import { normalizeCouponCode } from '../domain/coupon.js';
+import {
+  buildInvoiceNo,
+  computeInvoiceTotals,
+  generateInvoiceId,
+  invoiceSourceKey,
+} from '../domain/invoice.js';
 
 interface MemoryState {
   users: StoredUser[];
@@ -60,6 +71,11 @@ interface MemoryState {
   cleaningCalendarToken: string | null;
   // Persisted iCal-imported reservations, keyed by "<propertyId>|<externalId>".
   importedEvents: Map<string, ImportedEvent>;
+  hostInvoiceSettings: Map<number, HostInvoiceSettings>;
+  invoices: Invoice[];
+  // "<issuerUserId>|<year>" -> last number handed out, standing in for the
+  // invoice_sequences row the SQL store locks.
+  invoiceSequences: Map<string, number>;
 }
 
 export class MemoryStore implements DataStore {
@@ -88,6 +104,9 @@ export class MemoryStore implements DataStore {
       ingestRules: [],
       cleaningCalendarToken: null,
       importedEvents: new Map(),
+      hostInvoiceSettings: new Map(),
+      invoices: [],
+      invoiceSequences: new Map(),
     };
   }
 
@@ -1263,5 +1282,132 @@ export class MemoryStore implements DataStore {
     const before = state.ingestRules.length;
     state.ingestRules = state.ingestRules.filter((r) => r.email !== normalized);
     return state.ingestRules.length < before;
+  }
+
+  async getHostInvoiceSettings(userId: number): Promise<HostInvoiceSettings | null> {
+    const found = this.assertState().hostInvoiceSettings.get(userId);
+    return found ? structuredClone(found) : null;
+  }
+
+  async saveHostInvoiceSettings(userId: number, input: HostInvoiceSettingsInput): Promise<HostInvoiceSettings> {
+    const state = this.assertState();
+    const now = Date.now();
+    const existing = state.hostInvoiceSettings.get(userId);
+    const next: HostInvoiceSettings = {
+      userId,
+      registrationNumber: input.registrationNumber,
+      issuerName: input.issuerName,
+      issuerAddress: input.issuerAddress,
+      issuerPhone: input.issuerPhone,
+      issuerEmail: input.issuerEmail,
+      bankInfo: input.bankInfo,
+      invoicePrefix: input.invoicePrefix ?? existing?.invoicePrefix ?? 'INV',
+      roundingMode: input.roundingMode ?? existing?.roundingMode ?? 'floor',
+      defaultTaxCategory: input.defaultTaxCategory ?? existing?.defaultTaxCategory ?? 'standard10',
+      defaultNotes: input.defaultNotes,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    state.hostInvoiceSettings.set(userId, next);
+    return structuredClone(next);
+  }
+
+  async createInvoice(input: InvoiceInput): Promise<Invoice> {
+    const state = this.assertState();
+    const now = Date.now();
+    const fiscalYear = Number(input.issueDate.slice(0, 4)) || new Date(now).getFullYear();
+    const sequenceKey = `${input.issuerUserId}|${fiscalYear}`;
+    const sequence = (state.invoiceSequences.get(sequenceKey) ?? 0) + 1;
+    state.invoiceSequences.set(sequenceKey, sequence);
+
+    const totals = computeInvoiceTotals(input.lineItems, input.roundingMode);
+    const invoice: Invoice = {
+      id: generateInvoiceId(),
+      invoiceNo: buildInvoiceNo(input.invoicePrefix, fiscalYear, sequence),
+      sequence,
+      fiscalYear,
+      issuerUserId: input.issuerUserId,
+      issuerRegistrationNumber: input.issuerRegistrationNumber,
+      issuerName: input.issuerName,
+      issuerAddress: input.issuerAddress,
+      issuerPhone: input.issuerPhone,
+      issuerEmail: input.issuerEmail,
+      bankInfo: input.bankInfo,
+      roundingMode: input.roundingMode,
+      propertyId: input.propertyId,
+      propertyName: input.propertyName,
+      propertyAddress: input.propertyAddress,
+      sourceKind: input.sourceKind,
+      sourceId: input.sourceId,
+      sourceKey: invoiceSourceKey(input.sourceKind, input.sourceId ?? null) ?? undefined,
+      sourceLabel: input.sourceLabel,
+      checkInDate: input.checkInDate,
+      checkOutDate: input.checkOutDate,
+      nights: input.nights,
+      customerName: input.customerName,
+      customerAddress: input.customerAddress,
+      customerEmail: input.customerEmail,
+      customerPhone: input.customerPhone,
+      customerSource: input.customerSource,
+      checkInSubmissionId: input.checkInSubmissionId,
+      issueDate: input.issueDate,
+      currency: input.currency,
+      lineItems: structuredClone(input.lineItems),
+      taxBreakdown: totals.taxBreakdown,
+      subtotalTaxExclusive: totals.subtotalTaxExclusive,
+      totalTax: totals.totalTax,
+      totalAmount: totals.totalAmount,
+      notes: input.notes,
+      status: 'issued',
+      voidedAt: null,
+      pdfStoredAt: null,
+      createdByUserId: input.createdByUserId,
+      createdByName: input.createdByName,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.invoices.unshift(invoice);
+    return structuredClone(invoice);
+  }
+
+  async listInvoices(filters?: InvoiceListFilters): Promise<Invoice[]> {
+    const state = this.assertState();
+    const rows = state.invoices.filter((row) => {
+      if (filters?.issuerUserId !== undefined && row.issuerUserId !== filters.issuerUserId) return false;
+      if (filters?.propertyId && row.propertyId !== filters.propertyId) return false;
+      if (filters?.propertyIds && !filters.propertyIds.includes(row.propertyId)) return false;
+      if (filters?.fromDate && row.issueDate < filters.fromDate) return false;
+      if (filters?.toDate && row.issueDate > filters.toDate) return false;
+      if (filters?.status && row.status !== filters.status) return false;
+      if (filters?.sourceKey && row.sourceKey !== filters.sourceKey) return false;
+      return true;
+    });
+    return structuredClone(rows.slice().sort((a, b) => b.createdAt - a.createdAt));
+  }
+
+  async getInvoice(id: string): Promise<Invoice | null> {
+    const found = this.assertState().invoices.find((row) => row.id === id);
+    return found ? structuredClone(found) : null;
+  }
+
+  async attachInvoicePdf(id: string, file: { objectPath: string }): Promise<Invoice | null> {
+    const state = this.assertState();
+    const found = state.invoices.find((row) => row.id === id);
+    if (!found) return null;
+    found.pdfObjectPath = file.objectPath;
+    found.pdfStoredAt = Date.now();
+    found.updatedAt = found.pdfStoredAt;
+    return structuredClone(found);
+  }
+
+  async voidInvoice(id: string, reason: string): Promise<Invoice | null> {
+    const state = this.assertState();
+    const found = state.invoices.find((row) => row.id === id);
+    if (!found) return null;
+    found.status = 'void';
+    found.voidReason = reason;
+    found.voidedAt = Date.now();
+    found.updatedAt = found.voidedAt;
+    return structuredClone(found);
   }
 }

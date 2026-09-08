@@ -60,6 +60,15 @@ export class ObjectStorageService {
   private readonly projectId = process.env.GCP_PROJECT_ID;
   private readonly receiptProjectId = process.env.GCP_RECEIPT_PROJECT_ID || process.env.GCP_PROJECT_ID;
   private readonly prefix = process.env.GCS_PREFIX ?? 'checkins';
+  // Issued invoice PDFs. They are financial records with a statutory retention
+  // period, so they get their own bucket when one is configured — a lifecycle
+  // rule that expires receipts must never reach them. Falls back to the receipt
+  // bucket, then the shared one.
+  private readonly invoiceBucketName = process.env.GCS_INVOICE_BUCKET
+    || process.env.GCS_RECEIPT_BUCKET
+    || process.env.GCS_BUCKET
+    || '';
+  private readonly invoiceProjectId = process.env.GCP_INVOICE_PROJECT_ID || process.env.GCP_PROJECT_ID;
   // Public bucket for property media (gallery/room/host images). Unlike receipts,
   // these are shown on the public website, so they need stable public URLs (no
   // signed-URL expiry). The bucket must be world-readable via IAM allUsers.
@@ -75,6 +84,10 @@ export class ObjectStorageService {
   // bucket). Falls back to the shared credentials when no receipt-specific key is set.
   private readonly receiptStorage = this.receiptBucketName
     ? new Storage({ projectId: this.receiptProjectId || undefined, ...ObjectStorageService.receiptCredentialsOption() })
+    : null;
+  // Invoices can use a dedicated SA; falls back to the shared credentials.
+  private readonly invoiceStorage = this.invoiceBucketName
+    ? new Storage({ projectId: this.invoiceProjectId || undefined, ...ObjectStorageService.invoiceCredentialsOption() })
     : null;
   // Public media can use a dedicated SA; falls back to the shared credentials.
   private readonly publicStorage = this.publicBucketName
@@ -114,6 +127,14 @@ export class ObjectStorageService {
     return dedicated.credentials ? dedicated : ObjectStorageService.credentialsOption();
   }
 
+  private static invoiceCredentialsOption(): { credentials?: object } {
+    const dedicated = ObjectStorageService.parseCredentials(
+      process.env.GCP_INVOICE_SERVICE_ACCOUNT_JSON,
+      process.env.GCP_INVOICE_SERVICE_ACCOUNT_JSON_B64,
+    );
+    return dedicated.credentials ? dedicated : ObjectStorageService.credentialsOption();
+  }
+
   private static publicCredentialsOption(): { credentials?: object } {
     const dedicated = ObjectStorageService.parseCredentials(
       process.env.GCP_PUBLIC_SERVICE_ACCOUNT_JSON,
@@ -125,6 +146,12 @@ export class ObjectStorageService {
   // Choose the right Storage client for a bucket: receipt objects must be
   // signed/deleted with the receipt credentials so the resulting URL is authorized.
   private clientForBucket(bucketName: string): Storage | null {
+    // Invoices first: their bucket may be the same name as the receipt bucket,
+    // but when a dedicated invoice service account exists it is the one whose
+    // signature the object will accept.
+    if (bucketName === this.invoiceBucketName && this.invoiceStorage) {
+      return this.invoiceStorage;
+    }
     if (bucketName === this.receiptBucketName && this.receiptStorage) {
       return this.receiptStorage;
     }
@@ -374,6 +401,61 @@ export class ObjectStorageService {
       evidenceUrl: `gcs://${this.bucketName}/${objectName}`,
       mimeType: params.mimeType,
       sizeBytes: params.imageBuffer.length,
+    };
+  }
+
+
+  /** Whether issued invoice PDFs can be archived at all. False means the host
+   *  keeps only the copy their browser downloaded. */
+  get invoiceArchiveEnabled(): boolean {
+    return Boolean(this.invoiceStorage && this.invoiceBucketName);
+  }
+
+  /**
+   * Archives an issued invoice PDF, unmodified.
+   *
+   * No compression, unlike every other upload here: this is the 写し a qualified
+   * invoice issuer is required to keep, and it has to be byte-identical to what
+   * the guest received.
+   *
+   * The object path carries the issuer and the fiscal year because that is how
+   * an accountant asks for them — "everything I issued in 2026" — and a bucket
+   * prefix answers that without a database.
+   */
+  async uploadInvoicePdf(params: {
+    pdfBuffer: Buffer;
+    issuerUserId: number;
+    fiscalYear: number;
+    invoiceNo: string;
+    fileNameHint?: string;
+  }): Promise<{ objectPath: string; sizeBytes: number }> {
+    const safeNo = toSafeSegment(params.invoiceNo);
+    const safeHint = params.fileNameHint
+      ? `_${toSafeSegment(params.fileNameHint.replace(/\.pdf$/i, ''))}`
+      : '';
+    const objectName =
+      `invoices/${params.issuerUserId}/${params.fiscalYear}/${safeNo}${safeHint}.pdf`;
+
+    if (!this.invoiceStorage || !this.invoiceBucketName) {
+      throw new Error('No invoice bucket is configured on this server.');
+    }
+
+    const file = this.invoiceStorage.bucket(this.invoiceBucketName).file(objectName);
+
+    await file.save(params.pdfBuffer, {
+      contentType: 'application/pdf',
+      resumable: false,
+      metadata: {
+        cacheControl: 'private, max-age=0, no-store',
+        // Reissuing under the same number would otherwise silently replace the
+        // copy that was already handed to a guest.
+        metadata: { invoiceNo: params.invoiceNo, issuerUserId: String(params.issuerUserId) },
+      },
+    });
+
+    return {
+      objectPath: `gcs://${this.invoiceBucketName}/${objectName}`,
+      sizeBytes: params.pdfBuffer.length,
     };
   }
 

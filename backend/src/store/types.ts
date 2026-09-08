@@ -664,6 +664,192 @@ export interface IngestRule {
   updatedAt: number;
 }
 
+// ---------------------------------------------------------------------------
+// Qualified invoices (適格請求書 / インボイス制度)
+// ---------------------------------------------------------------------------
+
+// How a host rounds the consumption tax on each rate's subtotal. The NTA lets
+// the issuer pick, but requires the choice to be applied consistently, so it
+// is a saved preference rather than a per-invoice toggle.
+export type InvoiceRoundingMode = 'floor' | 'round' | 'ceil';
+
+// 10% standard, 8% 軽減税率, and 対象外 for things like the Tokyo 宿泊税 that
+// appear on the bill but carry no consumption tax.
+export type InvoiceTaxCategory = 'standard10' | 'reduced8' | 'exempt';
+
+// The issuer half of every invoice this host raises. Held per user because a
+// registration number is issued to a business, and a host runs their own —
+// two hosts sharing one property still invoice under their own numbers.
+export interface HostInvoiceSettings {
+  userId: number;
+  registrationNumber: string;   // T + 13 digits (適格請求書発行事業者登録番号)
+  issuerName: string;           // 法人名 or 屋号
+  issuerAddress: string;
+  issuerPhone?: string;
+  issuerEmail?: string;
+  // Free text printed under the totals — usually 振込先 bank details.
+  bankInfo?: string;
+  // Leading segment of the invoice number, e.g. 'INV' → INV-2026-0001.
+  invoicePrefix: string;
+  roundingMode: InvoiceRoundingMode;
+  defaultTaxCategory: InvoiceTaxCategory;
+  // Default 備考 text, pre-filled into every new invoice.
+  defaultNotes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface HostInvoiceSettingsInput {
+  registrationNumber: string;
+  issuerName: string;
+  issuerAddress: string;
+  issuerPhone?: string;
+  issuerEmail?: string;
+  bankInfo?: string;
+  invoicePrefix?: string;
+  roundingMode?: InvoiceRoundingMode;
+  defaultTaxCategory?: InvoiceTaxCategory;
+  defaultNotes?: string;
+}
+
+// One printed line. `amount` is tax-inclusive and authoritative — quantity and
+// unitPrice are what the host typed, but a host who overrides the total (an
+// agreed price that is not quantity × rate) must not have it recomputed.
+export interface InvoiceLineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+  taxCategory: InvoiceTaxCategory;
+}
+
+// One row of the per-rate table an invoice is legally required to print.
+export interface InvoiceTaxBreakdownRow {
+  taxCategory: InvoiceTaxCategory;
+  taxRate: number;              // 0.1 | 0.08 | 0
+  taxInclusiveTotal: number;    // 税率ごとに区分した対価の額（税込）
+  taxExclusiveTotal: number;
+  taxAmount: number;            // 税率ごとに区分した消費税額等
+}
+
+// Where the stay an invoice was raised against came from. 'imported' covers
+// OTA stays pulled in over iCal, which carry neither a guest name nor a price
+// — the host supplies both, which is why they are still invoiceable here.
+export type InvoiceSourceKind = 'booking_confirmation' | 'direct_booking' | 'imported' | 'manual';
+
+export interface Invoice {
+  id: string;
+  invoiceNo: string;            // INV-2026-0001, unique per issuer
+  sequence: number;
+  fiscalYear: number;
+  issuerUserId: number;
+  // Snapshot, not a join. A filed invoice must keep printing the registration
+  // number and address that were on it the day it was issued, even after the
+  // host edits their profile.
+  issuerRegistrationNumber: string;
+  issuerName: string;
+  issuerAddress: string;
+  issuerPhone?: string;
+  issuerEmail?: string;
+  bankInfo?: string;
+  roundingMode: InvoiceRoundingMode;
+
+  propertyId: string;
+  propertyName: string;
+  propertyAddress: string;
+
+  sourceKind: InvoiceSourceKind;
+  sourceId?: string;
+  // "<sourceKind>:<sourceId>" — how a second invoice for the same stay is
+  // spotted before it is issued.
+  sourceKey?: string;
+  sourceLabel?: string;         // channel the stay came through, e.g. "Airbnb"
+
+  checkInDate: string;
+  checkOutDate: string;
+  nights: number;
+
+  // 書類の交付を受ける事業者の氏名又は名称 — the bill-to. Taken from the
+  // check-in form's main guest when one matched, otherwise from the booking.
+  customerName: string;
+  customerAddress?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerSource: 'checkin' | 'booking' | 'manual';
+  checkInSubmissionId?: string;
+
+  issueDate: string;            // YYYY-MM-DD, 発行日
+  currency: string;
+  lineItems: InvoiceLineItem[];
+  taxBreakdown: InvoiceTaxBreakdownRow[];
+  subtotalTaxExclusive: number;
+  totalTax: number;
+  totalAmount: number;
+  notes?: string;
+
+  // Void rather than delete: a qualified invoice that has been handed to a
+  // guest is part of the numbering sequence and a gap in it is an audit finding.
+  status: 'issued' | 'void';
+  voidedAt?: number | null;
+  voidReason?: string;
+
+  // The archived copy in Cloud Storage, as a canonical gcs://bucket/object path.
+  // Absent when no invoice bucket is configured, in which case the only copy is
+  // the one the host's browser downloaded. Never a URL: a signed one expires,
+  // and this is the 写し an issuer is required to keep.
+  pdfObjectPath?: string;
+  pdfStoredAt?: number | null;
+
+  createdByUserId: number;
+  createdByName: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface InvoiceInput {
+  issuerUserId: number;
+  issuerRegistrationNumber: string;
+  issuerName: string;
+  issuerAddress: string;
+  issuerPhone?: string;
+  issuerEmail?: string;
+  bankInfo?: string;
+  roundingMode: InvoiceRoundingMode;
+  invoicePrefix: string;
+  propertyId: string;
+  propertyName: string;
+  propertyAddress: string;
+  sourceKind: InvoiceSourceKind;
+  sourceId?: string;
+  sourceLabel?: string;
+  checkInDate: string;
+  checkOutDate: string;
+  nights: number;
+  customerName: string;
+  customerAddress?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerSource: 'checkin' | 'booking' | 'manual';
+  checkInSubmissionId?: string;
+  issueDate: string;
+  currency: string;
+  lineItems: InvoiceLineItem[];
+  notes?: string;
+  createdByUserId: number;
+  createdByName: string;
+}
+
+export interface InvoiceListFilters {
+  issuerUserId?: number;
+  propertyId?: string;
+  propertyIds?: string[];
+  fromDate?: string;   // filters on issueDate >= fromDate
+  toDate?: string;     // filters on issueDate <= toDate
+  status?: 'issued' | 'void';
+  sourceKey?: string;
+}
+
 export interface DataStore {
   init(): Promise<void>;
   authenticate(email: string, password: string): Promise<AuthUser | null>;
@@ -795,6 +981,22 @@ export interface DataStore {
   // True when the sourceRef already exists in pending or approved transactions
   // (used by the email-receipt ingest webhook to stay idempotent).
   hasFinanceSourceRef(sourceRef: string): Promise<boolean>;
+  // Per-host qualified-invoice issuer profile. Null until the host fills it in;
+  // an invoice cannot be issued before that, because the registration number is
+  // the one thing that makes the document a 適格請求書 at all.
+  getHostInvoiceSettings(userId: number): Promise<HostInvoiceSettings | null>;
+  saveHostInvoiceSettings(userId: number, input: HostInvoiceSettingsInput): Promise<HostInvoiceSettings>;
+  // Issues an invoice, claiming the next number in this issuer's sequence for
+  // the year atomically. Callers must not compute the number themselves — two
+  // hosts hitting "issue" together would otherwise both take the same one.
+  createInvoice(input: InvoiceInput): Promise<Invoice>;
+  listInvoices(filters?: InvoiceListFilters): Promise<Invoice[]>;
+  getInvoice(id: string): Promise<Invoice | null>;
+  // Records where the rendered PDF was archived, once the client has uploaded it.
+  attachInvoicePdf(id: string, file: { objectPath: string }): Promise<Invoice | null>;
+  // Voids rather than deletes: a gap in a qualified-invoice sequence is an
+  // audit finding, so the row stays and is marked instead.
+  voidInvoice(id: string, reason: string): Promise<Invoice | null>;
   listIngestRules(): Promise<IngestRule[]>;
   upsertIngestRule(email: string, propertyId: string, actor: AuthUser): Promise<IngestRule>;
   deleteIngestRule(email: string, actor: AuthUser): Promise<boolean>;
