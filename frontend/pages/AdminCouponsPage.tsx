@@ -5,6 +5,7 @@ import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { AdminShell } from '../components/AdminShell';
 import { Alert, Button } from '../components/ui';
 import { createCoupon, deleteCoupon, listCoupons, updateCoupon } from '../services/coupons';
+import { normalizeCouponCode, validateCouponDraft } from '../utils/couponDraft';
 import { getAllProperties } from '../services/storage';
 import { Coupon, PropertyData } from '../types';
 
@@ -35,21 +36,6 @@ const emptyForm = (): CouponFormState => {
     propertyIds: [],
   };
 };
-
-// Mirrors the backend's validation in POST/PUT /api/coupons so the admin
-// sees the problem immediately instead of round-tripping to find out.
-function validateForm(form: CouponFormState): string | null {
-  if (!form.code.trim()) return 'Coupon code is required.';
-  if (!Number.isInteger(form.value)) return 'Coupon value must be a whole number.';
-  if (form.type === 'percentage' && (form.value < 1 || form.value > 100)) {
-    return 'A percentage coupon value must be between 1 and 100.';
-  }
-  if (form.type === 'fixed_night' && form.value < 0) {
-    return 'A fixed-night coupon value cannot be negative.';
-  }
-  if (form.startDate > form.endDate) return 'Start date must be on or before the end date.';
-  return null;
-}
 
 const AdminCouponsPage: React.FC = () => {
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
@@ -145,7 +131,21 @@ const AdminCouponsPage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    const validationError = validateForm(form);
+    // Shared with the host app's CouponSheet and tested in utils/couponDraft,
+    // rather than a second hand-written copy of the backend's rules. Editing a
+    // coupon must not clash with its own code, so it is left out of the taken
+    // set.
+    const validationError = validateCouponDraft(
+      {
+        code: form.code,
+        type: form.type,
+        value: String(form.value),
+        startDate: form.startDate,
+        endDate: form.endDate,
+        propertyIds: form.propertyIds,
+      },
+      coupons.filter((coupon) => coupon.id !== editingId).map((coupon) => coupon.code),
+    );
     if (validationError) {
       setFormError(validationError);
       return;
@@ -153,7 +153,7 @@ const AdminCouponsPage: React.FC = () => {
     setSaving(true);
     setFormError(null);
     const payload = {
-      code: form.code.trim().toUpperCase(),
+      code: normalizeCouponCode(form.code),
       type: form.type,
       value: form.value,
       startDate: form.startDate,
@@ -252,7 +252,10 @@ const AdminCouponsPage: React.FC = () => {
                       <td className="px-4 py-4 text-ink-soft whitespace-nowrap">{coupon.startDate} → {coupon.endDate}</td>
                       <td className="px-4 py-4 text-ink-soft max-w-[280px]">
                         {coupon.propertyIds.length === 0 ? (
-                          <span className="text-ink-muted">Not assigned yet</span>
+                          <span className="inline-flex items-center gap-1.5 text-warn font-semibold">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            Unassigned — cannot be redeemed
+                          </span>
                         ) : (
                           <>
                             <span className="font-semibold text-ink">{coupon.propertyIds.length}</span>{' '}
@@ -372,6 +375,10 @@ const AdminCouponsPage: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">Assigned properties</label>
+              <p className="-mt-1 mb-2 text-xs text-ink-muted leading-snug">
+                A code is only accepted on the properties ticked here, so one with none can never be
+                redeemed. Pick at least one.
+              </p>
               {properties.length === 0 ? (
                 <p className="text-sm text-ink-muted">No properties available.</p>
               ) : (
