@@ -3,7 +3,7 @@ import cors from 'cors';
 import express, { NextFunction, Request, RequestHandler, Response } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { addDays, format, isValid, parseISO } from 'date-fns';
+import { addDays, format, isValid, parseISO, subMonths } from 'date-fns';
 import { canAccessProperty, canPerformAction } from './domain/authorization.js';
 import { calculateQuote } from './domain/pricing.js';
 import { applyCouponToPricing, findApplicableCoupon, normalizeCouponCode } from './domain/coupon.js';
@@ -4831,7 +4831,10 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   });
 
   /**
-   * Every stay the host could raise an invoice for, newest arrival first.
+   * The stays a host could raise an invoice for, newest arrival first.
+   *
+   * Narrowed to the guest in the house now or gone within the last month — see
+   * isInWindow below for why that is an overlap test rather than a check-in one.
    *
    * Three sources are merged. Online bookings are already mirrored into
    * booking_confirmations, so those mirrors are matched by sourceBookingId and
@@ -4847,12 +4850,24 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       return res.status(403).json({ error: 'Not allowed for this property.' });
     }
 
-    const fromDate = typeof req.query.fromDate === 'string' && isIsoDate(req.query.fromDate)
+    // The window an invoice is actually raised in: the guest is in the house, or
+    // left within the last month. Nobody asks for a 請求書 for a stay that has
+    // not happened yet, and a list led by next spring's bookings buries the one
+    // stay the host is standing in front of.
+    //
+    // Overlap, not check-in date: a guest who arrived two months ago and is
+    // still here is exactly who this is for.
+    const today = toJstDateString(Date.now());
+    const windowStart = typeof req.query.fromDate === 'string' && isIsoDate(req.query.fromDate)
       ? req.query.fromDate
-      : undefined;
-    const toDate = typeof req.query.toDate === 'string' && isIsoDate(req.query.toDate)
+      : format(subMonths(parseISO(today), 1), 'yyyy-MM-dd');
+    const windowEnd = typeof req.query.toDate === 'string' && isIsoDate(req.query.toDate)
       ? req.query.toDate
-      : undefined;
+      : today;
+
+    const isInWindow = (checkInDate: string, checkOutDate: string): boolean => (
+      checkInDate <= windowEnd && checkOutDate >= windowStart
+    );
 
     const properties = await invoicePropertyScope(actor, propertyId);
     const issued = await store.listInvoices({
@@ -4869,13 +4884,11 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
 
     for (const property of properties) {
       const [confirmations, bookings, imported, checkIns] = await Promise.all([
-        store.listBookingConfirmations({ propertyId: property.id, fromDate, toDate }),
-        store.listBookings({
-          propertyId: property.id,
-          statuses: ['confirmed'],
-          fromDate,
-          toDate,
-        }),
+        // No date filter on these two: the store filters on check-in date, which
+        // would drop a long stay that started before the window and is still
+        // running. isInWindow below is the test that matters.
+        store.listBookingConfirmations({ propertyId: property.id }),
+        store.listBookings({ propertyId: property.id, statuses: ['confirmed'] }),
         store.listImportedEvents(property.id),
         store.listCheckInSubmissions({ propertyId: property.id }),
       ]);
@@ -4899,6 +4912,9 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       };
 
       const push = (candidate: Omit<InvoiceCandidate, 'key' | 'nights' | 'checkIn' | 'existingInvoice'>) => {
+        if (!isInWindow(candidate.checkInDate, candidate.checkOutDate)) {
+          return;
+        }
         const key = `${candidate.sourceKind}:${candidate.sourceId ?? `${candidate.propertyId}|${candidate.checkInDate}`}`;
         const existing = candidate.sourceId
           ? invoiceBySourceKey.get(`${candidate.sourceKind}:${candidate.sourceId}`)
@@ -4967,8 +4983,6 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       }
 
       for (const event of imported) {
-        if (fromDate && event.checkInDate < fromDate) continue;
-        if (toDate && event.checkInDate > toDate) continue;
         // OTA feeds strip the guest and never carry money, so both are left at
         // zero for the host to type. The reservation code in the feed's own
         // text is the only handle they have to look the stay up on the platform.

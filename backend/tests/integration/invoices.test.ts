@@ -25,15 +25,20 @@ const SETTINGS = {
   bankInfo: 'みずほ銀行 池袋支店 普通 1234567',
 };
 
-async function seedStay(token: string) {
+/**
+ * A stay inside the invoiceable window: arrived three days ago, leaving
+ * tomorrow. The picker only lists guests in the house or gone within the
+ * month, so a stay seeded in the future would not appear at all.
+ */
+async function seedStay(token: string, overrides: Record<string, unknown> = {}) {
   const payload = {
     propertyName: 'Sachi House Ojima',
     propertyAddress: '1-2-3 Ojima, Koto-ku',
     propertyUrl: 'https://example.com/#/ojima',
     guestName: 'Booking Name',
     numGuests: 2,
-    checkInDate: isoDaysFromNow(40),
-    checkOutDate: isoDaysFromNow(43),
+    checkInDate: isoDaysFromNow(-3),
+    checkOutDate: isoDaysFromNow(1),
     checkInTime: '15:00',
     checkOutTime: '10:00',
     currency: 'JPY',
@@ -45,6 +50,7 @@ async function seedStay(token: string) {
     depositAmount: 0,
     balanceDue: 35000,
     includeInAccounting: true,
+    ...overrides,
   };
   const res = await request(app)
     .post('/api/properties/main/booking-confirmations')
@@ -390,5 +396,85 @@ describe('archiving the PDF', () => {
       .set({ Authorization: `Bearer ${outsider}` })
       .send({ pdfBase64: Buffer.from('%PDF-1.4 fake').toString('base64') })
       .expect(403);
+  });
+});
+
+describe('which stays the picker offers', () => {
+  async function stayKeys(token: string): Promise<string[]> {
+    const res = await request(app)
+      .get('/api/invoices/stays')
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(200);
+    return res.body.stays.map((row: { sourceId: string }) => row.sourceId);
+  }
+
+  it('leaves out a booking that has not started yet', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const future = await seedStay(token, {
+      checkInDate: isoDaysFromNow(40),
+      checkOutDate: isoDaysFromNow(43),
+      guestName: 'Next month',
+    });
+
+    expect(await stayKeys(token)).not.toContain(future.id);
+  });
+
+  it('leaves out a stay that ended more than a month ago', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const old = await seedStay(token, {
+      checkInDate: isoDaysFromNow(-70),
+      checkOutDate: isoDaysFromNow(-67),
+      guestName: 'Long gone',
+    });
+
+    expect(await stayKeys(token)).not.toContain(old.id);
+  });
+
+  it('keeps a guest who is in the house right now', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const current = await seedStay(token, { guestName: 'In the house' });
+
+    expect(await stayKeys(token)).toContain(current.id);
+  });
+
+  it('keeps a guest who checked out within the month', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const recent = await seedStay(token, {
+      checkInDate: isoDaysFromNow(-20),
+      checkOutDate: isoDaysFromNow(-18),
+      guestName: 'Just left',
+    });
+
+    expect(await stayKeys(token)).toContain(recent.id);
+  });
+
+  it('keeps a long stay that began before the window and is still running', async () => {
+    // The reason the window is an overlap test rather than a check-in one: this
+    // guest arrived two months ago and is standing at the desk today.
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const long = await seedStay(token, {
+      checkInDate: isoDaysFromNow(-60),
+      checkOutDate: isoDaysFromNow(5),
+      guestName: 'Still here',
+    });
+
+    expect(await stayKeys(token)).toContain(long.id);
+  });
+
+  it('lists the newest arrival first', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const older = await seedStay(token, {
+      checkInDate: isoDaysFromNow(-20),
+      checkOutDate: isoDaysFromNow(-18),
+      guestName: 'Older',
+    });
+    const newer = await seedStay(token, {
+      checkInDate: isoDaysFromNow(-6),
+      checkOutDate: isoDaysFromNow(-5),
+      guestName: 'Newer',
+    });
+
+    const keys = await stayKeys(token);
+    expect(keys.indexOf(newer.id)).toBeLessThan(keys.indexOf(older.id));
   });
 });
