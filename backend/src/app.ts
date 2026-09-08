@@ -781,9 +781,10 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
 
   app.use(cors());
   app.use(helmet());
-  // Most endpoints take small JSON. Check-in OCR and submit carry ID images
-  // (submit may bundle several guests' images, since upload is deferred to confirm),
-  // so those two paths get a larger body limit.
+  // Most endpoints take small JSON. A handful carry a rasterized document or a
+  // batch of ID photos and get a larger body limit. Getting a route onto the
+  // wrong list is not a tidy 413: body-parser aborts the upload mid-stream and
+  // the phone reports a bare "Load failed".
   const standardJson = express.json({ limit: '2mb' });
   const imageJson = express.json({ limit: '30mb' });
   // Stripe signs the exact bytes it sent. Parsing the webhook body as JSON first
@@ -801,6 +802,8 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       || req.path.endsWith('/finance/receipts/upload')
       || req.path.endsWith('/finance/ingest/email-receipt')
       || /\/booking-confirmations\/[^/]+\/email$/.test(req.path)
+      // A rasterized A4 invoice runs past 2mb once base64 has added its third.
+      || /\/invoices\/[^/]+\/pdf$/.test(req.path)
       || /\/properties\/[^/]+\/images$/.test(req.path);
     return (isImageRoute ? imageJson : standardJson)(req, res, next);
   });
