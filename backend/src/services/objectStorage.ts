@@ -412,6 +412,17 @@ export class ObjectStorageService {
   }
 
   /**
+   * The bucket invoices are filed into, or null when none resolved.
+   *
+   * Surfaced to the console because the alternative is asking someone to read
+   * deployment variables to answer "did my setting take effect?". A bucket name
+   * is not a secret, and the screen that shows it is level-4 only.
+   */
+  get invoiceBucket(): string | null {
+    return this.invoiceBucketName || null;
+  }
+
+  /**
    * Archives an issued invoice PDF, unmodified.
    *
    * No compression, unlike every other upload here: this is the 写し a qualified

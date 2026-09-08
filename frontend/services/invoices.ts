@@ -21,6 +21,9 @@ export interface InvoiceSettingsResponse {
   /** False when no invoice bucket is configured — the host's download is then
    *  the only copy, and the UI has to say so. */
   archiveConfigured: boolean;
+  /** The bucket the server resolved, shown so "did my env var take effect?" is
+   *  answerable from the screen rather than from deployment variables. */
+  archiveBucket: string | null;
 }
 
 export async function getInvoiceSettings(): Promise<InvoiceSettingsResponse> {

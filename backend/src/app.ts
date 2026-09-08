@@ -4788,6 +4788,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       // The client cannot see the server's env, and "is a copy kept for me or
       // is my download the only one?" changes what the issue screen should say.
       archiveConfigured: objectStorage.invoiceArchiveEnabled,
+      archiveBucket: objectStorage.invoiceBucket,
     });
   });
 
@@ -4830,7 +4831,11 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       defaultNotes: String(body.defaultNotes ?? '').trim() || undefined,
     });
 
-    return res.json({ settings, archiveConfigured: objectStorage.invoiceArchiveEnabled });
+    return res.json({
+      settings,
+      archiveConfigured: objectStorage.invoiceArchiveEnabled,
+      archiveBucket: objectStorage.invoiceBucket,
+    });
   });
 
   /**

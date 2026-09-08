@@ -70,6 +70,7 @@ const InvoicePage: React.FC = () => {
   const [candidates, setCandidates] = useState<InvoiceCandidate[]>([]);
   const [settings, setSettings] = useState<HostInvoiceSettings | null>(null);
   const [archiveConfigured, setArchiveConfigured] = useState(false);
+  const [archiveBucket, setArchiveBucket] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
   // Hard delete is administrators only — see the route. A level-4 host gets
@@ -92,6 +93,7 @@ const InvoicePage: React.FC = () => {
       setCandidates(stays);
       setSettings(settingsResponse.settings);
       setArchiveConfigured(settingsResponse.archiveConfigured);
+      setArchiveBucket(settingsResponse.archiveBucket);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load invoices.');
@@ -350,7 +352,7 @@ const InvoicePage: React.FC = () => {
             <span className="flex flex-col">
               <span className="text-[11px] font-bold uppercase tracking-wide text-ink-muted">控えの保存</span>
               <span className={archiveConfigured ? 'text-ok' : 'text-ink-muted'}>
-                {archiveConfigured ? 'Archived to Cloud Storage' : 'Download only'}
+                {archiveConfigured ? archiveBucket ?? 'Archived to Cloud Storage' : 'Download only'}
               </span>
             </span>
           </div>

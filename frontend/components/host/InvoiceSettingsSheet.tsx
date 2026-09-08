@@ -42,6 +42,7 @@ export const InvoiceSettingsSheet: React.FC<InvoiceSettingsSheetProps> = ({ onCl
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [archiveConfigured, setArchiveConfigured] = useState(false);
+  const [archiveBucket, setArchiveBucket] = useState<string | null>(null);
 
   const [registrationNumber, setRegistrationNumber] = useState('');
   const [issuerName, setIssuerName] = useState('');
@@ -56,9 +57,10 @@ export const InvoiceSettingsSheet: React.FC<InvoiceSettingsSheetProps> = ({ onCl
   useEffect(() => {
     let cancelled = false;
     getInvoiceSettings()
-      .then(({ settings, archiveConfigured: archive }) => {
+      .then(({ settings, archiveConfigured: archive, archiveBucket: bucket }) => {
         if (cancelled) return;
         setArchiveConfigured(archive);
+        setArchiveBucket(bucket);
         if (settings) {
           setRegistrationNumber(settings.registrationNumber);
           setIssuerName(settings.issuerName);
@@ -272,7 +274,7 @@ export const InvoiceSettingsSheet: React.FC<InvoiceSettingsSheetProps> = ({ onCl
               </span>
               <span className="block text-[13px] text-ink-soft leading-snug">
                 {archiveConfigured
-                  ? 'Issued PDFs are kept in Cloud Storage as well as downloaded to your phone.'
+                  ? `Issued PDFs are kept in ${archiveBucket} as well as downloaded to your phone.`
                   : 'No archive bucket on this server — your download is the only copy, so keep it somewhere safe.'}
               </span>
             </div>
