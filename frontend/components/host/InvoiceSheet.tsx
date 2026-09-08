@@ -54,8 +54,12 @@ import { InvoiceSettingsSheet } from './InvoiceSettingsSheet';
  *    without costing the host the document.
  */
 
+// min-w-0 and max-w-full are not decoration. An <input> carries an intrinsic
+// min-content width of about twenty characters, and a date input on iOS is
+// wider still; inside a flex row that width wins over `w-full` and pushes the
+// sheet past the screen edge.
 const fieldClass =
-  'w-full h-12 px-3.5 rounded-control bg-subtle border border-line text-[16px] text-ink ' +
+  'w-full min-w-0 max-w-full h-12 px-3.5 rounded-control bg-subtle border border-line text-[16px] text-ink ' +
   'placeholder:text-ink-muted focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15';
 const labelClass = 'block text-[12px] font-semibold uppercase tracking-wide text-ink-soft mb-1.5';
 
@@ -454,7 +458,11 @@ export const InvoiceSheet: React.FC<InvoiceSheetProps> = ({ properties, onClose 
             type="date"
             value={draft.issueDate}
             onChange={(event) => patchDraft({ issueDate: event.target.value })}
-            className={fieldClass}
+            // appearance-none on top of the shared class: iOS sizes a native
+            // date control from its own chrome and ignores the declared width,
+            // which is what dragged this sheet sideways. Tapping still opens
+            // the system picker.
+            className={`${fieldClass} appearance-none`}
           />
         </label>
 
@@ -479,13 +487,13 @@ export const InvoiceSheet: React.FC<InvoiceSheetProps> = ({ properties, onClose 
                     patchLine(line.key, { amount, unitPrice: amount, quantity: 1 });
                   }}
                   inputMode="numeric"
-                  className={`${fieldClass} h-11 flex-1 bg-surface tabular-nums`}
+                  className={`${fieldClass} h-11 flex-1 min-w-0 bg-surface tabular-nums`}
                   placeholder="0"
                 />
                 <select
                   value={line.taxCategory}
                   onChange={(event) => patchLine(line.key, { taxCategory: event.target.value as InvoiceTaxCategory })}
-                  className={`${fieldClass} h-11 w-[132px] pr-7 bg-surface text-[14px]`}
+                  className={`${fieldClass} h-11 w-[118px] shrink-0 pr-7 bg-surface text-[13px]`}
                 >
                   {TAX_CATEGORY_ORDER.map((category) => (
                     <option key={category} value={category}>{TAX_CATEGORY_LABELS[category].ja}</option>
@@ -530,12 +538,12 @@ export const InvoiceSheet: React.FC<InvoiceSheetProps> = ({ properties, onClose 
             so it is shown before issuing rather than only on the PDF. */}
         <div className="bg-subtle border border-line rounded-card px-4 py-1">
           {totals.taxBreakdown.map((row) => (
-            <div key={row.taxCategory} className="flex items-center justify-between py-2 border-b border-line">
-              <span className="text-[13px] text-ink-soft">
+            <div key={row.taxCategory} className="flex items-center justify-between gap-2 py-2 border-b border-line">
+              <span className="min-w-0 flex-1 text-[13px] text-ink-soft">
                 {TAX_CATEGORY_LABELS[row.taxCategory].ja}
                 <span className="text-ink-muted"> · 消費税 {formatYen(row.taxAmount, draft.candidate.currency)}</span>
               </span>
-              <span className="text-[14px] text-ink tabular-nums">
+              <span className="shrink-0 text-[14px] text-ink tabular-nums">
                 {formatYen(row.taxInclusiveTotal, draft.candidate.currency)}
               </span>
             </div>
@@ -576,7 +584,12 @@ export const InvoiceSheet: React.FC<InvoiceSheetProps> = ({ properties, onClose 
         role="presentation"
       >
         <div
-          className="w-full bg-surface rounded-t-[24px] max-h-[92dvh] overflow-y-auto animate-dialog-panel"
+          // overflow-x-hidden is load-bearing, not belt-and-braces: Tailwind's
+          // overflow-y-auto leaves overflow-x at `visible`, which the spec then
+          // computes to `auto` — so anything a pixel too wide turns the whole
+          // sheet into a horizontal scroller under the guest's thumb.
+          className="w-full bg-surface rounded-t-[24px] max-h-[92dvh] overflow-y-auto overflow-x-hidden
+            animate-dialog-panel"
           style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
           onClick={(event) => event.stopPropagation()}
           role="dialog"

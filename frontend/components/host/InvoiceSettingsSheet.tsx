@@ -14,8 +14,10 @@ import { HostInvoiceSettings, InvoiceRoundingMode } from '../../types';
  * correct their own without an administrator in the loop.
  */
 
+// See InvoiceSheet: `w-full` alone loses to an input's intrinsic min-content
+// width, and the sheet starts scrolling sideways.
 const fieldClass =
-  'w-full h-12 px-3.5 rounded-control bg-subtle border border-line text-[16px] text-ink ' +
+  'w-full min-w-0 max-w-full h-12 px-3.5 rounded-control bg-subtle border border-line text-[16px] text-ink ' +
   'placeholder:text-ink-muted focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15';
 const labelClass = 'block text-[12px] font-semibold uppercase tracking-wide text-ink-soft mb-1.5';
 
@@ -110,7 +112,12 @@ export const InvoiceSettingsSheet: React.FC<InvoiceSettingsSheetProps> = ({ onCl
       role="presentation"
     >
       <div
-        className="w-full bg-surface rounded-t-[24px] max-h-[92dvh] overflow-y-auto animate-dialog-panel"
+        // overflow-x-hidden is load-bearing, not belt-and-braces: Tailwind's
+        // overflow-y-auto leaves overflow-x at `visible`, which the spec then
+        // computes to `auto` — so anything a pixel too wide turns the whole
+        // sheet into a horizontal scroller under the guest's thumb.
+        className="w-full bg-surface rounded-t-[24px] max-h-[92dvh] overflow-y-auto overflow-x-hidden
+          animate-dialog-panel"
         style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
