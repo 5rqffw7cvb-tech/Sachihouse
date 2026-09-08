@@ -516,6 +516,43 @@ export class ObjectStorageService {
     return value;
   }
 
+
+  /**
+   * Removes an archived invoice PDF — every version of it.
+   *
+   * Two reasons this is not deleteEvidenceObject. First, `file.delete()` on a
+   * bucket with Object Versioning enabled only retires the live generation: the
+   * data stays as a noncurrent version, still stored and still readable. For a
+   * document being deleted precisely because it should never have existed,
+   * "deleted" has to mean every generation.
+   *
+   * Second, this one throws. Evidence cleanup is best-effort, but an invoice
+   * PDF left in the bucket after the row is gone is an orphan nobody will ever
+   * find again, so the caller is told and can say so.
+   */
+  async deleteInvoiceObject(objectPath: string): Promise<void> {
+    const reference = resolveGcsTarget(objectPath);
+    const client = reference ? this.clientForBucket(reference.bucketName) : null;
+    if (!reference || !client) {
+      return;
+    }
+
+    const bucket = client.bucket(reference.bucketName);
+    // Prefix listing, then an exact-name filter: a prefix alone would also
+    // match a sibling whose name merely starts with this one.
+    const [files] = await bucket.getFiles({ prefix: reference.objectName, versions: true });
+    const generations = files.filter((file) => file.name === reference.objectName);
+
+    if (generations.length === 0) {
+      await bucket.file(reference.objectName).delete({ ignoreNotFound: true });
+      return;
+    }
+
+    for (const generation of generations) {
+      await generation.delete({ ignoreNotFound: true });
+    }
+  }
+
   async deleteEvidenceObject(evidenceUrl: string): Promise<void> {
     if (!evidenceUrl || evidenceUrl.startsWith('data:')) {
       return;

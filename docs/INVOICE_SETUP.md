@@ -144,3 +144,11 @@ live deployment, most often.
 
 Anything with newer invoices after it cannot be deleted, whoever asks: that
 would leave a hole in the numbering. Void it.
+
+Deleting removes **every version** of the archived PDF, not just the live one —
+with Object Versioning enabled a plain delete would leave the data behind as a
+noncurrent version. If the bucket refuses (a **retention policy** is the usual
+reason: it permits writes but blocks deletes until the period expires), the
+invoice is still deleted and the screen says the file has to be removed by hand.
+That is the trade-off of turning retention on: it is what stops a real invoice
+being erased, and it stops a test one being tidied away too.

@@ -137,8 +137,17 @@ export async function archiveInvoicePdf(id: string, pdfBase64: string): Promise<
  * newest number an issuer has taken — the server refuses the rest with a 409 so
  * the sequence can never be left with a gap. Void is the remedy for those.
  */
-export async function deleteInvoice(id: string): Promise<void> {
-  await apiRequest<void>(`/invoices/${id}`, { method: 'DELETE' });
+export interface DeleteInvoiceResponse {
+  deleted: true;
+  /** False when the bucket refused — a retention policy, most often. The
+   *  invoice is gone either way, so the caller has to surface this or the file
+   *  is left behind with nobody aware of it. */
+  fileRemoved: boolean;
+  fileError?: string;
+}
+
+export async function deleteInvoice(id: string): Promise<DeleteInvoiceResponse> {
+  return apiRequest<DeleteInvoiceResponse>(`/invoices/${id}`, { method: 'DELETE' });
 }
 
 export async function voidInvoice(id: string, reason: string): Promise<Invoice> {

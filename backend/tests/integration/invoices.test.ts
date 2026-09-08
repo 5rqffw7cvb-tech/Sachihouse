@@ -536,10 +536,12 @@ describe('deleting an invoice outright', () => {
     const [first] = await issued(token, 1);
     expect(first.invoiceNo).toMatch(/-0001$/);
 
-    await request(app)
+    const deleted = await request(app)
       .delete(`/api/invoices/${first.id}`)
       .set({ Authorization: `Bearer ${token}` })
-      .expect(204);
+      .expect(200);
+    // Nothing was archived under test, so there was no file to fail on.
+    expect(deleted.body).toMatchObject({ deleted: true, fileRemoved: true });
 
     expect(await request(app)
       .get('/api/invoices')
@@ -567,11 +569,11 @@ describe('deleting an invoice outright', () => {
     await request(app)
       .delete(`/api/invoices/${second.id}`)
       .set({ Authorization: `Bearer ${token}` })
-      .expect(204);
+      .expect(200);
     await request(app)
       .delete(`/api/invoices/${first.id}`)
       .set({ Authorization: `Bearer ${token}` })
-      .expect(204);
+      .expect(200);
   });
 
   it('404s on an invoice that is already gone', async () => {

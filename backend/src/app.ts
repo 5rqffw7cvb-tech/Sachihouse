@@ -5307,16 +5307,27 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       });
     }
 
-    // The row is gone and its number is back; the archived PDF is now an orphan.
-    // Best-effort, and after the fact: a bucket that will not delete is not a
-    // reason to put the invoice back.
+    // The row is gone and its number is back, so the archived PDF is now an
+    // orphan. Awaited and reported rather than fired off and forgotten: a
+    // bucket that refuses the delete — a retention policy is the usual reason —
+    // leaves a file nobody will ever find again, and the person who asked for
+    // the invoice to be deleted is the one who needs to hear about it.
+    let fileRemoved = true;
+    let fileError: string | undefined;
+
     if (result.invoice.pdfObjectPath) {
-      objectStorage.deleteEvidenceObject(result.invoice.pdfObjectPath).catch((error: unknown) => {
+      try {
+        await objectStorage.deleteInvoiceObject(result.invoice.pdfObjectPath);
+      } catch (error) {
+        fileRemoved = false;
+        fileError = error instanceof Error ? error.message : 'The archived PDF could not be removed.';
         console.error(`[invoice] could not remove the archived PDF for ${result.invoice.invoiceNo}`, error);
-      });
+      }
     }
 
-    return res.status(204).end();
+    // The invoice itself is gone either way — the register is what governs the
+    // numbering, and putting the row back to match a stuck file would be worse.
+    return res.json({ deleted: true, fileRemoved, fileError });
   });
 
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {

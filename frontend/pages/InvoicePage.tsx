@@ -213,7 +213,7 @@ const InvoicePage: React.FC = () => {
       `Delete ${invoice.invoiceNo} for good?
 
 `
-      + 'The number goes back into the sequence and the archived PDF is removed. '
+      + 'The number goes back into the sequence and every version of the archived PDF is removed. '
       + 'Do this only for an invoice that was never given to the guest — if they '
       + 'have it, void it instead, because you are required to keep a copy for '
       + 'seven years.',
@@ -221,8 +221,17 @@ const InvoicePage: React.FC = () => {
     if (!confirmed) return;
 
     try {
-      await deleteInvoice(invoice.id);
-      setNotice(`${invoice.invoiceNo} deleted. That number is free again.`);
+      const result = await deleteInvoice(invoice.id);
+      setNotice(result.fileRemoved
+        ? `${invoice.invoiceNo} deleted and its archived PDF removed. That number is free again.`
+        : `${invoice.invoiceNo} deleted. That number is free again.`);
+      if (!result.fileRemoved) {
+        setError(
+          `The archived PDF is still in the bucket and has to be removed by hand: ${
+            result.fileError ?? 'the storage bucket refused the delete.'
+          }`,
+        );
+      }
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not delete the invoice.');
