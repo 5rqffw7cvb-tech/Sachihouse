@@ -38,6 +38,7 @@ import {
   BillingCycle,
   HostInvoiceSettings,
   HostInvoiceSettingsInput,
+  DeleteInvoiceResult,
   Invoice,
   InvoiceInput,
   InvoiceListFilters,
@@ -2423,5 +2424,64 @@ export class PostgresStore implements DataStore {
       [id, JSON.stringify(next), next.status, now],
     );
     return next;
+  }
+
+  /**
+   * Deletes an invoice and gives its number back, in one transaction.
+   *
+   * The sequence row is locked before anything is checked, so an issue running
+   * concurrently cannot take the next number between the check and the delete
+   * and leave the counter pointing at a row that no longer exists.
+   */
+  async deleteInvoice(id: string): Promise<DeleteInvoiceResult> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const found = await client.query<{ data: Invoice }>(
+        'SELECT data FROM invoices WHERE id = $1',
+        [id],
+      );
+      const invoice = found.rows[0]?.data;
+      if (!invoice) {
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'not_found' };
+      }
+
+      const sequence = await client.query<{ last_sequence: number }>(
+        `SELECT last_sequence FROM invoice_sequences
+         WHERE issuer_user_id = $1 AND fiscal_year = $2
+         FOR UPDATE`,
+        [invoice.issuerUserId, invoice.fiscalYear],
+      );
+      const lastSequence = sequence.rows[0]?.last_sequence ?? 0;
+
+      if (invoice.sequence !== lastSequence) {
+        const latest = await client.query<{ invoice_no: string }>(
+          `SELECT invoice_no FROM invoices
+           WHERE issuer_user_id = $1 AND fiscal_year = $2
+           ORDER BY sequence DESC LIMIT 1`,
+          [invoice.issuerUserId, invoice.fiscalYear],
+        );
+        await client.query('ROLLBACK');
+        return { ok: false, reason: 'not_latest', latestInvoiceNo: latest.rows[0]?.invoice_no ?? '' };
+      }
+
+      await client.query('DELETE FROM invoices WHERE id = $1', [id]);
+      await client.query(
+        `UPDATE invoice_sequences SET last_sequence = last_sequence - 1
+         WHERE issuer_user_id = $1 AND fiscal_year = $2`,
+        [invoice.issuerUserId, invoice.fiscalYear],
+      );
+
+      await client.query('COMMIT');
+      return { ok: true, invoice };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

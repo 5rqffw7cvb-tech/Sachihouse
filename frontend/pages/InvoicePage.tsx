@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Ban,
   Download,
+  Trash,
   ExternalLink,
   FileText,
   Plus,
@@ -13,9 +14,11 @@ import { AdminShell } from '../components/AdminShell';
 import { Alert, Badge, Button, Card, EmptyState, Field, Input, Select, Table, Textarea } from '../components/ui';
 import type { Column } from '../components/ui';
 import { ApiError } from '../services/api';
+import { getCurrentUser } from '../services/auth';
 import {
   archiveInvoicePdf,
   createInvoice,
+  deleteInvoice,
   getInvoiceSettings,
   listInvoices,
   listInvoiceStays,
@@ -68,6 +71,10 @@ const InvoicePage: React.FC = () => {
   const [settings, setSettings] = useState<HostInvoiceSettings | null>(null);
   const [archiveConfigured, setArchiveConfigured] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Hard delete is administrators only — see the route. A level-4 host gets
+  // void, which is the right remedy for an invoice a guest already has.
+  const isAdmin = getCurrentUser()?.role === 'ADMIN';
 
   const [draft, setDraft] = useState<InvoiceDraft | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -191,6 +198,35 @@ const InvoicePage: React.FC = () => {
     }
   };
 
+  /**
+   * Removes an invoice and hands its number back.
+   *
+   * For a row created in error and never given to a guest — a test run on a
+   * live deployment, most often. The server only allows the newest number, so
+   * the confirmation says what this actually is rather than pretending it is a
+   * general-purpose delete.
+   */
+  const handleDelete = async (invoice: Invoice) => {
+    const confirmed = window.confirm(
+      `Delete ${invoice.invoiceNo} for good?
+
+`
+      + 'The number goes back into the sequence and the archived PDF is removed. '
+      + 'Do this only for an invoice that was never given to the guest — if they '
+      + 'have it, void it instead, because you are required to keep a copy for '
+      + 'seven years.',
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteInvoice(invoice.id);
+      setNotice(`${invoice.invoiceNo} deleted. That number is free again.`);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not delete the invoice.');
+    }
+  };
+
   const columns: Column<Invoice>[] = [
     {
       header: '請求書番号 No.',
@@ -261,6 +297,15 @@ const InvoicePage: React.FC = () => {
             <Button size="sm" variant="ghost" icon={Ban} onClick={() => { void handleVoid(row); }}>
               Void
             </Button>
+          )}
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={Trash}
+              aria-label={`Delete ${row.invoiceNo}`}
+              onClick={() => { void handleDelete(row); }}
+            />
           )}
         </span>
       ),

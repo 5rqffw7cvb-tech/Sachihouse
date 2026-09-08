@@ -113,5 +113,20 @@ All of them, not only direct bookings:
   feed's own reservation text is shown so they can look the stay up on the platform.
 
 A stay that already has an invoice is badged with its number, and issuing a second
-one takes a deliberate second press. Invoices are **voided, never deleted** — a gap
-in an issued sequence is the first thing an audit asks about.
+one takes a deliberate second press.
+
+## 5. Voiding and deleting
+
+**Void** is the normal remedy, open to any level-4 host. The row stays, marked
+void with a reason, and its number stays in the sequence — a gap in an issued
+sequence is the first thing an audit asks about, and you are required to keep a
+copy of anything a guest actually received for seven years.
+
+**Delete** is administrators only, and the server allows it for one invoice at a
+time: the newest number the issuer has taken. It removes the row, hands the
+number back so the next invoice reuses it, and deletes the archived PDF. It
+exists for a row created in error and never given to a guest — a test run on a
+live deployment, most often.
+
+Anything with newer invoices after it cannot be deleted, whoever asks: that
+would leave a hole in the numbering. Void it.

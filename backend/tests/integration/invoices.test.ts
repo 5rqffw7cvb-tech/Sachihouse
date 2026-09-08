@@ -478,3 +478,107 @@ describe('which stays the picker offers', () => {
     expect(keys.indexOf(newer.id)).toBeLessThan(keys.indexOf(older.id));
   });
 });
+
+describe('deleting an invoice outright', () => {
+  async function issued(token: string, count: number) {
+    await request(app)
+      .put('/api/invoice-settings')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(SETTINGS)
+      .expect(200);
+
+    const invoices = [];
+    for (let i = 0; i < count; i += 1) {
+      const res = await request(app)
+        .post('/api/invoices')
+        .set({ Authorization: `Bearer ${token}` })
+        .send({
+          propertyId: 'main',
+          sourceKind: 'manual',
+          checkInDate: isoDaysFromNow(-3),
+          checkOutDate: isoDaysFromNow(1),
+          customerName: `Guest ${i + 1}`,
+          customerSource: 'manual',
+          lineItems: [
+            { description: '宿泊料金', quantity: 1, unitPrice: 11000, amount: 11000, taxCategory: 'standard10' },
+          ],
+        })
+        .expect(201);
+      invoices.push(res.body.invoice);
+    }
+    return invoices;
+  }
+
+  it('is closed to a level-4 host, who gets void instead', async () => {
+    const admin = await login('admin@sachihouse.com', 'admin123');
+    const [invoice] = await issued(admin, 1);
+
+    const created = await request(app)
+      .post('/api/users')
+      .set({ Authorization: `Bearer ${admin}` })
+      .send({ name: 'L4 Host', email: 'l4@example.com', password: 'password123', role: 'HOST' })
+      .expect(201);
+    await request(app)
+      .put(`/api/users/${created.body.user.id}/host-level`)
+      .set({ Authorization: `Bearer ${admin}` })
+      .send({ hostLevel: 4 })
+      .expect(200);
+
+    const host = await login('l4@example.com', 'password123');
+    await request(app)
+      .delete(`/api/invoices/${invoice.id}`)
+      .set({ Authorization: `Bearer ${host}` })
+      .expect(403);
+  });
+
+  it('hands the number back, so the next invoice reuses it', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const [first] = await issued(token, 1);
+    expect(first.invoiceNo).toMatch(/-0001$/);
+
+    await request(app)
+      .delete(`/api/invoices/${first.id}`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(204);
+
+    expect(await request(app)
+      .get('/api/invoices')
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(200)
+      .then((res) => res.body.invoices)).toHaveLength(0);
+
+    const [again] = await issued(token, 1);
+    expect(again.invoiceNo).toBe(first.invoiceNo);
+  });
+
+  it('refuses to delete anything but the newest, so no gap can open', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const [first, second] = await issued(token, 2);
+
+    const refused = await request(app)
+      .delete(`/api/invoices/${first.id}`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(409);
+
+    expect(refused.body.code).toBe('INVOICE_NOT_LATEST');
+    expect(refused.body.latestInvoiceNo).toBe(second.invoiceNo);
+
+    // Newest first is fine, and then the one below it becomes deletable.
+    await request(app)
+      .delete(`/api/invoices/${second.id}`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(204);
+    await request(app)
+      .delete(`/api/invoices/${first.id}`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(204);
+  });
+
+  it('404s on an invoice that is already gone', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    await request(app)
+      .delete('/api/invoices/INV-does-not-exist')
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(404);
+  });
+});

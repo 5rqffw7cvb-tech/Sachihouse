@@ -5274,6 +5274,46 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return res.json({ invoice: updated });
   });
 
+
+  /**
+   * Removes an invoice outright. Administrators only.
+   *
+   * Void is the normal remedy and stays available to any level-4 host; this is
+   * the narrower one, for a row that was created in error and never handed to a
+   * guest — a test run on a live deployment, most often. An invoice a guest has
+   * actually received carries a seven-year retention duty and must be voided.
+   *
+   * The store refuses anything but the issuer's latest number, so the sequence
+   * cannot end up with a hole in it whatever order these are called in.
+   */
+  app.delete('/api/invoices/:id', requireAuth, requireAdmin, async (req, res) => {
+    const result = await store.deleteInvoice(getParam(req.params.id));
+
+    if (!result.ok && result.reason === 'not_found') {
+      return res.status(404).json({ error: 'Invoice not found.' });
+    }
+    if (!result.ok) {
+      return res.status(409).json({
+        error: result.latestInvoiceNo
+          ? `Only the newest invoice can be deleted — that is ${result.latestInvoiceNo}. Void this one instead, which keeps the numbering intact.`
+          : 'Only the newest invoice can be deleted. Void this one instead.',
+        code: 'INVOICE_NOT_LATEST',
+        latestInvoiceNo: result.latestInvoiceNo,
+      });
+    }
+
+    // The row is gone and its number is back; the archived PDF is now an orphan.
+    // Best-effort, and after the fact: a bucket that will not delete is not a
+    // reason to put the invoice back.
+    if (result.invoice.pdfObjectPath) {
+      objectStorage.deleteEvidenceObject(result.invoice.pdfObjectPath).catch((error: unknown) => {
+        console.error(`[invoice] could not remove the archived PDF for ${result.invoice.invoiceNo}`, error);
+      });
+    }
+
+    return res.status(204).end();
+  });
+
   app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const pgCode = typeof error === 'object' && error && 'code' in error
       ? (error as { code?: string }).code

@@ -129,6 +129,15 @@ export async function archiveInvoicePdf(id: string, pdfBase64: string): Promise<
   return res.invoice;
 }
 
+/**
+ * Removes an invoice and its number outright. Administrators only, and only the
+ * newest number an issuer has taken — the server refuses the rest with a 409 so
+ * the sequence can never be left with a gap. Void is the remedy for those.
+ */
+export async function deleteInvoice(id: string): Promise<void> {
+  await apiRequest<void>(`/invoices/${id}`, { method: 'DELETE' });
+}
+
 export async function voidInvoice(id: string, reason: string): Promise<Invoice> {
   const res = await apiRequest<{ invoice: Invoice }>(`/invoices/${id}/void`, {
     method: 'POST',

@@ -36,6 +36,7 @@ import {
   BillingCycle,
   HostInvoiceSettings,
   HostInvoiceSettingsInput,
+  DeleteInvoiceResult,
   Invoice,
   InvoiceInput,
   InvoiceListFilters,
@@ -1409,5 +1410,28 @@ export class MemoryStore implements DataStore {
     found.voidedAt = Date.now();
     found.updatedAt = found.voidedAt;
     return structuredClone(found);
+  }
+
+  async deleteInvoice(id: string): Promise<DeleteInvoiceResult> {
+    const state = this.assertState();
+    const index = state.invoices.findIndex((row) => row.id === id);
+    if (index === -1) {
+      return { ok: false, reason: 'not_found' };
+    }
+
+    const invoice = state.invoices[index];
+    const sequenceKey = `${invoice.issuerUserId}|${invoice.fiscalYear}`;
+    const lastSequence = state.invoiceSequences.get(sequenceKey) ?? 0;
+
+    if (invoice.sequence !== lastSequence) {
+      const latest = state.invoices
+        .filter((row) => row.issuerUserId === invoice.issuerUserId && row.fiscalYear === invoice.fiscalYear)
+        .sort((a, b) => b.sequence - a.sequence)[0];
+      return { ok: false, reason: 'not_latest', latestInvoiceNo: latest?.invoiceNo ?? '' };
+    }
+
+    state.invoices.splice(index, 1);
+    state.invoiceSequences.set(sequenceKey, lastSequence - 1);
+    return { ok: true, invoice: structuredClone(invoice) };
   }
 }

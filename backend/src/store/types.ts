@@ -840,6 +840,17 @@ export interface InvoiceInput {
   createdByName: string;
 }
 
+/**
+ * Deleting an invoice only ever removes the newest number an issuer has taken,
+ * and gives that number back. Anything else would leave a hole in the sequence,
+ * which is the one thing the numbering exists to prevent — void is the remedy
+ * for an invoice with newer ones after it.
+ */
+export type DeleteInvoiceResult =
+  | { ok: true; invoice: Invoice }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'not_latest'; latestInvoiceNo: string };
+
 export interface InvoiceListFilters {
   issuerUserId?: number;
   propertyId?: string;
@@ -997,6 +1008,11 @@ export interface DataStore {
   // Voids rather than deletes: a gap in a qualified-invoice sequence is an
   // audit finding, so the row stays and is marked instead.
   voidInvoice(id: string, reason: string): Promise<Invoice | null>;
+  // Removes an invoice outright and hands its number back, for clearing a test
+  // row that was never given to a guest. Refuses anything but the issuer's
+  // latest number, and does both halves atomically, so no sequence of calls or
+  // race can produce a gap. Admin-only at the route.
+  deleteInvoice(id: string): Promise<DeleteInvoiceResult>;
   listIngestRules(): Promise<IngestRule[]>;
   upsertIngestRule(email: string, propertyId: string, actor: AuthUser): Promise<IngestRule>;
   deleteIngestRule(email: string, actor: AuthUser): Promise<boolean>;
