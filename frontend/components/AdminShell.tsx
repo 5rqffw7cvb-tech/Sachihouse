@@ -240,7 +240,11 @@ export const AdminShell: React.FC<AdminShellProps> = ({
 
   return (
     <div className="min-h-screen bg-page text-ink">
-      <TopNavBar navTitleOverride={navTitleOverride} />
+      {/* hideConsoleLinks: the sidebar below appears at the same breakpoint as
+          the account menu and lists the same destinations, so leaving both on
+          gave every console page two identical menus. The gates above keep
+          theirs — a refused page has no sidebar to navigate from. */}
+      <TopNavBar navTitleOverride={navTitleOverride} hideConsoleLinks />
 
       {/* Desktop sidebar. Sits below the fixed TopNavBar and spans the viewport. */}
       <aside
