@@ -26,11 +26,19 @@ export const TAX_CATEGORY_RATES: Record<InvoiceTaxCategory, number> = {
 
 export const TAX_CATEGORY_ORDER: InvoiceTaxCategory[] = ['standard10', 'reduced8', 'exempt'];
 
-/** Japanese label with the English gloss the whole feature is bilingual in. */
-export const TAX_CATEGORY_LABELS: Record<InvoiceTaxCategory, { ja: string; en: string }> = {
-  standard10: { ja: '10%対象', en: 'Standard 10%' },
-  reduced8: { ja: '8%対象（軽減税率）', en: 'Reduced 8%' },
-  exempt: { ja: '対象外', en: 'Not taxable' },
+/**
+ * Japanese label with the English gloss the whole feature is bilingual in, plus
+ * a short form for the phone: '8%対象（軽減税率）' does not fit a dropdown
+ * sitting next to an amount field and a delete button on a 375px screen, and
+ * shrinking the font instead would make iOS zoom the page on focus.
+ */
+export const TAX_CATEGORY_LABELS: Record<
+  InvoiceTaxCategory,
+  { ja: string; en: string; short: string }
+> = {
+  standard10: { ja: '10%対象', en: 'Standard 10%', short: '10%' },
+  reduced8: { ja: '8%対象（軽減税率）', en: 'Reduced 8%', short: '8%軽減' },
+  exempt: { ja: '対象外', en: 'Not taxable', short: '対象外' },
 };
 
 export function taxFromInclusive(

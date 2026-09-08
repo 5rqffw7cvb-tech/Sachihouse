@@ -32,6 +32,16 @@ import {
   InvoiceTaxCategory,
 } from '../../types';
 import { InvoiceSettingsSheet } from './InvoiceSettingsSheet';
+import {
+  fieldClass,
+  labelClass,
+  lineAmountClass,
+  lineTaxClass,
+  lineTextClass,
+  sheetBackdropClass,
+  sheetPanelClass,
+  textareaClass,
+} from './sheetControls';
 
 /**
  * Issue a qualified invoice from a stay, on a phone.
@@ -54,14 +64,6 @@ import { InvoiceSettingsSheet } from './InvoiceSettingsSheet';
  *    without costing the host the document.
  */
 
-// min-w-0 and max-w-full are not decoration. An <input> carries an intrinsic
-// min-content width of about twenty characters, and a date input on iOS is
-// wider still; inside a flex row that width wins over `w-full` and pushes the
-// sheet past the screen edge.
-const fieldClass =
-  'w-full min-w-0 max-w-full h-12 px-3.5 rounded-control bg-subtle border border-line text-[16px] text-ink ' +
-  'placeholder:text-ink-muted focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15';
-const labelClass = 'block text-[12px] font-semibold uppercase tracking-wide text-ink-soft mb-1.5';
 
 export interface InvoiceSheetProps {
   properties: HostProperty[];
@@ -448,7 +450,7 @@ export const InvoiceSheet: React.FC<InvoiceSheetProps> = ({ properties, onClose 
             value={draft.customerAddress}
             onChange={(event) => patchDraft({ customerAddress: event.target.value })}
             rows={2}
-            className={`${fieldClass} h-auto py-2.5`}
+            className={textareaClass}
           />
         </label>
 
@@ -473,7 +475,7 @@ export const InvoiceSheet: React.FC<InvoiceSheetProps> = ({ properties, onClose 
               <input
                 value={line.description}
                 onChange={(event) => patchLine(line.key, { description: event.target.value })}
-                className={`${fieldClass} h-11 bg-surface`}
+                className={lineTextClass}
                 placeholder="宿泊料金"
               />
               <div className="flex gap-2">
@@ -487,16 +489,16 @@ export const InvoiceSheet: React.FC<InvoiceSheetProps> = ({ properties, onClose 
                     patchLine(line.key, { amount, unitPrice: amount, quantity: 1 });
                   }}
                   inputMode="numeric"
-                  className={`${fieldClass} h-11 flex-1 min-w-0 bg-surface tabular-nums`}
+                  className={lineAmountClass}
                   placeholder="0"
                 />
                 <select
                   value={line.taxCategory}
                   onChange={(event) => patchLine(line.key, { taxCategory: event.target.value as InvoiceTaxCategory })}
-                  className={`${fieldClass} h-11 w-[118px] shrink-0 pr-7 bg-surface text-[13px]`}
+                  className={lineTaxClass}
                 >
                   {TAX_CATEGORY_ORDER.map((category) => (
-                    <option key={category} value={category}>{TAX_CATEGORY_LABELS[category].ja}</option>
+                    <option key={category} value={category}>{TAX_CATEGORY_LABELS[category].short}</option>
                   ))}
                 </select>
                 <button
@@ -530,7 +532,7 @@ export const InvoiceSheet: React.FC<InvoiceSheetProps> = ({ properties, onClose 
             value={draft.notes}
             onChange={(event) => patchDraft({ notes: event.target.value })}
             rows={2}
-            className={`${fieldClass} h-auto py-2.5`}
+            className={textareaClass}
           />
         </label>
 
@@ -579,17 +581,12 @@ export const InvoiceSheet: React.FC<InvoiceSheetProps> = ({ properties, onClose 
   return (
     <>
       <div
-        className="fixed inset-0 z-50 bg-brand/60 backdrop-blur-sm flex items-end animate-dialog-backdrop"
+        className={sheetBackdropClass}
         onClick={onClose}
         role="presentation"
       >
         <div
-          // overflow-x-hidden is load-bearing, not belt-and-braces: Tailwind's
-          // overflow-y-auto leaves overflow-x at `visible`, which the spec then
-          // computes to `auto` — so anything a pixel too wide turns the whole
-          // sheet into a horizontal scroller under the guest's thumb.
-          className="w-full bg-surface rounded-t-[24px] max-h-[92dvh] overflow-y-auto overflow-x-hidden
-            animate-dialog-panel"
+          className={sheetPanelClass}
           style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
           onClick={(event) => event.stopPropagation()}
           role="dialog"

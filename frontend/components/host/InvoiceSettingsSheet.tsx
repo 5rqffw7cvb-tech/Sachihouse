@@ -3,6 +3,15 @@ import { AlertCircle, Loader2, X } from 'lucide-react';
 import { getInvoiceSettings, saveInvoiceSettings } from '../../services/invoices';
 import { isValidRegistrationNumber } from '../../utils/invoiceDraft';
 import { HostInvoiceSettings, InvoiceRoundingMode } from '../../types';
+import {
+  fieldClass,
+  invalidFieldClass,
+  labelClass,
+  selectClass,
+  sheetBackdropClass,
+  sheetPanelClass,
+  textareaClass,
+} from './sheetControls';
 
 /**
  * The host's own issuer profile — the half of an invoice that is about them
@@ -14,12 +23,6 @@ import { HostInvoiceSettings, InvoiceRoundingMode } from '../../types';
  * correct their own without an administrator in the loop.
  */
 
-// See InvoiceSheet: `w-full` alone loses to an input's intrinsic min-content
-// width, and the sheet starts scrolling sideways.
-const fieldClass =
-  'w-full min-w-0 max-w-full h-12 px-3.5 rounded-control bg-subtle border border-line text-[16px] text-ink ' +
-  'placeholder:text-ink-muted focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/15';
-const labelClass = 'block text-[12px] font-semibold uppercase tracking-wide text-ink-soft mb-1.5';
 
 const ROUNDING_OPTIONS: Array<{ value: InvoiceRoundingMode; label: string }> = [
   { value: 'floor', label: '切捨て / Round down' },
@@ -107,17 +110,12 @@ export const InvoiceSettingsSheet: React.FC<InvoiceSettingsSheetProps> = ({ onCl
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-brand/60 backdrop-blur-sm flex items-end animate-dialog-backdrop"
+      className={sheetBackdropClass}
       onClick={onClose}
       role="presentation"
     >
       <div
-        // overflow-x-hidden is load-bearing, not belt-and-braces: Tailwind's
-        // overflow-y-auto leaves overflow-x at `visible`, which the spec then
-        // computes to `auto` — so anything a pixel too wide turns the whole
-        // sheet into a horizontal scroller under the guest's thumb.
-        className="w-full bg-surface rounded-t-[24px] max-h-[92dvh] overflow-y-auto overflow-x-hidden
-          animate-dialog-panel"
+        className={sheetPanelClass}
         style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
@@ -156,9 +154,9 @@ export const InvoiceSettingsSheet: React.FC<InvoiceSettingsSheetProps> = ({ onCl
               <input
                 value={registrationNumber}
                 onChange={(event) => setRegistrationNumber(event.target.value)}
-                className={`${fieldClass} font-mono tracking-wide ${
-                  registrationNumber && !registrationValid ? 'border-danger' : ''
-                }`}
+                className={`${
+                  registrationNumber && !registrationValid ? invalidFieldClass : fieldClass
+                } font-mono tracking-wide`}
                 placeholder="T1234567890123"
                 autoCapitalize="characters"
                 autoCorrect="off"
@@ -186,7 +184,7 @@ export const InvoiceSettingsSheet: React.FC<InvoiceSettingsSheetProps> = ({ onCl
                 value={issuerAddress}
                 onChange={(event) => setIssuerAddress(event.target.value)}
                 rows={2}
-                className={`${fieldClass} h-auto py-2.5`}
+                className={textareaClass}
                 placeholder="東京都豊島区..."
               />
             </label>
@@ -221,7 +219,7 @@ export const InvoiceSettingsSheet: React.FC<InvoiceSettingsSheetProps> = ({ onCl
                 value={bankInfo}
                 onChange={(event) => setBankInfo(event.target.value)}
                 rows={2}
-                className={`${fieldClass} h-auto py-2.5`}
+                className={textareaClass}
                 placeholder="〇〇銀行 △△支店 普通 1234567"
               />
             </label>
@@ -242,7 +240,7 @@ export const InvoiceSettingsSheet: React.FC<InvoiceSettingsSheetProps> = ({ onCl
                 <select
                   value={roundingMode}
                   onChange={(event) => setRoundingMode(event.target.value as InvoiceRoundingMode)}
-                  className={`${fieldClass} pr-8`}
+                  className={selectClass}
                 >
                   {ROUNDING_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -261,7 +259,7 @@ export const InvoiceSettingsSheet: React.FC<InvoiceSettingsSheetProps> = ({ onCl
                 value={defaultNotes}
                 onChange={(event) => setDefaultNotes(event.target.value)}
                 rows={2}
-                className={`${fieldClass} h-auto py-2.5`}
+                className={textareaClass}
               />
             </label>
 
