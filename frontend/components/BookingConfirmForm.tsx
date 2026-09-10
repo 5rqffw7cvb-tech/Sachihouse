@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-react';
 import { getAllProperties } from '../services/storage';
 import { createBookingConfirmation, sendBookingConfirmationEmail } from '../services/bookingConfirm';
-import { getBlockedDatesForProperty } from '../services/calendar';
+import { getBlockedDatesForProperty, getPropertyCalendar } from '../services/calendar';
+import { HostStay, staysFromCalendar } from '../services/hostApp';
 import {
   downloadAndAttachBookingConfirmationPdf,
   downloadBookingConfirmationPdf,
@@ -120,6 +121,13 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
   // can't silently double-book a night another channel already has.
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
 
+  // Stays already on the selected property's calendar, offered as a prefill.
+  // A reservation taken directly and noted on a channel manager arrives here
+  // as an anonymous block; picking it is what lets a confirmation be written
+  // for nights that same stay is the reason are unavailable.
+  const [calendarStays, setCalendarStays] = useState<HostStay[]>([]);
+  const [documentsExistingStay, setDocumentsExistingStay] = useState(false);
+
   const canAccess = authUser?.role === 'ADMIN' || authUser?.role === 'HOST';
 
   useEffect(() => {
@@ -165,6 +173,48 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
       .catch(() => { if (!cancelled) setBlockedDates(new Set()); });
     return () => { cancelled = true; };
   }, [propertyId]);
+
+  useEffect(() => {
+    if (!propertyId) {
+      setCalendarStays([]);
+      return;
+    }
+    let cancelled = false;
+    getPropertyCalendar(propertyId)
+      // Failing quietly is right here: the prefill is a shortcut, and losing
+      // it must not stop a host typing the confirmation out by hand.
+      .then((calendar) => { if (!cancelled) setCalendarStays(staysFromCalendar(calendar)); })
+      .catch(() => { if (!cancelled) setCalendarStays([]); });
+    return () => { cancelled = true; };
+  }, [propertyId]);
+
+  /** Still to come, soonest first — nobody writes a confirmation for last year. */
+  const prefillableStays = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return calendarStays
+      .filter((stay) => stay.checkOutDate >= today)
+      .sort((a, b) => a.checkInDate.localeCompare(b.checkInDate))
+      .slice(0, 40);
+  }, [calendarStays]);
+
+  const prefillFromStay = (stay: HostStay) => {
+    setGuestName(stay.guestName ?? '');
+    setCheckInDate(stay.checkInDate);
+    setCheckOutDate(stay.checkOutDate);
+    if (stay.guestCount && stay.guestCount > 0) {
+      setAdults(stay.guestCount);
+      setChildren(0);
+      setInfants(0);
+    }
+    if (stay.amountTotal !== null) {
+      setRoomFee(String(stay.amountTotal));
+      setRoomFeeTouched(true);
+    }
+    // The nights this stay holds are exactly what the conflict check will
+    // trip on, so record that the clash is expected rather than a mistake.
+    setDocumentsExistingStay(true);
+    setErrorMsg(null);
+  };
 
   const nights = nightsBetween(checkInDate, checkOutDate);
   const numGuests = adults + children + infants;
@@ -223,7 +273,7 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
     if (!checkInDate || !checkOutDate) return 'Check-in and check-out dates are required.';
     if (nights <= 0) return 'Check-out must be after check-in.';
     if (numGuests < 1) return 'At least one guest is required.';
-    if (conflictDates.length > 0) {
+    if (conflictDates.length > 0 && !documentsExistingStay) {
       return `These dates are already blocked on the calendar: ${conflictDates.join(', ')}.`;
     }
     return null;
@@ -265,6 +315,7 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
         balanceDue,
         notes: notes.trim() || undefined,
         includeInAccounting,
+        documentsExistingStay,
         // The confirmation email needs the real confirmationNo baked into the
         // PDF, which only exists once this call returns — so when there's a
         // guest email, the server skips sending it here and we send it
@@ -419,6 +470,41 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
+                {selectedProperty && prefillableStays.length > 0 && (
+                  <div className="mt-3">
+                    <label className={labelClass}>Prefill from a booking on the calendar</label>
+                    <select
+                      className={inputClass}
+                      value=""
+                      onChange={(e) => {
+                        const stay = prefillableStays.find((item) => item.key === e.target.value);
+                        if (stay) prefillFromStay(stay);
+                      }}
+                    >
+                      <option value="">Type it out by hand…</option>
+                      {prefillableStays.map((stay) => (
+                        <option key={stay.key} value={stay.key}>
+                          {stay.channel} · {stay.checkInDate} → {stay.checkOutDate}
+                          {stay.guestName ? ` · ${stay.guestName}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1.5 text-[12px] text-[#74777d] leading-relaxed">
+                      For a stay that already exists — one taken directly and noted on a channel manager,
+                      say — whose guest still wants a PDF. Picking it fills in the dates and tells the save
+                      that those nights are meant to be taken.
+                    </p>
+                    {documentsExistingStay && (
+                      <button
+                        type="button"
+                        onClick={() => setDocumentsExistingStay(false)}
+                        className="mt-1.5 text-[12px] font-semibold text-[#003580] underline"
+                      >
+                        Treat this as a brand-new booking instead
+                      </button>
+                    )}
+                  </div>
+                )}
                 {selectedProperty && (
                   <div className="mt-3 rounded-xl bg-[#f7f5f6] px-4 py-3 text-[12.5px] text-[#44474c] leading-relaxed">
                     <div className="font-semibold text-[#1b1c1d]">{selectedProperty.name}</div>
@@ -499,12 +585,23 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
             </div>
             {nights > 0 && <p className="mt-2 text-[12px] text-[#74777d]">{nights} night{nights === 1 ? '' : 's'} · {numGuests} guest{numGuests === 1 ? '' : 's'}</p>}
             {conflictDates.length > 0 && (
-              <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#f5c2c7] bg-[#fdeef0] px-3.5 py-2.5">
-                <AlertTriangle className="h-4 w-4 text-[#ba1a1a] shrink-0 mt-0.5" />
-                <p className="text-[12px] text-[#ba1a1a] leading-relaxed">
-                  Already blocked on the calendar (another platform or booking): {conflictDates.join(', ')}.
-                </p>
-              </div>
+              documentsExistingStay ? (
+                <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#bfdbfe] bg-[#dbeafe] px-3.5 py-2.5">
+                  <CheckCircle2 className="h-4 w-4 text-[#1e40af] shrink-0 mt-0.5" />
+                  <p className="text-[12px] text-[#1e40af] leading-relaxed">
+                    These nights are held by the booking you picked, which is what this confirmation
+                    writes up — so the clash is expected. A stay already confirmed elsewhere would still
+                    be refused when you save.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#f5c2c7] bg-[#fdeef0] px-3.5 py-2.5">
+                  <AlertTriangle className="h-4 w-4 text-[#ba1a1a] shrink-0 mt-0.5" />
+                  <p className="text-[12px] text-[#ba1a1a] leading-relaxed">
+                    Already blocked on the calendar (another platform or booking): {conflictDates.join(', ')}.
+                  </p>
+                </div>
+              )
             )}
           </section>
 
@@ -583,7 +680,7 @@ export const BookingConfirmForm: React.FC<Props> = ({ authUser, onCreated, onDon
 
             <button
               type="submit"
-              disabled={submitting || conflictDates.length > 0}
+              disabled={submitting || (conflictDates.length > 0 && !documentsExistingStay)}
               className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-[#1b1c1d] px-4 py-3 text-[14px] font-bold text-white hover:bg-[#333] disabled:opacity-60 transition-colors"
             >
               {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><Download className="h-4 w-4" /> Generate PDF</>}

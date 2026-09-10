@@ -4,6 +4,7 @@ import { AlertCircle, Check, ChevronRight, Link2, RefreshCw, Sparkles } from 'lu
 import { HostCard, HostCount, HostEmpty, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
 import { StayDetailSheet } from '../../components/host/StayDetailSheet';
+import { BookingConfirmSheet } from '../../components/host/BookingConfirmSheet';
 import {
   arrivalsBetween,
   buildCheckInUrl,
@@ -74,6 +75,7 @@ const StaysPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [copiedPropertyId, setCopiedPropertyId] = useState<string | null>(null);
   const [openStay, setOpenStay] = useState<HostStay | null>(null);
+  const [confirmStay, setConfirmStay] = useState<HostStay | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Level 1–2 hosts cannot read guest ID records at all, so this screen shows
@@ -316,7 +318,16 @@ const StaysPage: React.FC = () => {
         onClose={() => setOpenStay(null)}
         onCopyCheckInLink={(propertyId) => { void handleCopyLink(propertyId); }}
         copied={openStay ? copiedPropertyId === openStay.propertyId : false}
+        onIssueBookingConfirm={(stay) => { setOpenStay(null); setConfirmStay(stay); }}
       />
+
+      {confirmStay && (
+        <BookingConfirmSheet
+          stay={confirmStay}
+          property={properties.find((property) => property.id === confirmStay.propertyId) ?? null}
+          onClose={() => setConfirmStay(null)}
+        />
+      )}
     </HostScreen>
   );
 };

@@ -116,6 +116,91 @@ describe('manual booking confirmation: calendar sync', () => {
     expect(res.body.conflictDates.length).toBeGreaterThan(0);
   });
 
+  it('writes up a stay whose nights a blocked date already holds, when told it documents one', async () => {
+    // The case this exists for: a direct reservation noted on a channel
+    // manager comes back as unavailability, and the guest can then never be
+    // sent a confirmation, because the nights are "taken" by the very stay
+    // being confirmed.
+    const token = await login('admin@sachihouse.com', 'admin123');
+    await request(app)
+      .post('/api/properties/main/blocked-dates')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ dates: [isoDaysFromNow(41)] })
+      .expect(200);
+
+    const res = await request(app)
+      .post('/api/properties/main/booking-confirmations')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(manualPayload({ documentsExistingStay: true }))
+      .expect(201);
+
+    expect(res.body.confirmation.guestName).toBe('Airbnb Guest');
+    expect(res.body.confirmation.confirmationNo).toBeTruthy();
+  });
+
+  it('still refuses when a confirmation we already hold covers the nights', async () => {
+    // Documenting is not a licence to overbook: a second confirmation over a
+    // stay we already wrote up is a duplicate document, not a missing one.
+    const token = await login('admin@sachihouse.com', 'admin123');
+    await request(app)
+      .post('/api/properties/main/booking-confirmations')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(manualPayload())
+      .expect(201);
+
+    const res = await request(app)
+      .post('/api/properties/main/booking-confirmations')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(manualPayload({ guestName: 'Someone Else', documentsExistingStay: true }))
+      .expect(409);
+
+    expect(res.body.conflictDates.length).toBeGreaterThan(0);
+  });
+
+  it('does not let the flag through a clash with a paid direct booking', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const current = await request(app).get('/api/properties/main').expect(200);
+    await request(app)
+      .put('/api/properties/main')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ ...current.body.property, directBooking: { enabled: true } })
+      .expect(200);
+
+    const created = await request(app)
+      .post('/api/bookings')
+      .send({
+        propertyId: 'main',
+        guestName: 'Hanako Tanaka',
+        guestEmail: 'hanako@example.com',
+        adults: 2,
+        children: 0,
+        infants: 0,
+        checkInDate: isoDaysFromNow(40),
+        checkOutDate: isoDaysFromNow(43),
+        locale: 'ja',
+      })
+      .expect(201);
+    const payload = JSON.stringify({
+      id: `evt_${created.body.booking.id}`,
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_test_1', metadata: { bookingId: created.body.booking.id }, payment_intent: 'pi_test_123' } },
+    });
+    await request(app)
+      .post('/api/stripe/webhook')
+      .set('stripe-signature', signWebhookPayload(payload))
+      .set('Content-Type', 'application/json')
+      .send(payload)
+      .expect(200);
+
+    const res = await request(app)
+      .post('/api/properties/main/booking-confirmations')
+      .set({ Authorization: `Bearer ${token}` })
+      .send(manualPayload({ documentsExistingStay: true }))
+      .expect(409);
+
+    expect(res.body.conflictDates.length).toBeGreaterThan(0);
+  });
+
   it('allows a manual entry once the conflicting block is removed', async () => {
     const token = await login('admin@sachihouse.com', 'admin123');
     const blockedDate = isoDaysFromNow(41);

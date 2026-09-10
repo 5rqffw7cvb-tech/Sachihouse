@@ -1,6 +1,6 @@
 import React from 'react';
 import { format, parseISO } from 'date-fns';
-import { Check, Link2, X } from 'lucide-react';
+import { Check, FileText, Link2, X } from 'lucide-react';
 import { channelColor, formatMoney, HostStay, nightsBetween } from '../../services/hostApp';
 import { CheckInSubmission } from '../../types';
 
@@ -28,6 +28,13 @@ export interface StayDetailSheetProps {
   /** Omitted where the screen has nothing to copy (no link, no permission). */
   onCopyCheckInLink?: (propertyId: string) => void;
   copied?: boolean;
+  /**
+   * Write this stay up as a booking confirmation and hand the guest a PDF.
+   *
+   * Optional because not every screen that opens this sheet offers it — the
+   * calendar is for seeing what is booked, not for issuing paperwork.
+   */
+  onIssueBookingConfirm?: (stay: HostStay) => void;
 }
 
 const longDate = (iso: string): string => {
@@ -53,6 +60,7 @@ export const StayDetailSheet: React.FC<StayDetailSheetProps> = ({
   onClose,
   onCopyCheckInLink,
   copied = false,
+  onIssueBookingConfirm,
 }) => {
   if (!stay) return null;
 
@@ -118,6 +126,24 @@ export const StayDetailSheet: React.FC<StayDetailSheetProps> = ({
             </Field>
           )}
         </div>
+
+        {onIssueBookingConfirm && (
+          <div className="px-5 pt-4">
+            <button
+              type="button"
+              onClick={() => onIssueBookingConfirm(stay)}
+              className="w-full h-12 rounded-control bg-brand text-white
+                font-['Plus_Jakarta_Sans'] text-[15px] font-bold flex items-center justify-center gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              Booking confirmation PDF
+            </button>
+            <p className="mt-1.5 text-[12px] text-ink-muted leading-snug">
+              For a stay taken directly and noted on a channel manager, where the guest still wants
+              something on paper.
+            </p>
+          </div>
+        )}
 
         {/* The feed text, verbatim. It is written by the OTA, not by us, so it
             renders as plain text and never as markup. */}

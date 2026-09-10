@@ -35,6 +35,12 @@ export interface CreateBookingConfirmationPayload {
   // the caller will send it via sendBookingConfirmationEmail() below once it
   // has rendered a PDF using this confirmation's real confirmationNo.
   attachPdf?: boolean;
+  // Set when this writes up a stay that is already on the calendar — one taken
+  // directly and noted on a channel manager, whose iCal block is what makes
+  // the nights unavailable. Without it the server refuses: the stay being
+  // confirmed is itself the reason its nights look taken. It does not permit
+  // overbooking — nights we already hold a stay record for still conflict.
+  documentsExistingStay?: boolean;
 }
 
 export interface BookingConfirmationListFilters {

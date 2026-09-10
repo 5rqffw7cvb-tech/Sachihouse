@@ -482,6 +482,42 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return { nights };
   }
 
+  /**
+   * Nights we already hold a STAY record for: an off-platform confirmation, or
+   * an active direct booking.
+   *
+   * Deliberately narrower than collectOwnStayNights, which also counts manual
+   * blocks and holds. The question here is different — not "did these nights
+   * come from us?" but "do we already document who is in them?". A manual
+   * block is not a stay; a host may well have blocked the nights by hand for
+   * the very guest they are now writing a confirmation for.
+   */
+  async function collectRecordedStayNights(propertyId: string): Promise<Set<string>> {
+    const [confirmations, bookings] = await Promise.all([
+      store.listBookingConfirmations({ propertyId }),
+      store.listBookings({ propertyId, statuses: ACTIVE_BOOKING_STATUSES }),
+    ]);
+
+    const nights = new Set<string>();
+    const claim = (checkInDate: string, checkOutDate: string) => {
+      try {
+        for (const date of getStayDates(checkInDate, checkOutDate)) nights.add(date);
+      } catch {
+        // A malformed range claims nothing; it must not take the request down.
+      }
+    };
+
+    // Online bookings are mirrored into this table too, and a cancelled one
+    // keeps its row — the live rows below hold the nights while the stay is
+    // active, so only off-platform confirmations are read here.
+    for (const confirmation of confirmations) {
+      if (confirmation.source === 'manual') claim(confirmation.checkInDate, confirmation.checkOutDate);
+    }
+    for (const booking of bookings) claim(booking.checkInDate, booking.checkOutDate);
+
+    return nights;
+  }
+
 
   function isIsoDate(value: unknown): value is string {
     if (typeof value !== 'string') {
@@ -3815,7 +3851,24 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     const blockedSet = new Set(await getEffectiveBlockedDates(property, 'fresh-if-stale'));
     const conflictDates = getStayDates(checkInDate, checkOutDate).filter((date) => blockedSet.has(date));
     if (conflictDates.length > 0) {
-      return res.status(409).json({ error: 'Selected dates are not available.', conflictDates });
+      // Writing up a stay that already exists is not the same act as booking
+      // one. A host who took a direct reservation and noted it on a channel
+      // manager gets its iCal block back as unavailability, and the guest can
+      // then never be sent a confirmation — the nights are "taken" by the
+      // stay being confirmed. `documentsExistingStay` says the caller came
+      // from that stay rather than inventing a new one.
+      //
+      // It is not a licence to overbook: nights we already hold a stay record
+      // for still refuse, because a second confirmation over them would be a
+      // duplicate document, not a missing one.
+      const documenting = body.documentsExistingStay === true;
+      const recorded = documenting ? await collectRecordedStayNights(property.id) : null;
+      const duplicated = recorded
+        ? conflictDates.filter((date) => recorded.has(date))
+        : conflictDates;
+      if (duplicated.length > 0) {
+        return res.status(409).json({ error: 'Selected dates are not available.', conflictDates: duplicated });
+      }
     }
 
     const checkInTime = isHmTime(body.checkInTime) ? body.checkInTime : '15:00';
