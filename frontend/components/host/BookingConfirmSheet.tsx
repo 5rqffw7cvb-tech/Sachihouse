@@ -20,6 +20,13 @@ import { fieldClass, labelClass, sheetBackdropClass, sheetPanelClass } from './s
  * The money is typed rather than guessed. An OTA feed carries no price at all,
  * and a number invented from the rate card would be wrong for exactly the
  * bookings that need this screen — the ones negotiated off-platform.
+ *
+ * The dates start from the stay and can be corrected, because a channel
+ * manager's block is often a day out and a guest may have agreed a change
+ * off-platform. Editing them writes the PDF only: this screen issues a
+ * document, it does not move the booking, and the calendar keeps the dates it
+ * already holds. The sheet says so when the two disagree rather than letting
+ * the host discover it from the guest.
  */
 
 interface BookingConfirmSheetProps {
@@ -35,6 +42,8 @@ const toWhole = (value: string): number => {
 };
 
 export const BookingConfirmSheet: React.FC<BookingConfirmSheetProps> = ({ stay, property, onClose }) => {
+  const [checkInDate, setCheckInDate] = useState(stay.checkInDate);
+  const [checkOutDate, setCheckOutDate] = useState(stay.checkOutDate);
   const [guestName, setGuestName] = useState(stay.guestName ?? '');
   const [guestEmail, setGuestEmail] = useState('');
   const [numGuests, setNumGuests] = useState(String(stay.guestCount ?? 2));
@@ -47,7 +56,9 @@ export const BookingConfirmSheet: React.FC<BookingConfirmSheetProps> = ({ stay, 
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
-  const nights = nightsBetween(stay.checkInDate, stay.checkOutDate);
+  const nights = nightsBetween(checkInDate, checkOutDate);
+  const datesValid = Boolean(checkInDate) && Boolean(checkOutDate) && checkInDate < checkOutDate;
+  const datesMoved = checkInDate !== stay.checkInDate || checkOutDate !== stay.checkOutDate;
   const totals = useMemo(() => {
     const room = toWhole(roomFee);
     const cleaning = toWhole(cleaningFee);
@@ -69,11 +80,15 @@ export const BookingConfirmSheet: React.FC<BookingConfirmSheetProps> = ({ stay, 
     }
   };
 
-  const canIssue = Boolean(guestName.trim()) && roomFee.trim() !== '' && totals.total > 0 && !saving;
+  const canIssue = Boolean(guestName.trim()) && roomFee.trim() !== '' && totals.total > 0 && datesValid && !saving;
 
   const handleIssue = async () => {
     if (!property) {
       setError('This stay has no property on your account, so there is no address to print.');
+      return;
+    }
+    if (!datesValid) {
+      setError('Check-out has to be after check-in.');
       return;
     }
     const guests = Math.max(1, toWhole(numGuests));
@@ -87,8 +102,8 @@ export const BookingConfirmSheet: React.FC<BookingConfirmSheetProps> = ({ stay, 
         guestName: guestName.trim(),
         guestEmail: guestEmail.trim() || undefined,
         numGuests: guests,
-        checkInDate: stay.checkInDate,
-        checkOutDate: stay.checkOutDate,
+        checkInDate,
+        checkOutDate,
         checkInTime: '15:00',
         checkOutTime: '10:00',
         currency,
@@ -103,7 +118,11 @@ export const BookingConfirmSheet: React.FC<BookingConfirmSheetProps> = ({ stay, 
         // Off by default: a stay booked and paid on another platform is that
         // platform's revenue line, and counting it here would double it.
         includeInAccounting: false,
-        // The nights are already held — by this very stay.
+        // These nights are held by the stay being written up, so the
+        // availability check must not read them as a rival. Still set when the
+        // host has moved the dates: an OTA block is often a day out, and the
+        // server keeps the guard that matters — nights already covered by a
+        // confirmation or a paid booking of ours are refused either way.
         documentsExistingStay: true,
       });
       await downloadBookingConfirmationPdf(confirmation);
@@ -138,7 +157,7 @@ export const BookingConfirmSheet: React.FC<BookingConfirmSheetProps> = ({ stay, 
             <div className="flex-1 min-w-0 flex flex-col gap-0.5">
               <h2 className="text-[20px] tracking-[-0.3px] truncate">Booking confirmation</h2>
               <span className="text-[13px] text-ink-muted truncate">
-                {stay.propertyName} · {stay.checkInDate} → {stay.checkOutDate}
+                {stay.propertyName} · booked {stay.checkInDate} → {stay.checkOutDate}
               </span>
             </div>
             <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 p-1 -mr-1 mt-0.5">
@@ -178,11 +197,64 @@ export const BookingConfirmSheet: React.FC<BookingConfirmSheetProps> = ({ stay, 
             <>
               <div className="rounded-control border border-line bg-subtle px-3.5 py-3 text-[13px] text-ink-soft
                 leading-snug">
-                {nights > 0 ? `${nights} ${nights === 1 ? 'night' : 'nights'}` : 'Dates'} from
-                {' '}<span className="font-semibold text-ink">{stay.channel}</span>.
-                The dates and the house come from the booking and cannot be edited here — change them on the
-                platform that holds it.
+                From <span className="font-semibold text-ink">{stay.channel}</span>, at{' '}
+                <span className="font-semibold text-ink">{stay.propertyName}</span>. The house is fixed —
+                issue from the right booking to change it.
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className={labelClass}>Check-in *</span>
+                  <input
+                    type="date"
+                    value={checkInDate}
+                    onChange={(event) => { setCheckInDate(event.target.value); setError(null); }}
+                    className={fieldClass}
+                  />
+                </label>
+                <label className="block">
+                  <span className={labelClass}>Check-out *</span>
+                  <input
+                    type="date"
+                    value={checkOutDate}
+                    onChange={(event) => { setCheckOutDate(event.target.value); setError(null); }}
+                    className={fieldClass}
+                  />
+                </label>
+              </div>
+
+              {!datesValid ? (
+                <p className="-mt-2 text-[12px] text-danger leading-snug">
+                  Check-out has to be after check-in.
+                </p>
+              ) : datesMoved ? (
+                // Moving the dates is allowed — an OTA block is often a day out,
+                // or the guest agreed a change off-platform — but the PDF is what
+                // the guest will hold you to, so the difference is stated rather
+                // than left for them to notice.
+                <div className="-mt-2 flex flex-col items-start gap-1">
+                  <p className="text-[12px] text-warn leading-snug">
+                    {nights} {nights === 1 ? 'night' : 'nights'} — not the {stay.checkInDate} →{' '}
+                    {stay.checkOutDate} the calendar holds. The PDF will say what you set here; the
+                    calendar keeps its own dates.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCheckInDate(stay.checkInDate);
+                      setCheckOutDate(stay.checkOutDate);
+                      setError(null);
+                    }}
+                    className="text-[12px] font-semibold text-link underline"
+                  >
+                    Back to the booking's dates
+                  </button>
+                </div>
+              ) : (
+                <p className="-mt-2 text-[12px] text-ink-muted leading-snug">
+                  {nights} {nights === 1 ? 'night' : 'nights'}. Check-in 15:00, check-out 10:00.
+                </p>
+              )}
 
               <label className="block">
                 <span className={labelClass}>Guest name *</span>
