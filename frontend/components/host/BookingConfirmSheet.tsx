@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertCircle, Check, Download, Loader2, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Check, Download, Loader2, PencilLine, X } from 'lucide-react';
 import { createBookingConfirmation } from '../../services/bookingConfirm';
 import { downloadBookingConfirmationPdf } from '../../utils/bookingConfirmPdf';
 import { HostProperty, HostStay, nightsBetween } from '../../services/hostApp';
@@ -24,9 +24,14 @@ import { fieldClass, labelClass, sheetBackdropClass, sheetPanelClass } from './s
  * The dates start from the stay and can be corrected, because a channel
  * manager's block is often a day out and a guest may have agreed a change
  * off-platform. Editing them writes the PDF only: this screen issues a
- * document, it does not move the booking, and the calendar keeps the dates it
- * already holds. The sheet says so when the two disagree rather than letting
- * the host discover it from the guest.
+ * document, it does not move the booking, and the calendar keeps the nights it
+ * already holds blocked.
+ *
+ * That asymmetry is why the fields are locked behind an explicit Edit and a
+ * warning. Open inputs would say the dates are simply this confirmation's to
+ * set, when in truth the guest ends up holding a PDF that disagrees with the
+ * platform the stay actually lives on. The host should be choosing that, not
+ * discovering it.
  */
 
 interface BookingConfirmSheetProps {
@@ -51,6 +56,12 @@ export const BookingConfirmSheet: React.FC<BookingConfirmSheetProps> = ({ stay, 
   const [cleaningFee, setCleaningFee] = useState('0');
   const [depositPaid, setDepositPaid] = useState('0');
   const [notes, setNotes] = useState('');
+
+  // Locked, warned, then editable. A stay from another platform is a record of
+  // something already agreed, so changing its dates is a deliberate act rather
+  // than a field to tab through — and what actually changes is only the PDF,
+  // which is not what an open date input implies.
+  const [dateMode, setDateMode] = useState<'locked' | 'warning' | 'editing'>('locked');
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -202,58 +213,113 @@ export const BookingConfirmSheet: React.FC<BookingConfirmSheetProps> = ({ stay, 
                 issue from the right booking to change it.
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className={labelClass}>Check-in *</span>
-                  <input
-                    type="date"
-                    value={checkInDate}
-                    onChange={(event) => { setCheckInDate(event.target.value); setError(null); }}
-                    className={fieldClass}
-                  />
-                </label>
-                <label className="block">
-                  <span className={labelClass}>Check-out *</span>
-                  <input
-                    type="date"
-                    value={checkOutDate}
-                    onChange={(event) => { setCheckOutDate(event.target.value); setError(null); }}
-                    className={fieldClass}
-                  />
-                </label>
-              </div>
-
-              {!datesValid ? (
-                <p className="-mt-2 text-[12px] text-danger leading-snug">
-                  Check-out has to be after check-in.
-                </p>
-              ) : datesMoved ? (
-                // Moving the dates is allowed — an OTA block is often a day out,
-                // or the guest agreed a change off-platform — but the PDF is what
-                // the guest will hold you to, so the difference is stated rather
-                // than left for them to notice.
-                <div className="-mt-2 flex flex-col items-start gap-1">
-                  <p className="text-[12px] text-warn leading-snug">
-                    {nights} {nights === 1 ? 'night' : 'nights'} — not the {stay.checkInDate} →{' '}
-                    {stay.checkOutDate} the calendar holds. The PDF will say what you set here; the
-                    calendar keeps its own dates.
-                  </p>
+              {dateMode === 'locked' && (
+                <div className="rounded-control border border-line bg-surface px-3.5 py-3
+                  flex items-center gap-3">
+                  <span className="min-w-0 flex-1 flex flex-col gap-0.5">
+                    <span className="text-[15px] text-ink truncate">
+                      {checkInDate} → {checkOutDate}
+                    </span>
+                    <span className={`text-[12px] ${datesMoved ? 'text-warn font-semibold' : 'text-ink-muted'}`}>
+                      {nights} {nights === 1 ? 'night' : 'nights'} · in 15:00, out 10:00
+                      {datesMoved ? ' · edited for the PDF' : ''}
+                    </span>
+                  </span>
                   <button
                     type="button"
-                    onClick={() => {
-                      setCheckInDate(stay.checkInDate);
-                      setCheckOutDate(stay.checkOutDate);
-                      setError(null);
-                    }}
-                    className="text-[12px] font-semibold text-link underline"
+                    onClick={() => setDateMode('warning')}
+                    className="shrink-0 h-9 px-3 rounded-control border border-line-strong bg-surface
+                      flex items-center gap-1.5 text-[13px] font-semibold text-ink"
                   >
-                    Back to the booking's dates
+                    <PencilLine className="w-3.5 h-3.5" />
+                    Edit
                   </button>
                 </div>
-              ) : (
-                <p className="-mt-2 text-[12px] text-ink-muted leading-snug">
-                  {nights} {nights === 1 ? 'night' : 'nights'}. Check-in 15:00, check-out 10:00.
-                </p>
+              )}
+
+              {dateMode === 'warning' && (
+                <div className="rounded-control border border-warn/30 bg-warn-tint px-3.5 py-3
+                  flex flex-col gap-2.5">
+                  <span className="flex items-start gap-2.5 text-[13px] text-warn leading-snug">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span className="flex-1 min-w-0">
+                      This changes the PDF only. The booking stays as {stay.channel} has it, and the
+                      calendar keeps {stay.checkInDate} → {stay.checkOutDate} blocked exactly as they
+                      are. The guest will hold you to whatever the PDF says — so if the stay itself
+                      really moved, change it on {stay.channel} as well.
+                    </span>
+                  </span>
+                  <span className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDateMode('locked')}
+                      className="flex-1 h-10 rounded-control border border-line-strong bg-surface
+                        text-[14px] font-semibold text-ink"
+                    >
+                      Keep them
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDateMode('editing')}
+                      className="flex-1 h-10 rounded-control bg-warn text-white text-[14px] font-semibold"
+                    >
+                      Edit anyway
+                    </button>
+                  </span>
+                </div>
+              )}
+
+              {dateMode === 'editing' && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className={labelClass}>Check-in *</span>
+                      <input
+                        type="date"
+                        value={checkInDate}
+                        onChange={(event) => { setCheckInDate(event.target.value); setError(null); }}
+                        className={fieldClass}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className={labelClass}>Check-out *</span>
+                      <input
+                        type="date"
+                        value={checkOutDate}
+                        onChange={(event) => { setCheckOutDate(event.target.value); setError(null); }}
+                        className={fieldClass}
+                      />
+                    </label>
+                  </div>
+
+                  {!datesValid ? (
+                    <p className="-mt-2 text-[12px] text-danger leading-snug">
+                      Check-out has to be after check-in.
+                    </p>
+                  ) : (
+                    <div className="-mt-2 flex flex-col items-start gap-1">
+                      <p className={`text-[12px] leading-snug ${datesMoved ? 'text-warn' : 'text-ink-muted'}`}>
+                        {nights} {nights === 1 ? 'night' : 'nights'}
+                        {datesMoved
+                          ? ` on the PDF — the calendar still holds ${stay.checkInDate} to ${stay.checkOutDate}.`
+                          : ', matching the booking.'}
+                      </p>
+                      {datesMoved && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCheckInDate(stay.checkInDate);
+                            setCheckOutDate(stay.checkOutDate);
+                            setError(null);
+                          }}
+                          className="text-[12px] font-semibold text-link underline"
+                        >
+                          Put the booking dates back
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
 
               <label className="block">
