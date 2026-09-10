@@ -31,6 +31,7 @@ import {
   toIsoDate,
   todayIso,
 } from '../../services/hostApp';
+import { assignLanes, nightRange } from '../../utils/stayLanes';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 /** A night the host took off the market by hand — no guest behind it. */
@@ -42,22 +43,42 @@ interface Segment {
   isEnd: boolean;
 }
 
+interface BandMap {
+  /** Keyed `propertyId|lane|date`. */
+  bands: Map<string, Segment[]>;
+  /** Lanes a property needs this month, keyed by property id. */
+  laneCounts: Map<string, number>;
+}
+
 /**
  * One entry per calendar day a stay touches, check-in through check-out
  * inclusive, so the band visibly starts on the arrival day ("In") and ends on
- * the departure day ("Out") rather than stopping a day short. Two segments on
- * one day for one property is a same-day turnover, and the cell splits.
+ * the departure day ("Out") rather than stopping a day short.
  *
- * Keyed `propertyId|date` — one flat map beats a map of maps for the lookup
- * every cell does for every property row.
+ * A property gets one lane per party it holds at once. Lanes are assigned by
+ * NIGHT, so a same-day turnover — where one guest leaves the morning another
+ * arrives — stays in a single lane and keeps its compact "Out | In" cell. Only
+ * a genuine overlap, two groups sharing the house over the same nights, opens
+ * a second lane. Two segments in one lane on one day can therefore only mean a
+ * turnover, which is what the cell renderer assumes.
+ *
+ * Keyed `propertyId|lane|date` — one flat map beats a map of maps for the
+ * lookup every cell does for every lane of every property.
  */
-function buildBands(calendars: Map<string, HostCalendarData>): Map<string, Segment[]> {
+function buildBands(calendars: Map<string, HostCalendarData>): BandMap {
   const bands = new Map<string, Segment[]>();
+  const laneCounts = new Map<string, number>();
 
-  calendars.forEach((calendar) => {
-    calendar.stays.forEach((stay) => {
+  calendars.forEach((calendar, propertyId) => {
+    const { laned, laneCount } = assignLanes(
+      calendar.stays,
+      (stay) => nightRange(stay.checkInDate, stay.checkOutDate),
+    );
+    laneCounts.set(propertyId, laneCount);
+
+    laned.forEach(({ item: stay, lane }) => {
       datesInRange(stay.checkInDate, stay.checkOutDate).forEach((iso) => {
-        const key = `${stay.propertyId}|${iso}`;
+        const key = `${stay.propertyId}|${lane}|${iso}`;
         const list = bands.get(key) ?? [];
         list.push({ stay, isStart: iso === stay.checkInDate, isEnd: iso === stay.checkOutDate });
         bands.set(key, list);
@@ -65,7 +86,7 @@ function buildBands(calendars: Map<string, HostCalendarData>): Map<string, Segme
     });
   });
 
-  return bands;
+  return { bands, laneCounts };
 }
 
 interface Selection {
@@ -128,7 +149,7 @@ const CalendarPage: React.FC = () => {
   }, []);
 
   const visibleProperties = properties.filter((property) => !hiddenIds.has(property.id));
-  const bands = useMemo(() => buildBands(calendars), [calendars]);
+  const { bands, laneCounts } = useMemo(() => buildBands(calendars), [calendars]);
 
   const days = useMemo(
     () => eachDayOfInterval({ start: startOfWeek(startOfMonth(month)), end: endOfWeek(endOfMonth(month)) }),
@@ -181,7 +202,16 @@ const CalendarPage: React.FC = () => {
     [allStays, detailIso],
   );
 
-  const rowCount = Math.max(1, visibleProperties.length);
+  // One rendered band per lane. A property holding one party at a time still
+  // contributes exactly one, so a month with no overlap looks as it always did.
+  const laneRows = useMemo(
+    () => visibleProperties.flatMap((property) => Array.from(
+      { length: laneCounts.get(property.id) ?? 1 },
+      (_, lane) => ({ property, lane }),
+    )),
+    [visibleProperties, laneCounts],
+  );
+  const rowCount = Math.max(1, laneRows.length);
   const nightsLabel = `${selectedDates.length} ${selectedDates.length === 1 ? 'night' : 'nights'}`;
 
   return (
@@ -275,8 +305,9 @@ const CalendarPage: React.FC = () => {
                 const isSelected = selectedSet.has(iso);
                 const isWeekStart = day.getDay() === 0;
                 const isWeekEnd = day.getDay() === 6;
-                const turnovers = visibleProperties.filter(
-                  (property) => (bands.get(`${property.id}|${iso}`) ?? []).some((seg) => seg.isEnd),
+                const turnovers = laneRows.filter(
+                  ({ property, lane }) => (bands.get(`${property.id}|${lane}|${iso}`) ?? [])
+                    .some((seg) => seg.isEnd),
                 ).length;
 
                 return (
@@ -305,17 +336,20 @@ const CalendarPage: React.FC = () => {
                     </span>
 
                     <span className="flex flex-col gap-[2px] w-full px-px">
-                      {visibleProperties.map((property) => {
+                      {laneRows.map(({ property, lane }) => {
                         const index = properties.findIndex((item) => item.id === property.id);
                         const color = propertyColor(index);
-                        const segs = bands.get(`${property.id}|${iso}`) ?? [];
-                        const manualBlocked = calendars.get(property.id)?.manualBlockedDates.has(iso);
+                        const segs = bands.get(`${property.id}|${lane}|${iso}`) ?? [];
+                        // A manual block belongs to the property, not to a
+                        // party, so it is drawn once on the first lane.
+                        const manualBlocked = lane === 0
+                          && calendars.get(property.id)?.manualBlockedDates.has(iso);
 
                         if (segs.length === 0) {
                           if (manualBlocked) {
                             return (
                               <span
-                                key={property.id}
+                                key={`${property.id}|${lane}`}
                                 className={`block h-[13px] w-full ${isWeekStart ? 'rounded-l-[4px]' : ''} ${
                                   isWeekEnd ? 'rounded-r-[4px]' : ''
                                 }`}
@@ -323,12 +357,12 @@ const CalendarPage: React.FC = () => {
                               />
                             );
                           }
-                          return <span key={property.id} className="block h-[13px] w-full" />;
+                          return <span key={`${property.id}|${lane}`} className="block h-[13px] w-full" />;
                         }
 
                         if (segs.length >= 2) {
                           return (
-                            <span key={property.id} className="relative flex h-[13px] w-full gap-px">
+                            <span key={`${property.id}|${lane}`} className="relative flex h-[13px] w-full gap-px">
                               <span
                                 className={`flex-1 flex items-center justify-center rounded-r-[4px] text-[7px] font-bold uppercase text-white ${
                                   isWeekStart ? 'rounded-l-[4px]' : ''
@@ -352,7 +386,7 @@ const CalendarPage: React.FC = () => {
                         const seg = segs[0];
                         if (seg.isStart && !seg.isEnd) {
                           return (
-                            <span key={property.id} className="flex h-[13px] w-full">
+                            <span key={`${property.id}|${lane}`} className="flex h-[13px] w-full">
                               <span className="flex-1" />
                               <span
                                 className={`flex-1 flex items-center justify-center rounded-l-[4px] text-[7px] font-bold uppercase text-white ${
@@ -367,7 +401,7 @@ const CalendarPage: React.FC = () => {
                         }
                         if (seg.isEnd && !seg.isStart) {
                           return (
-                            <span key={property.id} className="flex h-[13px] w-full">
+                            <span key={`${property.id}|${lane}`} className="flex h-[13px] w-full">
                               <span
                                 className={`flex-1 flex items-center justify-center rounded-r-[4px] text-[7px] font-bold uppercase text-white ${
                                   isWeekStart ? 'rounded-l-[4px]' : ''
@@ -382,7 +416,7 @@ const CalendarPage: React.FC = () => {
                         }
                         return (
                           <span
-                            key={property.id}
+                            key={`${property.id}|${lane}`}
                             className={`block h-[13px] w-full ${isWeekStart ? 'rounded-l-[4px]' : ''} ${
                               isWeekEnd ? 'rounded-r-[4px]' : ''
                             }`}

@@ -187,6 +187,11 @@ export function staysFromCalendar(calendar: PropertyCalendar): HostStay[] {
     });
   });
 
+  // Echoes of our own export coming back through a channel manager are already
+  // stripped server-side, by domain/importedEchoes — which tests anonymity
+  // rather than dates, so a real reservation that happens to share a stay's
+  // dates survives. Re-filtering here on dates alone would swallow exactly the
+  // second party this calendar needs to show.
   calendar.importedEvents.forEach((event, index) => {
     stays.push({
       key: `${calendar.propertyId}:ical:${event.feedId}:${event.checkInDate}:${index}`,

@@ -15,7 +15,8 @@ import { Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Loader2
 import { AdminShell } from '../components/AdminShell';
 import { Alert, Button, Card, EmptyState, Field, Select, Spinner } from '../components/ui';
 import { PropertyTimeline, TimelineRow } from '../components/calendar/PropertyTimeline';
-import { Night, Segment } from '../components/calendar/timeline';
+import { collapseDateRuns, TimelineBar } from '../components/calendar/timeline';
+import { nightRange } from '../utils/stayLanes';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { getAllProperties } from '../services/storage';
 import {
@@ -267,57 +268,75 @@ const HostCalendarPage: React.FC = () => {
     [viewMonth],
   );
 
-  // Precedence matters: a stay we hold the record for — a paid direct booking
-  // or a confirmation the host entered — outranks an unpaid hold, which
-  // outranks an imported block, which outranks a manual one. Whichever claims
-  // a night decides how it is drawn and whether it can be clicked.
+  // Every record draws its own bar and lanes keep them apart, so there is no
+  // precedence order any more — which is the point. Precedence was how the old
+  // grid hid a second party: whichever source ranked highest claimed the night
+  // and the other was never drawn at all.
   const timelineRows: TimelineRow[] = useMemo(() => scopedProperties.map((property) => {
     const cal = allCalendars.get(property.id);
-    const nights = new Map<string, Night>();
+    const bars: TimelineBar[] = [];
 
-    for (const iso of cal?.manualBlockedDates ?? []) nights.set(iso, { kind: 'manual' });
+    // Stays we hold the record for, off-platform and online alike.
+    const owned = [
+      ...(cal?.bookings ?? []).map((booking) => ({
+        checkInDate: booking.checkInDate,
+        checkOutDate: booking.checkOutDate,
+        kind: 'booking' as const,
+        label: booking.guestName || 'Reserved',
+        ref: booking.id,
+      })),
+      ...(cal?.directBookings ?? []).map((booking) => ({
+        checkInDate: booking.checkInDate,
+        checkOutDate: booking.checkOutDate,
+        kind: booking.status === 'confirmed' ? ('booking' as const) : ('hold' as const),
+        label: booking.guestName,
+        ref: booking.id,
+      })),
+    ];
 
+    for (const stay of owned) {
+      const nights = nightRange(stay.checkInDate, stay.checkOutDate);
+      if (nights) bars.push({ kind: stay.kind, label: stay.label, ref: stay.ref, ...nights });
+    }
+
+    // No echo filtering here: /api/properties/:id/calendar already ran
+    // splitEchoedEvents over these, and its test is anonymity rather than
+    // matching dates. That distinction is what keeps a genuine double booking
+    // — two guests, same nights, two platforms — visible instead of swallowed,
+    // which is precisely the case a lane exists to draw.
     for (const event of cal?.importedEvents ?? []) {
-      const label = event.channelName || event.feedName || 'iCal';
-      for (const iso of event.dates) nights.set(iso, { kind: 'imported', label, ref: `${event.feedId}:${event.checkInDate}` });
-    }
-    // Imported nights with no event attached still have to look blocked.
-    for (const iso of cal?.importedBlockedDates ?? []) {
-      if (!nights.has(iso) || nights.get(iso)!.kind === 'manual') {
-        nights.set(iso, { kind: 'imported', label: 'iCal' });
-      }
-    }
-
-    // Nights of a stay, check-out morning excluded — the guest is gone by then.
-    const stayNights = (checkInDate: string, checkOutDate: string): string[] => {
-      const start = parseISO(checkInDate);
-      const end = parseISO(checkOutDate);
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(start < end)) return [];
-      return eachDayOfInterval({ start, end }).slice(0, -1).map((d) => format(d, 'yyyy-MM-dd'));
-    };
-
-    // Off-platform stays the host recorded here. Without these the timeline
-    // showed a manually confirmed booking as an empty night — or, once our
-    // export had gone round through a channel manager, as somebody else's
-    // block sitting on top of the host's own guest.
-    for (const booking of cal?.bookings ?? []) {
-      for (const iso of stayNights(booking.checkInDate, booking.checkOutDate)) {
-        nights.set(iso, { kind: 'booking', label: booking.guestName || 'Reserved', ref: booking.id });
-      }
+      const nights = nightRange(event.checkInDate, event.checkOutDate);
+      if (!nights) continue;
+      bars.push({
+        kind: 'imported',
+        label: event.channelName || event.feedName || 'iCal',
+        ref: `${event.feedId}:${event.checkInDate}`,
+        ...nights,
+      });
     }
 
-    for (const booking of cal?.directBookings ?? []) {
-      const kind = booking.status === 'confirmed' ? 'booking' : 'hold';
-      for (const iso of stayNights(booking.checkInDate, booking.checkOutDate)) {
-        nights.set(iso, { kind, label: booking.guestName, ref: booking.id });
+    // Imported nights with no event attached still have to look blocked. Only
+    // the ones no bar already covers, or a plain "iCal" strip would be drawn
+    // on top of the event that explains it.
+    const spokenFor = new Set<string>();
+    for (const bar of bars) {
+      for (const iso of cal?.importedBlockedDates ?? []) {
+        if (iso >= bar.firstNight && iso <= bar.lastNight) spokenFor.add(iso);
       }
+    }
+    for (const run of collapseDateRuns((cal?.importedBlockedDates ?? []).filter((iso) => !spokenFor.has(iso)))) {
+      bars.push({ kind: 'imported', label: 'iCal', ...run });
+    }
+
+    for (const run of collapseDateRuns(cal?.manualBlockedDates ?? [])) {
+      bars.push({ kind: 'manual', ...run });
     }
 
     return {
       id: property.id,
       name: property.name || property.id,
       imageUrl: property.galleryImages?.[0]?.url || property.hostImageUrl,
-      nights,
+      bars,
     };
   }), [scopedProperties, allCalendars]);
 
@@ -360,10 +379,10 @@ const HostCalendarPage: React.FC = () => {
   };
 
   /** Opening an imported bar shows the raw event, same as the old grid did. */
-  const handleSelectSegment = (propertyId: string, segment: Segment) => {
-    if (segment.kind !== 'imported') return;
-    const iso = timelineDays[segment.start];
-    const event = (allCalendars.get(propertyId)?.importedEvents ?? []).find((e) => e.dates.includes(iso));
+  const handleSelectBar = (propertyId: string, bar: TimelineBar) => {
+    if (bar.kind !== 'imported') return;
+    const event = (allCalendars.get(propertyId)?.importedEvents ?? [])
+      .find((e) => e.dates.includes(bar.firstNight));
     if (event) setSelectedImportedEvent(event);
   };
 
@@ -560,7 +579,7 @@ const HostCalendarPage: React.FC = () => {
               todayIso={todayIso}
               busyNights={busyDates}
               onToggleNight={toggleNight}
-              onSelectSegment={handleSelectSegment}
+              onSelectBar={handleSelectBar}
               onSelectProperty={openSettingsFor}
               activePropertyId={settingsOpen ? selectedPropertyId : undefined}
             />

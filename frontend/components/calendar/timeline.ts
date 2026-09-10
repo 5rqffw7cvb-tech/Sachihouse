@@ -1,55 +1,63 @@
 /**
- * Turning per-night occupancy into the bars a timeline draws.
+ * What a timeline row is made of.
  *
- * The month grid asked "what is the state of this square?". A timeline asks a
- * different question — "where does this stay start and end?" — so consecutive
- * nights belonging to the same guest have to be recognised as one object.
+ * The month grid asked "what is the state of this square?", and this module
+ * used to answer that: one night, one state, built by writing every source
+ * into a map and letting the last writer win. That model cannot hold two
+ * parties in one house at once — the second booking silently overwrote the
+ * first — so a row is now a list of bars with their own date ranges, stacked
+ * into lanes by utils/stayLanes.
  */
 
-/** What a single night is doing, in the order a night is allowed to be claimed. */
+/** What is sitting on a night, in the order a night used to be claimed. */
 export type NightKind = 'free' | 'booking' | 'hold' | 'imported' | 'manual';
 
-export interface Night {
-  kind: NightKind;
-  /** Guest or channel name. Empty for free and manually blocked nights. */
+/** Everything a bar can be. `free` is the absence of a bar, not a kind of one. */
+export type OccupiedKind = Exclude<NightKind, 'free'>;
+
+/** One stay or block, as a closed range of nights. */
+export interface TimelineBar {
+  kind: OccupiedKind;
+  /** Guest or channel name. Absent on a manual block, which has no guest. */
   label?: string;
-  /** Distinguishes two different stays that happen to share a label. */
+  /** The underlying record, so a click knows what it opened. */
   ref?: string;
+  /** First night, inclusive. */
+  firstNight: string;
+  /** Last night, inclusive — the night before check-out. */
+  lastNight: string;
 }
 
-export interface Segment extends Night {
-  /** Index into the supplied day list where the run starts. */
-  start: number;
-  /** Number of consecutive days the run covers. */
-  span: number;
-}
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-const FREE: Night = { kind: 'free' };
+function isoPlusDay(iso: string): string {
+  const next = new Date(`${iso}T00:00:00`).getTime() + DAY_MS;
+  const date = new Date(next);
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
 
 /**
- * Collapses a run of days into segments. Two adjacent nights merge only when
- * kind, label and ref all match — so back-to-back stays by different guests
- * stay visibly separate even though neither leaves a gap.
+ * Collapses loose dates into contiguous runs.
+ *
+ * Manual and imported blocks arrive as a bag of individual dates rather than
+ * as ranges, and drawing each as its own one-night bar would turn a fortnight
+ * closed for renovation into fourteen separate blocks. Runs are what a host
+ * reads as one decision.
  */
-export function buildSegments(days: string[], nights: Map<string, Night>): Segment[] {
-  const segments: Segment[] = [];
+export function collapseDateRuns(dates: Iterable<string>): Array<{ firstNight: string; lastNight: string }> {
+  const sorted = [...new Set(dates)].filter(Boolean).sort();
+  const runs: Array<{ firstNight: string; lastNight: string }> = [];
 
-  for (let i = 0; i < days.length; i++) {
-    const night = nights.get(days[i]) ?? FREE;
-    const last = segments[segments.length - 1];
-    const continues =
-      last &&
-      last.start + last.span === i &&
-      last.kind === night.kind &&
-      last.label === night.label &&
-      last.ref === night.ref;
-
-    if (continues) {
-      last.span += 1;
+  for (const iso of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && isoPlusDay(last.lastNight) === iso) {
+      last.lastNight = iso;
     } else {
-      segments.push({ ...night, start: i, span: 1 });
+      runs.push({ firstNight: iso, lastNight: iso });
     }
   }
 
-  return segments;
+  return runs;
 }

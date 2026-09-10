@@ -16,6 +16,7 @@ import {
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw, X, Zap } from 'lucide-react';
 import { ApiError } from '../services/api';
 import { CleaningStay, getCleaningCalendar } from '../services/cleaningCalendar';
+import { assignLanes, nightRange } from '../utils/stayLanes';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -89,28 +90,57 @@ interface StaySegment {
   stay: CleaningStay;
   isStart: boolean; // check-in day -> band shows "In"
   isEnd: boolean;   // checkout day -> band shows "Out"
+  /** Which of the property's lanes this stay was stacked into. */
+  lane: number;
 }
 
 // One entry per calendar day a stay touches, check-in through checkout
 // *inclusive* of both ends, so the band visibly starts on check-in day
 // (labelled "In") and visibly ends on checkout day (labelled "Out") instead
-// of stopping one day short. When two stays for the same property meet on
-// the same day (same-day turnover), that day carries two segments — the
-// cell renderer splits the row in half to show both.
-function buildStayBandMap(stays: CleaningStay[]): Map<string, StaySegment[]> {
+// of stopping one day short.
+//
+// A property gets one lane per party staying at once. Lanes are packed by
+// NIGHT, so a same-day turnover — one guest out in the morning, the next in
+// that afternoon — shares no night and stays in a single lane, keeping the
+// split "Out | In" cell the cleaner reads as "strip this room today". A house
+// let to two groups over the same nights opens a second lane instead, because
+// nobody is checking out and drawing "Out" there would send a cleaner into an
+// occupied room.
+function buildStayBandMap(stays: CleaningStay[]): {
+  map: Map<string, StaySegment[]>;
+  laneCounts: Map<string, number>;
+} {
   const map = new Map<string, StaySegment[]>();
+  const laneCounts = new Map<string, number>();
+
+  const byProperty = new Map<string, CleaningStay[]>();
   for (const stay of stays) {
-    const start = parseISO(stay.checkInDate);
-    const end = parseISO(stay.checkOutDate);
-    if (!(start <= end)) continue;
-    for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
-      const iso = format(cursor, 'yyyy-MM-dd');
-      const arr = map.get(iso) ?? [];
-      arr.push({ stay, isStart: iso === stay.checkInDate, isEnd: iso === stay.checkOutDate });
-      map.set(iso, arr);
-    }
+    const list = byProperty.get(stay.propertyId) ?? [];
+    list.push(stay);
+    byProperty.set(stay.propertyId, list);
   }
-  return map;
+
+  byProperty.forEach((propertyStays, propertyId) => {
+    const { laned, laneCount } = assignLanes(
+      propertyStays,
+      (stay) => nightRange(stay.checkInDate, stay.checkOutDate),
+    );
+    laneCounts.set(propertyId, laneCount);
+
+    for (const { item: stay, lane } of laned) {
+      const start = parseISO(stay.checkInDate);
+      const end = parseISO(stay.checkOutDate);
+      if (!(start <= end)) continue;
+      for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
+        const iso = format(cursor, 'yyyy-MM-dd');
+        const arr = map.get(iso) ?? [];
+        arr.push({ stay, lane, isStart: iso === stay.checkInDate, isEnd: iso === stay.checkOutDate });
+        map.set(iso, arr);
+      }
+    }
+  });
+
+  return { map, laneCounts };
 }
 
 // Injects the iOS "Add to Home Screen" meta tags only while this page is
@@ -206,7 +236,7 @@ const CleaningCalendarPage: React.FC = () => {
   }, [fetchStays]);
 
   const dayMap = useMemo(() => buildDayMap(stays), [stays]);
-  const bandMap = useMemo(() => buildStayBandMap(stays), [stays]);
+  const { map: bandMap, laneCounts } = useMemo(() => buildStayBandMap(stays), [stays]);
 
   // Stable, alphabetical order — each property always renders in the same
   // band row across every day and every reload, so position alone tells
@@ -229,6 +259,12 @@ const CleaningCalendarPage: React.FC = () => {
 
   const visibleIds = activePropertyIds ?? new Set(properties.map((p) => p.id));
   const propertyRows = properties.filter((p) => visibleIds.has(p.id));
+  // One band per lane. A property holding one party at a time contributes
+  // exactly one, so an ordinary week looks exactly as it did.
+  const laneRows = propertyRows.flatMap((prop) => Array.from(
+    { length: laneCounts.get(prop.id) ?? 1 },
+    (_, lane) => ({ prop, lane }),
+  ));
   const todayIso = format(new Date(), 'yyyy-MM-dd');
   const selectedActivity = selectedDate ? dayMap.get(selectedDate) : undefined;
   // Stays covering the selected day that are neither the check-in nor the
@@ -339,7 +375,7 @@ const CleaningCalendarPage: React.FC = () => {
                 // from an ordinary single-property cleaning day.
                 const isBusy = checkouts.length > 1;
                 const guestLabel = checkoutGuestLabel(checkouts);
-                const rowCount = Math.max(1, propertyRows.length);
+                const rowCount = Math.max(1, laneRows.length);
 
                 // Today's tint yields to the busy-day orange: a cleaner scanning
                 // this page needs "two properties to turn around" more than they
@@ -382,21 +418,25 @@ const CleaningCalendarPage: React.FC = () => {
                     </span>
 
                     <div className="flex flex-col gap-[2px] w-full px-px">
-                      {propertyRows.map((prop) => {
+                      {laneRows.map(({ prop, lane }) => {
                         const rowIdx = propertyColorMap.get(prop.id) ?? 0;
                         const bg = propertyBgClass(rowIdx);
-                        const segs = daySegs.filter((seg) => seg.stay.propertyId === prop.id);
+                        const segs = daySegs.filter(
+                          (seg) => seg.stay.propertyId === prop.id && seg.lane === lane,
+                        );
 
                         if (segs.length === 0) {
-                          return <span key={prop.id} className="block h-[13px] w-full" />;
+                          return <span key={`${prop.id}|${lane}`} className="block h-[13px] w-full" />;
                         }
 
-                        if (segs.length === 2) {
+                        // Within one lane two segments can only be a turnover:
+                        // an overlap would have been pushed onto its own lane.
+                        if (segs.length >= 2) {
                           // Same-day turnover: one stay ends and another
                           // begins for this property on this day — split
                           // the row so both halves are visible.
                           return (
-                            <span key={prop.id} className="relative flex h-[13px] w-full gap-px">
+                            <span key={`${prop.id}|${lane}`} className="relative flex h-[13px] w-full gap-px">
                               <span className={`flex-1 flex items-center justify-center rounded-r-[4px] text-[7px] font-bold uppercase text-white ${bg} ${isWeekStart ? 'rounded-l-[4px]' : ''}`}>Out</span>
                               <span className={`flex-1 flex items-center justify-center rounded-l-[4px] text-[7px] font-bold uppercase text-white ${bg} ${isWeekEnd ? 'rounded-r-[4px]' : ''}`}>In</span>
                               <Zap className="pointer-events-none absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 text-white drop-shadow" />
@@ -411,7 +451,7 @@ const CleaningCalendarPage: React.FC = () => {
                         // night of occupancy.
                         if (seg.isStart && !seg.isEnd) {
                           return (
-                            <span key={prop.id} className="flex h-[13px] w-full">
+                            <span key={`${prop.id}|${lane}`} className="flex h-[13px] w-full">
                               <span className="flex-1" />
                               <span className={`flex-1 flex items-center justify-center rounded-l-[4px] text-[7px] font-bold uppercase text-white ${bg} ${isWeekEnd ? 'rounded-r-[4px]' : ''}`}>In</span>
                             </span>
@@ -419,7 +459,7 @@ const CleaningCalendarPage: React.FC = () => {
                         }
                         if (seg.isEnd && !seg.isStart) {
                           return (
-                            <span key={prop.id} className="flex h-[13px] w-full">
+                            <span key={`${prop.id}|${lane}`} className="flex h-[13px] w-full">
                               <span className={`flex-1 flex items-center justify-center rounded-r-[4px] text-[7px] font-bold uppercase text-white ${bg} ${isWeekStart ? 'rounded-l-[4px]' : ''}`}>Out</span>
                               <span className="flex-1" />
                             </span>
@@ -427,7 +467,7 @@ const CleaningCalendarPage: React.FC = () => {
                         }
                         return (
                           <span
-                            key={prop.id}
+                            key={`${prop.id}|${lane}`}
                             className={`block h-[13px] w-full ${bg} ${isWeekStart ? 'rounded-l-[4px]' : ''} ${isWeekEnd ? 'rounded-r-[4px]' : ''}`}
                           />
                         );
