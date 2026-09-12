@@ -1,5 +1,5 @@
 import { ApiUser } from './api';
-import { getPropertyCalendar, PropertyCalendar } from './calendar';
+import { CalendarFetchOptions, getPropertyCalendar, PropertyCalendar } from './calendar';
 import { getAllProperties } from './storage';
 import { PricingConfig } from '../types';
 
@@ -229,19 +229,21 @@ export function staysFromCalendar(calendar: PropertyCalendar): HostStay[] {
  */
 export async function loadStays(
   propertyIds: string[],
+  onProperty?: (propertyId: string, stays: HostStay[]) => void,
+  options?: CalendarFetchOptions,
 ): Promise<{ stays: HostStay[]; failedPropertyIds: string[] }> {
-  const results = await Promise.allSettled(propertyIds.map((id) => getPropertyCalendar(id)));
-
   const stays: HostStay[] = [];
   const failedPropertyIds: string[] = [];
 
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled') {
-      stays.push(...staysFromCalendar(result.value));
-    } else {
-      failedPropertyIds.push(propertyIds[index]);
+  await Promise.all(propertyIds.map(async (id) => {
+    try {
+      const own = staysFromCalendar(await getPropertyCalendar(id, options));
+      stays.push(...own);
+      onProperty?.(id, own);
+    } catch {
+      failedPropertyIds.push(id);
     }
-  });
+  }));
 
   return { stays, failedPropertyIds };
 }
@@ -291,22 +293,31 @@ function toCalendarData(calendar: PropertyCalendar): HostCalendarData {
  * One property failing must not blank the month — a single expired iCal feed
  * would otherwise take the whole grid down — so failures are reported
  * alongside whatever did load.
+ *
+ * The server refreshes a property's iCal feeds before it answers, so these
+ * calls routinely take seconds and not all the same number of them. Awaiting
+ * them as a set let the slowest property decide when anything at all appeared.
+ * `onProperty` fires as each one lands, so the screen can fill in property by
+ * property; the returned map is still the authoritative result to reconcile
+ * against once every call has settled.
  */
 export async function loadCalendars(
   propertyIds: string[],
+  onProperty?: (propertyId: string, data: HostCalendarData) => void,
+  options?: CalendarFetchOptions,
 ): Promise<{ calendars: Map<string, HostCalendarData>; failedPropertyIds: string[] }> {
-  const results = await Promise.allSettled(propertyIds.map((id) => getPropertyCalendar(id)));
-
   const calendars = new Map<string, HostCalendarData>();
   const failedPropertyIds: string[] = [];
 
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled') {
-      calendars.set(propertyIds[index], toCalendarData(result.value));
-    } else {
-      failedPropertyIds.push(propertyIds[index]);
+  await Promise.all(propertyIds.map(async (id) => {
+    try {
+      const data = toCalendarData(await getPropertyCalendar(id, options));
+      calendars.set(id, data);
+      onProperty?.(id, data);
+    } catch {
+      failedPropertyIds.push(id);
     }
-  });
+  }));
 
   return { calendars, failedPropertyIds };
 }

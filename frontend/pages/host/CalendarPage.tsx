@@ -133,10 +133,21 @@ const CalendarPage: React.FC = () => {
     }
     let cancelled = false;
     setError(null);
+    // The grid is drawn from whatever has arrived, so the first property to
+    // answer ends the blank screen instead of the last one. The spinner in
+    // the header keeps turning until the rest are in, which is the honest
+    // signal that the month is still filling rather than finished.
+    setIsRefreshing(true);
 
-    loadCalendars(propertyIds)
+    loadCalendars(propertyIds, (id, data) => {
+      if (cancelled) return;
+      setCalendars((prev) => new Map(prev).set(id, data));
+      setIsLoading(false);
+    }, { refresh: reloadKey > 0 })
       .then((result) => {
         if (cancelled) return;
+        // Reconcile: a property that has since been removed, or one that
+        // failed this round, must not linger from the previous load.
         setCalendars(result.calendars);
         if (result.failedPropertyIds.length > 0) {
           const names = result.failedPropertyIds

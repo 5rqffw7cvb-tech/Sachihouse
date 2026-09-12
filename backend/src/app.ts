@@ -1372,8 +1372,19 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       return res.status(403).json({ error: 'Not allowed for this property.' });
     }
 
+    // Answer from what was last synced and let the feed refresh happen behind
+    // the request. Fetching every configured .ics before replying put a
+    // third-party HTTP call — five seconds of timeout each — in front of a
+    // host who only wanted to see this month, and the cache lives 60s, so
+    // nearly every open paid it. Nothing the host can edit is affected: manual
+    // blocks, holds and confirmations are read from our own tables here, and
+    // imported events come from the rows the last sync persisted either way.
+    // `?refresh=1` is the way to insist on a live pull — that is what the
+    // screen's own refresh control sends.
+    const mode = req.query.refresh === '1' ? 'fresh-if-stale' : 'stale-ok';
+
     const manualBlockedDates = await store.listBlockedDates(property.id);
-    const effective = await getEffectiveBlockedDates(property, 'fresh-if-stale');
+    const effective = await getEffectiveBlockedDates(property, mode);
 
     // "Imported" is what is left after removing the sources we can name —
     // every night one of our own records already accounts for. Without this a
@@ -1385,7 +1396,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     // straight back are dropped here, or the same stay would be drawn twice:
     // once as the host's own booking, once as an unattributed import.
     const { kept: importedEvents, echoOnlyNights } = splitEchoedEvents(
-      await icalSync.getImportedEvents(property, 'fresh-if-stale'),
+      await icalSync.getImportedEvents(property, mode),
       ownNights,
     );
     const importedBlockedDates = effective.filter(

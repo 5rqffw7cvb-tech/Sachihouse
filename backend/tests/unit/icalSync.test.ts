@@ -19,6 +19,37 @@ describe('IcalSyncService', () => {
     vi.unstubAllGlobals();
   });
 
+  it('answers from the last sync under stale-ok, without waiting for the feed', async () => {
+    // This is what keeps opening a calendar quick: the host calendar asks
+    // stale-ok, so a slow or hanging OTA cannot hold up the reply. Only an
+    // explicit refresh, and a cache that has never been filled, wait.
+    const ics = (day: string) => [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'UID:uid-1@example.com',
+      `DTSTART;VALUE=DATE:${day}`,
+      `DTEND;VALUE=DATE:2026091${Number(day.slice(-1)) + 2}`,
+      'SUMMARY:Reserved',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    // ttl 0: the entry is stale the instant it is written, which is the state
+    // nearly every real request arrives in.
+    const service = new IcalSyncService({ enabled: true, ttlMs: 0, timeoutMs: 5000 });
+    const prop = property([{ id: 'feed1', name: 'Hostex', url: 'https://hostex.example/cal.ics', lastSynced: '' }]);
+
+    vi.stubGlobal('fetch', fakeIcsResponse(ics('20260901')));
+    const first = await service.getBlockedDates(prop, [], 'fresh-if-stale');
+    expect(first).toContain('2026-09-01');
+
+    // A feed that never answers. fresh-if-stale would sit here until the
+    // timeout; stale-ok must not.
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const cached = await service.getBlockedDates(prop, [], 'stale-ok');
+    expect(cached).toEqual(first);
+  });
+
   it('attributes an imported event to its feed and expands the stay to individual nights', async () => {
     const ics = [
       'BEGIN:VCALENDAR',

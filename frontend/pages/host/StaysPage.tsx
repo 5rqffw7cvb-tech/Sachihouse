@@ -91,18 +91,32 @@ const StaysPage: React.FC = () => {
     setError(null);
 
     const propertyIds = properties.map((property) => property.id);
-    const staysPromise = loadStays(propertyIds);
+    // Each property's calendar lands on its own, and the sections are drawn
+    // from whatever has arrived — waiting for the set meant the slowest
+    // property decided when the host saw anything at all.
+    setIsRefreshing(true);
+    const staysPromise = loadStays(propertyIds, (id, own) => {
+      if (cancelled) return;
+      setStays((prev) => [...prev.filter((stay) => stay.propertyId !== id), ...own]);
+      setIsLoading(false);
+    }, { refresh: reloadKey > 0 });
     // The whole arrival window, not just today: an ID is worth checking while
     // there is still time to ask for it.
     const submissionsPromise = canSeeCheckIns
       ? listCheckIns({ fromDate: today, toDate: horizon }).catch(() => null)
       : Promise.resolve(null);
 
-    Promise.all([staysPromise, submissionsPromise])
-      .then(([staysResult, submissionsResult]) => {
+    void submissionsPromise.then((rows) => {
+      if (cancelled) return;
+      setSubmissions(rows);
+    });
+
+    staysPromise
+      .then((staysResult) => {
         if (cancelled) return;
+        // Reconcile against the authoritative set, so a property that failed
+        // this round does not linger from the previous load.
         setStays(staysResult.stays);
-        setSubmissions(submissionsResult);
         if (staysResult.failedPropertyIds.length > 0) {
           const names = staysResult.failedPropertyIds
             .map((id) => properties.find((property) => property.id === id)?.name ?? id)

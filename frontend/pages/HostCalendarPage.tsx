@@ -22,6 +22,7 @@ import { getAllProperties } from '../services/storage';
 import {
   addBlockedDates,
   DirectBooking,
+  CalendarFetchOptions,
   getPropertyCalendar,
   ImportedCalendarEvent,
   PropertyCalendar,
@@ -205,12 +206,12 @@ const HostCalendarPage: React.FC = () => {
     }
   }, [scopedProperties, selectedPropertyId]);
 
-  const loadCalendar = async (propertyId: string) => {
+  const loadCalendar = async (propertyId: string, options?: CalendarFetchOptions) => {
     if (!propertyId) { setCalendar(null); return; }
     setLoadingCal(true);
     setErrorMsg(null);
     try {
-      const data = await getPropertyCalendar(propertyId);
+      const data = await getPropertyCalendar(propertyId, options);
       setCalendar(data);
       setFeedDraft(data.icalFeeds);
     } catch (err) {
@@ -514,8 +515,10 @@ const HostCalendarPage: React.FC = () => {
       setCalendar((prev) => (prev ? { ...prev, icalFeeds: saved } : prev));
       setFeedDraft(saved);
       setFeedsSaved(true);
-      // Re-pull so imported dates from any new feed show up.
-      void loadCalendar(calendar.propertyId);
+      // Re-pull so imported dates from any new feed show up. A feed saved a
+      // second ago has never been fetched, so this is the one load that has
+      // to wait for the pull rather than answer from the last sync.
+      void loadCalendar(calendar.propertyId, { refresh: true });
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to save iCal feeds.');
     } finally {

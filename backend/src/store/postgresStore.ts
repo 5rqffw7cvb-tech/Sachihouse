@@ -1055,25 +1055,34 @@ export class PostgresStore implements DataStore {
     return token;
   }
 
+  // One statement, not one per event. A feed carrying twenty-odd reservations
+  // meant twenty-odd sequential round-trips to the database, and this runs
+  // inside the request that draws the host's calendar — the latency added up
+  // in front of somebody waiting. Chunked because a statement cannot carry
+  // more than 65535 bound parameters, and a feed's length is the OTA's to
+  // decide, not ours.
+  private static readonly IMPORTED_EVENT_CHUNK = 500;
+
   async upsertImportedEvents(propertyId: string, events: ImportedEvent[]): Promise<void> {
     const now = Date.now();
-    for (const event of events) {
-      await this.pool.query(
-        `INSERT INTO imported_events
-           (property_id, external_id, feed_id, feed_name, channel_name, is_block, summary, description, check_in_date, check_out_date, guest_count, first_seen_at, last_seen_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
-         ON CONFLICT (property_id, external_id) DO UPDATE SET
-           feed_id = EXCLUDED.feed_id,
-           feed_name = EXCLUDED.feed_name,
-           channel_name = EXCLUDED.channel_name,
-           is_block = EXCLUDED.is_block,
-           summary = EXCLUDED.summary,
-           description = EXCLUDED.description,
-           check_in_date = EXCLUDED.check_in_date,
-           check_out_date = EXCLUDED.check_out_date,
-           guest_count = EXCLUDED.guest_count,
-           last_seen_at = EXCLUDED.last_seen_at`,
-        [
+    const chunkSize = PostgresStore.IMPORTED_EVENT_CHUNK;
+
+    // Postgres refuses to let one statement's ON CONFLICT touch the same row
+    // twice, and two feeds on one property can hand us the same UID. Writing
+    // a row at a time used to absorb that silently, last one winning; keep
+    // that outcome rather than failing the whole sync over a duplicate.
+    const unique = new Map(events.map((event) => [event.externalId, event]));
+    const deduped = [...unique.values()];
+
+    for (let offset = 0; offset < deduped.length; offset += chunkSize) {
+      const chunk = deduped.slice(offset, offset + chunkSize);
+      const values: unknown[] = [];
+      const rows = chunk.map((event) => {
+        // last_seen_at repeats first_seen_at's placeholder: a row inserted now
+        // has been seen exactly once, and the conflict clause below moves only
+        // last_seen_at on every later sighting.
+        const base = values.length;
+        values.push(
           propertyId,
           event.externalId,
           event.feedId,
@@ -1086,7 +1095,27 @@ export class PostgresStore implements DataStore {
           event.checkOutDate,
           event.guestCount,
           now,
-        ],
+        );
+        const p = (index: number) => `$${base + index}`;
+        return `(${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12].map(p).join(', ')})`;
+      });
+
+      await this.pool.query(
+        `INSERT INTO imported_events
+           (property_id, external_id, feed_id, feed_name, channel_name, is_block, summary, description, check_in_date, check_out_date, guest_count, first_seen_at, last_seen_at)
+         VALUES ${rows.join(', ')}
+         ON CONFLICT (property_id, external_id) DO UPDATE SET
+           feed_id = EXCLUDED.feed_id,
+           feed_name = EXCLUDED.feed_name,
+           channel_name = EXCLUDED.channel_name,
+           is_block = EXCLUDED.is_block,
+           summary = EXCLUDED.summary,
+           description = EXCLUDED.description,
+           check_in_date = EXCLUDED.check_in_date,
+           check_out_date = EXCLUDED.check_out_date,
+           guest_count = EXCLUDED.guest_count,
+           last_seen_at = EXCLUDED.last_seen_at`,
+        values,
       );
     }
   }

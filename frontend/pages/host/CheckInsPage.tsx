@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Check, ChevronRight, Link2, Lock, Search, X } from 'lucide-react';
 import { HostCard, HostEmpty, HostScreen } from '../../components/host/HostScreen';
@@ -10,6 +10,16 @@ import { hasAccess } from '../../services/permissions';
 import { CheckInSubmission } from '../../types';
 
 type Filter = 'all' | 'missing' | 'arriving';
+
+/**
+ * How many rows are put on screen at a time.
+ *
+ * The list is every check-in ever taken and it only grows, so building the
+ * whole thing on open costs more every month for rows nobody scrolls to. A
+ * screenful is about eight; twenty means the first paint is cheap and the
+ * next page is already there before the reader reaches it.
+ */
+const PAGE_SIZE = 20;
 
 /**
  * The Hotel Business Act wants an ID image on file for guests without a Japan
@@ -46,6 +56,8 @@ const CheckInsPage: React.FC = () => {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [openSubmission, setOpenSubmission] = useState<CheckInSubmission | null>(null);
+  const [shown, setShown] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const [linkSheetOpen, setLinkSheetOpen] = useState(false);
   const [copiedPropertyId, setCopiedPropertyId] = useState<string | null>(null);
 
@@ -99,6 +111,43 @@ const CheckInsPage: React.FC = () => {
       return haystack.includes(needle);
     });
   }, [submissions, filter, query, today, propertyNames]);
+
+  const page = useMemo(() => visible.slice(0, shown), [visible, shown]);
+
+  // A new filter or search is a new list, so it starts at the top again —
+  // otherwise narrowing to two matches would still render whatever depth the
+  // reader had scrolled to before.
+  useEffect(() => { setShown(PAGE_SIZE); }, [filter, query]);
+
+  /**
+   * Grow the page when the end of the list comes into view.
+   *
+   * `rootMargin` reaches 400px past the fold so the next rows are mounted
+   * before the reader arrives at them: the list should feel whole, not
+   * paginated. Where IntersectionObserver is missing — an old WebView, or
+   * jsdom under test — everything is rendered at once, which is exactly the
+   * behaviour this replaces and never a broken screen.
+   */
+  useEffect(() => {
+    if (shown >= visible.length) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setShown(visible.length);
+      return;
+    }
+    const node = sentinelRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShown((count) => Math.min(count + PAGE_SIZE, visible.length));
+        }
+      },
+      { rootMargin: '400px' },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [shown, visible.length]);
 
   const handleCopyLink = async (propertyId: string) => {
     await copyText(buildCheckInUrl(propertyId));
@@ -189,13 +238,13 @@ const CheckInsPage: React.FC = () => {
             {submissions.length === 0 ? 'No check-in records yet.' : 'Nothing matches this filter.'}
           </HostEmpty>
         ) : (
-          visible.map((row, index) => (
+          page.map((row, index) => (
             <button
               type="button"
               key={row.id}
               onClick={() => setOpenSubmission(row)}
               className={`w-full flex items-center gap-3 px-4 h-[76px] text-left active:bg-subtle ${
-                index === visible.length - 1 ? '' : 'border-b border-line'
+                index === page.length - 1 ? '' : 'border-b border-line'
               }`}
             >
               <span className="w-[42px] h-[42px] rounded-[14px] bg-brand-tint shrink-0 flex items-center justify-center
@@ -222,6 +271,12 @@ const CheckInsPage: React.FC = () => {
           ))
         )}
       </HostCard>
+
+      {shown < visible.length && (
+        <div ref={sentinelRef} className="flex justify-center py-2 text-[12px] text-ink-muted">
+          {visible.length - shown} more
+        </div>
+      )}
 
       <CheckInDetailSheet
         submission={openSubmission}

@@ -61,8 +61,22 @@ export interface PropertyCalendar {
   exportUrl: string;
 }
 
-export async function getPropertyCalendar(propertyId: string): Promise<PropertyCalendar> {
-  return apiRequest<PropertyCalendar>(`/properties/${propertyId}/calendar`);
+/** Whether to make the server pull the iCal feeds before it answers.
+ *
+ * By default it replies from what was last synced and refreshes behind the
+ * request, which is what keeps opening a calendar quick. Pass `refresh` where
+ * the wait is the point — a refresh control the host just pressed, or a feed
+ * they have only this second added. */
+export interface CalendarFetchOptions {
+  refresh?: boolean;
+}
+
+export async function getPropertyCalendar(
+  propertyId: string,
+  options?: CalendarFetchOptions,
+): Promise<PropertyCalendar> {
+  const query = options?.refresh ? '?refresh=1' : '';
+  return apiRequest<PropertyCalendar>(`/properties/${propertyId}/calendar${query}`);
 }
 
 // The full effective calendar (manual blocks + iCal imports from other
