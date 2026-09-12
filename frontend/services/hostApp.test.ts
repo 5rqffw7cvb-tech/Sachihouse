@@ -59,6 +59,27 @@ describe("the Today screen's three sections", () => {
     expect(arrivalsBetween(all, TODAY, horizon).map((s) => s.propertyName)).toEqual(['A', 'B']);
   });
 
+  it('never offers a synced block as an arrival or a departure', () => {
+    // A channel manager's "not available" range takes the nights but has no
+    // party: the host has nobody to let in and the cleaner nobody to clean
+    // after, so it belongs in the house, not in either transition list.
+    const block = stay({
+      checkInDate: TODAY,
+      checkOutDate: '2026-09-09',
+      propertyName: 'Z',
+      kind: 'imported-block',
+      channel: 'Blocked',
+      guestName: null,
+    });
+    const withBlock = [...all, block];
+
+    expect(arrivalsBetween(withBlock, TODAY, horizon).map((s) => s.propertyName)).toEqual(['A', 'B']);
+    expect(arrivalsOn(withBlock, TODAY).map((s) => s.propertyName)).toEqual(['A']);
+    expect(departuresOn(withBlock, '2026-09-09').map((s) => s.propertyName)).toEqual(['A']);
+    // It still has to say the house is occupied on the nights it covers.
+    expect(stayingOn(withBlock, '2026-09-07').map((s) => s.propertyName)).toContain('Z');
+  });
+
   it('counts an arrival on the horizon itself as inside the window', () => {
     expect(arrivalsBetween(all, TODAY, '2026-09-12').map((s) => s.propertyName)).toEqual(['A', 'B']);
     expect(arrivalsBetween(all, TODAY, '2026-09-11').map((s) => s.propertyName)).toEqual(['A']);

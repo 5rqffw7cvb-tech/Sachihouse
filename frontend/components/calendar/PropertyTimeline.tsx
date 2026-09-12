@@ -51,10 +51,18 @@ const BAR: Record<OccupiedKind, string> = {
   booking: 'bg-brand text-white',
   hold: 'bg-hold-tint text-hold ring-1 ring-inset ring-hold/30',
   imported: 'bg-info-tint text-info ring-1 ring-inset ring-info/25',
-  // Hatched and drained of colour: a block is the absence of a booking, and
-  // should never read as one of the channel-coloured stays beside it.
-  'imported-block': 'bg-subtle text-ink-muted ring-1 ring-inset ring-line-strong bg-[repeating-linear-gradient(45deg,transparent,transparent_5px,rgba(0,0,0,0.05)_5px,rgba(0,0,0,0.05)_10px)]',
+  // Drained of colour and hatched. A block is the absence of a booking and
+  // must not read as one of the filled, channel-coloured stays beside it.
+  'imported-block': 'bg-subtle text-ink-muted ring-1 ring-inset ring-line-strong',
   manual: 'bg-ink-muted/25 text-ink-soft ring-1 ring-inset ring-ink-muted/30',
+};
+
+/** The hatch itself. Inline rather than an arbitrary `bg-[…]` class: the value
+ *  is a gradient with its own commas and parentheses, and it has to survive
+ *  the utility pipeline intact for the bar to look unlike a stay at all. */
+const HATCH: React.CSSProperties = {
+  backgroundImage:
+    'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(0,0,0,0.06) 5px, rgba(0,0,0,0.06) 10px)',
 };
 
 const LABEL: Record<OccupiedKind, string> = {
@@ -242,7 +250,11 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
                       text-[12px] font-semibold ${BAR[bar.kind]} ${
                         clickable ? 'cursor-pointer hover:brightness-95' : 'cursor-default'
                       }`}
-                    style={{ gridRow: lane + 1, gridColumn: `${from + 2} / span ${to - from + 1}` }}
+                    style={{
+                      gridRow: lane + 1,
+                      gridColumn: `${from + 2} / span ${to - from + 1}`,
+                      ...(bar.kind === 'imported-block' ? HATCH : null),
+                    }}
                   >
                     <span className="truncate">{bar.label || LABEL[bar.kind]}</span>
                   </button>

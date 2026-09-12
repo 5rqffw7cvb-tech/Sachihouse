@@ -311,9 +311,18 @@ export async function loadCalendars(
   return { calendars, failedPropertyIds };
 }
 
+/** Nobody arrives at, or leaves from, a block: it is nights taken off the
+ *  market, not a party. Listing one under arrivals or departures puts a
+ *  guest-shaped row in front of a host who then has nobody to let in, and
+ *  sends a cleaner to a room nobody slept in. Blocks stay in stayingOn,
+ *  where they correctly say the house is not free. */
+function isParty(stay: HostStay): boolean {
+  return stay.kind !== 'imported-block';
+}
+
 export function arrivalsOn(stays: HostStay[], iso: string): HostStay[] {
   return stays
-    .filter((stay) => stay.checkInDate === iso)
+    .filter((stay) => isParty(stay) && stay.checkInDate === iso)
     .sort((a, b) => a.propertyName.localeCompare(b.propertyName));
 }
 
@@ -325,7 +334,7 @@ export function arrivalsOn(stays: HostStay[], iso: string): HostStay[] {
  */
 export function arrivalsBetween(stays: HostStay[], fromIso: string, toIso: string): HostStay[] {
   return stays
-    .filter((stay) => stay.checkInDate >= fromIso && stay.checkInDate <= toIso)
+    .filter((stay) => isParty(stay) && stay.checkInDate >= fromIso && stay.checkInDate <= toIso)
     .sort((a, b) => (
       a.checkInDate.localeCompare(b.checkInDate) || a.propertyName.localeCompare(b.propertyName)
     ));
@@ -347,7 +356,7 @@ export function stayingOn(stays: HostStay[], iso: string): HostStay[] {
 
 export function departuresOn(stays: HostStay[], iso: string): HostStay[] {
   return stays
-    .filter((stay) => stay.checkOutDate === iso)
+    .filter((stay) => isParty(stay) && stay.checkOutDate === iso)
     .sort((a, b) => a.propertyName.localeCompare(b.propertyName));
 }
 

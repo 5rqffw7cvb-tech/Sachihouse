@@ -35,6 +35,9 @@ const DEFAULT_SOURCE_STYLE = 'bg-[#d97706] text-white';
 // this chip, which put "Hostex" next to a real "Hostex Direct" booking and
 // made the two indistinguishable at the only place a cleaner looks.
 const BLOCK_SOURCE_STYLE = 'bg-[#9ca3af] text-white';
+// The band on the month grid, same grey. A block is drawn in the property's
+// own colour nowhere: the colour means "this property has a guest".
+const BLOCK_BAND_CLASS = 'bg-[#9ca3af]';
 function sourceStyle(source: string): string {
   return SOURCE_STYLES[source] || DEFAULT_SOURCE_STYLE;
 }
@@ -90,6 +93,9 @@ function buildDayMap(stays: CleaningStay[]): Map<string, DayActivity> {
     return entry;
   };
   for (const stay of stays) {
+    // A block is nights taken off the market, not a turnover. Nobody checks
+    // out of it and nobody into it, so it must never raise a cleaning day.
+    if (stay.isBlock) continue;
     ensure(stay.checkOutDate).checkouts.push(stay);
     ensure(stay.checkInDate).checkins.push(stay);
   }
@@ -138,13 +144,24 @@ function buildStayBandMap(stays: CleaningStay[]): {
     laneCounts.set(propertyId, laneCount);
 
     for (const { item: stay, lane } of laned) {
+      // A stay runs check-in through check-out so the band opens on "In" and
+      // closes on "Out". A block has neither end: it covers only the nights
+      // it holds, and is marked as starting and ending nowhere, which keeps
+      // it out of the half-bar and turnover branches below.
+      const nights = stay.isBlock ? nightRange(stay.checkInDate, stay.checkOutDate) : null;
+      if (stay.isBlock && !nights) continue;
       const start = parseISO(stay.checkInDate);
-      const end = parseISO(stay.checkOutDate);
+      const end = parseISO(nights ? nights.lastNight : stay.checkOutDate);
       if (!(start <= end)) continue;
       for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
         const iso = format(cursor, 'yyyy-MM-dd');
         const arr = map.get(iso) ?? [];
-        arr.push({ stay, lane, isStart: iso === stay.checkInDate, isEnd: iso === stay.checkOutDate });
+        arr.push({
+          stay,
+          lane,
+          isStart: !stay.isBlock && iso === stay.checkInDate,
+          isEnd: !stay.isBlock && iso === stay.checkOutDate,
+        });
         map.set(iso, arr);
       }
     }
@@ -478,7 +495,7 @@ const CleaningCalendarPage: React.FC = () => {
                         return (
                           <span
                             key={`${prop.id}|${lane}`}
-                            className={`block h-[13px] w-full ${bg} ${isWeekStart ? 'rounded-l-[4px]' : ''} ${isWeekEnd ? 'rounded-r-[4px]' : ''}`}
+                            className={`block h-[13px] w-full ${seg.stay.isBlock ? BLOCK_BAND_CLASS : bg} ${isWeekStart ? 'rounded-l-[4px]' : ''} ${isWeekEnd ? 'rounded-r-[4px]' : ''}`}
                           />
                         );
                       })}
@@ -544,16 +561,12 @@ const CleaningCalendarPage: React.FC = () => {
                     <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceChip(stay).className}`}>{sourceChip(stay).label}</span>
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-[#44474c]">
-                    <span>{stay.isBlock ? '🚫 Blocked until' : '🧹 Out'} {stay.checkOutTime}</span>
+                    <span>🧹 Out {stay.checkOutTime}</span>
                     {/* The party that just left sizes the job — stated plainly,
                         and stated as unknown when the feed never said, so an
-                        absent count is never mistaken for a small booking. A
-                        block has no party at all, which is a different thing
-                        again and has to say so rather than read as unknown. */}
+                        absent count is never mistaken for a small booking. */}
                     <span className="font-semibold text-[#1b1c1d]">
-                      {stay.isBlock
-                        ? 'no guest — nothing to clean'
-                        : `👤 ${stay.guestCount != null ? guestsLabel(stay.guestCount) : 'guests not stated'}`}
+                      👤 {stay.guestCount != null ? guestsLabel(stay.guestCount) : 'guests not stated'}
                     </span>
                     {sameDayTurnover && (
                       <span className="inline-flex items-center gap-0.5 rounded-full bg-[#fef3c7] px-1.5 py-0.5 text-[10px] font-bold text-[#92400e]">
@@ -572,7 +585,7 @@ const CleaningCalendarPage: React.FC = () => {
                   <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceChip(stay).className}`}>{sourceChip(stay).label}</span>
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-[#44474c]">
-                  <span>{stay.isBlock ? '🚫 Blocked from' : '🛬 In'} {stay.checkInTime}</span>
+                  <span>🛬 In {stay.checkInTime}</span>
                   {stay.guestCount != null && <span className="font-semibold text-[#1b1c1d]">👤 {guestsLabel(stay.guestCount)}</span>}
                 </div>
               </div>

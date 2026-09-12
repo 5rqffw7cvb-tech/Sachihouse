@@ -34,7 +34,8 @@ import {
 import { assignLanes, nightRange } from '../../utils/stayLanes';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-/** A night the host took off the market by hand — no guest behind it. */
+/** A night with no guest behind it: taken off the market by the host here,
+ *  or by a channel manager whose feed only says "not available". */
 const BLOCKED_COLOR = '#6b7280';
 
 interface Segment {
@@ -77,10 +78,24 @@ function buildBands(calendars: Map<string, HostCalendarData>): BandMap {
     laneCounts.set(propertyId, laneCount);
 
     laned.forEach(({ item: stay, lane }) => {
-      datesInRange(stay.checkInDate, stay.checkOutDate).forEach((iso) => {
+      // A stay is drawn check-in through check-out so the band visibly opens
+      // on "In" and closes on "Out". A block has neither: nobody arrives and
+      // nobody leaves, so it covers only the nights it actually holds and is
+      // marked as starting and ending nowhere — which keeps it out of the
+      // half-bar and turnover branches the renderer reserves for a party.
+      const isBlock = stay.kind === 'imported-block';
+      const nights = isBlock ? nightRange(stay.checkInDate, stay.checkOutDate) : null;
+      if (isBlock && !nights) return;
+      const lastDay = nights ? nights.lastNight : stay.checkOutDate;
+
+      datesInRange(stay.checkInDate, lastDay).forEach((iso) => {
         const key = `${stay.propertyId}|${lane}|${iso}`;
         const list = bands.get(key) ?? [];
-        list.push({ stay, isStart: iso === stay.checkInDate, isEnd: iso === stay.checkOutDate });
+        list.push({
+          stay,
+          isStart: !isBlock && iso === stay.checkInDate,
+          isEnd: !isBlock && iso === stay.checkOutDate,
+        });
         bands.set(key, list);
       });
     });
@@ -420,7 +435,7 @@ const CalendarPage: React.FC = () => {
                             className={`block h-[13px] w-full ${isWeekStart ? 'rounded-l-[4px]' : ''} ${
                               isWeekEnd ? 'rounded-r-[4px]' : ''
                             }`}
-                            style={{ background: color }}
+                            style={{ background: seg.stay.kind === 'imported-block' ? BLOCKED_COLOR : color }}
                           />
                         );
                       })}
