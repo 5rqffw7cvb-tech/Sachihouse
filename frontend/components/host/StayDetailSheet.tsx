@@ -67,9 +67,11 @@ export const StayDetailSheet: React.FC<StayDetailSheetProps> = ({
   const nights = nightsBetween(stay.checkInDate, stay.checkOutDate);
   const status = stay.kind === 'hold'
     ? { label: 'Unpaid hold', className: 'bg-hold-tint text-hold' }
-    : stay.kind === 'imported'
-      ? { label: `Synced from ${stay.feedName || stay.channel}`, className: 'bg-brand-tint text-ink-soft' }
-      : { label: 'Confirmed', className: 'bg-ok-tint text-ok' };
+    : stay.kind === 'imported-block'
+      ? { label: `Blocked on ${stay.feedName || stay.channel}`, className: 'bg-subtle text-ink-muted' }
+      : stay.kind === 'imported'
+        ? { label: `Synced from ${stay.feedName || stay.channel}`, className: 'bg-brand-tint text-ink-soft' }
+        : { label: 'Confirmed', className: 'bg-ok-tint text-ok' };
 
   return (
     <div

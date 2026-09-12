@@ -30,6 +30,11 @@ export interface ImportedCalendarEvent {
   // text when the feed itself is an aggregator like Hostex. Null when it
   // cannot be determined — falls back to feedName in the UI.
   channelName: string | null;
+  // True when the feed published this range as "these nights are taken"
+  // rather than as a reservation — a channel manager mirroring somebody
+  // else's calendar. No guest, no money, no turnover: the calendars draw it
+  // as a block, never as a stay.
+  isBlock: boolean;
   summary: string;
   description: string;
   checkInDate: string;

@@ -308,8 +308,14 @@ const HostCalendarPage: React.FC = () => {
       const nights = nightRange(event.checkInDate, event.checkOutDate);
       if (!nights) continue;
       bars.push({
-        kind: 'imported',
-        label: event.channelName || event.feedName || 'iCal',
+        kind: event.isBlock ? 'imported-block' : 'imported',
+        // A reservation is labelled by who sold it. A block was sold by
+        // nobody, so naming its feed there would read as a channel — the
+        // exact confusion between "Hostex (Not available)" and a real
+        // "Hostex Direct" booking that the two kinds exist to end.
+        label: event.isBlock
+          ? `Blocked · ${event.feedName || 'iCal'}`
+          : event.channelName || event.feedName || 'iCal',
         ref: `${event.feedId}:${event.checkInDate}`,
         ...nights,
       });
@@ -380,7 +386,7 @@ const HostCalendarPage: React.FC = () => {
 
   /** Opening an imported bar shows the raw event, same as the old grid did. */
   const handleSelectBar = (propertyId: string, bar: TimelineBar) => {
-    if (bar.kind !== 'imported') return;
+    if (bar.kind !== 'imported' && bar.kind !== 'imported-block') return;
     const event = (allCalendars.get(propertyId)?.importedEvents ?? [])
       .find((e) => e.dates.includes(bar.firstNight));
     if (event) setSelectedImportedEvent(event);
@@ -603,10 +609,18 @@ const HostCalendarPage: React.FC = () => {
             <div className="w-full max-w-sm rounded-card bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className={`text-[11px] font-semibold uppercase tracking-wide ${importedEventStyle(selectedImportedEvent.channelName).text}`}>
-                    Imported from {selectedImportedEvent.channelName || selectedImportedEvent.feedName}
-                    {selectedImportedEvent.channelName && selectedImportedEvent.channelName !== selectedImportedEvent.feedName && (
-                      <span className="ml-1.5 normal-case font-normal tracking-normal text-ink-muted">via {selectedImportedEvent.feedName}</span>
+                  <div className={`text-[11px] font-semibold uppercase tracking-wide ${
+                    selectedImportedEvent.isBlock ? 'text-ink-muted' : importedEventStyle(selectedImportedEvent.channelName).text
+                  }`}>
+                    {selectedImportedEvent.isBlock ? (
+                      <>Blocked on {selectedImportedEvent.feedName}</>
+                    ) : (
+                      <>
+                        Imported from {selectedImportedEvent.channelName || selectedImportedEvent.feedName}
+                        {selectedImportedEvent.channelName && selectedImportedEvent.channelName !== selectedImportedEvent.feedName && (
+                          <span className="ml-1.5 normal-case font-normal tracking-normal text-ink-muted">via {selectedImportedEvent.feedName}</span>
+                        )}
+                      </>
                     )}
                   </div>
                   <div className="mt-1 text-[15px] font-semibold text-ink">{selectedImportedEvent.summary}</div>
@@ -617,7 +631,13 @@ const HostCalendarPage: React.FC = () => {
               </div>
               <div className="mt-3 space-y-1.5 text-[13px] text-ink-soft">
                 <div>{selectedImportedEvent.checkInDate} → {selectedImportedEvent.checkOutDate}</div>
-                <div>{selectedImportedEvent.guestCount != null ? `${selectedImportedEvent.guestCount} guest${selectedImportedEvent.guestCount === 1 ? '' : 's'}` : 'Guest count not provided by this platform'}</div>
+                <div>
+                  {selectedImportedEvent.isBlock
+                    ? 'No reservation behind this — the platform only published these nights as unavailable.'
+                    : selectedImportedEvent.guestCount != null
+                      ? `${selectedImportedEvent.guestCount} guest${selectedImportedEvent.guestCount === 1 ? '' : 's'}`
+                      : 'Guest count not provided by this platform'}
+                </div>
               </div>
               {selectedImportedEvent.description && (
                 <div className="mt-3 rounded-control bg-subtle p-3 text-[12px] text-ink-soft whitespace-pre-wrap break-words">

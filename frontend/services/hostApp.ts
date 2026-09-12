@@ -39,7 +39,9 @@ export function propertyColor(index: number): string {
   return PROPERTY_COLORS[index % PROPERTY_COLORS.length];
 }
 
-export type StayKind = 'booking' | 'hold' | 'imported';
+/** `imported-block` is a feed's "these nights are taken" range: it fills the
+ *  calendar like a stay but has no guest, no money and nothing to clean. */
+export type StayKind = 'booking' | 'hold' | 'imported' | 'imported-block';
 
 export interface HostStay {
   /** Stable within one load — used as a React key, never sent anywhere. */
@@ -91,6 +93,7 @@ export function formatMoney(amount: number, currency: string | null): string {
  */
 const CHANNEL_COLORS: Record<string, string> = {
   Airbnb: '#FF5A5F',
+  Blocked: '#9ca3af',
   'Booking.com': '#003580',
   'Hostex Direct': '#0f9d58',
   Manual: '#6b7280',
@@ -198,11 +201,13 @@ export function staysFromCalendar(calendar: PropertyCalendar): HostStay[] {
       propertyId: calendar.propertyId,
       propertyName: calendar.propertyName,
       guestName: null,
-      channel: event.channelName || event.feedName,
+      // Naming the feed as the channel is what made a Hostex block look like
+      // a Hostex Direct booking. A block is attributed to nobody.
+      channel: event.isBlock ? 'Blocked' : event.channelName || event.feedName,
       checkInDate: event.checkInDate,
       checkOutDate: event.checkOutDate,
       guestCount: event.guestCount,
-      kind: 'imported',
+      kind: event.isBlock ? 'imported-block' : 'imported',
       bookingId: null,
       amountTotal: null,
       currency: null,

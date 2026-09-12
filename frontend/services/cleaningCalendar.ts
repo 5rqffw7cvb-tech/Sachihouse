@@ -12,6 +12,10 @@ export interface CleaningStay {
   checkOutTime: string;
   source: string;
   guestCount: number | null;
+  // A channel manager's "these nights are taken" range rather than a
+  // reservation. It fills the calendar but nobody checks in or out of it, so
+  // it must never be shown as a turnover to go and clean.
+  isBlock: boolean;
 }
 
 // Public: no auth token required, the link's own secret is the credential.

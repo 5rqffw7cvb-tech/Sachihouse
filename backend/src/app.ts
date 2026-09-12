@@ -1569,6 +1569,10 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       checkOutTime: string;
       source: string;
       guestCount: number | null;
+      // A channel manager's "these nights are taken" block. It occupies the
+      // calendar but has no guest and no turnover, so it must never read as a
+      // stay with a check-out to clean after.
+      isBlock: boolean;
     }> = [];
 
     const properties = (await store.listProperties(false));
@@ -1585,6 +1589,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
           checkOutTime: b.checkOutTime || '10:00',
           source: 'Manual',
           guestCount: b.numGuests ?? null,
+          isBlock: false,
         });
       }
 
@@ -1600,6 +1605,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
           checkOutTime: '10:00',
           source: 'Direct booking',
           guestCount: bk.adults + bk.children + bk.infants,
+          isBlock: false,
         });
       }
 
@@ -1622,6 +1628,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
           checkOutTime: '10:00',
           source: ev.channelName || ev.feedName,
           guestCount: ev.guestCount,
+          isBlock: ev.isBlock,
         });
       }
     }
@@ -5044,6 +5051,13 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       }
 
       for (const event of imported) {
+        // A channel manager's "these nights are taken" block is not a stay:
+        // nobody slept there, nobody paid, and there is no counterparty to
+        // bill. Listing it here left the host a row they could only ever
+        // dismiss, mislabelled with the feed's name as if it were a channel.
+        if (event.isBlock) {
+          continue;
+        }
         // OTA feeds strip the guest and never carry money, so both are left at
         // zero for the host to type. The reservation code in the feed's own
         // text is the only handle they have to look the stay up on the platform.

@@ -454,6 +454,11 @@ export interface ImportedEvent {
   // to tell which platform a given stay actually came from. Null when we
   // cannot tell — never a guess.
   channelName: string | null;
+  // True when the feed published this range as "these nights are taken"
+  // rather than as a reservation — a channel manager mirroring somebody
+  // else's calendar. There is no guest, no money and no turnover behind it,
+  // so the calendars draw it as a block rather than as a stay.
+  isBlock: boolean;
   summary: string;
   description: string;
   checkInDate: string; // yyyy-MM-dd, inclusive

@@ -50,6 +50,24 @@ function extractReservationCode(description: string): string | null {
   return match ? match[1].trim() : null;
 }
 
+// One feed carries two different things under the same feed name: reservations
+// the channel manager synced in from an OTA, and opaque "this night is taken"
+// blocks it built out of somebody else's calendar. Every platform words the
+// second one the same way — Hostex sends "Hostex (Not available)", Airbnb
+// "Airbnb (Not available)", Booking.com "CLOSED - Not available" — so the
+// summary is the portable tell, not anything Hostex-specific.
+const BLOCK_SUMMARY = /\b(?:not available|unavailable|blocked|closed)\b/i;
+
+// Both tests have to agree before a stay is called a block. A block has no
+// reservation behind it and so never carries a code; requiring the code to be
+// absent keeps a real reservation whose guest is named "Closed" a reservation.
+function detectBlock(summary: string, description: string): boolean {
+  if (extractReservationCode(description)) {
+    return false;
+  }
+  return BLOCK_SUMMARY.test(summary);
+}
+
 interface CacheEntry {
   expiresAt: number;
   blockedDates: string[];
@@ -152,12 +170,14 @@ function parseICSEvents(content: string, feedId: string, feedName: string): Impo
           // guest's dates being edited, the fallback does not.
           const externalId = extractReservationCode(description) || uid
             || `${feedId}|${checkInDate}|${checkOutDate}|${summary}`;
+          const resolvedSummary = summary || 'Reserved';
           events.push({
             externalId,
             feedId,
             feedName,
             channelName: detectHostexChannel(description),
-            summary: summary || 'Reserved',
+            isBlock: detectBlock(resolvedSummary, description),
+            summary: resolvedSummary,
             description,
             checkInDate,
             checkOutDate,

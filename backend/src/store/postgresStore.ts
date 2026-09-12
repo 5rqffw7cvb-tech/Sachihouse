@@ -328,6 +328,7 @@ export class PostgresStore implements DataStore {
         feed_id TEXT NOT NULL,
         feed_name TEXT NOT NULL,
         channel_name TEXT,
+        is_block BOOLEAN NOT NULL DEFAULT FALSE,
         summary TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
         check_in_date DATE NOT NULL,
@@ -339,6 +340,23 @@ export class PostgresStore implements DataStore {
       );
       CREATE INDEX IF NOT EXISTS idx_imported_events_property_dates
       ON imported_events(property_id, check_in_date DESC);
+    `);
+    await this.pool.query('ALTER TABLE imported_events ADD COLUMN IF NOT EXISTS is_block BOOLEAN NOT NULL DEFAULT FALSE');
+    // Rows stored before the column existed default to FALSE, which would
+    // keep drawing every channel-manager block as a reservation. A re-sync
+    // reclassifies anything still in a live feed, but a stay that already
+    // rolled off the feed window is only ever fixed here. The wording test
+    // deliberately mirrors detectBlock() in services/icalSync — one pass over
+    // history, not a second home for the rule.
+    await this.pool.query(`
+      UPDATE imported_events
+      SET is_block = TRUE
+      WHERE is_block = FALSE
+        AND description NOT ILIKE '%Hostex reservation code:%'
+        AND (summary ILIKE '%not available%'
+          OR summary ILIKE '%unavailable%'
+          OR summary ILIKE '%blocked%'
+          OR summary ILIKE '%closed%')
     `);
 
     // Global, admin-managed discount codes for the Price Simulator — a coupon
@@ -1042,12 +1060,13 @@ export class PostgresStore implements DataStore {
     for (const event of events) {
       await this.pool.query(
         `INSERT INTO imported_events
-           (property_id, external_id, feed_id, feed_name, channel_name, summary, description, check_in_date, check_out_date, guest_count, first_seen_at, last_seen_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+           (property_id, external_id, feed_id, feed_name, channel_name, is_block, summary, description, check_in_date, check_out_date, guest_count, first_seen_at, last_seen_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
          ON CONFLICT (property_id, external_id) DO UPDATE SET
            feed_id = EXCLUDED.feed_id,
            feed_name = EXCLUDED.feed_name,
            channel_name = EXCLUDED.channel_name,
+           is_block = EXCLUDED.is_block,
            summary = EXCLUDED.summary,
            description = EXCLUDED.description,
            check_in_date = EXCLUDED.check_in_date,
@@ -1060,6 +1079,7 @@ export class PostgresStore implements DataStore {
           event.feedId,
           event.feedName,
           event.channelName,
+          event.isBlock,
           event.summary,
           event.description,
           event.checkInDate,
@@ -1088,13 +1108,14 @@ export class PostgresStore implements DataStore {
       feed_id: string;
       feed_name: string;
       channel_name: string | null;
+      is_block: boolean;
       summary: string;
       description: string;
       check_in_date: string;
       check_out_date: string;
       guest_count: number | null;
     }>(
-      `SELECT external_id, feed_id, feed_name, channel_name, summary, description,
+      `SELECT external_id, feed_id, feed_name, channel_name, is_block, summary, description,
               check_in_date::text, check_out_date::text, guest_count
        FROM imported_events
        WHERE property_id = $1
@@ -1106,6 +1127,7 @@ export class PostgresStore implements DataStore {
       feedId: row.feed_id,
       feedName: row.feed_name,
       channelName: row.channel_name,
+      isBlock: row.is_block,
       summary: row.summary,
       description: row.description,
       checkInDate: row.check_in_date,

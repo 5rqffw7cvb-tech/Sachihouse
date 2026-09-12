@@ -8,6 +8,7 @@ function event(partial: Partial<ImportedEvent> & { dates: string[] }): ImportedE
     feedId: 'cal1',
     feedName: 'Hostex',
     channelName: null,
+    isBlock: true,
     summary: 'Hostex (Not available)',
     description: '',
     checkInDate: partial.dates[0],

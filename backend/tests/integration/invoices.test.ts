@@ -125,6 +125,48 @@ describe('invoiceable stays', () => {
     expect(stay.totalAmount).toBe(35000);
     expect(stay.existingInvoice).toBeNull();
   });
+
+  it('lists a synced reservation but not a block published by a channel manager', async () => {
+    const token = await login('admin@sachihouse.com', 'admin123');
+    const common = {
+      feedId: 'feed1',
+      feedName: 'Hostex',
+      checkInDate: isoDaysFromNow(-3),
+      checkOutDate: isoDaysFromNow(1),
+      dates: [isoDaysFromNow(-3), isoDaysFromNow(-2), isoDaysFromNow(-1), isoDaysFromNow(0)],
+    };
+    await store.upsertImportedEvents('main', [
+      {
+        ...common,
+        externalId: '5-6C7K7ZI5V',
+        channelName: 'Hostex Direct',
+        isBlock: false,
+        summary: 'Reserved: Nguyen Ha Tu Anh 1 guest',
+        description: 'Hostex reservation code: 5-6C7K7ZI5V',
+        guestCount: 1,
+      },
+      {
+        ...common,
+        externalId: 'block-1@hostex',
+        channelName: null,
+        isBlock: true,
+        summary: 'Hostex (Not available)',
+        description: '',
+        guestCount: null,
+      },
+    ]);
+
+    const res = await request(app)
+      .get('/api/invoices/stays')
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(200);
+
+    const ids = res.body.stays.map((row: { sourceId: string }) => row.sourceId);
+    expect(ids).toContain('main|5-6C7K7ZI5V');
+    // Nobody slept there and nobody paid, so there is nothing to bill — and
+    // the row could only ever have been dismissed by hand.
+    expect(ids).not.toContain('main|block-1@hostex');
+  });
 });
 
 describe('issuing an invoice', () => {

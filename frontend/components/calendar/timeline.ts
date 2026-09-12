@@ -9,8 +9,15 @@
  * into lanes by utils/stayLanes.
  */
 
-/** What is sitting on a night, in the order a night used to be claimed. */
-export type NightKind = 'free' | 'booking' | 'hold' | 'imported' | 'manual';
+/** What is sitting on a night, in the order a night used to be claimed.
+ *
+ * `imported` and `imported-block` both arrive down the same iCal feed and
+ * both take the night off the market, but only the first is a reservation
+ * with a party behind it. Drawn identically they were indistinguishable —
+ * a Hostex block read as a Hostex Direct booking — so they are separate
+ * kinds, which also makes every `Record<OccupiedKind, …>` force the choice.
+ */
+export type NightKind = 'free' | 'booking' | 'hold' | 'imported' | 'imported-block' | 'manual';
 
 /** Everything a bar can be. `free` is the absence of a bar, not a kind of one. */
 export type OccupiedKind = Exclude<NightKind, 'free'>;

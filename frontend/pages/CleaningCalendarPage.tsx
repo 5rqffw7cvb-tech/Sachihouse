@@ -31,8 +31,18 @@ const SOURCE_STYLES: Record<string, string> = {
   'Direct booking': 'bg-[#0b57d0] text-white',
 };
 const DEFAULT_SOURCE_STYLE = 'bg-[#d97706] text-white';
+// Grey and named for what it is. A block used to borrow its feed's name for
+// this chip, which put "Hostex" next to a real "Hostex Direct" booking and
+// made the two indistinguishable at the only place a cleaner looks.
+const BLOCK_SOURCE_STYLE = 'bg-[#9ca3af] text-white';
 function sourceStyle(source: string): string {
   return SOURCE_STYLES[source] || DEFAULT_SOURCE_STYLE;
+}
+
+function sourceChip(stay: CleaningStay): { label: string; className: string } {
+  return stay.isBlock
+    ? { label: 'Blocked', className: BLOCK_SOURCE_STYLE }
+    : { label: stay.source, className: sourceStyle(stay.source) };
 }
 
 // The occupancy band is colored per *property*, not per OTA source — with
@@ -531,15 +541,19 @@ const CleaningCalendarPage: React.FC = () => {
                 <div key={`out-${stay.propertyId}-${stay.checkOutDate}-${stay.source}`} className="mb-2 rounded-xl border border-[#e4e2e3] p-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[14px] font-semibold text-[#1b1c1d]">{stay.propertyName}</span>
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceStyle(stay.source)}`}>{stay.source}</span>
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceChip(stay).className}`}>{sourceChip(stay).label}</span>
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-[#44474c]">
-                    <span>🧹 Out {stay.checkOutTime}</span>
+                    <span>{stay.isBlock ? '🚫 Blocked until' : '🧹 Out'} {stay.checkOutTime}</span>
                     {/* The party that just left sizes the job — stated plainly,
                         and stated as unknown when the feed never said, so an
-                        absent count is never mistaken for a small booking. */}
+                        absent count is never mistaken for a small booking. A
+                        block has no party at all, which is a different thing
+                        again and has to say so rather than read as unknown. */}
                     <span className="font-semibold text-[#1b1c1d]">
-                      👤 {stay.guestCount != null ? guestsLabel(stay.guestCount) : 'guests not stated'}
+                      {stay.isBlock
+                        ? 'no guest — nothing to clean'
+                        : `👤 ${stay.guestCount != null ? guestsLabel(stay.guestCount) : 'guests not stated'}`}
                     </span>
                     {sameDayTurnover && (
                       <span className="inline-flex items-center gap-0.5 rounded-full bg-[#fef3c7] px-1.5 py-0.5 text-[10px] font-bold text-[#92400e]">
@@ -555,10 +569,10 @@ const CleaningCalendarPage: React.FC = () => {
               <div key={`in-${stay.propertyId}-${stay.checkInDate}-${stay.source}`} className="mb-2 rounded-xl border border-dashed border-[#e4e2e3] p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[14px] font-semibold text-[#1b1c1d]">{stay.propertyName}</span>
-                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceStyle(stay.source)}`}>{stay.source}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceChip(stay).className}`}>{sourceChip(stay).label}</span>
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-[#44474c]">
-                  <span>🛬 In {stay.checkInTime}</span>
+                  <span>{stay.isBlock ? '🚫 Blocked from' : '🛬 In'} {stay.checkInTime}</span>
                   {stay.guestCount != null && <span className="font-semibold text-[#1b1c1d]">👤 {guestsLabel(stay.guestCount)}</span>}
                 </div>
               </div>
@@ -568,10 +582,10 @@ const CleaningCalendarPage: React.FC = () => {
               <div key={`stay-${seg.stay.propertyId}-${seg.stay.checkInDate}`} className="mb-2 rounded-xl bg-[#f7f5f6] p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[14px] font-semibold text-[#1b1c1d]">{seg.stay.propertyName}</span>
-                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceStyle(seg.stay.source)}`}>{seg.stay.source}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${sourceChip(seg.stay).className}`}>{sourceChip(seg.stay).label}</span>
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12.5px] text-[#44474c]">
-                  <span>🏠 Staying</span>
+                  <span>{seg.stay.isBlock ? '🚫 Blocked' : '🏠 Staying'}</span>
                   {seg.stay.guestCount != null && <span className="font-semibold text-[#1b1c1d]">👤 {guestsLabel(seg.stay.guestCount)}</span>}
                   <span>out {seg.stay.checkOutDate}</span>
                 </div>

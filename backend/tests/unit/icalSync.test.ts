@@ -148,6 +148,78 @@ describe('IcalSyncService', () => {
     expect(unknownPrefix.channelName).toBeNull();
     // A block with no reservation code at all is likewise unclassified.
     expect(plainBlock.channelName).toBeNull();
+
+    // Naming the channel is not the same question as whether there is a
+    // reservation at all: every one of the four codes above is a real stay,
+    // including the one whose prefix we cannot name.
+    expect(airbnb.isBlock).toBe(false);
+    expect(booking.isBlock).toBe(false);
+    expect(hostexDirect.isBlock).toBe(false);
+    expect(unknownPrefix.isBlock).toBe(false);
+    expect(plainBlock.isBlock).toBe(true);
+  });
+
+  it('reads a channel manager\'s unavailable range as a block, not as a booking', async () => {
+    // The bug this pins: a Hostex block carries no channel, so the calendar
+    // fell back to the feed name and drew "Hostex" — a hair away from the
+    // "Hostex Direct" label on a real reservation from the same feed.
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'DTSTART;VALUE=DATE:20260916',
+      'DTEND;VALUE=DATE:20260918',
+      'SUMMARY:Hostex (Not available)',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'DTSTART;VALUE=DATE:20260918',
+      'DTEND;VALUE=DATE:20260921',
+      'SUMMARY:Reserved: Nguyen Ha Tu Anh 1 guest',
+      'DESCRIPTION:Hostex reservation code: 5-6C7K7ZI5V',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'DTSTART;VALUE=DATE:20261001',
+      'DTEND;VALUE=DATE:20261003',
+      'SUMMARY:CLOSED - Not available',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    vi.stubGlobal('fetch', fakeIcsResponse(ics));
+
+    const service = new IcalSyncService({ enabled: true, ttlMs: 60_000, timeoutMs: 5000 });
+    const prop = property([{ id: 'feed1', name: 'Hostex', url: 'https://hostex.example/cal.ics', lastSynced: '' }]);
+
+    const [hostexBlock, hostexDirect, otaBlock] = await service.getImportedEvents(prop, 'fresh-if-stale');
+
+    expect(hostexBlock.isBlock).toBe(true);
+    expect(hostexBlock.channelName).toBeNull();
+    // The reservation shares the feed, the property and even an adjoining
+    // night with the block above, and must still come back as a stay.
+    expect(hostexDirect.isBlock).toBe(false);
+    expect(hostexDirect.channelName).toBe('Hostex Direct');
+    // The wording, not the Hostex-specific code, is what marks a block — so
+    // another platform's phrasing is read the same way.
+    expect(otaBlock.isBlock).toBe(true);
+  });
+
+  it('keeps a reservation a reservation when the guest\'s own name reads like a block', async () => {
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'DTSTART;VALUE=DATE:20261105',
+      'DTEND;VALUE=DATE:20261108',
+      'SUMMARY:Reserved: Mary Closed 2 guests',
+      'DESCRIPTION:Hostex reservation code: 0-HMXX593EYA-iffeae5gfw',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    vi.stubGlobal('fetch', fakeIcsResponse(ics));
+
+    const service = new IcalSyncService({ enabled: true, ttlMs: 60_000, timeoutMs: 5000 });
+    const prop = property([{ id: 'feed1', name: 'Hostex', url: 'https://hostex.example/cal.ics', lastSynced: '' }]);
+
+    const [stay] = await service.getImportedEvents(prop, 'fresh-if-stale');
+    // The reservation code settles it before the wording is ever consulted.
+    expect(stay.isBlock).toBe(false);
   });
 
   it('keeps each feed distinct when a property has more than one', async () => {
@@ -224,6 +296,7 @@ describe('IcalSyncService persistence', () => {
       feedId: 'feed1',
       feedName: 'Hostex',
       channelName: 'Airbnb',
+      isBlock: false,
       summary: 'Reserved',
       description: '',
       checkInDate: '2020-01-01',
@@ -253,6 +326,7 @@ describe('IcalSyncService persistence', () => {
       feedId: 'feed1',
       feedName: 'Hostex',
       channelName: 'Airbnb',
+      isBlock: false,
       summary: 'Reserved',
       description: '',
       checkInDate: future,
@@ -279,6 +353,7 @@ describe('IcalSyncService persistence', () => {
       feedId: 'feed1',
       feedName: 'Airbnb',
       channelName: 'Airbnb',
+      isBlock: false,
       summary: 'Reserved',
       description: '',
       checkInDate: future,

@@ -464,7 +464,7 @@ const CalendarPage: React.FC = () => {
                       {stay.guestName ? ` · ${stay.guestName}` : ''}
                     </span>
                     <span className="text-[12px] text-ink-muted truncate">
-                      {[stay.propertyName, stay.channel, stay.kind === 'hold' ? 'Unpaid hold' : null]
+                      {[stay.propertyName, stay.channel, stay.kind === 'hold' ? 'Unpaid hold' : null, stay.kind === 'imported-block' ? 'No guest' : null]
                         .filter(Boolean).join(' · ')}
                     </span>
                   </span>

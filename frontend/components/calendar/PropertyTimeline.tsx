@@ -51,6 +51,9 @@ const BAR: Record<OccupiedKind, string> = {
   booking: 'bg-brand text-white',
   hold: 'bg-hold-tint text-hold ring-1 ring-inset ring-hold/30',
   imported: 'bg-info-tint text-info ring-1 ring-inset ring-info/25',
+  // Hatched and drained of colour: a block is the absence of a booking, and
+  // should never read as one of the channel-coloured stays beside it.
+  'imported-block': 'bg-subtle text-ink-muted ring-1 ring-inset ring-line-strong bg-[repeating-linear-gradient(45deg,transparent,transparent_5px,rgba(0,0,0,0.05)_5px,rgba(0,0,0,0.05)_10px)]',
   manual: 'bg-ink-muted/25 text-ink-soft ring-1 ring-inset ring-ink-muted/30',
 };
 
@@ -58,6 +61,7 @@ const LABEL: Record<OccupiedKind, string> = {
   booking: 'Direct booking',
   hold: 'Unpaid hold',
   imported: 'Imported',
+  'imported-block': 'Blocked (synced)',
   manual: 'Blocked',
 };
 
