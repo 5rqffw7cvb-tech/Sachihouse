@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { addDays, format, parseISO } from 'date-fns';
-import { AlertCircle, Check, ChevronRight, Link2, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertCircle, Check, ChevronRight, Link2, RefreshCw } from 'lucide-react';
 import { HostCard, HostCount, HostEmpty, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
 import { StayDetailSheet } from '../../components/host/StayDetailSheet';
@@ -261,6 +261,37 @@ const StaysPage: React.FC = () => {
             </div>
           ))}
 
+          {/* Who is in the houses right now, first: it is the answer a host
+              opens this screen for. With nobody in, the count alone says so
+              and the card stays one line rather than spending a third of the
+              screen on a sentence meaning zero. */}
+          <HostCard title="Staying" action={<HostCount>{staying.length}</HostCount>}>
+            {staying.length === 0 ? null : staying.map((stay, index) => (
+              <StayRow
+                key={stay.key}
+                stay={stay}
+                subtitle={[stay.propertyName, `leaves ${dayLabel(stay.checkOutDate)}`, guestsLabel(stay)]
+                  .filter(Boolean).join(' · ')}
+                last={index === staying.length - 1}
+                onOpen={setOpenStay}
+              />
+            ))}
+          </HostCard>
+
+          <HostCard title="Departures today" action={<HostCount>{departures.length}</HostCount>}>
+            {departures.length === 0
+              ? <HostEmpty>No one leaves today.</HostEmpty>
+              : departures.map((stay, index) => (
+                <StayRow
+                  key={stay.key}
+                  stay={stay}
+                  subtitle={[stay.propertyName, guestsLabel(stay)].filter(Boolean).join(' · ')}
+                  last={index === departures.length - 1}
+                  onOpen={setOpenStay}
+                />
+              ))}
+          </HostCard>
+
           <HostCard title="Next arrivals" action={<HostCount>{nextArrivals.length}</HostCount>}>
             {nextArrivals.length === 0
               ? <HostEmpty>No arrivals in the next {HORIZON_DAYS} days.</HostEmpty>
@@ -275,53 +306,6 @@ const StaysPage: React.FC = () => {
                   onOpen={setOpenStay}
                 />
               ))}
-          </HostCard>
-
-          <HostCard title="Staying" action={<HostCount>{staying.length}</HostCount>}>
-            {staying.length === 0
-              ? <HostEmpty>Nobody is in the houses tonight.</HostEmpty>
-              : staying.map((stay, index) => (
-                <StayRow
-                  key={stay.key}
-                  stay={stay}
-                  subtitle={[stay.propertyName, `leaves ${dayLabel(stay.checkOutDate)}`, guestsLabel(stay)]
-                    .filter(Boolean).join(' · ')}
-                  last={index === staying.length - 1}
-                  onOpen={setOpenStay}
-                />
-              ))}
-          </HostCard>
-
-          <HostCard title="Departures today" action={<HostCount>{departures.length}</HostCount>}>
-            {departures.length === 0 ? (
-              <HostEmpty>No one leaves today.</HostEmpty>
-            ) : (
-              <>
-                {departures.map((stay) => (
-                  <StayRow
-                    key={stay.key}
-                    stay={stay}
-                    subtitle={[stay.propertyName, guestsLabel(stay)].filter(Boolean).join(' · ')}
-                    onOpen={setOpenStay}
-                  />
-                ))}
-                {/* Every departure is a turnover. Listing the cleaning under it
-                    is what a host actually plans the afternoon around. */}
-                <div className="flex items-center gap-3 px-4 py-3.5 bg-subtle">
-                  <div className="w-10 h-10 rounded-[14px] bg-surface border border-line shrink-0 flex items-center justify-center">
-                    <Sparkles className="w-[18px] h-[18px] text-ink-soft" />
-                  </div>
-                  <div className="flex-1 min-w-0 flex flex-col">
-                    <span className="text-[15px] font-semibold text-ink truncate">
-                      Cleaning · {departures.map((stay) => stay.propertyName).join(', ')}
-                    </span>
-                    <span className="text-[13px] text-ink-muted truncate">
-                      {departures.length === 1 ? 'After check-out' : `${departures.length} turnovers`}
-                    </span>
-                  </div>
-                </div>
-              </>
-            )}
           </HostCard>
         </>
       )}

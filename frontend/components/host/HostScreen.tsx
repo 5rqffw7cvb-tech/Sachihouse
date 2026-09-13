@@ -70,18 +70,26 @@ export const HostCard: React.FC<{
   /** Off when the children are full-bleed rows that reach the card's edge. */
   padded?: boolean;
   className?: string;
-  children: React.ReactNode;
-}> = ({ title, action, padded = false, className = '', children }) => (
-  <section className={`bg-surface border border-line rounded-card overflow-hidden ${className}`}>
-    {(title || action) && (
-      <header className="flex items-center justify-between gap-2 px-4 py-3 border-b border-line">
-        {typeof title === 'string' ? <h2 className="text-[16px] truncate">{title}</h2> : title}
-        {action && <div className="shrink-0 flex items-center gap-2">{action}</div>}
-      </header>
-    )}
-    <div className={padded ? 'p-4' : ''}>{children}</div>
-  </section>
-);
+  /** Optional: a titled card with nothing under it is a one-line summary —
+   *  "Staying 0" — which is the whole answer when the answer is nobody. */
+  children?: React.ReactNode;
+}> = ({ title, action, padded = false, className = '', children }) => {
+  // A divider needs something on both sides of it. Without this an empty card
+  // draws a hairline a pixel above its own bottom edge, which reads as a
+  // rendering fault rather than as a heading.
+  const hasBody = React.Children.count(children) > 0;
+  return (
+    <section className={`bg-surface border border-line rounded-card overflow-hidden ${className}`}>
+      {(title || action) && (
+        <header className={`flex items-center justify-between gap-2 px-4 py-3 ${hasBody ? 'border-b border-line' : ''}`}>
+          {typeof title === 'string' ? <h2 className="text-[16px] truncate">{title}</h2> : title}
+          {action && <div className="shrink-0 flex items-center gap-2">{action}</div>}
+        </header>
+      )}
+      {hasBody && <div className={padded ? 'p-4' : ''}>{children}</div>}
+    </section>
+  );
+};
 
 /** The "nothing here" line inside a card. Same wording shape as the console's
  *  EmptyState, sized for a phone. */
