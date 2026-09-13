@@ -1,13 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, Building2, Camera, CheckCircle, ChevronRight, Eye, Images, Loader2, Lock,
-  RefreshCw, Upload, X,
+  AlertCircle, AlertTriangle, Building2, Camera, Check, CheckCircle, ChevronRight, Copy, Eye,
+  Images, Loader2, Lock, RefreshCw, Save, Upload, X,
 } from 'lucide-react';
 import { HostCard, HostEmpty, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
-import { financeApi, FinancialProperty, PendingTransaction } from '../../services/finance';
+import { ApiError } from '../../services/api';
+import {
+  ApprovedDuplicate, financeApi, FinancialProperty, PendingTransaction,
+} from '../../services/finance';
 import { formatMoney } from '../../services/hostApp';
 import { hasAccess } from '../../services/permissions';
+import { ACCOUNT_GROUPS } from '../../utils/accountingUtils';
 
 /** An item whose receipt is still a data URI has not finished its background
  *  upload to storage yet — the same test the desktop journal makes. */
@@ -53,6 +57,107 @@ const PendingStatus: React.FC<{ item: PendingTransaction; gaveUp: boolean }> = (
 const summaryOf = (item: PendingTransaction): string =>
   item.vendor?.trim() || item.description?.trim() || '(摘要なし)';
 
+/** The same chart of accounts the desktop journal offers, from the one list
+ *  both screens are built from. An account the OCR guessed that is not in it
+ *  is kept as an option of its own rather than silently dropped. */
+const AccountSelect: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}> = ({ value, onChange, disabled }) => {
+  const known = ACCOUNT_GROUPS.some((group) => group.accounts.includes(value));
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      className="h-[46px] w-full rounded-control border border-line bg-subtle px-2.5 text-[15px] text-ink
+        focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 disabled:opacity-60"
+    >
+      <option value="">—</option>
+      {value && !known && <option value={value}>{value}</option>}
+      {ACCOUNT_GROUPS.map((group) => (
+        <optgroup key={group.label} label={group.label}>
+          {group.accounts.map((account) => <option key={account} value={account}>{account}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
+};
+
+/**
+ * The approved entries this receipt looks like a second copy of.
+ *
+ * It shows them rather than asserting anything. Two ¥500 coffees on one
+ * afternoon are a real pair of receipts, and the only person who can tell that
+ * from the same receipt twice is the one holding the paper — so the job here is
+ * to put the journal entry in front of them, not to decide.
+ *
+ * `notice` is the list volunteering it on open; `blocking` is the server having
+ * refused an approval over it, which is a question that needs an answer.
+ */
+const DuplicatePanel: React.FC<{ duplicates: ApprovedDuplicate[]; tone: 'notice' | 'blocking' }> = ({
+  duplicates, tone,
+}) => (
+  <div
+    className={`mx-5 mt-4 rounded-control border px-3.5 py-3 ${
+      tone === 'blocking' ? 'border-danger/25 bg-danger-tint' : 'border-warn/25 bg-warn-tint'
+    }`}
+  >
+    <div className={`flex items-center gap-1.5 ${tone === 'blocking' ? 'text-danger' : 'text-warn'}`}>
+      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+      <span className="text-[12px] font-bold">
+        {tone === 'blocking' ? '承認済みの仕訳と重複しています' : '承認済みに同じ内容があります'}
+      </span>
+    </div>
+    <ul className="mt-2 flex flex-col gap-1.5">
+      {duplicates.map((row) => (
+        <li key={row.id} className="flex items-baseline justify-between gap-2 text-[12px] text-ink-soft">
+          <span className="min-w-0 truncate">
+            {[row.transactionNo || '—', row.transactionDate, row.debitAccount, row.description]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+          <span className="shrink-0 font-['Plus_Jakarta_Sans'] font-bold text-ink">
+            {formatMoney(row.debitAmount, 'JPY')}
+          </span>
+        </li>
+      ))}
+    </ul>
+    <p className="mt-2 text-[11px] leading-snug text-ink-muted">
+      同じ物件・日付・金額です。別の領収書であれば、そのまま承認できます。
+    </p>
+  </div>
+);
+
+/** What the host is editing before they approve. Held apart from the row it
+ *  came from so abandoning the sheet changes nothing. */
+type Draft = Pick<
+  PendingTransaction,
+  'transactionDate' | 'vendor' | 'debitAccount' | 'debitAmount' | 'creditAccount' | 'creditAmount' | 'description'
+>;
+
+const draftOf = (item: PendingTransaction): Draft => ({
+  transactionDate: item.transactionDate || '',
+  vendor: item.vendor || '',
+  debitAccount: item.debitAccount || '',
+  debitAmount: item.debitAmount || 0,
+  creditAccount: item.creditAccount || '',
+  creditAmount: item.creditAmount || 0,
+  description: item.description || '',
+});
+
+/** A journal entry can only be approved once it balances and says what it is
+ *  for. The desktop refuses the same three things; saying which one is missing
+ *  beats a disabled button with no explanation. */
+function whyNotApprovable(draft: Draft): string | null {
+  if (!draft.transactionDate) return '取引日を入力してください。';
+  if (!draft.debitAccount || !draft.creditAccount) return '勘定科目を選択してください。';
+  if (!draft.debitAmount || draft.debitAmount <= 0) return '金額を入力してください。';
+  if (draft.debitAmount !== draft.creditAmount) return '借方と貸方の金額が一致していません。';
+  return null;
+}
+
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -73,8 +178,14 @@ const fileToBase64 = (file: File): Promise<string> =>
  * Below the upload controls is everything still unapproved. A success dialog
  * only says the request was accepted; the list is where a host standing at the
  * till can see the receipt actually arrived, and what else is still waiting.
- * It is read-only on purpose — approval writes to the books, and that stays on
- * desktop where the whole journal is visible.
+ *
+ * A row opens for correction and approval. OCR gets the shop right and the
+ * account wrong often enough that sending someone to a desktop to fix one field
+ * is what left receipts unapproved for weeks. Before anything reaches the
+ * journal the server checks it against what is already approved — same
+ * property, same date, same amount — because the way a receipt gets paid for
+ * twice is not two uploads in one sitting but one approved copy and a second
+ * photograph a month later, by which time no pending row remembers the first.
  */
 const ReceiptPage: React.FC = () => {
   const { user } = useHostContext();
@@ -91,6 +202,13 @@ const ReceiptPage: React.FC = () => {
   const [pendingError, setPendingError] = useState<string | null>(null);
   const [pendingLoading, setPendingLoading] = useState(true);
   const [openReceipt, setOpenReceipt] = useState<PendingTransaction | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [sheetBusy, setSheetBusy] = useState<'saving' | 'approving' | null>(null);
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  // Duplicates the server refused an approval over, as opposed to the ones it
+  // volunteered on the list. Set means the host has been asked and has not
+  // answered yet.
+  const [blockingDuplicates, setBlockingDuplicates] = useState<ApprovedDuplicate[] | null>(null);
   const [uploadGaveUp, setUploadGaveUp] = useState(false);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -170,6 +288,72 @@ const ReceiptPage: React.FC = () => {
     const timer = window.setInterval(() => { void loadPending(); }, 2000);
     return () => window.clearInterval(timer);
   }, [pending, progress, loadPending]);
+
+  const openSheet = (item: PendingTransaction) => {
+    setOpenReceipt(item);
+    setDraft(draftOf(item));
+    setSheetError(null);
+    setBlockingDuplicates(null);
+  };
+
+  const closeSheet = () => {
+    setOpenReceipt(null);
+    setDraft(null);
+    setSheetError(null);
+    setBlockingDuplicates(null);
+  };
+
+  /** Saving is its own step, exactly as on desktop: the host corrects what the
+   *  OCR misread, sees it stick, and only then decides to approve. */
+  const saveDraft = async () => {
+    if (!openReceipt || !draft) return;
+    setSheetBusy('saving');
+    setSheetError(null);
+    try {
+      const saved = await financeApi.updatePendingTransaction(openReceipt.id, draft);
+      // Keep the duplicate verdict from the list: the update response is the
+      // bare row, and dropping it would silently retract a warning the host
+      // can still see a second ago.
+      setOpenReceipt({ ...saved, approvedDuplicates: openReceipt.approvedDuplicates });
+      setDraft(draftOf(saved));
+      // Editing the date or the amount changes the answer, so ask again.
+      setBlockingDuplicates(null);
+      void loadPending();
+    } catch (cause) {
+      setSheetError(cause instanceof Error ? cause.message : '保存できませんでした。');
+    } finally {
+      setSheetBusy(null);
+    }
+  };
+
+  /**
+   * Approve, or come back with what it collided with.
+   *
+   * `force` is only ever set by the host answering the duplicate prompt — the
+   * first attempt always asks the server, so an approval can never slip
+   * through by this screen forgetting to check.
+   */
+  const approve = async (force: boolean) => {
+    if (!openReceipt) return;
+    setSheetBusy('approving');
+    setSheetError(null);
+    try {
+      await financeApi.approvePendingTransaction(openReceipt.id, { force });
+      closeSheet();
+      void loadPending();
+    } catch (cause) {
+      const duplicates = cause instanceof ApiError && cause.status === 409
+        ? (cause.body as { duplicates?: ApprovedDuplicate[] } | undefined)?.duplicates
+        : undefined;
+      if (duplicates?.length) {
+        setBlockingDuplicates(duplicates);
+      } else {
+        setSheetError(cause instanceof Error ? cause.message : '承認できませんでした。');
+      }
+    } finally {
+      setSheetBusy(null);
+    }
+  };
 
   const isProcessing = progress !== null;
 
@@ -343,10 +527,10 @@ const ReceiptPage: React.FC = () => {
             <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-1" />
             <div className="flex-1 min-w-0 flex flex-col gap-1">
               <span className="text-[12px] text-warn leading-relaxed">
-                アップロードした領収書は「仕訳帳（未承認）」に入ります。確認と承認はパソコン版で行ってください。
+                アップロードした領収書は「仕訳帳（未承認）」に入ります。下の一覧で内容を直して承認できます。
               </span>
               <span className="text-[11px] text-warn/85 leading-snug">
-                Review and approve on the desktop version.
+                Correct and approve below, or leave it for the desktop journal.
               </span>
             </div>
           </div>
@@ -388,7 +572,7 @@ const ReceiptPage: React.FC = () => {
                 <button
                   type="button"
                   key={item.id}
-                  onClick={() => setOpenReceipt(item)}
+                  onClick={() => openSheet(item)}
                   className={`flex w-full items-center gap-3 px-4 py-3 text-left active:bg-subtle ${
                     index === pending.length - 1 ? '' : 'border-b border-line'
                   }`}
@@ -407,7 +591,14 @@ const ReceiptPage: React.FC = () => {
                     <span className="font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-ink">
                       {item.debitAmount > 0 ? formatMoney(item.debitAmount, 'JPY') : '—'}
                     </span>
-                    <PendingStatus item={item} gaveUp={uploadGaveUp} />
+                    <span className="flex items-center gap-1">
+                      {(item.approvedDuplicates?.length ?? 0) > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-danger-tint px-1.5 py-0.5 text-[10px] font-bold text-danger">
+                          <Copy className="h-2.5 w-2.5" />重複?
+                        </span>
+                      )}
+                      <PendingStatus item={item} gaveUp={uploadGaveUp} />
+                    </span>
                   </span>
                   <ChevronRight className="h-[18px] w-[18px] shrink-0 text-line-strong" />
                 </button>
@@ -417,10 +608,10 @@ const ReceiptPage: React.FC = () => {
         </>
       )}
 
-      {openReceipt && (
+      {openReceipt && draft && (
         <div
           className="fixed inset-0 z-50 flex items-end bg-brand/60 backdrop-blur-sm"
-          onClick={() => setOpenReceipt(null)}
+          onClick={closeSheet}
           role="presentation"
         >
           <div
@@ -445,7 +636,7 @@ const ReceiptPage: React.FC = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setOpenReceipt(null)}
+                  onClick={closeSheet}
                   aria-label="閉じる"
                   className="rounded-control p-1 text-ink-muted active:bg-subtle"
                 >
@@ -454,33 +645,165 @@ const ReceiptPage: React.FC = () => {
               </div>
             </div>
 
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 px-5 py-4 text-[13px]">
-              <dt className="text-ink-muted">物件</dt>
-              <dd className="text-ink">{propertyNames.get(openReceipt.propertyId) ?? openReceipt.propertyId}</dd>
-              <dt className="text-ink-muted">借方</dt>
-              <dd className="text-ink">{openReceipt.debitAccount || '—'}</dd>
-              <dt className="text-ink-muted">金額</dt>
-              <dd className="font-['Plus_Jakarta_Sans'] font-bold text-ink">
-                {openReceipt.debitAmount > 0 ? formatMoney(openReceipt.debitAmount, 'JPY') : '未読取'}
-              </dd>
-            </dl>
+            {/* Volunteered on opening: the host has not asked to approve yet,
+                but this is the moment to know, while the paper is in hand. */}
+            {(openReceipt.approvedDuplicates?.length ?? 0) > 0 && !blockingDuplicates && (
+              <DuplicatePanel duplicates={openReceipt.approvedDuplicates!} tone="notice" />
+            )}
 
-            {/* The photo is the reason to open this at all — a host checking
-                that what they shot at the till is legible before someone sits
-                down at a desktop to approve it. */}
+            <div className="grid grid-cols-2 gap-3 px-5 py-4">
+              <label className="col-span-2 flex flex-col gap-1">
+                <span className="text-[11px] font-bold text-ink-soft">物件</span>
+                <span className="flex h-[46px] items-center rounded-control border border-line bg-subtle px-2.5 text-[15px] text-ink-soft">
+                  {propertyNames.get(openReceipt.propertyId) ?? openReceipt.propertyId}
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] font-bold text-ink-soft">取引日</span>
+                <input
+                  type="date"
+                  value={draft.transactionDate}
+                  disabled={sheetBusy !== null}
+                  onChange={(event) => setDraft({ ...draft, transactionDate: event.target.value })}
+                  className="h-[46px] w-full rounded-control border border-line bg-subtle px-2.5 text-[15px] text-ink
+                    focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 disabled:opacity-60"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] font-bold text-ink-soft">金額 (円)</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={draft.debitAmount || ''}
+                  disabled={sheetBusy !== null}
+                  onChange={(event) => {
+                    // A receipt is one entry with two equal sides, so the amount
+                    // is typed once — the desktop form mirrors it the same way.
+                    const amount = Number.parseInt(event.target.value, 10) || 0;
+                    setDraft({ ...draft, debitAmount: amount, creditAmount: amount });
+                  }}
+                  className="h-[46px] w-full rounded-control border border-line bg-subtle px-2.5 text-right
+                    font-['Plus_Jakarta_Sans'] text-[15px] font-bold text-ink
+                    focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 disabled:opacity-60"
+                />
+              </label>
+
+              <label className="col-span-2 flex flex-col gap-1">
+                <span className="text-[11px] font-bold text-ink-soft">Vendor</span>
+                <input
+                  value={draft.vendor ?? ''}
+                  disabled={sheetBusy !== null}
+                  placeholder="店名"
+                  onChange={(event) => setDraft({ ...draft, vendor: event.target.value })}
+                  className="h-[46px] w-full rounded-control border border-line bg-subtle px-2.5 text-[15px] text-ink
+                    focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 disabled:opacity-60"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] font-bold text-ink-soft">借方勘定科目</span>
+                <AccountSelect
+                  value={draft.debitAccount}
+                  disabled={sheetBusy !== null}
+                  onChange={(value) => setDraft({ ...draft, debitAccount: value })}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] font-bold text-ink-soft">貸方勘定科目</span>
+                <AccountSelect
+                  value={draft.creditAccount}
+                  disabled={sheetBusy !== null}
+                  onChange={(value) => setDraft({ ...draft, creditAccount: value })}
+                />
+              </label>
+
+              <label className="col-span-2 flex flex-col gap-1">
+                <span className="text-[11px] font-bold text-ink-soft">摘要</span>
+                <input
+                  value={draft.description}
+                  disabled={sheetBusy !== null}
+                  placeholder="摘要を入力"
+                  onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+                  className="h-[46px] w-full rounded-control border border-line bg-subtle px-2.5 text-[15px] text-ink
+                    focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 disabled:opacity-60"
+                />
+              </label>
+            </div>
+
+            {/* The photo is why this sheet exists at all — the host is reading
+                the paper to correct what the OCR made of it. */}
             {openReceipt.receiptUrl ? (
               <img
                 src={openReceipt.receiptUrl}
                 alt=""
-                className="mx-5 mb-4 max-h-[52dvh] w-[calc(100%-2.5rem)] rounded-control border border-line object-contain"
+                className="mx-5 mb-4 max-h-[46dvh] w-[calc(100%-2.5rem)] rounded-control border border-line object-contain"
               />
             ) : (
               <p className="px-5 pb-4 text-[13px] text-ink-muted">画像がまだ保存されていません。</p>
             )}
 
-            <p className="px-5 text-[12px] text-ink-muted leading-relaxed">
-              承認はパソコン版の「仕訳帳（未承認）」で行ってください。
-            </p>
+            {/* The server refused. This is the host being asked a question, so
+                it takes the place of the buttons rather than sitting above them. */}
+            {blockingDuplicates && (
+              <>
+                <DuplicatePanel duplicates={blockingDuplicates} tone="blocking" />
+                <div className="flex gap-2.5 px-5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setBlockingDuplicates(null)}
+                    className="h-[52px] flex-1 rounded-control border border-line-strong bg-surface text-[15px] font-bold text-ink active:bg-subtle"
+                  >
+                    やめる
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void approve(true); }}
+                    disabled={sheetBusy !== null}
+                    className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-control bg-danger text-[15px] font-bold text-white disabled:opacity-50"
+                  >
+                    {sheetBusy === 'approving' ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : null}
+                    別の領収書として承認
+                  </button>
+                </div>
+              </>
+            )}
+
+            {sheetError && (
+              <p className="mx-5 mb-1 rounded-control bg-danger-tint px-3 py-2 text-[12px] text-danger">{sheetError}</p>
+            )}
+            {!blockingDuplicates && whyNotApprovable(draft) && (
+              <p className="px-5 pb-1 text-[12px] text-ink-muted">{whyNotApprovable(draft)}</p>
+            )}
+
+            {!blockingDuplicates && (
+              <div className="flex gap-2.5 px-5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => { void saveDraft(); }}
+                  disabled={sheetBusy !== null}
+                  className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-control border border-line-strong bg-surface text-[15px] font-bold text-ink active:bg-subtle disabled:opacity-50"
+                >
+                  {sheetBusy === 'saving'
+                    ? <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                    : <Save className="h-[18px] w-[18px]" />}
+                  保存
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void approve(false); }}
+                  disabled={sheetBusy !== null || whyNotApprovable(draft) !== null}
+                  className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-control bg-ok text-[15px] font-bold text-white disabled:opacity-50"
+                >
+                  {sheetBusy === 'approving'
+                    ? <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                    : <Check className="h-[18px] w-[18px]" />}
+                  承認
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -506,7 +829,7 @@ const ReceiptPage: React.FC = () => {
                 <div className="mt-4 text-left bg-warn-tint border border-warn/20 rounded-control p-3 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
                   <p className="text-[12px] text-warn leading-relaxed">
-                    内容の確認と承認は、<span className="font-bold">パソコン版の「仕訳帳（未承認）」</span>で行ってください。
+                    下の<span className="font-bold">「未承認」</span>から内容を確認し、そのまま承認できます。
                   </p>
                 </div>
               )}

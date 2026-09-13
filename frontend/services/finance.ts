@@ -1,6 +1,17 @@
 import { apiRequest } from './api';
 import { FinancialTransaction, CsvRow } from '../types/finance';
 
+/** An entry already in the journal that a pending receipt might be a second
+ *  copy of — same property, same date, same amount. */
+export interface ApprovedDuplicate {
+  id: string;
+  transactionNo: string;
+  transactionDate: string;
+  debitAccount: string;
+  debitAmount: number;
+  description: string;
+}
+
 export interface PendingTransaction {
   id: string;
   propertyId: string;
@@ -14,6 +25,10 @@ export interface PendingTransaction {
   creditAmount: number;
   description: string;
   vendor?: string;
+  /** Filled in by the server on every list read. Empty means "checked, and
+   *  nothing matched"; the field is always present so a screen never has to
+   *  tell that apart from "never checked". */
+  approvedDuplicates?: ApprovedDuplicate[];
   createdAt: number;
   updatedAt: number;
 }
@@ -135,8 +150,18 @@ export const financeApi = {
     });
   },
 
-  async approvePendingTransaction(id: string): Promise<FinancialTransaction> {
-    return apiRequest<FinancialTransaction>(`/finance/pending/${id}/approve`, { method: 'POST' });
+  /**
+   * Approve one receipt into the journal.
+   *
+   * Throws ApiError 409 when the same property, date and amount are already
+   * there; its `body.duplicates` is what to show the host. `force` is them
+   * saying they have looked and these really are two receipts.
+   */
+  async approvePendingTransaction(id: string, options?: { force?: boolean }): Promise<FinancialTransaction> {
+    return apiRequest<FinancialTransaction>(`/finance/pending/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ force: options?.force === true }),
+    });
   },
 
   async deletePendingTransaction(id: string): Promise<void> {

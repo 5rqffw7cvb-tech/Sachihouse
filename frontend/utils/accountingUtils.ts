@@ -73,6 +73,36 @@ export const ACCOUNT_TYPE_MAP: Record<string, AccountType> = {
   '車両費': AccountType.Expense, '外注費': AccountType.Expense
 };
 
+/** The same accounts, grouped for a dropdown, in the order a Japanese chart
+ *  of accounts is usually read. Built from ACCOUNT_TYPE_MAP so the two can
+ *  never drift: adding an account there puts it in every picker. */
+export const ACCOUNT_GROUPS: { label: string; accounts: string[] }[] = (() => {
+  const TYPE_LABEL: Record<AccountType, string> = {
+    [AccountType.Asset]: '資産',
+    [AccountType.Liability]: '負債',
+    [AccountType.Equity]: '資本',
+    [AccountType.Revenue]: '収益',
+    [AccountType.CostOfSales]: '売上原価',
+    [AccountType.Expense]: '費用',
+  };
+  const order: AccountType[] = [
+    AccountType.Revenue,
+    AccountType.CostOfSales,
+    AccountType.Expense,
+    AccountType.Asset,
+    AccountType.Liability,
+    AccountType.Equity,
+  ];
+  const buckets: Partial<Record<AccountType, string[]>> = {};
+  Object.entries(ACCOUNT_TYPE_MAP).forEach(([name, type]) => {
+    if (!type) return;
+    (buckets[type] ??= []).push(name);
+  });
+  return order
+    .filter((type) => (buckets[type] || []).length > 0)
+    .map((type) => ({ label: TYPE_LABEL[type], accounts: buckets[type] || [] }));
+})();
+
 const getAccountType = (name: string): AccountType => {
   if (ACCOUNT_TYPE_MAP[name]) return ACCOUNT_TYPE_MAP[name];
   if (/売上|収入|益|Sales|Revenue|Income/.test(name)) return AccountType.Revenue;

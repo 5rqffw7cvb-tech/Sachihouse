@@ -58,6 +58,11 @@ import { getParam } from './types/params.js';
 import { Role } from './types/domain.js';
 import { IcalSyncService } from './services/icalSync.js';
 import { OwnStayNights, splitEchoedEvents } from './domain/importedEchoes.js';
+import {
+  findApprovedDuplicates,
+  indexApprovedDuplicates,
+  yearsOf,
+} from './domain/receiptDuplicates.js';
 import { buildPropertyIcs } from './services/icsExport.js';
 import { IdProcessingService } from './services/idProcessing.js';
 import { ObjectStorageService } from './services/objectStorage.js';
@@ -4372,12 +4377,23 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       propertyIds = requested.length > 0 ? requested.filter((id) => allowed.includes(id)) : allowed;
     }
     const pendings = await store.listPendingTransactions(propertyIds);
+
+    // Read the journal once for the years these receipts fall in, not once per
+    // receipt — see indexApprovedDuplicates. A receipt photographed a second
+    // time weeks later cannot be caught by comparing pending rows to each
+    // other, because the first copy was approved out of that table long ago.
+    const approved = (await Promise.all(
+      yearsOf(pendings).map((year) => store.listFinancialTransactions(propertyIds, year)),
+    )).flat();
+    const duplicates = indexApprovedDuplicates(pendings, approved);
+
     const resolved = await Promise.all(
       pendings.map(async (p) => ({
         ...p,
         receiptUrl: p.gcsPath.startsWith('gcs://')
           ? await objectStorage.getEvidenceAccessUrl(p.gcsPath)
           : p.gcsPath,
+        approvedDuplicates: duplicates.get(p.id) ?? [],
       })),
     );
     return res.json(resolved);
@@ -4591,10 +4607,36 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return res.json(txn);
   });
 
-  // POST /api/finance/pending/:id/approve — approve single pending → moves to journal
+  // POST /api/finance/pending/:id/approve — approve single pending → moves to journal.
+  // Refuses with 409 and the offending entries when the same property, date and
+  // amount are already in the journal; { force: true } is the host saying they
+  // have looked and these really are two receipts. The check lives here rather
+  // than in the screen so no client can approve a second copy by not asking.
   app.post('/api/finance/pending/:id/approve', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const { id } = req.params as { id: string };
+    const force = (req.body as { force?: boolean } | undefined)?.force === true;
+
+    if (!force) {
+      const pending = (await store.listPendingTransactions(
+        actor.role === 'ADMIN' ? (await store.listProperties()).map((p) => p.id) : actor.assignedPropertyIds,
+      )).find((row) => row.id === id);
+
+      if (pending) {
+        const approved = await store.listFinancialTransactions(
+          [pending.propertyId],
+          yearsOf([pending])[0],
+        );
+        const duplicates = findApprovedDuplicates(pending, approved);
+        if (duplicates.length > 0) {
+          return res.status(409).json({
+            error: '同じ物件・日付・金額の仕訳がすでに承認されています。',
+            duplicates,
+          });
+        }
+      }
+    }
+
     const txn = await store.approvePendingTransaction(id, actor);
     return res.status(201).json(txn);
   });
