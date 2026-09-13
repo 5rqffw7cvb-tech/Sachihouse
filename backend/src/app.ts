@@ -44,6 +44,7 @@ import {
   InvoiceListFilters,
   InvoiceRoundingMode,
   InvoiceSourceKind,
+  PendingTransaction,
 } from './store/types.js';
 import {
   computeInvoiceTotals,
@@ -920,6 +921,26 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       return res.status(403).json({ error: 'Finance access requires host level 4.' });
     }
     return next();
+  };
+
+  /**
+   * The pending receipt this actor is allowed to touch, or null.
+   *
+   * Finance access is a level, not a scope: it says this person may work on
+   * the books, not whose books. Without this an assigned host could edit,
+   * approve or delete another property's receipt simply by knowing its id.
+   * Null covers both "no such row" and "not yours" on purpose — the caller
+   * answers 404 either way, so an id cannot be probed for existence.
+   */
+  const pendingForActor = async (id: string, actor: AuthUser): Promise<PendingTransaction | null> => {
+    const pending = await store.getPendingTransaction(id);
+    if (!pending) {
+      return null;
+    }
+    if (actor.role === 'ADMIN' || actor.assignedPropertyIds.includes(pending.propertyId)) {
+      return pending;
+    }
+    return null;
   };
 
   const canViewPendingProperty = (actor: AuthUser | null | undefined, propertyId: string): boolean => {
@@ -4591,6 +4612,9 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     const actor = req.authUser!;
     const { id } = req.params as { id: string };
     const { propertyId, transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, vendor } = req.body;
+    if (!await pendingForActor(id, actor)) {
+      return res.status(404).json({ error: 'Pending transaction not found.' });
+    }
     if (propertyId !== undefined && actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(propertyId)) {
       return res.status(403).json({ error: 'Access denied to the target property.' });
     }
@@ -4617,23 +4641,22 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     const { id } = req.params as { id: string };
     const force = (req.body as { force?: boolean } | undefined)?.force === true;
 
-    if (!force) {
-      const pending = (await store.listPendingTransactions(
-        actor.role === 'ADMIN' ? (await store.listProperties()).map((p) => p.id) : actor.assignedPropertyIds,
-      )).find((row) => row.id === id);
+    const pending = await pendingForActor(id, actor);
+    if (!pending) {
+      return res.status(404).json({ error: 'Pending transaction not found.' });
+    }
 
-      if (pending) {
-        const approved = await store.listFinancialTransactions(
-          [pending.propertyId],
-          yearsOf([pending])[0],
-        );
-        const duplicates = findApprovedDuplicates(pending, approved);
-        if (duplicates.length > 0) {
-          return res.status(409).json({
-            error: '同じ物件・日付・金額の仕訳がすでに承認されています。',
-            duplicates,
-          });
-        }
+    if (!force) {
+      const approved = await store.listFinancialTransactions(
+        [pending.propertyId],
+        yearsOf([pending])[0],
+      );
+      const duplicates = findApprovedDuplicates(pending, approved);
+      if (duplicates.length > 0) {
+        return res.status(409).json({
+          error: '同じ物件・日付・金額の仕訳がすでに承認されています。',
+          duplicates,
+        });
       }
     }
 
@@ -4645,6 +4668,9 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   app.delete('/api/finance/pending/:id', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const { id } = req.params as { id: string };
+    if (!await pendingForActor(id, actor)) {
+      return res.status(404).json({ error: 'Pending transaction not found.' });
+    }
     const deleted = await store.deletePendingTransaction(id, actor);
     // Also remove the receipt image from object storage (best-effort).
     if (deleted?.gcsPath) {

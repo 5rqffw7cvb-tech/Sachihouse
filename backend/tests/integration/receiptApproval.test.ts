@@ -8,12 +8,36 @@ import { FakeMailer } from '../helpers/fakeMailer.js';
 let app: ReturnType<typeof createApp>;
 let store: MemoryStore;
 
-async function login(): Promise<string> {
+async function login(
+  email = 'admin@sachihouse.com',
+  password = 'admin123',
+): Promise<string> {
   const res = await request(app)
     .post('/api/auth/login')
-    .send({ email: 'admin@sachihouse.com', password: 'admin123' })
+    .send({ email, password })
     .expect(200);
   return res.body.token as string;
+}
+
+/**
+ * A level-4 host with finance access, assigned to no property at all.
+ *
+ * Finance access is a level, not a scope: it says this person may work on the
+ * books, which is not the same as saying whose.
+ */
+async function outsiderToken(): Promise<string> {
+  const admin = await login();
+  const created = await request(app)
+    .post('/api/users')
+    .set({ Authorization: `Bearer ${admin}` })
+    .send({ name: 'Other Host', email: 'other@example.com', password: 'password123', role: 'HOST' })
+    .expect(201);
+  await request(app)
+    .put(`/api/users/${created.body.user.id}/host-level`)
+    .set({ Authorization: `Bearer ${admin}` })
+    .send({ level: 4 })
+    .expect(200);
+  return login('other@example.com', 'password123');
 }
 
 /** A receipt the OCR has already read, so it has something to compare. */
@@ -112,6 +136,54 @@ describe('approving a receipt from the app', () => {
       .expect(201);
   });
 
+  it('will not let a host touch a receipt for a property that is not theirs', async () => {
+    const token = await outsiderToken();
+    const receipt = await seedReceipt();
+
+    // 404 rather than 403, for both the missing and the forbidden: an id must
+    // not be probeable for existence.
+    await request(app)
+      .put(`/api/finance/pending/${receipt.id}`)
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ debitAmount: 1 })
+      .expect(404);
+    await request(app)
+      .post(`/api/finance/pending/${receipt.id}/approve`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(404);
+    await request(app)
+      .delete(`/api/finance/pending/${receipt.id}`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(404);
+
+    // Nothing moved: not into the journal, not out of the pending table.
+    expect(await store.listPendingTransactions(['main'])).toHaveLength(1);
+    expect(await store.listFinancialTransactions(['main'], 2026)).toHaveLength(0);
+  });
+
+  it('forcing does not get past the ownership check either', async () => {
+    const token = await outsiderToken();
+    const receipt = await seedReceipt();
+
+    await request(app)
+      .post(`/api/finance/pending/${receipt.id}/approve`)
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ force: true })
+      .expect(404);
+  });
+
+  it('deletes a receipt the host does own', async () => {
+    const token = await login();
+    const receipt = await seedReceipt();
+
+    await request(app)
+      .delete(`/api/finance/pending/${receipt.id}`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(204);
+
+    expect(await store.listPendingTransactions(['main'])).toHaveLength(0);
+  });
+
   it('flags the duplicate on the list, before the host taps approve', async () => {
     const token = await login();
     const first = await seedReceipt();
@@ -127,10 +199,11 @@ describe('approving a receipt from the app', () => {
       .set({ Authorization: `Bearer ${token}` })
       .expect(200);
 
-    const byAmount = new Map(res.body.map((row: { debitAmount: number }) => [row.debitAmount, row]));
-    expect(byAmount.get(1280).approvedDuplicates).toHaveLength(1);
+    type Row = { debitAmount: number; approvedDuplicates: unknown[] };
+    const byAmount = new Map((res.body as Row[]).map((row) => [row.debitAmount, row]));
+    expect(byAmount.get(1280)!.approvedDuplicates).toHaveLength(1);
     // Every row answers, so the screen never has to guess whether a missing
     // field means "checked, clean" or "not checked".
-    expect(byAmount.get(640).approvedDuplicates).toEqual([]);
+    expect(byAmount.get(640)!.approvedDuplicates).toEqual([]);
   });
 });

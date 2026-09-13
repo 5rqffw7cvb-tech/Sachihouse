@@ -1197,6 +1197,11 @@ export class MemoryStore implements DataStore {
     return structuredClone(txn);
   }
 
+  async getPendingTransaction(id: string): Promise<PendingTransaction | null> {
+    const found = this.assertState().pendingTransactions.find((t) => t.id === id);
+    return found ? structuredClone(found) : null;
+  }
+
   async updatePendingTransaction(id: string, input: Partial<PendingTransactionInput>, _actor: AuthUser): Promise<PendingTransaction> {
     const state = this.assertState();
     const idx = state.pendingTransactions.findIndex((t) => t.id === id);

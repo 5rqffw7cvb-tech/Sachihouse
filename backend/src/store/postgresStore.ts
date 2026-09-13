@@ -2161,6 +2161,11 @@ export class PostgresStore implements DataStore {
     return this.mapPendingTransaction(result.rows[0]);
   }
 
+  async getPendingTransaction(id: string): Promise<PendingTransaction | null> {
+    const result = await this.pool.query('SELECT * FROM pending_transactions WHERE id = $1', [id]);
+    return result.rows[0] ? this.mapPendingTransaction(result.rows[0]) : null;
+  }
+
   async updatePendingTransaction(id: string, input: Partial<PendingTransactionInput>, _actor: AuthUser): Promise<PendingTransaction> {
     const now = Date.now();
     const sets: string[] = ['updated_at = $2'];

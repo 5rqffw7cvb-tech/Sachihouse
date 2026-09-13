@@ -8,12 +8,14 @@ const listProperties = vi.fn();
 const listPendingTransactions = vi.fn();
 const updatePendingTransaction = vi.fn();
 const approvePendingTransaction = vi.fn();
+const deletePendingTransaction = vi.fn();
 vi.mock('../../services/finance', () => ({
   financeApi: {
     listProperties: () => listProperties(),
     listPendingTransactions: (ids: string[]) => listPendingTransactions(ids),
     updatePendingTransaction: (id: string, input: unknown) => updatePendingTransaction(id, input),
     approvePendingTransaction: (id: string, options?: unknown) => approvePendingTransaction(id, options),
+    deletePendingTransaction: (id: string) => deletePendingTransaction(id),
   },
 }));
 
@@ -69,6 +71,7 @@ beforeEach(() => {
   listPendingTransactions.mockResolvedValue([]);
   updatePendingTransaction.mockImplementation(async (id, input) => ({ ...pending({ id }), ...input }));
   approvePendingTransaction.mockResolvedValue({ id: 'txn-1' });
+  deletePendingTransaction.mockResolvedValue(undefined);
 });
 
 /** Opens the sheet for the one row on screen. */
@@ -235,6 +238,34 @@ describe('correcting and approving a receipt on the phone', () => {
 
     expect(screen.queryByText('承認済みの仕訳と重複しています')).not.toBeInTheDocument();
     expect(approvePendingTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws a receipt away only after asking, and says the image goes too', async () => {
+    listPendingTransactions.mockResolvedValue([pending({})]);
+    render(<ReceiptPage />);
+    await openOnlyRow();
+
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
+    // Deleting drops the photo from storage with the row and cannot be undone,
+    // so the confirmation has to say that rather than let the host find out.
+    expect(screen.getByText(/画像も一緒に削除され、元に戻せません/)).toBeInTheDocument();
+    expect(deletePendingTransaction).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: '削除する' }));
+    await waitFor(() => expect(deletePendingTransaction).toHaveBeenCalledWith('p1'));
+  });
+
+  it('backs out of the delete prompt without deleting', async () => {
+    listPendingTransactions.mockResolvedValue([pending({})]);
+    render(<ReceiptPage />);
+    await openOnlyRow();
+
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
+    fireEvent.click(screen.getByRole('button', { name: 'やめる' }));
+
+    expect(deletePendingTransaction).not.toHaveBeenCalled();
+    // And the sheet comes back the way it was, not closed out from under them.
+    expect(screen.getByRole('button', { name: '承認' })).toBeInTheDocument();
   });
 
   it('warns on the row itself when the list already knows about a duplicate', async () => {

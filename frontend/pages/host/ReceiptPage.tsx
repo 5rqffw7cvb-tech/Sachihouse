@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, AlertTriangle, Building2, Camera, Check, CheckCircle, ChevronRight, Copy, Eye,
-  Images, Loader2, Lock, RefreshCw, Save, Upload, X,
+  Images, Loader2, Lock, RefreshCw, Save, Trash2, Upload, X,
 } from 'lucide-react';
 import { HostCard, HostEmpty, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
@@ -203,7 +203,8 @@ const ReceiptPage: React.FC = () => {
   const [pendingLoading, setPendingLoading] = useState(true);
   const [openReceipt, setOpenReceipt] = useState<PendingTransaction | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [sheetBusy, setSheetBusy] = useState<'saving' | 'approving' | null>(null);
+  const [sheetBusy, setSheetBusy] = useState<'saving' | 'approving' | 'deleting' | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
   // Duplicates the server refused an approval over, as opposed to the ones it
   // volunteered on the list. Set means the host has been asked and has not
@@ -294,6 +295,7 @@ const ReceiptPage: React.FC = () => {
     setDraft(draftOf(item));
     setSheetError(null);
     setBlockingDuplicates(null);
+    setConfirmingDelete(false);
   };
 
   const closeSheet = () => {
@@ -301,6 +303,29 @@ const ReceiptPage: React.FC = () => {
     setDraft(null);
     setSheetError(null);
     setBlockingDuplicates(null);
+    setConfirmingDelete(false);
+  };
+
+  /**
+   * Throw a receipt away: a blurred photo, a duplicate, something shot by
+   * mistake. There is no reject-and-keep state in this system — the desktop
+   * deletes too — and the server drops the image from storage with the row, so
+   * the confirmation says that rather than leaving the host to find out.
+   */
+  const deleteReceipt = async () => {
+    if (!openReceipt) return;
+    setSheetBusy('deleting');
+    setSheetError(null);
+    try {
+      await financeApi.deletePendingTransaction(openReceipt.id);
+      closeSheet();
+      void loadPending();
+    } catch (cause) {
+      setConfirmingDelete(false);
+      setSheetError(cause instanceof Error ? cause.message : '削除できませんでした。');
+    } finally {
+      setSheetBusy(null);
+    }
   };
 
   /** Saving is its own step, exactly as on desktop: the host corrects what the
@@ -778,7 +803,35 @@ const ReceiptPage: React.FC = () => {
               <p className="px-5 pb-1 text-[12px] text-ink-muted">{whyNotApprovable(draft)}</p>
             )}
 
-            {!blockingDuplicates && (
+            {confirmingDelete && !blockingDuplicates && (
+              <div className="px-5 pt-1">
+                <p className="mb-2.5 text-[13px] leading-relaxed text-ink-soft">
+                  この領収書を削除しますか？画像も一緒に削除され、元に戻せません。
+                </p>
+                <div className="flex gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(false)}
+                    className="h-[52px] flex-1 rounded-control border border-line-strong bg-surface text-[15px] font-bold text-ink active:bg-subtle"
+                  >
+                    やめる
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void deleteReceipt(); }}
+                    disabled={sheetBusy !== null}
+                    className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-control bg-danger text-[15px] font-bold text-white disabled:opacity-50"
+                  >
+                    {sheetBusy === 'deleting'
+                      ? <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                      : <Trash2 className="h-[18px] w-[18px]" />}
+                    削除する
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!blockingDuplicates && !confirmingDelete && (
               <div className="flex gap-2.5 px-5 pt-1">
                 <button
                   type="button"
@@ -803,6 +856,18 @@ const ReceiptPage: React.FC = () => {
                   承認
                 </button>
               </div>
+            )}
+
+            {!blockingDuplicates && !confirmingDelete && (
+              <button
+                type="button"
+                onClick={() => { setConfirmingDelete(true); setSheetError(null); }}
+                disabled={sheetBusy !== null}
+                className="mx-5 mt-2 flex h-[44px] items-center justify-center gap-1.5 rounded-control text-[14px] font-bold text-danger active:bg-danger-tint disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                削除
+              </button>
             )}
           </div>
         </div>

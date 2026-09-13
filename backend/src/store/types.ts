@@ -990,6 +990,10 @@ export interface DataStore {
   deleteFinancialTransaction(id: string, actor: AuthUser): Promise<FinancialTransaction | null>;
   bulkImportFinancialTransactions(propertyId: string, transactions: FinancialTransactionInput[], actor: AuthUser): Promise<FinancialTransaction[]>;
   listPendingTransactions(propertyIds: string[]): Promise<PendingTransaction[]>;
+  // One row by id, whatever property it belongs to. The routes that change a
+  // pending receipt need it to find out whose it is before they let the
+  // caller touch it.
+  getPendingTransaction(id: string): Promise<PendingTransaction | null>;
   createPendingTransaction(input: PendingTransactionInput, actor: AuthUser): Promise<PendingTransaction>;
   updatePendingTransaction(id: string, input: Partial<PendingTransactionInput>, actor: AuthUser): Promise<PendingTransaction>;
   approvePendingTransaction(id: string, actor: AuthUser): Promise<FinancialTransaction>;
