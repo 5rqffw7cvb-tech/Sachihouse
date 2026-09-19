@@ -1,45 +1,69 @@
 ---
-description: Chay vong lap Plan - Code - Test - Review
+description: Lam tinh nang moi - plan, code-test loop, review
 argument-hint: [mo ta task]
 ---
 
-# Vòng lặp Plan - Code - Test - Review
+# Vòng lặp Plan - Code/Test - Review
 
 Task cần làm: **$ARGUMENTS**
 
 Nếu `$ARGUMENTS` rỗng, hỏi tôi mô tả task rồi dừng, không tự đoán.
 
-## Cách chạy
+Quy trình gồm **hai vòng lồng nhau**: vòng trong `coder` ↔ `tester`, vòng ngoài sửa theo `reviewer`.
 
-Chạy **TỐI ĐA 3 vòng lặp**. Mỗi vòng gồm 4 bước, gọi lần lượt từng subagent:
+## BƯỚC 1: LẬP KẾ HOẠCH (chạy 1 lần)
 
-1. **planner** — nhận task (hoặc feedback của vòng trước), xuất plan 4 phần.
-2. **coder** — thực thi đúng theo plan của planner.
-3. **tester** — viết và chạy test cho thay đổi vừa rồi. Kết thúc bằng `TEST_PASS` hoặc `TEST_FAIL`.
-4. **reviewer** — chạy `git diff` và review. Kết thúc bằng `PASS` hoặc `NEEDS_REWORK`.
+Gọi subagent `planner` để lập plan.
 
-Chạy tuần tự, không chạy song song: mỗi bước cần kết quả của bước trước làm đầu vào.
+Ghi nhớ **Acceptance criteria** mà planner đưa ra, dùng cho các bước sau.
 
-## Điều kiện lặp lại
+## BƯỚC 2: VÒNG TRONG — coder và tester
 
-- Nếu tester trả `TEST_FAIL` **hoặc** reviewer trả `NEEDS_REWORK` → quay lại **planner** cho vòng tiếp theo, **truyền nguyên feedback đó làm input**. Nhắc planner chỉ lập plan cho phần cần sửa, không lập lại từ đầu.
-- Nếu tester trả `TEST_PASS` **và** reviewer trả `PASS` → **dừng ngay**, báo hoàn thành.
+Lặp **TỐI ĐA 3 lần**:
 
-## Báo cáo sau mỗi vòng
+a. Gọi subagent `coder`
+   - Lần đầu: hiện thực theo plan
+   - Các lần sau: chỉ sửa đúng những gì tester báo fail, không làm thêm việc khác
+b. Gọi subagent `tester` chạy test
+c. Nếu `TEST_PASS`: thoát vòng trong, sang **BƯỚC 3**
+d. Nếu `TEST_FAIL`: quay lại **a**, truyền nguyên văn phần báo lỗi của tester cho coder
 
-Sau mỗi vòng, in ra **đúng 3 dòng**, không thêm gì khác:
+**TUYỆT ĐỐI KHÔNG gọi `planner` hay `reviewer` trong vòng trong này.**
+
+Nếu hết 3 lần vẫn `TEST_FAIL`: **DỪNG TOÀN BỘ**, báo cho tôi lỗi còn lại là gì và hỏi ý kiến. Không tự chạy tiếp.
+
+## BƯỚC 3: REVIEW (chỉ chạy khi test đã PASS)
+
+Gọi subagent `reviewer`.
+
+- Nếu `PASS`: dừng, báo cáo kết quả cuối cùng cho tôi
+- Nếu `NEEDS_REWORK`: sang **BƯỚC 4**
+
+## BƯỚC 4: VÒNG NGOÀI — sửa theo review
+
+Lặp **TỐI ĐA 2 lần**:
+
+a. Nếu reviewer chỉ ra vấn đề **KIẾN TRÚC** hoặc nói plan ban đầu sai hướng: gọi lại `planner` với feedback đó, rồi quay về **BƯỚC 2**
+b. Nếu chỉ là vấn đề code thông thường (đa số trường hợp): **KHÔNG gọi planner**. Quay thẳng về **BƯỚC 2** với nội dung feedback của reviewer làm input cho coder.
+c. Sau khi **BƯỚC 2** xong, gọi lại `reviewer`
+d. `PASS` thì dừng, `NEEDS_REWORK` thì lặp lại
+
+Hết 2 lần vòng ngoài vẫn `NEEDS_REWORK`: **DỪNG**, báo tôi những điểm reviewer còn phàn nàn và hỏi ý kiến.
+
+## BÁO CÁO
+
+Sau mỗi lần chạy `tester` hoặc `reviewer`, báo cho tôi **đúng 1 dòng ngắn** theo mẫu:
 
 ```
-Vòng N/3
-Trạng thái: <TEST_PASS|TEST_FAIL> + <PASS|NEEDS_REWORK>
-Việc còn lại: <tóm tắt 1 dòng, hoặc "không còn">
+[Vòng trong 2/3] TEST_FAIL - 3 test lỗi ở module thanh toán
+[Vòng ngoài 1/2] NEEDS_REWORK - 1 Critical, 2 Warning
 ```
 
-## Khi hết 3 vòng vẫn chưa PASS
+Báo cáo cuối cùng **đúng 4 dòng**:
 
-**DỪNG LẠI và hỏi ý kiến tôi. Tuyệt đối không tự lặp thêm vòng thứ 4.**
-
-Khi dừng, trình bày ngắn gọn:
-- Những lỗi còn tồn đọng.
-- Nhận định vì sao 3 vòng chưa xử lý được.
-- 2-3 hướng đi đề xuất để tôi chọn.
+```
+- Đã làm:
+- Số vòng đã chạy:
+- Kết quả test:
+- Kết quả review:
+```
