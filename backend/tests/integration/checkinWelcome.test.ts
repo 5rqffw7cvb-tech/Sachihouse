@@ -53,7 +53,7 @@ async function createManualConfirmation(
     .send({
       propertyName: 'Sachi House Ojima',
       propertyAddress: 'Tokyo',
-      propertyUrl: 'https://sachi-house.net/#/main',
+      propertyUrl: 'https://sachi-house.net/main',
       guestName: 'Hanako Tanaka',
       guestEmail,
       numGuests: 2,

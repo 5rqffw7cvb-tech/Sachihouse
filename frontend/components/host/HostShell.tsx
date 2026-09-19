@@ -6,6 +6,7 @@ import { getCurrentUser, logout, subscribeToAuth } from '../../services/auth';
 import { HostProperty, listHostProperties } from '../../services/hostApp';
 import { HostAppMeta } from './HostAppMeta';
 import { HostTabBar } from './HostTabBar';
+import { Seo } from '../Seo';
 
 /**
  * Chrome and gate for /app.
@@ -69,14 +70,17 @@ export const HostShell: React.FC = () => {
 
   if (!resolved) {
     return (
-      <div className="min-h-[100dvh] bg-page flex items-center justify-center text-ink-muted">
-        <Loader2 className="w-6 h-6 animate-spin" />
-      </div>
+      <>
+        <Seo noindex title="Loading" description="Loading." />
+        <div className="min-h-[100dvh] bg-page flex items-center justify-center text-ink-muted">
+          <Loader2 className="w-6 h-6 animate-spin" />
+        </div>
+      </>
     );
   }
 
   if (!user) {
-    const target = window.location.hash ? window.location.hash.slice(1) : location.pathname;
+    const target = `${location.pathname}${location.search}`;
     return <Navigate to={`/app/login?redirect=${encodeURIComponent(target)}`} replace />;
   }
 
@@ -107,6 +111,7 @@ export const HostShell: React.FC = () => {
 
   return (
     <div className="bg-page text-ink font-['Inter']">
+      <Seo noindex title="Sachi House Host" description="The Sachi House host app." />
       <HostAppMeta />
       <Outlet context={context} />
       <HostTabBar user={user} />

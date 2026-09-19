@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Building2,
   Check,
@@ -50,6 +51,7 @@ const Row: React.FC<{
 );
 
 const AccountPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user, properties, propertiesError } = useHostContext();
 
   const [showProperties, setShowProperties] = useState(false);
@@ -99,7 +101,7 @@ const AccountPage: React.FC = () => {
   };
 
   const openInConsole = (path: string) => {
-    window.location.hash = path;
+    navigate(path);
   };
 
   return (
@@ -184,7 +186,7 @@ const AccountPage: React.FC = () => {
         <Row
           Icon={FileText}
           label="Booking confirmations"
-          onClick={() => openInConsole('#/admin/booking-confirm')}
+          onClick={() => openInConsole('/admin/booking-confirm')}
           trailing={<ExternalLink className="w-[17px] h-[17px] text-line-strong shrink-0" />}
           last
         />

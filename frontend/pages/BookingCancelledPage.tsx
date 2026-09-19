@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Home, RotateCcw } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { abandonBooking } from '../services/booking';
+import { Seo } from '../components/Seo';
 
 // Where Stripe sends a guest who backed out of the payment page. Nothing was
 // charged. The hold would lapse on its own anyway, but landing here is proof
@@ -28,6 +29,7 @@ const BookingCancelledPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#e8e5e6] py-10 px-4">
+      <Seo noindex title="Booking cancelled" description="Your SachiHouse booking hold was released." />
       <div className="max-w-xl mx-auto bg-white rounded-2xl shadow-xl border border-gray-100 p-10 text-center">
         <div className="flex justify-center mb-5">
           <RotateCcw className="w-10 h-10 text-gray-400" />

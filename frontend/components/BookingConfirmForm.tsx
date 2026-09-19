@@ -20,7 +20,7 @@ const DEFAULT_CHECK_OUT_TIME = '10:00';
 
 function buildPropertyUrl(property: PropertyItem): string {
   const slug = property.metalink || property.id;
-  return `${window.location.origin}/#/${slug}`;
+  return `${window.location.origin}/${slug}`;
 }
 
 function nightsBetween(checkIn: string, checkOut: string): number {

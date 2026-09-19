@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertCircle, Eye, EyeOff, Home, Loader2, Share, ShieldCheck } from 'lucide-react';
 import { HostAppMeta } from '../../components/host/HostAppMeta';
+import { Seo } from '../../components/Seo';
 import { checkAuth, login } from '../../services/auth';
 import { loadTurnstileScript, TURNSTILE_SITE_KEY } from '../../services/turnstile';
 
@@ -113,6 +114,7 @@ const HostLoginPage: React.FC = () => {
 
   return (
     <div className="min-h-[100dvh] bg-surface text-ink font-['Inter'] flex flex-col px-6">
+      <Seo noindex title="Host sign in" description="Sachi House host app sign in." />
       <HostAppMeta />
       <div style={{ height: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }} className="shrink-0" />
       <div className="h-16 shrink-0" />

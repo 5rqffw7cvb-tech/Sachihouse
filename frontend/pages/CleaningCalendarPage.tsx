@@ -17,6 +17,7 @@ import { ChevronLeft, ChevronRight, Loader2, RefreshCw, X, Zap } from 'lucide-re
 import { ApiError } from '../services/api';
 import { CleaningStay, getCleaningCalendar } from '../services/cleaningCalendar';
 import { assignLanes, nightRange } from '../utils/stayLanes';
+import { Seo } from '../components/Seo';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -313,6 +314,7 @@ const CleaningCalendarPage: React.FC = () => {
   if (notFound) {
     return (
       <div className="min-h-screen bg-[#111827] flex items-center justify-center p-6">
+        <Seo noindex title="Link not valid" description="This cleaning-calendar link is no longer active." />
         <div className="max-w-sm w-full rounded-2xl bg-white p-6 text-center shadow-xl">
           <div className="text-2xl">🔒</div>
           <h1 className="mt-2 text-[16px] font-semibold text-[#1b1c1d]">Link not valid</h1>
@@ -324,6 +326,7 @@ const CleaningCalendarPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] flex flex-col">
+      <Seo noindex title="SachiHouse Calendar" description="Cleaning turnover schedule." />
       <header className="bg-white text-[#111827] px-4 py-4 sticky top-0 z-20 shadow-sm border-b border-[#e4e2e3] flex items-center justify-between">
         <h1 className="text-[17px] font-bold tracking-tight">SachiHouse Calendar</h1>
         <button

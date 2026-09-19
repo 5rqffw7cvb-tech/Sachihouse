@@ -116,7 +116,7 @@ async function main() {
         propertyId: prop.id,
         propertyName: prop.name || prop.id,
         propertyAddress: prop.address || '',
-        propertyUrl: `${siteUrl}/#/${encodeURIComponent(slug)}`,
+        propertyUrl: `${siteUrl}/${encodeURIComponent(slug)}`,
         guestName: booking.guestName,
         guestEmail: booking.guestEmail,
         guestPhone: booking.guestPhone,

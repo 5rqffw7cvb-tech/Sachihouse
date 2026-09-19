@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeSiteUrl } from '../../src/app.js';
+import { buildSiteUrl, normalizeSiteUrl } from '../../src/app.js';
 
 describe('normalizeSiteUrl', () => {
   it('adds https to a bare host', () => {
@@ -30,5 +30,39 @@ describe('normalizeSiteUrl', () => {
 
   it('keeps a host that merely starts with the letters http', () => {
     expect(normalizeSiteUrl('httpbin.example.com')).toBe('https://httpbin.example.com');
+  });
+});
+
+describe('buildSiteUrl', () => {
+  // The public site moved from HashRouter to BrowserRouter: an outbound link
+  // built with a leading '#' (the old `${siteUrl}/#${pathAndQuery}` shape)
+  // would send a guest to the homepage of the new app instead of the intended
+  // real path, so no '#' may ever appear in the generated URL again.
+  it('joins the site origin and the real path with no hash', () => {
+    expect(buildSiteUrl('https://sachi-house.net', '/sachi-ojima/checkin')).toBe(
+      'https://sachi-house.net/sachi-ojima/checkin',
+    );
+  });
+
+  it('never contains a "#" character', () => {
+    const url = buildSiteUrl('https://sachi-house.net', '/booking/result?id=abc123&token=xyz');
+    expect(url).not.toContain('#');
+  });
+
+  it('preserves a query string appended to the path', () => {
+    expect(buildSiteUrl('https://sachi-house.net', '/booking/cancelled?id=abc123')).toBe(
+      'https://sachi-house.net/booking/cancelled?id=abc123',
+    );
+  });
+
+  it('composes cleanly with normalizeSiteUrl for a bare host', () => {
+    const siteUrl = normalizeSiteUrl('sachi-house.net');
+    expect(buildSiteUrl(siteUrl, '/sachi-ojima/manual')).toBe('https://sachi-house.net/sachi-ojima/manual');
+  });
+
+  it('adds a leading slash to a path missing one', () => {
+    expect(buildSiteUrl('https://sachi-house.net', 'admin/booking-confirm')).toBe(
+      'https://sachi-house.net/admin/booking-confirm',
+    );
   });
 });

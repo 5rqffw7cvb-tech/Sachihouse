@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertCircle, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import { checkAuth, login, register } from '../services/auth';
 import { GlobalLayout } from '../components/GlobalLayout';
+import { Seo } from '../components/Seo';
 import { loadTurnstileScript, TURNSTILE_SITE_KEY } from '../services/turnstile';
 
 const LoginPage: React.FC = () => {
@@ -137,6 +138,7 @@ const LoginPage: React.FC = () => {
 
   return (
     <GlobalLayout>
+      <Seo noindex title="Sign in" description="Staff and host portal access." />
       <div className="flex items-center justify-center min-h-[60vh] px-4">
         <div className="w-full max-w-[380px]">
           <div className="bg-white rounded-2xl border border-[#e4e2e3] shadow-[0_1px_2px_rgba(27,28,29,0.04),0_8px_24px_rgba(27,28,29,0.06)] px-7 py-8 sm:px-9 sm:py-10">

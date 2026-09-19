@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { ApiUser } from '../services/api';
 import { Spinner } from './ui';
+import { Seo } from './Seo';
 
 /**
  * Authentication only: is anyone signed in? If not, bounce to login before the
@@ -31,15 +32,17 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
 
   if (!resolved) {
     return (
-      <div className="min-h-screen bg-page flex items-center justify-center">
-        <Spinner />
-      </div>
+      <>
+        <Seo noindex title="Loading" description="Loading." />
+        <div className="min-h-screen bg-page flex items-center justify-center">
+          <Spinner />
+        </div>
+      </>
     );
   }
 
   if (!user) {
-    // HashRouter keeps the real path after the '#', so prefer it when present.
-    const target = window.location.hash ? window.location.hash.slice(1) : location.pathname;
+    const target = `${location.pathname}${location.search}`;
     return <Navigate to={`/login?redirect=${encodeURIComponent(target)}`} replace />;
   }
 

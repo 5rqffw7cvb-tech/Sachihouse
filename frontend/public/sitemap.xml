@@ -2,7 +2,11 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://sachi-house.net/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://sachi-house.net/become-host</loc>
+  </url>
+  <url>
+    <loc>https://sachi-house.net/blog</loc>
   </url>
 </urlset>

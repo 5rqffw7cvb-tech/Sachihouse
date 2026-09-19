@@ -374,7 +374,7 @@ export function departuresOn(stays: HostStay[], iso: string): HostStay[] {
 /** The check-in link a guest fills in — the same URL the console's link picker
  *  hands out, so a link copied from the phone behaves identically. */
 export function buildCheckInUrl(propertyId: string): string {
-  return `${window.location.origin}${window.location.pathname}#/${propertyId}/checkin`;
+  return `${window.location.origin}/${propertyId}/checkin`;
 }
 
 /** Clipboard with a fallback: iOS Safari refuses navigator.clipboard outside a

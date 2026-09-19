@@ -24,26 +24,81 @@ server {
 
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header X-Content-Type-Options "nosniff" always;
         try_files $uri =404;
     }
 
     location = /robots.txt {
         add_header Cache-Control "public, max-age=3600" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header X-Content-Type-Options "nosniff" always;
         try_files $uri =404;
     }
 
     location = /sitemap.xml {
         add_header Cache-Control "public, max-age=3600" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header X-Content-Type-Options "nosniff" always;
         try_files $uri =404;
     }
 
     location ~* \.(?:png|jpg|jpeg|gif|svg|webp|avif|ico|woff2?)$ {
         add_header Cache-Control "public, max-age=604800" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header X-Content-Type-Options "nosniff" always;
         try_files $uri =404;
+    }
+
+    # The trailing =404 is load-bearing: without a status code as the last
+    # parameter, try_files internal-redirects to /index.html, location selection
+    # runs again, the request finishes in the catch-all block below, and every
+    # add_header and access_log directive here is taken from there instead —
+    # silently dropping the noindex header and logging the bearer tokens.
+
+    # /booking/result and /cleaning/:token URLs carry a bearer token in the
+    # path (backend/src/app.ts:1565, :2799), not just a query string a proxy
+    # might strip — `access_log off` here is deliberate so that token never
+    # lands in an access log, not an oversight.
+    location = /booking/result {
+        access_log off;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri /index.html =404;
+    }
+
+    # Same bearer-token-in-path reasoning as /booking/result above.
+    location ~ ^/cleaning/ {
+        access_log off;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri /index.html =404;
+    }
+
+    location ~ ^/(admin|app|login|booking|cleaning)(/|$) {
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri /index.html =404;
+    }
+
+    location ~ ^/[^/]+/(admin|checkin)/?$ {
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri /index.html =404;
     }
 
     location / {
         add_header Cache-Control "no-cache" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header X-Content-Type-Options "nosniff" always;
         try_files $uri /index.html;
     }
 }

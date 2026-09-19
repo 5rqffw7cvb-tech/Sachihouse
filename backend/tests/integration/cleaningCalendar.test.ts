@@ -21,7 +21,7 @@ function manualPayload(overrides: Record<string, unknown> = {}) {
   return {
     propertyName: 'Sachi House Ojima',
     propertyAddress: '1-2-3 Ojima, Koto-ku',
-    propertyUrl: 'https://example.com/#/ojima',
+    propertyUrl: 'https://example.com/ojima',
     guestName: 'Airbnb Guest',
     guestEmail: 'guest@example.com',
     numGuests: 2,
@@ -123,7 +123,7 @@ describe('cleaning-calendar link management', () => {
       .expect(200);
 
     expect(first.body.url).toBe(second.body.url);
-    expect(first.body.url).toMatch(/\/#\/cleaning\/[a-f0-9]+$/);
+    expect(first.body.url).toMatch(/\/cleaning\/[a-f0-9]+$/);
   });
 
   it('regenerating invalidates the previous link', async () => {
@@ -132,7 +132,7 @@ describe('cleaning-calendar link management', () => {
       .get('/api/cleaning-calendar-link')
       .set({ Authorization: `Bearer ${token}` })
       .expect(200);
-    const oldPath = before.body.url.slice(before.body.url.indexOf('/#/cleaning/') + '/#/cleaning/'.length);
+    const oldPath = before.body.url.slice(before.body.url.indexOf('/cleaning/') + '/cleaning/'.length);
 
     const after = await request(app)
       .post('/api/cleaning-calendar-link/regenerate')
@@ -165,7 +165,7 @@ describe('cleaning-calendar data', () => {
       .get('/api/cleaning-calendar-link')
       .set({ Authorization: `Bearer ${token}` })
       .expect(200);
-    const linkToken = link.body.url.slice(link.body.url.indexOf('/#/cleaning/') + '/#/cleaning/'.length);
+    const linkToken = link.body.url.slice(link.body.url.indexOf('/cleaning/') + '/cleaning/'.length);
 
     const res = await request(app).get(`/api/cleaning-calendar/${linkToken}`).expect(200);
     const stays = res.body.stays as Array<Record<string, unknown>>;
@@ -192,7 +192,7 @@ describe('cleaning-calendar data', () => {
       .get('/api/cleaning-calendar-link')
       .set({ Authorization: `Bearer ${token}` })
       .expect(200);
-    const linkToken = link.body.url.slice(link.body.url.indexOf('/#/cleaning/') + '/#/cleaning/'.length);
+    const linkToken = link.body.url.slice(link.body.url.indexOf('/cleaning/') + '/cleaning/'.length);
 
     const from = isoDaysFromNow(0);
     const to = isoDaysFromNow(10);

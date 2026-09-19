@@ -23,7 +23,7 @@ function manualPayload(overrides: Record<string, unknown> = {}) {
   return {
     propertyName: 'Sachi House Ojima',
     propertyAddress: '1-2-3 Ojima, Koto-ku',
-    propertyUrl: 'https://example.com/#/ojima',
+    propertyUrl: 'https://example.com/ojima',
     guestName: 'Airbnb Guest',
     guestEmail: 'guest@example.com',
     numGuests: 2,

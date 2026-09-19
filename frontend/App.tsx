@@ -1,8 +1,9 @@
 
 import React, { useEffect, useState, Suspense, lazy } from 'react';
-import { HashRouter as Router, Routes, Route, ScrollRestoration, useLocation, Outlet, useParams, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Outlet, useParams, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import SEOHead from './components/SEOHead';
+import { Seo } from './components/Seo';
 import { PropertyData, SiteSettings } from './types';
 import { Loader2 } from 'lucide-react';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
@@ -55,7 +56,7 @@ const HostAppFallback = (
     </div>
 );
 
-// ScrollToTop component to fix scroll position on route change in HashRouter
+// ScrollToTop component to fix scroll position on route change
 const ScrollToTop = () => {
     const { pathname } = useLocation();
 
@@ -435,14 +436,29 @@ const PropertyRoutes = () => {
     };
 
     if (isSyncing) {
-        return <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#041627]" /></div>;
+        return (
+            <>
+                <Seo noindex title="Loading" description="Loading." />
+                <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#041627]" /></div>
+            </>
+        );
     }
 
     if (loadError) {
-        return <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center text-red-500">{loadError}</div>;
+        return (
+            <>
+                <Seo noindex title="Not found" description="This page could not be loaded." />
+                <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center text-red-500">{loadError}</div>
+            </>
+        );
     }
 
-    if (!data) return <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center text-red-500">Failed to load property data for {propertyId}</div>;
+    if (!data) return (
+        <>
+            <Seo noindex title="Not found" description="This page could not be loaded." />
+            <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center text-red-500">Failed to load property data for {propertyId}</div>
+        </>
+    );
 
     // Apply translation client-side — no re-fetch needed on language change
     const localizedData = applyClientLocalization(data, language);
@@ -450,19 +466,22 @@ const PropertyRoutes = () => {
     return (
         <>
             <ThemeInjector theme={data.themeColor} />
-            <SEOHead data={localizedData} />
             <Suspense fallback={<div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}>
                 <Routes>
                     <Route element={<Layout data={localizedData} />}>
-                        <Route index element={<HomePage data={localizedData} />} />
-                        <Route path="access" element={<AccessPage data={localizedData} />} />
-                        <Route path="pricing" element={<PricingPage data={localizedData} />} />
-                        <Route path="rules" element={<RulesPage data={localizedData} />} />
-                        <Route path="manual" element={<ManualPage data={localizedData} />} />
+                        <Route index element={<><SEOHead data={localizedData} /><HomePage data={localizedData} /></>} />
+                        <Route path="access" element={<><SEOHead data={localizedData} titleSuffix="Access" /><AccessPage data={localizedData} /></>} />
+                        <Route path="pricing" element={<><SEOHead data={localizedData} titleSuffix="Pricing" /><PricingPage data={localizedData} /></>} />
+                        <Route path="rules" element={<><SEOHead data={localizedData} titleSuffix="House rules" /><RulesPage data={localizedData} /></>} />
+                        <Route path="manual" element={<><SEOHead data={localizedData} titleSuffix="Guest manual" /><ManualPage data={localizedData} /></>} />
                     </Route>
-                    <Route path="admin" element={<AdminPage data={data} onUpdate={handleDataUpdate} />} />
-                    <Route path="photos" element={<PhotoTourPage data={localizedData} />} />
-                    <Route path="checkin" element={<CheckInPage data={localizedData} propertyId={propertyId} />} />
+                    <Route path="admin" element={<><Seo noindex title="Admin" description="Property admin console." /><AdminPage data={data} onUpdate={handleDataUpdate} /></>} />
+                    <Route path="photos" element={<><SEOHead data={localizedData} titleSuffix="Photo tour" /><PhotoTourPage data={localizedData} /></>} />
+                    <Route path="checkin" element={<><Seo noindex title="Check-in" description="Guest check-in." /><CheckInPage data={localizedData} propertyId={propertyId} /></>} />
+                    {/* No sub-route (access/pricing/rules/manual/admin/photos/checkin) matched
+                        under /:id/*, so this is a genuine 404 within a property — noindex it
+                        the same way the two failed-to-load states above do. */}
+                    <Route path="*" element={<><Seo noindex title="Not found" description="This page could not be loaded." /><div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center text-red-500">Page not found</div></>} />
                 </Routes>
             </Suspense>
         </>
@@ -546,19 +565,33 @@ const ListingsRoute = () => {
     };
 
     if (isLoading) {
+        // This loading state renders at "/", the site's own home page — noindex is
+        // a deliberate trade-off: if a crawler ever renders this exact moment (the
+        // API not having answered yet) instead of waiting for ListingsPage's own
+        // <Seo>, "/" itself would end up noindexed. Accepted because the
+        // alternative — indexing an empty loading screen for the home page when the
+        // API happens to be slow or down — is worse.
         return (
-            <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center gap-3 text-[#041627]">
-                <Loader2 className="w-8 h-8 animate-spin" />
-                <p className="text-sm font-medium tracking-[0.04em] uppercase">{t('loading')}</p>
-            </div>
+            <>
+                <Seo noindex title="Loading" description="Loading." />
+                <div className="min-h-screen bg-[#e8e5e6] flex flex-col items-center justify-center gap-3 text-[#041627]">
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                    <p className="text-sm font-medium tracking-[0.04em] uppercase">{t('loading')}</p>
+                </div>
+            </>
         );
     }
 
     if (!properties || !settings) {
+        // Same trade-off as the isLoading branch above: this is "/" with the API
+        // down, not a page that should ever be indexed on its own.
         return (
-            <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center px-6 text-center text-[#ba1a1a]">
-                {t('common_err_homepage_load')}
-            </div>
+            <>
+                <Seo noindex title="Not found" description="This page could not be loaded." />
+                <div className="min-h-screen bg-[#e8e5e6] flex items-center justify-center px-6 text-center text-[#ba1a1a]">
+                    {t('common_err_homepage_load')}
+                </div>
+            </>
         );
     }
 

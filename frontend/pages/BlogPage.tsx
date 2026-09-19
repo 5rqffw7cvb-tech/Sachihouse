@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2 } from 'lucide-react';
 import { BlogSidebar } from '../components/BlogSidebar';
 import { BlogPost, blogService } from '../services/blogService';
-import { Helmet } from 'react-helmet-async';
+import { Seo } from '../components/Seo';
 import { useLanguage } from '../contexts/LanguageContext';
 
 const BlogPage: React.FC = () => {
@@ -107,6 +107,32 @@ const BlogPage: React.FC = () => {
   const featuredPost = (categoryFilter || searchFilter) ? null : (posts.find(p => p.isFeatured) || posts[0]);
   const regularPosts = posts.filter(p => p.id !== featuredPost?.id);
 
+  const pageTitle = categoryFilter
+    ? `${t('blog_category_prefix')} ${categoryFilter} | Tokyo Travel Blog`
+    : searchFilter
+    ? `${t('blog_search_prefix')} ${searchFilter} | Tokyo Travel Blog`
+    : `${t('blog_title_default')} | The Ultimate Guide`;
+
+  const pageDescription = t('blog_subtitle_default');
+
+  // The canonical must point at the same filtered view a search engine would
+  // land on — category and page are real, indexable variants of /blog, so
+  // they stay in the URL. A free-text search (?q=) is not something anyone
+  // else can usefully land on from a search result, so that view is noindex
+  // instead of canonicalized.
+  const canonicalPath = useMemo(() => {
+    const params = new URLSearchParams();
+    if (categoryFilter) params.set('category', categoryFilter);
+    const pageParam = searchParams.get('page');
+    if (pageParam) params.set('page', pageParam);
+    // URLSearchParams.toString() form-encodes a space as `+`, but the real
+    // links to this page — components/BlogSidebar.tsx and React Router's own
+    // navigation — percent-encode it as %20, so the canonical must match that
+    // instead of publishing a URL nothing actually links to.
+    const query = params.toString().replace(/\+/g, '%20');
+    return query ? `/blog?${query}` : '/blog';
+  }, [categoryFilter, searchParams]);
+
   if (loading) {
     return (
       <GlobalLayout>
@@ -128,27 +154,15 @@ const BlogPage: React.FC = () => {
     );
   }
 
-  const pageTitle = categoryFilter
-    ? `${t('blog_category_prefix')} ${categoryFilter} | Tokyo Travel Blog`
-    : searchFilter
-    ? `${t('blog_search_prefix')} ${searchFilter} | Tokyo Travel Blog`
-    : `${t('blog_title_default')} | The Ultimate Guide`;
-
-  const pageDescription = t('blog_subtitle_default');
-
   return (
     <GlobalLayout>
-      <Helmet>
-        <title>{pageTitle}</title>
-        <meta name="description" content={pageDescription} />
-        <meta property="og:title" content={pageTitle} />
-        <meta property="og:description" content={pageDescription} />
-        <meta property="og:type" content="website" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={pageTitle} />
-        <meta name="twitter:description" content={pageDescription} />
-      </Helmet>
-      
+      <Seo
+        title={pageTitle}
+        description={pageDescription}
+        canonicalPath={canonicalPath}
+        noindex={Boolean(searchFilter)}
+      />
+
       <div className="flex flex-col mb-8 md:mb-10 gap-2 text-center md:text-left">
         <h1 className="font-['Plus_Jakarta_Sans'] text-[24px] md:text-[36px] font-bold text-[#1b1c1d] leading-[1.2]">
           {categoryFilter ? `${t('blog_category_prefix')} ${categoryFilter}` : searchFilter ? `${t('blog_search_prefix')} ${searchFilter}` : t('blog_title_default')}

@@ -109,7 +109,7 @@ export const BookingConfirmSheet: React.FC<BookingConfirmSheetProps> = ({ stay, 
       const confirmation = await createBookingConfirmation(property.id, {
         propertyName: property.name,
         propertyAddress: property.address,
-        propertyUrl: `${window.location.origin}/#/${property.metalink || property.id}`,
+        propertyUrl: `${window.location.origin}/${property.metalink || property.id}`,
         guestName: guestName.trim(),
         guestEmail: guestEmail.trim() || undefined,
         numGuests: guests,

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { TopNavBar } from '../components/TopNavBar';
 import { Footer } from '../components/Footer';
+import { Seo } from '../components/Seo';
 import { getSiteSettings, DEFAULT_SITE_SETTINGS } from '../services/storage';
 import { createSubscriptionRequest, listMySubscriptionRequests } from '../services/subscriptions';
 import { checkAuth, getCurrentUser, subscribeToAuth } from '../services/auth';
@@ -201,6 +202,10 @@ const BecomeHostPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-[#334155] flex flex-col font-['Plus_Jakarta_Sans']">
+      <Seo
+        title="Become a Host | SachiHouse"
+        description="List your property with SachiHouse: transparent pricing, an iCal-synced calendar, and direct booking support for hosts in Tokyo."
+      />
       <TopNavBar />
 
       <main className="flex-1 w-full pt-[90px] md:pt-[96px] pb-16">

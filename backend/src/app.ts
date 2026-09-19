@@ -188,12 +188,17 @@ export function normalizeSiteUrl(raw: string | undefined): string {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
-// The public site is a single-page app on HashRouter — every real route lives
-// after a `#` (e.g. `/#/sachi-ojima/checkin`). A link built without it loads
-// the bundle but renders the default route instead of the intended page, so
-// every outbound link (email, Stripe redirect) must go through this.
+// The public site is a single-page app on BrowserRouter — every route is a
+// real path (e.g. `/sachi-ojima/checkin`), served by the same index.html via
+// the web server's fallback. Every outbound link (email, Stripe redirect)
+// goes through this so the base URL is normalized in exactly one place.
 export function buildSiteUrl(siteUrl: string, pathAndQuery: string): string {
-  return `${siteUrl}/#${pathAndQuery}`;
+  // A caller that forgets the leading '/' (e.g. `admin/booking-confirm`
+  // instead of `/admin/booking-confirm`) must not silently glue onto the last
+  // path segment of siteUrl — there normally isn't one, but nothing prevents
+  // it from being set with a path.
+  const normalizedPath = pathAndQuery.startsWith('/') ? pathAndQuery : `/${pathAndQuery}`;
+  return `${siteUrl}${normalizedPath}`;
 }
 
 function getClientIp(req: Request): string {

@@ -1,3 +1,8 @@
+# Every private route (login, /app, /admin, /*/checkin, ...) is kept out of
+# search results via a per-page <Seo noindex> tag instead of Disallow here.
+# A Disallow'd path stops the crawler from ever reading the page, so it never
+# sees the noindex meta tag and can still index the URL with no snippet —
+# noindex only works if the crawler is allowed to fetch the page.
 User-agent: *
 Allow: /
 

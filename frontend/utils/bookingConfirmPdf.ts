@@ -71,9 +71,12 @@ function formatDateTime(d: Date): string {
 }
 
 // Public sub-pages of the property that we link the guest to. Derived from the
-// stored base property URL (e.g. https://host/#/slug -> .../slug/access).
+// stored base property URL (e.g. https://host/slug -> .../slug/access).
 function propertyGuideLinks(propertyUrl: string | undefined): Array<{ label: string; url: string }> {
-  const base = (propertyUrl || '').trim().replace(/\/+$/, '');
+  // Older records in the DB still store the base URL in the legacy hash-route
+  // shape (`.../#/slug`); normalize that away before appending a sub-page so
+  // the guide links always resolve to the current path-based routes.
+  const base = (propertyUrl || '').trim().replace(/\/+$/, '').replace(/\/#(\/|$)/, '$1').replace(/\/+$/, '');
   if (!base) {
     return [];
   }

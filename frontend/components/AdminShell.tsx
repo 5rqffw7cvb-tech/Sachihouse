@@ -16,6 +16,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { Button, Spinner } from './ui';
+import { Seo } from './Seo';
 import { ApiUser } from '../services/api';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { AdminAccess, hasAccess } from '../services/permissions';
@@ -193,6 +194,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
     action: React.ReactNode,
   ) => (
     <div className="min-h-screen bg-page flex flex-col">
+      <Seo noindex title={heading} description={message} />
       <TopNavBar navTitleOverride={navTitleOverride} />
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="bg-surface border border-line rounded-card p-8 w-full max-w-md text-center">
@@ -240,6 +242,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
 
   return (
     <div className="min-h-screen bg-page text-ink">
+      <Seo noindex title={title || 'SachiHouse Console'} description={subtitle || 'SachiHouse host and admin console.'} />
       {/* hideConsoleLinks: the sidebar below appears at the same breakpoint as
           the account menu and lists the same destinations, so leaving both on
           gave every console page two identical menus. The gates above keep

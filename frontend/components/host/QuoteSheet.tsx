@@ -208,7 +208,7 @@ export const QuoteSheet: React.FC<QuoteSheetProps> = ({
       const confirmation = await createBookingConfirmation(property.id, {
         propertyName: property.name,
         propertyAddress: property.address,
-        propertyUrl: `${window.location.origin}/#/${property.metalink || property.id}`,
+        propertyUrl: `${window.location.origin}/${property.metalink || property.id}`,
         guestName: guestName.trim(),
         guestEmail: guestEmail.trim() || undefined,
         guestPhone: guestPhone.trim() || undefined,

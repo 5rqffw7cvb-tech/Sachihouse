@@ -107,7 +107,7 @@ const BookingConfirmHistoryPage: React.FC = () => {
   // small screen gets a full page to work with.
   const handleNewBooking = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      const url = `${window.location.origin}${window.location.pathname}#/admin/booking-confirm/new`;
+      const url = `${window.location.origin}/admin/booking-confirm/new`;
       window.open(url, '_blank');
     } else {
       setShowForm(true);

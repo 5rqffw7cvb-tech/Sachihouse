@@ -34,7 +34,7 @@ async function seedStay(token: string, overrides: Record<string, unknown> = {}) 
   const payload = {
     propertyName: 'Sachi House Ojima',
     propertyAddress: '1-2-3 Ojima, Koto-ku',
-    propertyUrl: 'https://example.com/#/ojima',
+    propertyUrl: 'https://example.com/ojima',
     guestName: 'Booking Name',
     numGuests: 2,
     checkInDate: isoDaysFromNow(-3),

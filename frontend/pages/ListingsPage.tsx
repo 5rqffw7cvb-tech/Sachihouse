@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { PropertyData, SiteSettings } from '../types';
 import { MapPin, Users, BedDouble, Bath, Star, ArrowRight, Settings, Trash2, Loader2, Bell, Home, Calendar, Mail, User, X, Check, BedSingle, Toilet, ChevronDown, ChevronUp, Train, Globe, Plus, Search } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Seo } from '../components/Seo';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { saveSiteSettings, setPropertyArchived, getAvailableProperties, getBlockedDatesWindow } from '../services/storage';
@@ -183,10 +184,9 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     });
   }, [isAdmin]);
 
-  useEffect(() => {
-    const nextTitle = settings.browserTitle?.trim() || settings.navTitle?.trim() || 'SachiHouse';
-    document.title = nextTitle;
-  }, [settings.browserTitle, settings.navTitle]);
+  const pageTitle = settings.browserTitle?.trim() || settings.navTitle?.trim() || 'SachiHouse';
+  const pageDescription = settings.headerSubtitle?.trim()
+    || 'SachiHouse Tokyo offers family-friendly stays with clear pricing, transport guidance, and direct online booking support.';
 
   const allowedLocationRows = editingSettings.listingFilters?.allowedLocations ?? [];
 
@@ -651,6 +651,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
   return (
     <div className="bg-[#e8e5e6] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
+      <Seo title={pageTitle} description={pageDescription} />
       {bookingProperty && stayCheckIn && stayCheckOut && (
         <Suspense fallback={null}>
           <BookingGuestForm

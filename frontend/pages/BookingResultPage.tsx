@@ -18,6 +18,7 @@ import {
 } from '../services/booking';
 import { downloadBookingConfirmationPdf } from '../utils/bookingConfirmPdf';
 import { ApiError } from '../services/api';
+import { Seo } from '../components/Seo';
 
 type Phase = 'loading' | 'waiting' | 'ready' | 'timeout' | 'error';
 
@@ -182,6 +183,7 @@ const BookingResultPage: React.FC = () => {
 
   const shell = (children: React.ReactNode) => (
     <div className="min-h-screen bg-[#e8e5e6] py-10 px-4">
+      <Seo noindex title="Booking result" description="Your SachiHouse booking status." />
       <div className="max-w-xl mx-auto bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         {children}
       </div>

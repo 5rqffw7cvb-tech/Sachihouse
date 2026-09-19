@@ -5,7 +5,7 @@ import Markdown from 'react-markdown';
 import { ChevronLeft, Loader2, Edit2 } from 'lucide-react';
 import { BlogSidebar } from '../components/BlogSidebar';
 import { BlogPost, blogService } from '../services/blogService';
-import { Helmet } from 'react-helmet-async';
+import { Seo } from '../components/Seo';
 import { checkAuth, subscribeToAuth } from '../services/auth';
 import { useLanguage } from '../contexts/LanguageContext';
 import './blog-post.css';
@@ -66,18 +66,7 @@ const BlogPostPage: React.FC = () => {
 
   return (
     <GlobalLayout>
-      <Helmet>
-        <title>{pageTitle}</title>
-        <meta name="description" content={pageDescription} />
-        <meta property="og:title" content={pageTitle} />
-        <meta property="og:description" content={pageDescription} />
-        {imageUrl && <meta property="og:image" content={imageUrl} />}
-        <meta property="og:type" content="article" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={pageTitle} />
-        <meta name="twitter:description" content={pageDescription} />
-        {imageUrl && <meta name="twitter:image" content={imageUrl} />}
-      </Helmet>
+      <Seo title={pageTitle} description={pageDescription} image={imageUrl || undefined} type="article" />
       <div className="bg-white -mx-3 md:mx-0 md:rounded-2xl md:border md:border-[#e4e2e3] px-4 py-5 md:p-8 lg:p-10 border-t border-b border-[#e4e2e3]">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-3">
           <Link to="/blog" className="inline-flex items-center text-[#44474c] hover:text-[#1b1c1d] font-semibold text-[15px] transition-colors w-fit">

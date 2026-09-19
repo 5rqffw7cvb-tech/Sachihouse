@@ -186,7 +186,7 @@ describe('manual confirmations are unaffected', () => {
       .send({
         propertyName: 'Sachi House Ojima',
         propertyAddress: 'Tokyo',
-        propertyUrl: 'https://sachi-house.net/#/main',
+        propertyUrl: 'https://sachi-house.net/main',
         guestName: 'Walk-in Guest',
         numGuests: 2,
         checkInDate: isoDaysFromNow(10),

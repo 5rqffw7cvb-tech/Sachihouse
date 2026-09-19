@@ -14,7 +14,7 @@ interface Props {
 type PropertyItem = PropertyData & { id: string };
 
 const buildCheckinUrl = (propertyId: string) =>
-  `${window.location.origin}${window.location.pathname}#/${propertyId}/checkin`;
+  `${window.location.origin}/${propertyId}/checkin`;
 
 export const CheckInLinkPicker: React.FC<Props> = ({ authUser, direction = 'down' }) => {
   const [open, setOpen] = useState(false);

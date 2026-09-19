@@ -8,26 +8,27 @@
          use to clear the iPhone home indicator. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#ffffff" />
-    <meta
-      name="description"
-      content="SachiHouse Tokyo offers family-friendly stays with clear pricing, transport guidance, and direct online booking support."
-    />
     <meta property="og:site_name" content="SachiHouse" />
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="SachiHouse | Property Listings" />
-    <meta
-      property="og:description"
-      content="SachiHouse Tokyo offers family-friendly stays with clear pricing, transport guidance, and direct online booking support."
-    />
-    <meta property="og:url" content="https://sachi-house.net/" />
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="SachiHouse | Property Listings" />
-    <meta
-      name="twitter:description"
-      content="SachiHouse Tokyo offers family-friendly stays with clear pricing, transport guidance, and direct online booking support."
-    />
-    <title>SachiHouse | Property Listings</title>
-    <link rel="canonical" href="https://sachi-house.net/" />
+    <!-- Everything below tagged data-static-seo is a pre-hydration fallback
+         only: the no-JS/crawler-before-render document, and the very first
+         paint before React commits. React 19 hoists <title>/<meta> rendered
+         by react-helmet-async straight into <head> (react-helmet-async's own
+         `data-rh`/updateTags dedupe path is dead code once React >= 19 is
+         detected — see lib/index.js's isReact19 branch — so it can no longer
+         remove these for us). React 19 also does not dedupe hoisted tags
+         against pre-existing ones, so components/Seo.tsx strips every
+         [data-static-seo] element in a useEffect once the real tags are in
+         the DOM. Do not add canonical/og:url here: those are correct for `/`
+         only and wrong on every other route. -->
+    <meta name="description" content="SachiHouse offers curated vacation rental properties. Browse our listings for the perfect stay." data-static-seo />
+    <meta property="og:title" content="SachiHouse | Property Listings" data-static-seo />
+    <meta property="og:description" content="SachiHouse offers curated vacation rental properties. Browse our listings for the perfect stay." data-static-seo />
+    <meta property="og:type" content="website" data-static-seo />
+    <meta property="og:image" content="https://sachi-house.net/sachi-house-icon.png" data-static-seo />
+    <meta name="twitter:card" content="summary" data-static-seo />
+    <meta name="twitter:title" content="SachiHouse | Property Listings" data-static-seo />
+    <meta name="twitter:description" content="SachiHouse offers curated vacation rental properties. Browse our listings for the perfect stay." data-static-seo />
+    <title data-static-seo>SachiHouse | Property Listings</title>
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/2111/2111320.png" />
     <!-- The home-screen icon. The rest of the install metadata (manifest,
          standalone display, app name) is injected only on /app — see

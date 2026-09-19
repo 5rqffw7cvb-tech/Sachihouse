@@ -1065,7 +1065,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
               try {
                 const { setPropertyArchived } = await import('../services/storage');
                 await setPropertyArchived(propertyId, true);
-                window.location.href = '/#/';
+                window.location.href = '/';
               } catch (e) {
                 alert('Failed to archive listing.');
               }
@@ -1131,7 +1131,7 @@ const AdminPage: React.FC<AdminPageProps> = ({ data, onUpdate }) => {
                                 <label className="block text-xs font-bold text-ink-soft uppercase tracking-wider mb-2">Custom URL / Metalink (カスタムURL)</label>
                                 <div className="flex bg-subtle border border-line-strong rounded-control overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent shadow-sm">
                                     <span className="px-3.5 py-2.5 bg-subtle text-ink-muted border-r border-line-strong text-xs font-bold whitespace-nowrap flex items-center">
-                                        {(window.location.origin + window.location.pathname).replace(/\/$/, '')}/#/
+                                        {window.location.origin}/
                                     </span>
                                     <input 
                                         type="text" 
