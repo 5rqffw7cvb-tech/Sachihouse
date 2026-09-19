@@ -7,11 +7,24 @@
 | Agent | Model | Vai trò |
 |---|---|---|
 | `planner` | opus | Kỹ sư trưởng — đọc code, lập plan. Chỉ đọc, không sửa file. |
-| `coder` | sonnet | Lập trình viên — làm đúng theo plan. Không sửa file test. |
-| `tester` | sonnet | QA — viết và chạy test. Không sửa code nghiệp vụ để test pass. |
+| `coder` | opus | Lập trình viên — làm đúng theo plan. Không sửa file test. |
+| `tester` | opus | QA — viết và chạy test. Không sửa code nghiệp vụ để test pass. |
 | `reviewer` | opus | Senior reviewer — `git diff` rồi review. Chỉ đọc, không sửa file. |
+| `debugger` | opus | Chuyên gia debug — truy nguyên nhân gốc của lỗi. Chỉ đọc, không sửa file. |
 
-Command `/dev-loop` nối 4 agent trên thành vòng lặp Plan → Code → Test → Review, chạy tối đa 3 vòng.
+Có 2 slash command nối các agent trên thành vòng lặp tự động:
+
+- `/dev-loop` — Plan → (Code ↔ Test) → Review
+- `/fix-bug` — Debug → (Code ↔ Test) → Review
+
+## Dùng command nào?
+
+| Tình huống | Command |
+|---|---|
+| Có lỗi, có gì đó chạy sai | `/fix-bug` |
+| Làm tính năng mới hoặc sửa đổi theo yêu cầu | `/dev-loop` |
+
+> **Lưu ý:** `/fix-bug` sẽ tự dừng và khuyên chuyển sang `/dev-loop` nếu bug hóa ra quá lớn (đụng kiến trúc hoặc phải sửa hơn 3 file). Nên cứ bắt đầu bằng `/fix-bug` khi gặp lỗi.
 
 ## Cách dùng
 
@@ -22,12 +35,14 @@ Command `/dev-loop` nối 4 agent trên thành vòng lặp Plan → Code → Tes
 @coder làm theo plan ở trên
 @tester viết test cho thay đổi vừa rồi
 @reviewer review phần vừa sửa
+@debugger tìm nguyên nhân lỗi TypeError ở CalendarPage
 ```
 
 **Chạy cả vòng lặp** — một lệnh duy nhất:
 
 ```
 /dev-loop thêm bộ lọc ngày vào trang Calendar
+/fix-bug trang Calendar crash khi đổi tháng, log: TypeError undefined
 ```
 
 Vòng lặp tự dừng khi tester trả `TEST_PASS` và reviewer trả `PASS`. Nếu hết 3 vòng vẫn chưa xong, nó dừng lại và hỏi bạn — không tự lặp thêm.
@@ -56,7 +71,9 @@ Lưu ý khi sửa: phần YAML frontmatter (`name`, `description`) viết bằng
 │   ├── planner.md
 │   ├── coder.md
 │   ├── tester.md
-│   └── reviewer.md
+│   ├── reviewer.md
+│   └── debugger.md
 └── commands/
-    └── dev-loop.md
+    ├── dev-loop.md
+    └── fix-bug.md
 ```
