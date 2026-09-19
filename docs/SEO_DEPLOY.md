@@ -10,13 +10,17 @@ learns about them.
 
 ## Regenerating before a deploy
 
-Run this from `frontend/` against the **production** API, not localhost —
-the script writes whatever `VITE_API_BASE_URL` resolves to straight into the
-`<loc>` URLs:
+Run this from `frontend/` against the **production** API, not localhost.
+`VITE_API_BASE_URL` only says where to *read* the property and blog lists
+from; it never appears in the output. The `<loc>` origin is `SITE_ORIGIN`,
+hardcoded as `https://sachi-house.net` in `scripts/generate-sitemap.mjs`.
+So pointing at a staging or local API does not produce staging URLs — it
+produces production URLs built from whatever data that API happens to hold,
+which is worse. Use the real one:
 
 ```bash
 cd frontend
-VITE_API_BASE_URL=https://api.sachi-house.net/api npm run sitemap
+VITE_API_BASE_URL=<production API base, ending in /api> npm run sitemap
 ```
 
 Then:
@@ -37,7 +41,7 @@ shipping the possibly-stale committed fallback:
 
 ```bash
 docker build \
-  --build-arg VITE_API_BASE_URL=https://api.sachi-house.net/api \
+  --build-arg VITE_API_BASE_URL=<production API base, ending in /api> \
   --build-arg SITEMAP_STRICT=1 \
   -t sachihouse-frontend .
 ```
