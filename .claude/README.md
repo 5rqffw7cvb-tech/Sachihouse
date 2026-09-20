@@ -2,7 +2,7 @@
 
 ## Bộ này là gì
 
-4 subagent + 1 slash command, dùng chung cho cả team qua Git.
+6 subagent + 3 slash command, dùng chung cho cả team qua Git.
 
 | Agent | Model | Vai trò |
 |---|---|---|
@@ -11,18 +11,21 @@
 | `tester` | opus | QA — viết và chạy test. Không sửa code nghiệp vụ để test pass. |
 | `reviewer` | opus | Senior reviewer — `git diff` rồi review. Chỉ đọc, không sửa file. |
 | `debugger` | opus | Chuyên gia debug — truy nguyên nhân gốc của lỗi. Chỉ đọc, không sửa file. |
+| `impact-analyst` | opus | Phân tích ảnh hưởng — tìm cái gì sẽ vỡ trước khi sửa. Chỉ đọc, không sửa file. |
 
-Có 2 slash command nối các agent trên thành vòng lặp tự động:
+Có 3 slash command nối các agent trên thành vòng lặp tự động:
 
 - `/dev-loop` — Plan → (Code ↔ Test) → Review
 - `/fix-bug` — Debug → (Code ↔ Test) → Review
+- `/change` — Impact → Plan → (Code ↔ Test) → Đối chiếu hành vi → Review
 
 ## Dùng command nào?
 
 | Tình huống | Command |
 |---|---|
 | Có lỗi, có gì đó chạy sai | `/fix-bug` |
-| Làm tính năng mới hoặc sửa đổi theo yêu cầu | `/dev-loop` |
+| Thay đổi tính năng đang chạy, hoặc thêm tính năng vào hệ thống có sẵn | `/change` |
+| Làm tính năng hoàn toàn mới, chưa ai phụ thuộc | `/dev-loop` |
 
 > **Lưu ý:** `/fix-bug` sẽ tự dừng và khuyên chuyển sang `/dev-loop` nếu bug hóa ra quá lớn (đụng kiến trúc hoặc phải sửa hơn 3 file). Nên cứ bắt đầu bằng `/fix-bug` khi gặp lỗi.
 
@@ -36,13 +39,17 @@ Có 2 slash command nối các agent trên thành vòng lặp tự động:
 @tester viết test cho thay đổi vừa rồi
 @reviewer review phần vừa sửa
 @debugger tìm nguyên nhân lỗi TypeError ở CalendarPage
+@impact-analyst nếu đổi định dạng ngày ở bảng booking thì ảnh hưởng những đâu
 ```
+
+> Gọi lẻ `@impact-analyst` khi chỉ cần **ước tính ảnh hưởng để báo giá**, chưa làm ngay. Nó chỉ phân tích, không sửa gì cả.
 
 **Chạy cả vòng lặp** — một lệnh duy nhất:
 
 ```
 /dev-loop thêm bộ lọc ngày vào trang Calendar
 /fix-bug trang Calendar crash khi đổi tháng, log: TypeError undefined
+/change đổi cách tính giá phòng cuối tuần ở trang đặt phòng
 ```
 
 Vòng lặp tự dừng khi tester trả `TEST_PASS` và reviewer trả `PASS`. Nếu hết 3 vòng vẫn chưa xong, nó dừng lại và hỏi bạn — không tự lặp thêm.
@@ -72,8 +79,10 @@ Lưu ý khi sửa: phần YAML frontmatter (`name`, `description`) viết bằng
 │   ├── coder.md
 │   ├── tester.md
 │   ├── reviewer.md
-│   └── debugger.md
+│   ├── debugger.md
+│   └── impact-analyst.md
 └── commands/
     ├── dev-loop.md
-    └── fix-bug.md
+    ├── fix-bug.md
+    └── change.md
 ```
