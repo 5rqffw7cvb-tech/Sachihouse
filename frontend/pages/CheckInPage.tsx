@@ -1,5 +1,5 @@
 import React, { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Check, ChevronUp, EyeOff, FileBadge2, Globe, Lock, Loader2, Menu, PencilLine, Plus, ShieldCheck, Upload, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Check, ChevronUp, EyeOff, FileBadge2, Globe, Lock, Loader2, Menu, PencilLine, Plus, ShieldCheck, Upload, X } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PropertyData, CheckInGuest } from '../types';
 import { CheckInConsentPolicy, matchCheckInBooking, ocrGuestDocument, startCheckInSession, submitCheckIn } from '../services/checkin';
@@ -10,8 +10,9 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { getSiteSettings } from '../services/storage';
 import { getCapitalWithCountry } from '../utils/countryCapitals';
-import { TranslationKey } from '../utils/translations';
+import { TranslationKey, getDateFnsLocale } from '../utils/translations';
 import { clearCheckInPhotos, deleteCheckInPhoto, getCheckInPhoto, saveCheckInPhoto } from '../utils/checkinPhotoStore';
+import CheckInDateSheet, { formatCheckInDateLabel } from '../components/CheckInDateSheet';
 
 interface CheckInPageProps {
   data: PropertyData;
@@ -77,12 +78,14 @@ const RequiredLabel: React.FC<{ text: string; required?: boolean }> = ({ text, r
 );
 
 /* Check-in and check-out each read as one moment, so the date and the time
-   sit on a single row. The date takes the slack because Safari sizes it from
-   the widest value its locale can produce; the time needs only enough for
+   sit on a single row. The date takes the slack because its label is a whole
+   localised date — "20 September 2026" — while the time needs only enough for
    "15:00" or "3:00 PM". min-w-0 on both keeps a flex item from refusing to
-   shrink below that intrinsic width, which is what used to overlap them. */
-const DATE_FIELD_CLASS =
-  'block min-w-0 flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900';
+   shrink below that intrinsic width, which is what used to overlap them.
+   No h-* on the trigger: as a flex item it stretches to the height of the
+   time input beside it, which a fixed height would only ever approximate. */
+const DATE_TRIGGER_CLASS =
+  'flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-left text-sm font-medium text-gray-900 active:bg-gray-50';
 const TIME_FIELD_CLASS =
   'block w-28 min-w-0 shrink-0 rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-900';
 
@@ -145,7 +148,10 @@ const validateGuestFields = (
 const toDateInput = (offsetDays = 0): string => {
   const date = new Date();
   date.setDate(date.getDate() + offsetDays);
-  return date.toISOString().slice(0, 10);
+  // Local, not UTC: before 09:00 in Tokyo `toISOString` still says yesterday,
+  // which would default the form to the day before the one the calendar rings
+  // as today.
+  return date.toLocaleDateString('sv-SE');
 };
 
 const isGuestEmpty = (guest: CheckInGuest): boolean => {
@@ -289,6 +295,7 @@ type BookingGateState = 'none' | 'checking' | 'matched' | 'mismatch';
 
 const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const { t, language } = useLanguage();
+  const dateLocale = getDateFnsLocale(language);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   // A link with no `bk` at all (the generic per-property link a host copies
@@ -305,6 +312,10 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
   const [checkOutDate, setCheckOutDate] = useState<string>(toDateInput(1));
   const [checkInTime, setCheckInTime] = useState<string>('15:00');
   const [checkOutTime, setCheckOutTime] = useState<string>('10:00');
+  // Which trigger opened the date sheet, and null when it is shut. The button
+  // is remembered so focus goes back where the guest left it.
+  const [dateSheet, setDateSheet] = useState<'checkIn' | 'checkOut' | null>(null);
+  const dateTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [guests, setGuests] = useState<CheckInGuest[]>([createEmptyGuest('guest_1')]);
   const [photoPreviewByGuest, setPhotoPreviewByGuest] = useState<Record<string, string>>({});
   const [processingByGuest, setProcessingByGuest] = useState<Record<string, boolean>>({});
@@ -523,6 +534,10 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
     }
     return guestsForSubmission.every((guest) => (isResident || guest.evidenceUrl) && guest.fullName.trim() && reviewedGuestIds.includes(guest.id));
   }, [checkInDate, checkOutDate, checkinToken, consentPolicy, guestsForSubmission, processingGuestCount, editorDraft, reviewedGuestIds, isResident]);
+
+  // The state stays YYYY-MM-DD; only what the trigger shows is localised.
+  const checkInLabel = formatCheckInDateLabel(checkInDate, dateLocale) || t('sim_add_dates');
+  const checkOutLabel = formatCheckInDateLabel(checkOutDate, dateLocale) || t('sim_add_dates');
 
   const pendingReviewCount = Math.max(0, guestsForSubmission.length - confirmedGuestCount);
   const datesReady = Boolean(checkInDate && checkOutDate && checkInDate < checkOutDate);
@@ -1052,14 +1067,23 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
         <div className="space-y-3">
           <div className="min-w-0">
             <RequiredLabel text={t('checkin_date_in')} required />
-            <div className="flex gap-2">
-              <input
-                type="date"
+            {/* items-stretch, not items-center: the date button has no height
+                of its own and must match the time input beside it. */}
+            <div className="flex items-stretch gap-2">
+              <button
+                type="button"
+                onClick={(event) => {
+                  dateTriggerRef.current = event.currentTarget;
+                  setDateSheet('checkIn');
+                }}
                 aria-label={t('checkin_date_in')}
-                value={checkInDate}
-                onChange={(event) => setCheckInDate(event.target.value)}
-                className={DATE_FIELD_CLASS}
-              />
+                aria-haspopup="dialog"
+                aria-expanded={dateSheet === 'checkIn'}
+                className={DATE_TRIGGER_CLASS}
+              >
+                <CalendarDays className="h-4 w-4 shrink-0 text-gray-400" />
+                <span className="truncate">{checkInLabel}</span>
+              </button>
               <input
                 type="time"
                 aria-label={t('checkin_time_in')}
@@ -1071,14 +1095,21 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           </div>
           <div className="min-w-0">
             <RequiredLabel text={t('checkin_date_out')} required />
-            <div className="flex gap-2">
-              <input
-                type="date"
+            <div className="flex items-stretch gap-2">
+              <button
+                type="button"
+                onClick={(event) => {
+                  dateTriggerRef.current = event.currentTarget;
+                  setDateSheet('checkOut');
+                }}
                 aria-label={t('checkin_date_out')}
-                value={checkOutDate}
-                onChange={(event) => setCheckOutDate(event.target.value)}
-                className={DATE_FIELD_CLASS}
-              />
+                aria-haspopup="dialog"
+                aria-expanded={dateSheet === 'checkOut'}
+                className={DATE_TRIGGER_CLASS}
+              >
+                <CalendarDays className="h-4 w-4 shrink-0 text-gray-400" />
+                <span className="truncate">{checkOutLabel}</span>
+              </button>
               <input
                 type="time"
                 aria-label={t('checkin_time_out')}
@@ -1434,6 +1465,22 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
           {t('checkin_submit_btn')}
         </button>
       </div>
+
+      {/* Stay dates */}
+      <CheckInDateSheet
+        open={dateSheet !== null}
+        initialSelecting={dateSheet ?? 'checkIn'}
+        checkIn={checkInDate}
+        checkOut={checkOutDate}
+        onApply={(nextIn, nextOut) => {
+          setCheckInDate(nextIn);
+          setCheckOutDate(nextOut);
+        }}
+        onClose={() => {
+          setDateSheet(null);
+          dateTriggerRef.current?.focus();
+        }}
+      />
 
       {/* Submit confirmation */}
       {showSubmitConfirm && !submitSuccess && (

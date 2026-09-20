@@ -27,6 +27,9 @@ interface DateRangeCalendarProps {
   isDateUnavailable?: (day: Date) => boolean;
   /** How far ahead the month arrows may walk. */
   maxMonthsAhead?: number;
+  /** Earliest day that can be picked. Default: today — the booking calendars
+   *  must never offer a night in the past. */
+  minDate?: Date;
 }
 
 const DateRangeCalendar: React.FC<DateRangeCalendarProps> = ({
@@ -34,16 +37,21 @@ const DateRangeCalendar: React.FC<DateRangeCalendarProps> = ({
   onSelectDay,
   isDateUnavailable,
   maxMonthsAhead = 12,
+  minDate,
 }) => {
   const { t, language } = useLanguage();
   const dateLocale = getDateFnsLocale(language);
   const today = startOfDay(new Date());
+  // Without a minDate this is today, so every existing caller keeps the exact
+  // floor it had. The check-in form passes an earlier one because a guest
+  // filling it in late is describing a stay that already started.
+  const earliest = minDate ? startOfDay(minDate) : today;
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(selection.checkIn ?? new Date()));
 
   const { checkIn, checkOut } = selection;
   const weekdayLabels = [t('weekday_sun'), t('weekday_mon'), t('weekday_tue'), t('weekday_wed'), t('weekday_thu'), t('weekday_fri'), t('weekday_sat')];
 
-  const firstMonth = startOfMonth(today);
+  const firstMonth = startOfMonth(earliest);
   const lastMonth = startOfMonth(addMonths(today, maxMonthsAhead));
   const canGoBack = isBefore(firstMonth, viewMonth);
   const canGoForward = isBefore(viewMonth, lastMonth);
@@ -92,15 +100,15 @@ const DateRangeCalendar: React.FC<DateRangeCalendarProps> = ({
       <div className="grid grid-cols-7 gap-1">
         {padding.map((_, index) => <div key={`pad-${index}`} />)}
         {days.map((day) => {
-          const isPast = isBefore(day, today);
+          const isBeforeMin = isBefore(day, earliest);
           const isNightTaken = isDateUnavailable?.(day) ?? false;
           // A taken night is still a valid check-out — the stay ends that
           // morning, before whoever has it arrives.
           const isPickable = isDayPickable(selection, day, isDateUnavailable ?? (() => false));
-          const isDisabled = isPast || !isPickable;
+          const isDisabled = isBeforeMin || !isPickable;
           // The cross means "you cannot pick this", so it is only earned by a
           // taken night the guest is actually being refused.
-          const showTakenMark = isNightTaken && !isPast && !isPickable;
+          const showTakenMark = isNightTaken && !isBeforeMin && !isPickable;
 
           const isStart = !!checkIn && isSameDay(day, checkIn);
           const isEnd = !!checkOut && isSameDay(day, checkOut);
