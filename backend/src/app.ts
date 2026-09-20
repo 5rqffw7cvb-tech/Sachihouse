@@ -4646,9 +4646,26 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     const { id } = req.params as { id: string };
     const force = (req.body as { force?: boolean } | undefined)?.force === true;
 
-    const pending = await pendingForActor(id, actor);
+    let pending = await pendingForActor(id, actor);
     if (!pending) {
       return res.status(404).json({ error: 'Pending transaction not found.' });
+    }
+
+    // A pending row may sit with an empty date — OCR could not read one, and the
+    // column allows it. The journal column does not, so refuse here with
+    // something the host can act on instead of letting Postgres reject the
+    // INSERT with a raw type error. The pending column is free text and the OCR
+    // happily writes 2026/09/10, which is a real date the journal has always
+    // taken: line those up first so only a blank or unreadable value is turned
+    // away.
+    const transactionDate = pending.transactionDate.trim().replace(/\//g, '-');
+    if (!isIsoDate(transactionDate)) {
+      return res.status(400).json({ error: '取引日を入力してください。' });
+    }
+    // Approval re-reads the row from the database, so a date this route only
+    // tidied up in memory would never reach the journal — store it.
+    if (transactionDate !== pending.transactionDate) {
+      pending = await store.updatePendingTransaction(id, { transactionDate }, actor);
     }
 
     if (!force) {

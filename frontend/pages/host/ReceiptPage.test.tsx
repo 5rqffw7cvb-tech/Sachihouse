@@ -180,6 +180,55 @@ describe('correcting and approving a receipt on the phone', () => {
     expect(screen.getByText('取引日を入力してください。')).toBeInTheDocument();
   });
 
+  it('saves a date typed in the sheet before approving, without being asked to save', async () => {
+    listPendingTransactions.mockResolvedValue([pending({ transactionDate: '' })]);
+    render(<ReceiptPage />);
+    await openOnlyRow();
+
+    fireEvent.change(screen.getByLabelText('取引日'), { target: { value: '2026-09-18' } });
+    // No 保存 tap: the host filled the field in and went straight for 承認,
+    // which is what the sheet's own validation told them they could now do.
+    fireEvent.click(screen.getByRole('button', { name: '承認' }));
+
+    await waitFor(() => expect(approvePendingTransaction).toHaveBeenCalledWith('p1', { force: false }));
+    // The server approves the row it has stored, so the date has to reach it
+    // first; otherwise the entry is approved with no date at all.
+    expect(updatePendingTransaction).toHaveBeenCalledWith(
+      'p1',
+      expect.objectContaining({ transactionDate: '2026-09-18' }),
+    );
+    expect(updatePendingTransaction.mock.invocationCallOrder[0])
+      .toBeLessThan(approvePendingTransaction.mock.invocationCallOrder[0]);
+  });
+
+  it('does not approve when the unsaved edit could not be saved, and says why', async () => {
+    listPendingTransactions.mockResolvedValue([pending({ transactionDate: '' })]);
+    updatePendingTransaction.mockRejectedValueOnce(new Error('保存できませんでした。'));
+    render(<ReceiptPage />);
+    await openOnlyRow();
+
+    fireEvent.change(screen.getByLabelText('取引日'), { target: { value: '2026-09-18' } });
+    fireEvent.click(screen.getByRole('button', { name: '承認' }));
+
+    // Approving on a failed save is the bug in reverse: the journal would get
+    // the empty date the host thought they had fixed.
+    expect(await screen.findByText('保存できませんでした。')).toBeInTheDocument();
+    expect(approvePendingTransaction).not.toHaveBeenCalled();
+  });
+
+  it('approves an untouched entry without writing it back first', async () => {
+    listPendingTransactions.mockResolvedValue([pending({})]);
+    render(<ReceiptPage />);
+    await openOnlyRow();
+
+    fireEvent.click(screen.getByRole('button', { name: '承認' }));
+
+    await waitFor(() => expect(approvePendingTransaction).toHaveBeenCalledWith('p1', { force: false }));
+    // Nothing on the sheet changed, so there is nothing to save: a blind save
+    // would churn updatedAt and re-run the duplicate check for no reason.
+    expect(updatePendingTransaction).not.toHaveBeenCalled();
+  });
+
   it('asks the server first, never approving with force on its own', async () => {
     listPendingTransactions.mockResolvedValue([pending({})]);
     render(<ReceiptPage />);
@@ -216,6 +265,70 @@ describe('correcting and approving a receipt on the phone', () => {
     fireEvent.click(screen.getByRole('button', { name: '別の領収書として承認' }));
 
     await waitFor(() => expect(approvePendingTransaction).toHaveBeenLastCalledWith('p1', { force: true }));
+  });
+
+  it('will not force-approve an entry the host has just emptied the date out of', async () => {
+    listPendingTransactions.mockResolvedValue([pending({})]);
+    approvePendingTransaction.mockRejectedValueOnce(new ApiError('duplicate', 409, {
+      duplicates: [{
+        id: 'txn-9',
+        transactionNo: 'T-0042',
+        transactionDate: '2026-09-10',
+        debitAccount: '消耗品費',
+        debitAmount: 1280,
+        description: 'ローソン',
+      }],
+    }));
+
+    render(<ReceiptPage />);
+    await openOnlyRow();
+    fireEvent.click(screen.getByRole('button', { name: '承認' }));
+    await screen.findByText('承認済みの仕訳と重複しています');
+
+    // Clearing the field while the prompt is up is how the OCR's date got
+    // wiped: forcing saves the sheet first, so an empty box would be written
+    // over a date the server had already read correctly.
+    fireEvent.change(screen.getByLabelText('取引日'), { target: { value: '' } });
+    const force = screen.getByRole('button', { name: '別の領収書として承認' });
+    expect(force).toBeDisabled();
+
+    fireEvent.click(force);
+    expect(updatePendingTransaction).not.toHaveBeenCalled();
+    expect(approvePendingTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('still forces through a corrected date, saving it on the way', async () => {
+    listPendingTransactions.mockResolvedValue([pending({})]);
+    approvePendingTransaction.mockRejectedValueOnce(new ApiError('duplicate', 409, {
+      duplicates: [{
+        id: 'txn-9',
+        transactionNo: 'T-0042',
+        transactionDate: '2026-09-10',
+        debitAccount: '消耗品費',
+        debitAmount: 1280,
+        description: 'ローソン',
+      }],
+    }));
+
+    render(<ReceiptPage />);
+    await openOnlyRow();
+    fireEvent.click(screen.getByRole('button', { name: '承認' }));
+    await screen.findByText('承認済みの仕訳と重複しています');
+
+    // Guarding the button must not cost the host the way out of the prompt:
+    // a filled-in date is still theirs to force through.
+    fireEvent.change(screen.getByLabelText('取引日'), { target: { value: '2026-09-11' } });
+    const force = screen.getByRole('button', { name: '別の領収書として承認' });
+    expect(force).not.toBeDisabled();
+
+    approvePendingTransaction.mockResolvedValueOnce({ id: 'txn-10' });
+    fireEvent.click(force);
+
+    await waitFor(() => expect(approvePendingTransaction).toHaveBeenLastCalledWith('p1', { force: true }));
+    expect(updatePendingTransaction).toHaveBeenCalledWith(
+      'p1',
+      expect.objectContaining({ transactionDate: '2026-09-11' }),
+    );
   });
 
   it('backs out of the duplicate prompt without writing anything', async () => {

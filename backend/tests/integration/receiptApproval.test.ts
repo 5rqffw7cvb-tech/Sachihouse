@@ -78,6 +78,72 @@ describe('approving a receipt from the app', () => {
     expect(await store.listPendingTransactions(['main'])).toHaveLength(0);
   });
 
+  it('refuses an entry with no date, instead of letting the database reject it', async () => {
+    const token = await login();
+    // The OCR could not read a date and the pending row allows that; the
+    // journal column does not. A raw Postgres type error is not something a
+    // host on a phone can do anything with.
+    const receipt = await seedReceipt({ transactionDate: '' });
+
+    const res = await request(app)
+      .post(`/api/finance/pending/${receipt.id}/approve`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(400);
+
+    expect(res.body.error).toBe('取引日を入力してください。');
+    // And the receipt is still there to be corrected, not half-consumed.
+    expect(await store.listPendingTransactions(['main'])).toHaveLength(1);
+    expect(await store.listFinancialTransactions(['main'], 2026)).toHaveLength(0);
+  });
+
+  it('refuses a dateless entry even when the host forces past the duplicate check', async () => {
+    const token = await login();
+    const receipt = await seedReceipt({ transactionDate: '' });
+
+    await request(app)
+      .post(`/api/finance/pending/${receipt.id}/approve`)
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ force: true })
+      .expect(400);
+  });
+
+  it('takes a slash-written date the OCR left behind, and files it as a real date', async () => {
+    const token = await login();
+    // The pending date column is free text and the OCR writes what it read off
+    // the paper. 2026/09/10 is a date a host would recognise and the journal
+    // has always accepted, so refusing it would take away an approval that
+    // used to work.
+    const receipt = await seedReceipt({ transactionDate: '2026/09/10' });
+
+    await request(app)
+      .post(`/api/finance/pending/${receipt.id}/approve`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(201);
+
+    const journal = await store.listFinancialTransactions(['main'], 2026);
+    expect(journal).toHaveLength(1);
+    // Filed the one way the rest of the books read dates, so it sorts and
+    // totals with everything else rather than being a stray format.
+    expect(journal[0].transactionDate).toBe('2026-09-10');
+  });
+
+  it('refuses a date nobody can read, rather than guessing one', async () => {
+    const token = await login();
+    const receipt = await seedReceipt({ transactionDate: '不明' });
+
+    const res = await request(app)
+      .post(`/api/finance/pending/${receipt.id}/approve`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(400);
+
+    expect(res.body.error).toBe('取引日を入力してください。');
+    // Same promise as the empty date: the receipt waits to be corrected.
+    const stillPending = await store.listPendingTransactions(['main']);
+    expect(stillPending).toHaveLength(1);
+    expect(stillPending[0].transactionDate).toBe('不明');
+    expect(await store.listFinancialTransactions(['main'], 2026)).toHaveLength(0);
+  });
+
   it('refuses a second copy of something already approved, and says which entry', async () => {
     const token = await login();
     const first = await seedReceipt();

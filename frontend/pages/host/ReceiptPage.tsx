@@ -147,6 +147,12 @@ const draftOf = (item: PendingTransaction): Draft => ({
   description: item.description || '',
 });
 
+/** Whether the sheet is holding edits the server has not been told about. */
+const isDirty = (draft: Draft, item: PendingTransaction): boolean => {
+  const saved = draftOf(item);
+  return (Object.keys(saved) as (keyof Draft)[]).some((field) => draft[field] !== saved[field]);
+};
+
 /** A journal entry can only be approved once it balances and says what it is
  *  for. The desktop refuses the same three things; saying which one is missing
  *  beats a disabled button with no explanation. */
@@ -328,12 +334,11 @@ const ReceiptPage: React.FC = () => {
     }
   };
 
-  /** Saving is its own step, exactly as on desktop: the host corrects what the
-   *  OCR misread, sees it stick, and only then decides to approve. */
-  const saveDraft = async () => {
-    if (!openReceipt || !draft) return;
-    setSheetBusy('saving');
-    setSheetError(null);
+  /** The only path a draft takes to the server. Returns false when the save
+   *  failed, having already put the reason on the sheet; the caller owns
+   *  `sheetBusy` so the sheet keeps naming the step the host asked for. */
+  const persistDraft = async (): Promise<boolean> => {
+    if (!openReceipt || !draft) return false;
     try {
       const saved = await financeApi.updatePendingTransaction(openReceipt.id, draft);
       // Keep the duplicate verdict from the list: the update response is the
@@ -344,11 +349,21 @@ const ReceiptPage: React.FC = () => {
       // Editing the date or the amount changes the answer, so ask again.
       setBlockingDuplicates(null);
       void loadPending();
+      return true;
     } catch (cause) {
       setSheetError(cause instanceof Error ? cause.message : '保存できませんでした。');
-    } finally {
-      setSheetBusy(null);
+      return false;
     }
+  };
+
+  /** Saving is its own step, exactly as on desktop: the host corrects what the
+   *  OCR misread, sees it stick, and only then decides to approve. */
+  const saveDraft = async () => {
+    if (!openReceipt || !draft) return;
+    setSheetBusy('saving');
+    setSheetError(null);
+    await persistDraft();
+    setSheetBusy(null);
   };
 
   /**
@@ -359,10 +374,15 @@ const ReceiptPage: React.FC = () => {
    * through by this screen forgetting to check.
    */
   const approve = async (force: boolean) => {
-    if (!openReceipt) return;
+    if (!openReceipt || !draft) return;
     setSheetBusy('approving');
     setSheetError(null);
     try {
+      // The server approves the row it has stored, not what is on screen. A
+      // date the OCR missed and the host just typed lives only in the draft
+      // until it is saved, so save it here rather than approving an entry the
+      // host can see is filled in. A failed save stops the approval.
+      if (isDirty(draft, openReceipt) && !(await persistDraft())) return;
       await financeApi.approvePendingTransaction(openReceipt.id, { force });
       closeSheet();
       void loadPending();
@@ -786,7 +806,7 @@ const ReceiptPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => { void approve(true); }}
-                    disabled={sheetBusy !== null}
+                    disabled={sheetBusy !== null || whyNotApprovable(draft) !== null}
                     className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-control bg-danger text-[15px] font-bold text-white disabled:opacity-50"
                   >
                     {sheetBusy === 'approving' ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : null}
