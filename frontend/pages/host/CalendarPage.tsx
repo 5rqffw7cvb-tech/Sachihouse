@@ -28,6 +28,8 @@ import {
   HostStay,
   loadCalendars,
   propertyColor,
+  stayingOn,
+  stayNights,
   toIsoDate,
   todayIso,
 } from '../../services/hostApp';
@@ -219,14 +221,71 @@ const CalendarPage: React.FC = () => {
     [visibleProperties, calendars],
   );
   const detailIso = selectedDates.length === 1 ? selectedDates[0] : null;
-  const detailArrivals = useMemo(
-    () => (detailIso ? arrivalsOn(allStays, detailIso) : []),
-    [allStays, detailIso],
-  );
-  const detailDepartures = useMemo(
-    () => (detailIso ? departuresOn(allStays, detailIso) : []),
-    [allStays, detailIso],
-  );
+
+  /**
+   * Everything sitting on the tapped day, in the order the day happens.
+   *
+   * This used to be arrivals and departures only, so tapping the middle of a
+   * five-night stay answered with nothing at all — the one booking filling the
+   * cell the host had just pointed at was the one thing they could not open.
+   * A night in progress is an entry like any other; so is a night the host
+   * took off the market, which is the other reason a cell is not free.
+   */
+  const detailRows = useMemo(() => {
+    if (!detailIso) return [];
+
+    const rows: Array<{
+      key: string;
+      label: string;
+      stay: HostStay | null;
+      propertyName: string;
+      channel: string | null;
+      note: string | null;
+    }> = [];
+
+    const fromStay = (stay: HostStay, label: string) => ({
+      key: `${label}-${stay.key}`,
+      label,
+      stay,
+      propertyName: stay.propertyName,
+      channel: stay.channel,
+      note: stay.kind === 'hold' ? 'Unpaid hold' : stay.kind === 'imported-block' ? 'No guest' : null,
+    });
+
+    // Check-out first: the morning happens before the afternoon, and it is the
+    // one that decides whether anybody has to be in the building.
+    departuresOn(allStays, detailIso).forEach((stay) => rows.push(fromStay(stay, 'Check-out')));
+    arrivalsOn(allStays, detailIso).forEach((stay) => rows.push(fromStay(stay, 'Check-in')));
+    stayingOn(allStays, detailIso)
+      .filter((stay) => stay.kind !== 'imported-block')
+      .forEach((stay) => rows.push(fromStay(stay, 'Staying')));
+
+    // Blocks are matched on the nights they hold, not through stayingOn. They
+    // have no arrival or departure row to appear under, and stayingOn counts
+    // only the nights strictly inside a stay — which between them would drop
+    // the first night of every block off the day it covers.
+    allStays
+      .filter((stay) => stay.kind === 'imported-block' && stayNights(stay).includes(detailIso))
+      .forEach((stay) => rows.push(fromStay(stay, 'Blocked')));
+
+    // A day the host blocked by hand has no stay behind it to open, but it is
+    // why the cell is grey, and an empty card under a grey day is the same
+    // dead end this list exists to close.
+    for (const property of visibleProperties) {
+      if (calendars.get(property.id)?.manualBlockedDates.has(detailIso)) {
+        rows.push({
+          key: `manual-${property.id}`,
+          label: 'Blocked',
+          stay: null,
+          propertyName: property.name,
+          channel: null,
+          note: 'Blocked here',
+        });
+      }
+    }
+
+    return rows;
+  }, [allStays, detailIso, visibleProperties, calendars]);
 
   // One rendered band per lane. A property holding one party at a time still
   // contributes exactly one, so a month with no overlap looks as it always did.
@@ -466,37 +525,52 @@ const CalendarPage: React.FC = () => {
               <Zap className="w-3 h-3 text-warn" />
               <span className="text-[12px] text-ink-soft">Turnover</span>
             </span>
-            <span className="text-[12px] text-ink-muted">Tap a day, then a second to pick a range</span>
+            <span className="text-[12px] text-ink-muted">Tap a day to see it, a second to pick a range</span>
           </div>
 
-          {detailIso && (detailArrivals.length > 0 || detailDepartures.length > 0) && (
+          {detailIso && (
             <HostCard title={format(parseISO(detailIso), 'EEE, d MMMM')}>
-              {[
-                ...detailDepartures.map((stay) => ({ stay, kind: 'out' as const })),
-                ...detailArrivals.map((stay) => ({ stay, kind: 'in' as const })),
-              ].map(({ stay, kind }, index, all) => (
-                <button
-                  type="button"
-                  key={`${kind}-${stay.key}`}
-                  onClick={() => setOpenStay(stay)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 min-h-14 text-left active:bg-subtle ${
-                    index === all.length - 1 ? '' : 'border-b border-line'
-                  }`}
-                >
-                  <span className="w-1 h-8 rounded-sm shrink-0" style={{ background: channelColor(stay.channel) }} />
-                  <span className="flex-1 min-w-0 flex flex-col">
-                    <span className="text-[14px] font-semibold text-ink truncate">
-                      {kind === 'out' ? 'Check-out' : 'Check-in'}
-                      {stay.guestName ? ` · ${stay.guestName}` : ''}
+              {detailRows.length === 0 ? (
+                <HostEmpty>Nothing on this day. Tap a second day to pick a range.</HostEmpty>
+              ) : detailRows.map((row, index) => {
+                const body = (
+                  <>
+                    <span
+                      className="w-1 h-8 rounded-sm shrink-0"
+                      style={{ background: row.channel ? channelColor(row.channel) : BLOCKED_COLOR }}
+                    />
+                    <span className="flex-1 min-w-0 flex flex-col">
+                      <span className="text-[14px] font-semibold text-ink truncate">
+                        {row.label}
+                        {row.stay?.guestName ? ` · ${row.stay.guestName}` : ''}
+                      </span>
+                      <span className="text-[12px] text-ink-muted truncate">
+                        {[row.propertyName, row.channel, row.note].filter(Boolean).join(' · ')}
+                      </span>
                     </span>
-                    <span className="text-[12px] text-ink-muted truncate">
-                      {[stay.propertyName, stay.channel, stay.kind === 'hold' ? 'Unpaid hold' : null, stay.kind === 'imported-block' ? 'No guest' : null]
-                        .filter(Boolean).join(' · ')}
-                    </span>
-                  </span>
-                  <ChevronRight className="w-[18px] h-[18px] text-line-strong shrink-0" />
-                </button>
-              ))}
+                  </>
+                );
+                const className = `w-full flex items-center gap-3 px-4 py-2.5 min-h-14 text-left ${
+                  index === detailRows.length - 1 ? '' : 'border-b border-line'
+                }`;
+
+                // A manual block is the one row with nothing behind it to open.
+                // Rendering it as a button that does nothing would promise a
+                // detail screen that does not exist.
+                return row.stay ? (
+                  <button
+                    type="button"
+                    key={row.key}
+                    onClick={() => setOpenStay(row.stay)}
+                    className={`${className} active:bg-subtle`}
+                  >
+                    {body}
+                    <ChevronRight className="w-[18px] h-[18px] text-line-strong shrink-0" />
+                  </button>
+                ) : (
+                  <div key={row.key} className={className}>{body}</div>
+                );
+              })}
             </HostCard>
           )}
 

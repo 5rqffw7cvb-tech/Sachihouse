@@ -23,14 +23,15 @@ const user: ApiUser = {
   assignedPropertyIds: [],
   hostLevel: 4,
 };
-vi.mock('../../components/host/HostShell', () => ({
-  useHostContext: () => ({
-    user,
-    properties: [{ id: 's01', name: 'Sachi House 01' }],
-    propertiesError: null,
-    reloadProperties: () => {},
-  }),
-}));
+// One frozen object, not a fresh literal per render: the page's load effect
+// depends on `properties`, so handing it a new array every render spins it.
+const hostContext = {
+  user,
+  properties: [{ id: 's01', name: 'Sachi House 01' }],
+  propertiesError: null,
+  reloadProperties: () => {},
+};
+vi.mock('../../components/host/HostShell', () => ({ useHostContext: () => hostContext }));
 
 const { default: StaysPage } = await import('./StaysPage');
 
