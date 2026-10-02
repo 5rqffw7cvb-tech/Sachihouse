@@ -12,6 +12,10 @@ import {
   BookingInput,
   BookingListFilters,
   BookingStatusPatch,
+  CalendarEvent,
+  CalendarEventInput,
+  CalendarEventListFilters,
+  CalendarEventPatch,
   Coupon,
   CreateBookingResult,
   isActiveBookingStatus,
@@ -77,6 +81,7 @@ interface MemoryState {
   // "<issuerUserId>|<year>" -> last number handed out, standing in for the
   // invoice_sequences row the SQL store locks.
   invoiceSequences: Map<string, number>;
+  calendarEvents: CalendarEvent[];
 }
 
 export class MemoryStore implements DataStore {
@@ -108,6 +113,7 @@ export class MemoryStore implements DataStore {
       hostInvoiceSettings: new Map(),
       invoices: [],
       invoiceSequences: new Map(),
+      calendarEvents: [],
     };
   }
 
@@ -387,6 +393,13 @@ export class MemoryStore implements DataStore {
       return { ...confirmation, propertyId: targetId };
     });
 
+    state.calendarEvents = state.calendarEvents.map((event) => {
+      if (event.propertyId !== oldId) {
+        return event;
+      }
+      return { ...event, propertyId: targetId };
+    });
+
     return structuredClone(next);
   }
 
@@ -423,6 +436,7 @@ export class MemoryStore implements DataStore {
   async deleteProperty(propertyId: string): Promise<void> {
     const state = this.assertState();
     state.properties = state.properties.filter((item) => item.id !== propertyId);
+    state.calendarEvents = state.calendarEvents.filter((event) => event.propertyId !== propertyId);
   }
 
   async getSiteSettings(): Promise<SiteSettings> {
@@ -691,6 +705,74 @@ export class MemoryStore implements DataStore {
   async deleteCoupon(id: string, _actor: AuthUser): Promise<void> {
     const state = this.assertState();
     state.coupons = state.coupons.filter((item) => item.id !== id);
+  }
+
+  async listCalendarEvents(propertyIds: string[], filters: CalendarEventListFilters = {}): Promise<CalendarEvent[]> {
+    if (propertyIds.length === 0) {
+      return [];
+    }
+    const { fromDate, toDate } = filters;
+    return structuredClone(
+      this.assertState().calendarEvents
+        .filter((event) => propertyIds.includes(event.propertyId))
+        .filter((event) => !fromDate || event.date >= fromDate)
+        .filter((event) => !toDate || event.date <= toDate)
+        .sort((a, b) =>
+          a.date.localeCompare(b.date)
+          || a.startTime.localeCompare(b.startTime)
+          || a.endTime.localeCompare(b.endTime)
+          || a.createdAt - b.createdAt),
+    );
+  }
+
+  async getCalendarEvent(id: string): Promise<CalendarEvent | null> {
+    const event = this.assertState().calendarEvents.find((item) => item.id === id);
+    return event ? structuredClone(event) : null;
+  }
+
+  async createCalendarEvent(input: CalendarEventInput, _actor: AuthUser): Promise<CalendarEvent> {
+    const state = this.assertState();
+    if (!state.properties.some((item) => item.id === input.propertyId)) {
+      throw new Error('Property not found.');
+    }
+    const now = Date.now();
+    const next: CalendarEvent = {
+      id: `cal_${randomBytes(8).toString('hex')}`,
+      propertyId: input.propertyId,
+      title: input.title,
+      note: input.note ?? '',
+      date: input.date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.calendarEvents.push(next);
+    return structuredClone(next);
+  }
+
+  async updateCalendarEvent(id: string, patch: CalendarEventPatch, _actor: AuthUser): Promise<CalendarEvent | null> {
+    const state = this.assertState();
+    const index = state.calendarEvents.findIndex((item) => item.id === id);
+    if (index === -1) {
+      return null;
+    }
+    const next: CalendarEvent = { ...state.calendarEvents[index] };
+    if (patch.title !== undefined) next.title = patch.title;
+    if (patch.note !== undefined) next.note = patch.note;
+    if (patch.date !== undefined) next.date = patch.date;
+    if (patch.startTime !== undefined) next.startTime = patch.startTime;
+    if (patch.endTime !== undefined) next.endTime = patch.endTime;
+    next.updatedAt = Date.now();
+    state.calendarEvents[index] = next;
+    return structuredClone(next);
+  }
+
+  async deleteCalendarEvent(id: string, _actor: AuthUser): Promise<boolean> {
+    const state = this.assertState();
+    const before = state.calendarEvents.length;
+    state.calendarEvents = state.calendarEvents.filter((item) => item.id !== id);
+    return state.calendarEvents.length !== before;
   }
 
   async assignHost(propertyId: string, hostUserId: number): Promise<void> {

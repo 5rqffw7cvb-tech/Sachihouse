@@ -14,6 +14,10 @@ import {
   BookingListFilters,
   BookingStatus,
   BookingStatusPatch,
+  CalendarEvent,
+  CalendarEventInput,
+  CalendarEventListFilters,
+  CalendarEventPatch,
   Coupon,
   CreateBookingResult,
   isActiveBookingStatus,
@@ -430,6 +434,23 @@ export class PostgresStore implements DataStore {
       ON invoices(source_key) WHERE source_key IS NOT NULL;
     `);
 
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS calendar_events (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        event_date DATE NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_calendar_events_property_date
+      ON calendar_events(property_id, event_date);
+    `);
+
     const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
     if (existing.rows[0]?.count !== '0') {
       return;
@@ -804,6 +825,7 @@ export class PostgresStore implements DataStore {
         [current.id, targetId],
       );
       await client.query('UPDATE booking_held_dates SET property_id = $2 WHERE property_id = $1', [current.id, targetId]);
+      await client.query('UPDATE calendar_events SET property_id = $2 WHERE property_id = $1', [current.id, targetId]);
 
       await client.query('DELETE FROM properties WHERE id = $1', [current.id]);
 
@@ -1371,6 +1393,107 @@ export class PostgresStore implements DataStore {
   async deleteCoupon(id: string, actor: AuthUser): Promise<void> {
     await this.pool.query('DELETE FROM coupons WHERE id = $1', [id]);
     await this.writeAudit(actor.id, 'DELETE', 'coupon', id);
+  }
+
+  private mapCalendarEvent(row: {
+    id: string;
+    property_id: string;
+    title: string;
+    note: string;
+    event_date: string;
+    start_time: string;
+    end_time: string;
+    created_at: number | string;
+    updated_at: number | string;
+  }): CalendarEvent {
+    return {
+      id: row.id,
+      propertyId: row.property_id,
+      title: row.title,
+      note: row.note,
+      date: row.event_date,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      createdAt: Number(row.created_at),
+      updatedAt: Number(row.updated_at),
+    };
+  }
+
+  // event_date is always selected as text so node-pg doesn't turn it into a
+  // Date at local midnight (which can shift the day when serialised).
+  private static readonly CALENDAR_EVENT_COLUMNS =
+    'id, property_id, title, note, event_date::text AS event_date, start_time, end_time, created_at, updated_at';
+
+  async listCalendarEvents(propertyIds: string[], filters: CalendarEventListFilters = {}): Promise<CalendarEvent[]> {
+    if (propertyIds.length === 0) return [];
+    const queryParams: (string[] | string)[] = [propertyIds];
+    let sql = `SELECT ${PostgresStore.CALENDAR_EVENT_COLUMNS} FROM calendar_events WHERE property_id = ANY($1::text[])`;
+    if (filters.fromDate) {
+      queryParams.push(filters.fromDate);
+      sql += ` AND event_date >= $${queryParams.length}::date`;
+    }
+    if (filters.toDate) {
+      queryParams.push(filters.toDate);
+      sql += ` AND event_date <= $${queryParams.length}::date`;
+    }
+    sql += ' ORDER BY event_date ASC, start_time ASC, end_time ASC, created_at ASC';
+    const result = await this.pool.query(sql, queryParams);
+    return result.rows.map((row: Parameters<typeof this.mapCalendarEvent>[0]) => this.mapCalendarEvent(row));
+  }
+
+  async getCalendarEvent(id: string): Promise<CalendarEvent | null> {
+    const result = await this.pool.query(
+      `SELECT ${PostgresStore.CALENDAR_EVENT_COLUMNS} FROM calendar_events WHERE id = $1`,
+      [id],
+    );
+    if (result.rows.length === 0) return null;
+    return this.mapCalendarEvent(result.rows[0]);
+  }
+
+  async createCalendarEvent(input: CalendarEventInput, actor: AuthUser): Promise<CalendarEvent> {
+    const property = await this.pool.query('SELECT 1 FROM properties WHERE id = $1', [input.propertyId]);
+    if (!property.rowCount) {
+      throw new Error('Property not found.');
+    }
+    const id = `cal_${randomBytes(8).toString('hex')}`;
+    const now = Date.now();
+    const result = await this.pool.query(
+      `INSERT INTO calendar_events (id, property_id, title, note, event_date, start_time, end_time, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING ${PostgresStore.CALENDAR_EVENT_COLUMNS}`,
+      [id, input.propertyId, input.title, input.note ?? '', input.date, input.startTime, input.endTime, now, now],
+    );
+    await this.writeAudit(actor.id, 'CREATE', 'calendar_event', id);
+    return this.mapCalendarEvent(result.rows[0]);
+  }
+
+  async updateCalendarEvent(id: string, patch: CalendarEventPatch, actor: AuthUser): Promise<CalendarEvent | null> {
+    const sets: string[] = ['updated_at = $2'];
+    const params: unknown[] = [id, Date.now()];
+    const fields: [keyof CalendarEventPatch, string][] = [
+      ['title', 'title'], ['note', 'note'], ['date', 'event_date'],
+      ['startTime', 'start_time'], ['endTime', 'end_time'],
+    ];
+    for (const [key, col] of fields) {
+      if (patch[key] !== undefined) {
+        params.push(patch[key]);
+        sets.push(`${col} = $${params.length}`);
+      }
+    }
+    const result = await this.pool.query(
+      `UPDATE calendar_events SET ${sets.join(', ')} WHERE id = $1 RETURNING ${PostgresStore.CALENDAR_EVENT_COLUMNS}`,
+      params,
+    );
+    if (result.rows.length === 0) return null;
+    await this.writeAudit(actor.id, 'UPDATE', 'calendar_event', id);
+    return this.mapCalendarEvent(result.rows[0]);
+  }
+
+  async deleteCalendarEvent(id: string, actor: AuthUser): Promise<boolean> {
+    const result = await this.pool.query('DELETE FROM calendar_events WHERE id = $1', [id]);
+    if (!result.rowCount) return false;
+    await this.writeAudit(actor.id, 'DELETE', 'calendar_event', id);
+    return true;
   }
 
   async assignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void> {

@@ -490,6 +490,38 @@ export interface Coupon {
   propertyIds: string[];
 }
 
+// A host-created entry on a property's calendar (a reminder / appointment),
+// independent of bookings — it never blocks dates or appears in the iCal feed.
+// `note` is always a string ('' when not provided).
+export interface CalendarEvent {
+  id: string;
+  propertyId: string;
+  title: string;
+  note: string;
+  date: string;      // YYYY-MM-DD, local date
+  startTime: string; // HH:mm
+  endTime: string;   // HH:mm
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type CalendarEventInput = {
+  propertyId: string;
+  title: string;
+  note?: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+};
+
+// The property an event belongs to can't be changed after creation.
+export type CalendarEventPatch = Partial<Pick<CalendarEventInput, 'title' | 'note' | 'date' | 'startTime' | 'endTime'>>;
+
+export type CalendarEventListFilters = {
+  fromDate?: string;
+  toDate?: string;
+};
+
 export interface PropertyData {
   id?: string;
   metalink?: string;
@@ -944,6 +976,15 @@ export interface DataStore {
   createCoupon(coupon: Omit<Coupon, 'id' | 'createdAt' | 'updatedAt'>, actor: AuthUser): Promise<Coupon>;
   updateCoupon(id: string, coupon: Partial<Omit<Coupon, 'id' | 'createdAt'>>, actor: AuthUser): Promise<Coupon>;
   deleteCoupon(id: string, actor: AuthUser): Promise<void>;
+  // Calendar events. list returns `note` too — any route exposed outside the
+  // admin (e.g. the cleaning link) must strip it itself. fromDate/toDate are
+  // inclusive. The store doesn't validate date/time formats or titles (the
+  // route does); create only checks that the property id exists (exact match).
+  listCalendarEvents(propertyIds: string[], filters?: CalendarEventListFilters): Promise<CalendarEvent[]>;
+  getCalendarEvent(id: string): Promise<CalendarEvent | null>;
+  createCalendarEvent(input: CalendarEventInput, actor: AuthUser): Promise<CalendarEvent>;
+  updateCalendarEvent(id: string, patch: CalendarEventPatch, actor: AuthUser): Promise<CalendarEvent | null>;
+  deleteCalendarEvent(id: string, actor: AuthUser): Promise<boolean>;
   assignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void>;
   unassignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void>;
   createCheckInSubmission(input: CheckInSubmissionInput): Promise<CheckInSubmission>;
