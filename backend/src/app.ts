@@ -28,6 +28,7 @@ import {
   BookingConfirmationPatch,
   BookingListFilters,
   BookingStatus,
+  CalendarEventPatch,
   CheckInGuest,
   CheckInListFilters,
   CheckInSubmission,
@@ -540,6 +541,91 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
 
   function normalizeText(value: unknown): string {
     return typeof value === 'string' ? value.trim() : '';
+  }
+
+  const CALENDAR_EVENT_TITLE_MAX = 200;
+  const CALENDAR_EVENT_NOTE_MAX = 2000;
+  // Earliest date an event may sit on. date-fns accepts year 0 but Postgres
+  // rejects it, so anything this old is refused up front for both stores.
+  const CALENDAR_EVENT_MIN_DATE = '1900-01-01';
+  // Window of events sent with a property's calendar, counted in JST days.
+  const CALENDAR_EVENTS_PAST_DAYS = 90;
+  const CALENDAR_EVENTS_FUTURE_DAYS = 365;
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+  function pgErrorCode(error: unknown): string | undefined {
+    return typeof error === 'object' && error && 'code' in error
+      ? (error as { code?: string }).code
+      : undefined;
+  }
+
+  // Reads the editable fields of a calendar event from a request body. Only
+  // title/note/date/startTime/endTime are looked at — the property an event
+  // belongs to comes from the URL and can't be changed afterwards. On update a
+  // field left out stays as it is; the end-after-start check for an update is
+  // made by the route against the merged values.
+  function parseCalendarEventFields(
+    body: unknown,
+    mode: 'create' | 'update',
+  ): { value: CalendarEventPatch } | { error: string } {
+    const input = (typeof body === 'object' && body !== null && !Array.isArray(body) ? body : {}) as Record<string, unknown>;
+    const value: CalendarEventPatch = {};
+
+    if (mode === 'create' || input.title !== undefined) {
+      if (typeof input.title !== 'string') {
+        return { error: 'title is required.' };
+      }
+      const title = input.title.trim();
+      if (!title) {
+        return { error: 'title is required.' };
+      }
+      if (title.length > CALENDAR_EVENT_TITLE_MAX) {
+        return { error: `title must be at most ${CALENDAR_EVENT_TITLE_MAX} characters.` };
+      }
+      value.title = title;
+    }
+
+    if (input.note !== undefined) {
+      if (input.note === null) {
+        value.note = '';
+      } else if (typeof input.note === 'string') {
+        const note = input.note.trim();
+        if (note.length > CALENDAR_EVENT_NOTE_MAX) {
+          return { error: `note must be at most ${CALENDAR_EVENT_NOTE_MAX} characters.` };
+        }
+        value.note = note;
+      } else {
+        return { error: 'note must be a string.' };
+      }
+    }
+
+    if (mode === 'create' || input.date !== undefined) {
+      if (!isIsoDate(input.date) || input.date < CALENDAR_EVENT_MIN_DATE) {
+        return { error: 'date must be YYYY-MM-DD.' };
+      }
+      value.date = input.date;
+    }
+
+    if (mode === 'create' || input.startTime !== undefined) {
+      if (!isHmTime(input.startTime)) {
+        return { error: 'startTime must be HH:mm.' };
+      }
+      value.startTime = input.startTime;
+    }
+
+    if (mode === 'create' || input.endTime !== undefined) {
+      if (!isHmTime(input.endTime)) {
+        return { error: 'endTime must be HH:mm.' };
+      }
+      value.endTime = input.endTime;
+    }
+
+    if (mode === 'create' && value.startTime !== undefined && value.endTime !== undefined
+      && value.endTime <= value.startTime) {
+      return { error: 'endTime must be later than startTime.' };
+    }
+
+    return { value };
   }
 
   function parseImageData(input: string): { mimeType: string; base64: string } {
@@ -1462,6 +1548,14 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
 
     const token = await store.ensureIcalExportToken(property.id);
 
+    // The host's own reminders/appointments. They sit beside the stays and
+    // never block a night or reach the export feed.
+    const now = Date.now();
+    const events = await store.listCalendarEvents([property.id], {
+      fromDate: toJstDateString(now - CALENDAR_EVENTS_PAST_DAYS * ONE_DAY_MS),
+      toDate: toJstDateString(now + CALENDAR_EVENTS_FUTURE_DAYS * ONE_DAY_MS),
+    });
+
     res.json({
       propertyId: property.id,
       propertyName: property.name,
@@ -1472,6 +1566,7 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       directBookings,
       icalFeeds: property.icalFeeds ?? [],
       exportUrl: buildIcalExportUrl(req, property.id, token),
+      events,
     });
   });
 
@@ -1512,6 +1607,85 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     await store.removeBlockedDates(property.id, dates);
     const manualBlockedDates = await store.listBlockedDates(property.id);
     res.json({ manualBlockedDates });
+  });
+
+  // Adds a host calendar event (reminder / appointment) to a property.
+  // Body: { title, note?, date: YYYY-MM-DD, startTime: HH:mm, endTime: HH:mm }.
+  app.post('/api/properties/:id/events', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const property = await store.getProperty(getParam(req.params.id));
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    if (!canAccessProperty(req.authUser!, property.id)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+    const parsed = parseCalendarEventFields(req.body, 'create');
+    if ('error' in parsed) {
+      return res.status(400).json({ error: parsed.error });
+    }
+    const { title, note, date, startTime, endTime } = parsed.value;
+
+    try {
+      const event = await store.createCalendarEvent({
+        propertyId: property.id,
+        title: title!,
+        note,
+        date: date!,
+        startTime: startTime!,
+        endTime: endTime!,
+      }, req.authUser!);
+      return res.status(201).json({ event });
+    } catch (error) {
+      // The property can vanish between the lookup above and the insert.
+      if ((error instanceof Error && error.message === 'Property not found.') || pgErrorCode(error) === '23503') {
+        return res.status(404).json({ error: 'Property not found.' });
+      }
+      throw error;
+    }
+  });
+
+  app.patch('/api/calendar-events/:eventId', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const existing = await store.getCalendarEvent(getParam(req.params.eventId));
+    if (!existing) {
+      return res.status(404).json({ error: 'Calendar event not found.' });
+    }
+    if (!canAccessProperty(actor, existing.propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+    const parsed = parseCalendarEventFields(req.body, 'update');
+    if ('error' in parsed) {
+      return res.status(400).json({ error: parsed.error });
+    }
+    const patch = parsed.value;
+    const startTime = patch.startTime ?? existing.startTime;
+    const endTime = patch.endTime ?? existing.endTime;
+    if (endTime <= startTime) {
+      return res.status(400).json({ error: 'endTime must be later than startTime.' });
+    }
+
+    const event = await store.updateCalendarEvent(existing.id, patch, actor);
+    if (!event) {
+      return res.status(404).json({ error: 'Calendar event not found.' });
+    }
+    return res.json({ event });
+  });
+
+  app.delete('/api/calendar-events/:eventId', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const existing = await store.getCalendarEvent(getParam(req.params.eventId));
+    if (!existing) {
+      return res.status(404).json({ error: 'Calendar event not found.' });
+    }
+    if (!canAccessProperty(actor, existing.propertyId)) {
+      return res.status(403).json({ error: 'Not allowed for this property.' });
+    }
+
+    const deleted = await store.deleteCalendarEvent(existing.id, actor);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Calendar event not found.' });
+    }
+    return res.status(204).send();
   });
 
   // Replaces the property's iCal import feeds. Body: { feeds: [{ id, name, url, lastSynced }] }.
@@ -1675,7 +1849,22 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
       }
     }
 
-    res.json({ stays });
+    // Host calendar events for the same properties and window. Only what the
+    // cleaning staff need to see — the note stays in the admin.
+    const nameById = new Map(properties.map((property) => [property.id, property.name]));
+    const events = (await store.listCalendarEvents(properties.map((property) => property.id), {
+      fromDate: from,
+      toDate: to,
+    })).map((ev) => ({
+      propertyId: ev.propertyId,
+      propertyName: nameById.get(ev.propertyId) ?? '',
+      date: ev.date,
+      startTime: ev.startTime,
+      endTime: ev.endTime,
+      title: ev.title,
+    }));
+
+    res.json({ stays, events });
   });
 
   // Public token-guarded iCal export consumed by other booking platforms. No
