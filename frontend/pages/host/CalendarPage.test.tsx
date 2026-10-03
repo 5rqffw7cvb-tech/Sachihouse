@@ -1,13 +1,15 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { format, parseISO } from 'date-fns';
 import { ApiUser } from '../../services/api';
 import type { HostCalendarData, HostStay } from '../../services/hostApp';
 import { propertyColor } from '../../services/hostApp';
 import type { PropertyCalendarEvent } from '../../services/calendar';
+import { jstDateString, ONE_DAY_MS } from '../../utils/eventDraft';
 
 const loadCalendars = vi.fn();
+const createCalendarEvent = vi.fn();
 vi.mock('../../services/hostApp', async (importOriginal) => ({
   // Only the fetch is faked. arrivalsOn, departuresOn, stayingOn and
   // stayNights are what decides which rows a day has, so they stay real.
@@ -19,6 +21,7 @@ vi.mock('../../services/hostApp', async (importOriginal) => ({
 vi.mock('../../services/calendar', () => ({
   addBlockedDates: vi.fn(),
   removeBlockedDates: vi.fn(),
+  createCalendarEvent: (...args: unknown[]) => createCalendarEvent(...args),
 }));
 
 const user: ApiUser = {
@@ -179,7 +182,10 @@ describe('opening a booking from the calendar', () => {
 
     expect(within(panel(18)).getByText('Blocked')).toBeInTheDocument();
     // Nothing behind it to show, so it must not be a button promising a screen.
-    expect(within(panel(18)).queryAllByRole('button')).toHaveLength(0);
+    // The one button in the card is the Add event action under the rows.
+    const buttons = within(panel(18)).getAllByRole('button');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAccessibleName(/Add event/);
   });
 
   it('says plainly that a free day is free', async () => {
@@ -271,9 +277,12 @@ describe('host events on the calendar', () => {
     const card = panel(12);
     expect(within(card).getByText('10:00–11:00 · Plumber visit')).toBeInTheDocument();
     expect(within(card).queryByText(/Nothing on this day/)).toBeNull();
-    // Condition of part 2b: nothing behind the row to open yet. Part 2c will
-    // change this when an event becomes editable from here.
-    expect(within(card).queryAllByRole('button')).toHaveLength(0);
+    // Nothing behind the row to open yet: the one button in the card is the
+    // Add event action under the rows. Part 2c-2 will change this when an
+    // event becomes editable from here.
+    const buttons = within(card).getAllByRole('button');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAccessibleName(/Add event/);
   });
 
   it('orders events by start, then end, then house order', async () => {
@@ -371,5 +380,321 @@ describe('host events on the calendar', () => {
   it('names events in the legend', async () => {
     renderWith([]);
     expect(await screen.findByText('Event')).toBeInTheDocument();
+  });
+});
+
+/** A promise the test settles by hand, to hold a request in flight. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+type OnProperty = (id: string, d: HostCalendarData) => void;
+
+const calendarData = (events: PropertyCalendarEvent[] = []): HostCalendarData => ({
+  propertyId: 's01',
+  stays: [],
+  manualBlockedDates: new Set<string>(),
+  blockedDates: new Set<string>(),
+  events,
+});
+
+/** Makes every later load answer at once with `data` for the one house. */
+function loadAnswers(data: HostCalendarData) {
+  loadCalendars.mockImplementation(async (_ids, onProperty) => {
+    (onProperty as OnProperty | undefined)?.('s01', data);
+    return { calendars: new Map([['s01', data]]), failedPropertyIds: [] };
+  });
+}
+
+const addButton = (day: number) =>
+  within(panel(day)).getByRole('button', { name: /Add event/ });
+const queryAddButton = () => screen.queryByRole('button', { name: /Add event/ });
+
+/** Taps the day, waits for the calendar to settle and opens the event sheet. */
+async function openEventSheet(day = 12) {
+  await tapDay(day);
+  await waitFor(() => expect(addButton(day)).toBeEnabled());
+  fireEvent.click(addButton(day));
+  return screen.findByRole('dialog', { name: 'New event' });
+}
+
+const saveButton = (dialog: HTMLElement) =>
+  within(dialog).getByRole('button', { name: /Save event/ });
+const typeTitle = (dialog: HTMLElement, value: string) =>
+  fireEvent.change(within(dialog).getByLabelText('Title *'), { target: { value } });
+
+describe('adding an event from the day card', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    createCalendarEvent.mockReset();
+  });
+
+  it('offers Add event on a free day, under the empty message', async () => {
+    renderWith([]);
+    await tapDay(14);
+
+    const card = panel(14);
+    const empty = within(card).getByText(/Nothing on this day/);
+    const add = addButton(14);
+    expect(empty.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(add.parentElement).toHaveClass('border-t');
+  });
+
+  it('puts Add event after the rows of a busy day, behind a dividing line', async () => {
+    renderWith(
+      [stay({ checkInDate: dayIso(10), checkOutDate: dayIso(15) })],
+      [],
+      [calEvent({})],
+    );
+    await tapDay(12);
+
+    const card = panel(12);
+    const buttons = within(card).getAllByRole('button');
+    const add = addButton(12);
+    // The stay row is a button too, so Add event being the last button puts
+    // it after that row; the event row is a div, so it is checked by position.
+    expect(buttons.length).toBeGreaterThan(1);
+    expect(buttons[buttons.length - 1]).toBe(add);
+    const eventRow = within(card).getByText('10:00–11:00 · Plumber visit');
+    expect(eventRow.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(add.parentElement).toHaveClass('border-t');
+  });
+
+  it('has no Add event while a range of days is picked', async () => {
+    renderWith([]);
+    await tapDay(12);
+    await waitFor(() => expect(addButton(12)).toBeEnabled());
+    await tapDay(14);
+
+    await waitFor(() => expect(queryAddButton()).toBeNull());
+  });
+
+  it('has no Add event when no house has a calendar to put it on', async () => {
+    loadCalendars.mockImplementation(async () =>
+      ({ calendars: new Map(), failedPropertyIds: ['s01'] }));
+    render(<CalendarPage />);
+    expect(await screen.findByText(/Could not load Sachi House 01/)).toBeInTheDocument();
+
+    await tapDay(12);
+    expect(panel(12)).toBeInTheDocument();
+    expect(queryAddButton()).toBeNull();
+  });
+
+  it('asks for the house only when there is more than one to pick from', async () => {
+    renderWith([]);
+    const dialog = await openEventSheet();
+    expect(within(dialog).queryByRole('combobox')).toBeNull();
+  });
+
+  it('lists both houses, first one picked, on a two-house account', async () => {
+    renderHouses({});
+    const dialog = await openEventSheet();
+    const select = within(dialog).getByRole('combobox') as HTMLSelectElement;
+    expect(within(select).getAllByRole('option').map((o) => o.textContent))
+      .toEqual(['Sachi House 01', 'Sachi House 02']);
+    expect(select.value).toBe('s01');
+  });
+
+  it('does not offer a hidden house, and saves to the one left', async () => {
+    renderHouses({});
+    fireEvent.click(await screen.findByRole('button', { name: 'Sachi House 01' }));
+    const dialog = await openEventSheet();
+    expect(within(dialog).queryByRole('combobox')).toBeNull();
+
+    createCalendarEvent.mockResolvedValue(calEvent({ propertyId: 's02', title: 'Cleaner' }));
+    typeTitle(dialog, 'Cleaner');
+    fireEvent.click(saveButton(dialog));
+    await waitFor(() => expect(createCalendarEvent).toHaveBeenCalledTimes(1));
+    expect(createCalendarEvent.mock.calls[0][0]).toBe('s02');
+  });
+
+  it('starts on the tapped day, 10:00 to 11:00, and wants a title', async () => {
+    renderWith([]);
+    const dialog = await openEventSheet();
+    expect(within(dialog).getByLabelText('Date *')).toHaveValue(dayIso(12));
+    expect(within(dialog).getByLabelText('Starts')).toHaveValue('10:00');
+    expect(within(dialog).getByLabelText('Ends')).toHaveValue('11:00');
+
+    fireEvent.click(saveButton(dialog));
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Give the event a title.');
+
+    typeTitle(dialog, '   ');
+    // Typing clears the message; saving whitespace brings it back.
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+    fireEvent.click(saveButton(dialog));
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Give the event a title.');
+    expect(createCalendarEvent).not.toHaveBeenCalled();
+  });
+
+  it('refuses an end that is not after the start', async () => {
+    renderWith([]);
+    const dialog = await openEventSheet();
+    typeTitle(dialog, 'Cleaner');
+    fireEvent.change(within(dialog).getByLabelText('Ends'), { target: { value: '10:00' } });
+    fireEvent.click(saveButton(dialog));
+
+    expect(within(dialog).getByRole('alert'))
+      .toHaveTextContent('The end time has to be after the start time.');
+    expect(createCalendarEvent).not.toHaveBeenCalled();
+  });
+
+  it('refuses a date outside the window the calendar shows', async () => {
+    renderWith([]);
+    const dialog = await openEventSheet();
+    typeTitle(dialog, 'Cleaner');
+    const date = within(dialog).getByLabelText('Date *');
+    const outside = 'Events can only be added from 3 months back to a year ahead.';
+
+    fireEvent.change(date, { target: { value: jstDateString(Date.now() + 400 * ONE_DAY_MS) } });
+    fireEvent.click(saveButton(dialog));
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(outside);
+
+    fireEvent.change(date, { target: { value: jstDateString(Date.now() - 100 * ONE_DAY_MS) } });
+    fireEvent.click(saveButton(dialog));
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(outside);
+    expect(createCalendarEvent).not.toHaveBeenCalled();
+  });
+
+  it('shows the saved event at once, without reloading the calendar', async () => {
+    renderWith([]);
+    const dialog = await openEventSheet();
+    createCalendarEvent.mockResolvedValue(calEvent({ title: 'Cleaner', date: dayIso(12) }));
+    typeTitle(dialog, 'Cleaner');
+    fireEvent.click(saveButton(dialog));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New event' })).toBeNull());
+    expect(within(panel(12)).getByText('10:00–11:00 · Cleaner')).toBeInTheDocument();
+    expect(dots(dayCell(12))).toHaveLength(1);
+    expect(createCalendarEvent).toHaveBeenCalledWith('s01', {
+      title: 'Cleaner',
+      note: '',
+      date: dayIso(12),
+      startTime: '10:00',
+      endTime: '11:00',
+    });
+    expect(loadCalendars).toHaveBeenCalledTimes(1);
+  });
+
+  it('saves to the house picked, in that house colour', async () => {
+    renderHouses({});
+    const dialog = await openEventSheet();
+    fireEvent.change(within(dialog).getByRole('combobox'), { target: { value: 's02' } });
+    typeTitle(dialog, 'Cleaner');
+    createCalendarEvent.mockResolvedValue(calEvent({ propertyId: 's02', title: 'Cleaner' }));
+    fireEvent.click(saveButton(dialog));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New event' })).toBeNull());
+    expect(createCalendarEvent.mock.calls[0][0]).toBe('s02');
+    const card = panel(12);
+    expect(within(card).getByText('10:00–11:00 · Cleaner')).toBeInTheDocument();
+    expect(within(card).getByText('Sachi House 02')).toBeInTheDocument();
+    const found = dots(dayCell(12));
+    expect(found).toHaveLength(1);
+    expect(found[0].style.backgroundColor).toBe(asStyle(propertyColor(1)));
+  });
+
+  it('holds Save while sending, and keeps the form when the server says no', async () => {
+    renderWith([]);
+    const dialog = await openEventSheet();
+    const request = deferred<PropertyCalendarEvent>();
+    createCalendarEvent.mockReturnValue(request.promise);
+    typeTitle(dialog, 'Cleaner');
+    fireEvent.click(saveButton(dialog));
+
+    await waitFor(() => expect(saveButton(dialog)).toBeDisabled());
+    await act(async () => { request.reject(new Error('Server said no')); });
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Server said no');
+    expect(within(dialog).getByLabelText('Title *')).toHaveValue('Cleaner');
+    expect(saveButton(dialog)).toBeEnabled();
+    expect(screen.getByRole('dialog', { name: 'New event' })).toBe(dialog);
+    expect(createCalendarEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds Add event while the calendar is loading', async () => {
+    const data = calendarData();
+    loadCalendars.mockImplementation((_ids, onProperty) => {
+      (onProperty as OnProperty)('s01', data);
+      return new Promise(() => {});
+    });
+    render(<CalendarPage />);
+    await tapDay(12);
+
+    const card = panel(12);
+    expect(addButton(12)).toBeDisabled();
+    expect(within(card).getByText('Updating calendar…')).toBeInTheDocument();
+  });
+
+  it('holds Save while a refresh is under way', async () => {
+    renderWith([]);
+    const dialog = await openEventSheet();
+    typeTitle(dialog, 'Cleaner');
+    expect(saveButton(dialog)).toBeEnabled();
+
+    loadCalendars.mockImplementation(() => new Promise(() => {}));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+
+    await waitFor(() => expect(saveButton(dialog)).toBeDisabled());
+    expect(within(dialog).getByText('Updating calendar…')).toBeInTheDocument();
+    fireEvent.click(saveButton(dialog));
+    expect(createCalendarEvent).not.toHaveBeenCalled();
+  });
+
+  it('keeps a new event through a load that read the server before it was saved', async () => {
+    renderWith([]);
+    const dialog = await openEventSheet();
+    typeTitle(dialog, 'Cleaner');
+
+    // A: the POST, held open.
+    const post = deferred<PropertyCalendarEvent>();
+    createCalendarEvent.mockReturnValue(post.promise);
+    fireEvent.click(saveButton(dialog));
+    await waitFor(() => expect(saveButton(dialog)).toBeDisabled());
+
+    // B: a refresh started while the POST is in flight. Its answer is the
+    // server as it was before the event existed.
+    const load = deferred<{ calendars: Map<string, HostCalendarData>; failedPropertyIds: string[] }>();
+    let onProperty: OnProperty | undefined;
+    loadCalendars.mockImplementation((_ids, cb) => {
+      onProperty = cb as OnProperty;
+      return load.promise;
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(loadCalendars).toHaveBeenCalledTimes(2));
+
+    const created = calEvent({ id: 'e-created', title: 'Cleaner', date: dayIso(12) });
+    const label = '10:00–11:00 · Cleaner';
+    await act(async () => { post.resolve(created); });
+    expect(await within(panel(12)).findByText(label)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'New event' })).toBeNull();
+
+    // B lands: first the per-house answer, then the reconcile, both without E.
+    const stale = calendarData();
+    await act(async () => {
+      onProperty!('s01', stale);
+      load.resolve({ calendars: new Map([['s01', stale]]), failedPropertyIds: [] });
+    });
+    await waitFor(() => expect(addButton(12)).toBeEnabled());
+    expect(within(panel(12)).getAllByText(label)).toHaveLength(1);
+    expect(dots(dayCell(12))).toHaveLength(1);
+
+    // Third load: the server now has E. Shown once, not twice.
+    loadAnswers(calendarData([created]));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(loadCalendars).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(addButton(12)).toBeEnabled());
+    expect(within(panel(12)).getAllByText(label)).toHaveLength(1);
+    expect(dots(dayCell(12))).toHaveLength(1);
+
+    // Fourth load: E is gone on the server (removed elsewhere). Once a load
+    // has brought it back it is no longer held, so it goes too.
+    loadAnswers(calendarData());
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(loadCalendars).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(within(panel(12)).queryByText(label)).toBeNull());
+    expect(dots(dayCell(12))).toHaveLength(0);
   });
 });

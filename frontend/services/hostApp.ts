@@ -297,6 +297,50 @@ function toCalendarData(calendar: PropertyCalendar): HostCalendarData {
 }
 
 /**
+ * Put events this screen just created back into calendars that lack them.
+ *
+ * A load can read the server before the POST that created an event commits,
+ * and then lands after it — wiping the event the host just watched appear.
+ * Each pending event is added to its property's entry when missing; once a
+ * load has brought it back on its own, it is dropped from `stillPending`.
+ * An event whose property has no entry is kept pending and not inserted:
+ * creating an entry here would invent a calendar that never loaded.
+ *
+ * Neither argument is mutated. When nothing is inserted the input map itself
+ * comes back, so a caller can tell nothing changed.
+ */
+export function mergePendingEvents(
+  calendars: Map<string, HostCalendarData>,
+  pending: PropertyCalendarEvent[],
+): { calendars: Map<string, HostCalendarData>; stillPending: PropertyCalendarEvent[] } {
+  const stillPending: PropertyCalendarEvent[] = [];
+  const added = new Map<string, PropertyCalendarEvent[]>();
+  const seen = new Set<string>();
+
+  pending.forEach((event) => {
+    if (seen.has(event.id)) return;
+    seen.add(event.id);
+    const entry = calendars.get(event.propertyId);
+    if (!entry) {
+      stillPending.push(event);
+      return;
+    }
+    if (entry.events.some((existing) => existing.id === event.id)) return;
+    added.set(event.propertyId, [...(added.get(event.propertyId) ?? []), event]);
+    stillPending.push(event);
+  });
+
+  if (added.size === 0) return { calendars, stillPending };
+
+  const next = new Map(calendars);
+  added.forEach((events, propertyId) => {
+    const entry = calendars.get(propertyId)!;
+    next.set(propertyId, { ...entry, events: [...entry.events, ...events] });
+  });
+  return { calendars: next, stillPending };
+}
+
+/**
  * Every property's calendar at once, keyed by id.
  *
  * One property failing must not blank the month — a single expired iCal feed

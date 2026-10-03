@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addMonths,
   eachDayOfInterval,
@@ -11,15 +11,16 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns';
-import { Ban, ChevronLeft, ChevronRight, RefreshCw, Tag, X, Zap } from 'lucide-react';
+import { Ban, ChevronLeft, ChevronRight, Plus, RefreshCw, Tag, X, Zap } from 'lucide-react';
 import { HostCard, HostEmpty, HostScreen } from '../../components/host/HostScreen';
 import { useHostContext } from '../../components/host/HostShell';
 import { BlockSheet } from '../../components/host/BlockSheet';
+import { EventSheet } from '../../components/host/EventSheet';
 import { QuoteSheet } from '../../components/host/QuoteSheet';
 import { StayDetailSheet } from '../../components/host/StayDetailSheet';
 import { HOST_TAB_BAR_HEIGHT } from '../../components/host/HostTabBar';
-import { addBlockedDates, removeBlockedDates } from '../../services/calendar';
-import type { PropertyCalendarEvent } from '../../services/calendar';
+import { addBlockedDates, createCalendarEvent, removeBlockedDates } from '../../services/calendar';
+import type { PropertyCalendarEvent, PropertyCalendarEventInput } from '../../services/calendar';
 import {
   arrivalsOn,
   channelColor,
@@ -28,6 +29,7 @@ import {
   HostCalendarData,
   HostStay,
   loadCalendars,
+  mergePendingEvents,
   propertyColor,
   stayingOn,
   stayNights,
@@ -120,12 +122,16 @@ const CalendarPage: React.FC = () => {
   const [calendars, setCalendars] = useState<Map<string, HostCalendarData>>(new Map());
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [sheet, setSheet] = useState<'block' | 'quote' | null>(null);
+  const [sheet, setSheet] = useState<'block' | 'quote' | 'event' | null>(null);
   const [openStay, setOpenStay] = useState<HostStay | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Events created here that a load has not yet been seen to return. A load
+  // can read the server before the POST commits and land after it; without
+  // this, the event the host just saved would vanish until the next refresh.
+  const pendingCreatedRef = useRef<PropertyCalendarEvent[]>([]);
 
   const propertyIds = useMemo(() => properties.map((property) => property.id), [properties]);
 
@@ -144,14 +150,18 @@ const CalendarPage: React.FC = () => {
 
     loadCalendars(propertyIds, (id, data) => {
       if (cancelled) return;
-      setCalendars((prev) => new Map(prev).set(id, data));
+      const merged = mergePendingEvents(new Map([[id, data]]), pendingCreatedRef.current);
+      pendingCreatedRef.current = merged.stillPending;
+      setCalendars((prev) => new Map(prev).set(id, merged.calendars.get(id)!));
       setIsLoading(false);
     }, { refresh: reloadKey > 0 })
       .then((result) => {
         if (cancelled) return;
         // Reconcile: a property that has since been removed, or one that
         // failed this round, must not linger from the previous load.
-        setCalendars(result.calendars);
+        const merged = mergePendingEvents(result.calendars, pendingCreatedRef.current);
+        pendingCreatedRef.current = merged.stillPending;
+        setCalendars(merged.calendars);
         if (result.failedPropertyIds.length > 0) {
           const names = result.failedPropertyIds
             .map((id) => properties.find((property) => property.id === id)?.name ?? id)
@@ -178,6 +188,11 @@ const CalendarPage: React.FC = () => {
   }, []);
 
   const visibleProperties = properties.filter((property) => !hiddenIds.has(property.id));
+  // Where a new event can go: a property on screen whose calendar has loaded,
+  // since an event put on a missing calendar would have nowhere to show.
+  // Computed each render like visibleProperties, which is itself a new array
+  // every time, so a memo here would never hit.
+  const eventProperties = visibleProperties.filter((property) => calendars.has(property.id));
   const { bands, laneCounts } = useMemo(() => buildBands(calendars), [calendars]);
 
   // A host's own appointments, grouped by day in the order the day runs. The
@@ -240,6 +255,15 @@ const CalendarPage: React.FC = () => {
     if (action === 'block') await addBlockedDates(propertyId, dates);
     else await removeBlockedDates(propertyId, dates);
     reload();
+  };
+
+  // No reload: the new event is put straight into the calendar it belongs
+  // to, and kept pending so a load already in flight cannot wipe it.
+  const createEvent = async (propertyId: string, input: PropertyCalendarEventInput) => {
+    const event = await createCalendarEvent(propertyId, input);
+    pendingCreatedRef.current = [...pendingCreatedRef.current, event];
+    setCalendars((prev) => mergePendingEvents(prev, [event]).calendars);
+    setSheet(null);
   };
 
   const allStays = useMemo(
@@ -596,47 +620,64 @@ const CalendarPage: React.FC = () => {
 
           {detailIso && (
             <HostCard title={format(parseISO(detailIso), 'EEE, d MMMM')}>
-              {detailRows.length === 0 ? (
-                <HostEmpty>Nothing on this day. Tap a second day to pick a range.</HostEmpty>
-              ) : detailRows.map((row, index) => {
-                const body = (
-                  <>
-                    <span
-                      className="w-1 h-8 rounded-sm shrink-0"
-                      style={{ background: row.color ?? (row.channel ? channelColor(row.channel) : BLOCKED_COLOR) }}
-                    />
-                    <span className="flex-1 min-w-0 flex flex-col">
-                      <span className="text-[14px] font-semibold text-ink truncate">
-                        {row.label}
-                        {row.stay?.guestName ? ` · ${row.stay.guestName}` : ''}
+              <>
+                {detailRows.length === 0 ? (
+                  <HostEmpty>Nothing on this day. Tap a second day to pick a range.</HostEmpty>
+                ) : detailRows.map((row, index) => {
+                  const body = (
+                    <>
+                      <span
+                        className="w-1 h-8 rounded-sm shrink-0"
+                        style={{ background: row.color ?? (row.channel ? channelColor(row.channel) : BLOCKED_COLOR) }}
+                      />
+                      <span className="flex-1 min-w-0 flex flex-col">
+                        <span className="text-[14px] font-semibold text-ink truncate">
+                          {row.label}
+                          {row.stay?.guestName ? ` · ${row.stay.guestName}` : ''}
+                        </span>
+                        <span className="text-[12px] text-ink-muted truncate">
+                          {[row.propertyName, row.channel, row.note].filter(Boolean).join(' · ')}
+                        </span>
                       </span>
-                      <span className="text-[12px] text-ink-muted truncate">
-                        {[row.propertyName, row.channel, row.note].filter(Boolean).join(' · ')}
-                      </span>
-                    </span>
-                  </>
-                );
-                const className = `w-full flex items-center gap-3 px-4 py-2.5 min-h-14 text-left ${
-                  index === detailRows.length - 1 ? '' : 'border-b border-line'
-                }`;
+                    </>
+                  );
+                  const className = `w-full flex items-center gap-3 px-4 py-2.5 min-h-14 text-left ${
+                    index === detailRows.length - 1 ? '' : 'border-b border-line'
+                  }`;
 
-                // A manual block and a host's event are the rows with nothing
-                // behind them to open here. Rendering them as buttons that do
-                // nothing would promise a detail screen that does not exist.
-                return row.stay ? (
-                  <button
-                    type="button"
-                    key={row.key}
-                    onClick={() => setOpenStay(row.stay)}
-                    className={`${className} active:bg-subtle`}
-                  >
-                    {body}
-                    <ChevronRight className="w-[18px] h-[18px] text-line-strong shrink-0" />
-                  </button>
-                ) : (
-                  <div key={row.key} className={className}>{body}</div>
-                );
-              })}
+                  // A manual block and a host's event are the rows with nothing
+                  // behind them to open here. Rendering them as buttons that do
+                  // nothing would promise a detail screen that does not exist.
+                  return row.stay ? (
+                    <button
+                      type="button"
+                      key={row.key}
+                      onClick={() => setOpenStay(row.stay)}
+                      className={`${className} active:bg-subtle`}
+                    >
+                      {body}
+                      <ChevronRight className="w-[18px] h-[18px] text-line-strong shrink-0" />
+                    </button>
+                  ) : (
+                    <div key={row.key} className={className}>{body}</div>
+                  );
+                })}
+                {eventProperties.length > 0 && (
+                  <div className="border-t border-line">
+                    <button
+                      type="button"
+                      disabled={isRefreshing}
+                      onClick={() => setSheet('event')}
+                      className="w-full h-12 flex items-center justify-center gap-1.5 text-[14px] font-semibold text-brand active:bg-subtle disabled:opacity-50"
+                    >
+                      <Plus className="w-4 h-4" /> Add event
+                    </button>
+                    {isRefreshing && (
+                      <p className="px-4 pb-2.5 text-center text-[12px] text-ink-muted">Updating calendar…</p>
+                    )}
+                  </div>
+                )}
+              </>
             </HostCard>
           )}
 
@@ -701,6 +742,16 @@ const CalendarPage: React.FC = () => {
           calendars={calendars}
           onClose={() => { setSheet(null); setSelection(null); }}
           onCreated={reload}
+        />
+      )}
+
+      {sheet === 'event' && detailIso && (
+        <EventSheet
+          date={detailIso}
+          properties={eventProperties}
+          busy={isRefreshing}
+          onClose={() => setSheet(null)}
+          onCreate={createEvent}
         />
       )}
 
