@@ -22,12 +22,24 @@ import { assignLanes } from '../../utils/stayLanes';
  * pixels and the columns stay aligned with the header at any width.
  */
 
+/** The host's own appointments on one day of one property, drawn as a dot. */
+export interface TimelineEventMarker {
+  /** YYYY-MM-DD. */
+  iso: string;
+  /** How many events fall on that day. */
+  count: number;
+  /** Tooltip: one "HH:mm–HH:mm · title" line per event, joined by '\n'. */
+  title: string;
+}
+
 export interface TimelineRow {
   id: string;
   name: string;
   imageUrl?: string;
   /** Stays and blocks, in any order — lanes are assigned here. */
   bars: TimelineBar[];
+  /** Host appointments; never block a night, never take a lane. */
+  events?: TimelineEventMarker[];
 }
 
 export interface PropertyTimelineProps {
@@ -45,6 +57,8 @@ export interface PropertyTimelineProps {
   activePropertyId?: string;
   /** Nights mid-request, shown dimmed so a double click is obviously ignored. */
   busyNights?: Set<string>;
+  /** Clicking a day's event dot. Without it the dots are shown but inert. */
+  onSelectEvents?: (propertyId: string, iso: string) => void;
 }
 
 const BAR: Record<OccupiedKind, string> = {
@@ -94,6 +108,7 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
   onSelectProperty,
   activePropertyId,
   busyNights,
+  onSelectEvents,
 }) => {
   const gridStyle: React.CSSProperties = {
     gridTemplateColumns: `${NAME_COL} repeat(${days.length}, ${DAY_COL})`,
@@ -257,6 +272,31 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
                     }}
                   >
                     <span className="truncate">{bar.label || LABEL[bar.kind]}</span>
+                  </button>
+                );
+              })}
+
+              {/* Event dots. Siblings of the cells and bars, never inside
+                  them, so the night stays clickable to block and the bar to
+                  open; pinned to the cell's top-right corner over everything. */}
+              {(row.events ?? []).map((marker) => {
+                const i = dayIndex.get(marker.iso);
+                if (i === undefined || marker.count < 1) return null;
+                return (
+                  <button
+                    key={`${row.id}-event-${marker.iso}`}
+                    type="button"
+                    disabled={!onSelectEvents}
+                    onClick={() => onSelectEvents?.(row.id, marker.iso)}
+                    title={marker.title}
+                    aria-label={`${marker.count} event${marker.count === 1 ? '' : 's'} on ${marker.iso} — ${row.name}`}
+                    className={`self-start justify-self-end z-[1] m-0.5 h-4 min-w-4 px-1 rounded-full bg-warn text-white
+                      text-[10px] font-bold leading-none flex items-center justify-center ring-1 ring-surface shadow-sm ${
+                        onSelectEvents ? 'cursor-pointer hover:brightness-110' : ''
+                      }`}
+                    style={{ gridRow: fullHeight, gridColumn: i + 2 }}
+                  >
+                    {marker.count > 1 ? marker.count : null}
                   </button>
                 );
               })}

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   addMonths,
   eachDayOfInterval,
@@ -14,20 +15,28 @@ import {
 import { Building2, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Loader2, RefreshCw, Plus, Settings2, Sparkles, Trash2, X } from 'lucide-react';
 import { AdminShell } from '../components/AdminShell';
 import { Alert, Button, Card, EmptyState, Field, Select, Spinner } from '../components/ui';
-import { PropertyTimeline, TimelineRow } from '../components/calendar/PropertyTimeline';
+import { PropertyTimeline, TimelineEventMarker, TimelineRow } from '../components/calendar/PropertyTimeline';
 import { collapseDateRuns, TimelineBar } from '../components/calendar/timeline';
+import { EventSheet } from '../components/host/EventSheet';
 import { nightRange } from '../utils/stayLanes';
+import { eventDateWindow, jstDateString } from '../utils/eventDraft';
 import { getCurrentUser, subscribeToAuth } from '../services/auth';
 import { getAllProperties } from '../services/storage';
 import {
   addBlockedDates,
+  createCalendarEvent,
+  deleteCalendarEvent,
   DirectBooking,
   CalendarFetchOptions,
   getPropertyCalendar,
   ImportedCalendarEvent,
   PropertyCalendar,
+  PropertyCalendarEvent,
+  PropertyCalendarEventInput,
+  PropertyCalendarEventPatch,
   regenerateIcalExportToken,
   removeBlockedDates,
+  updateCalendarEvent,
   updateIcalFeeds,
 } from '../services/calendar';
 import { ApiUser } from '../services/api';
@@ -104,6 +113,25 @@ function buildOccupancyMap(calendar: PropertyCalendar | null): Map<string, Occup
   return map;
 }
 
+// A day's events in the order they happen; same times fall back to the title
+// so the list does not reshuffle between renders.
+function compareEvents(a: PropertyCalendarEvent, b: PropertyCalendarEvent): number {
+  return a.startTime.localeCompare(b.startTime)
+    || a.endTime.localeCompare(b.endTime)
+    || a.title.localeCompare(b.title);
+}
+
+function eventLine(event: PropertyCalendarEvent): string {
+  return `${event.startTime}–${event.endTime} · ${event.title}`;
+}
+
+// Which event sheet is open. `propertyId` on create puts that house first in
+// the sheet's select — the day was opened from its row.
+type EventSheetState =
+  | { kind: 'create'; date: string; propertyId?: string }
+  | { kind: 'edit'; event: PropertyCalendarEvent }
+  | null;
+
 const HostCalendarPage: React.FC = () => {
   const [authUser, setAuthUser] = useState<ApiUser | null>(getCurrentUser());
   const [properties, setProperties] = useState<PropertyItem[]>([]);
@@ -122,6 +150,10 @@ const HostCalendarPage: React.FC = () => {
   const [copied, setCopied] = useState(false);
   // Settings are hidden until asked for — the board is what the page is for.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Host appointments: the sheet that adds or edits one, and the day whose
+  // several events are listed to pick from.
+  const [eventSheet, setEventSheet] = useState<EventSheetState>(null);
+  const [eventListCell, setEventListCell] = useState<{ propertyId: string; iso: string } | null>(null);
 
   // iCal import feed editor (local draft until Save).
   const [feedDraft, setFeedDraft] = useState<ICalFeed[]>([]);
@@ -339,13 +371,112 @@ const HostCalendarPage: React.FC = () => {
       bars.push({ kind: 'manual', ...run });
     }
 
+    // Appointments are dots, not bars: they never take a night or a lane.
+    // One dot per day on screen, counting that day's events.
+    const monthFrom = timelineDays[0];
+    const monthTo = timelineDays[timelineDays.length - 1];
+    const byDay = new Map<string, PropertyCalendarEvent[]>();
+    for (const event of cal?.events ?? []) {
+      if (event.date < monthFrom || event.date > monthTo) continue;
+      const list = byDay.get(event.date);
+      if (list) list.push(event);
+      else byDay.set(event.date, [event]);
+    }
+    const events: TimelineEventMarker[] = [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([iso, list]) => {
+        list.sort(compareEvents);
+        return { iso, count: list.length, title: list.map(eventLine).join('\n') };
+      });
+
     return {
       id: property.id,
       name: property.name || property.id,
       imageUrl: property.galleryImages?.[0]?.url || property.hostImageUrl,
       bars,
+      events,
     };
-  }), [scopedProperties, allCalendars]);
+  }), [scopedProperties, allCalendars, timelineDays]);
+
+  // Houses an event can go on: the visible ones whose calendar loaded, so a
+  // house shown as an empty row after a failed load is not offered.
+  const eventProperties = scopedProperties.filter((p) => allCalendars.has(p.id));
+
+  /** One property's events on one day, in the order they happen. */
+  const eventsOn = (propertyId: string, iso: string): PropertyCalendarEvent[] =>
+    (allCalendars.get(propertyId)?.events ?? [])
+      .filter((e) => e.date === iso)
+      .sort(compareEvents);
+
+  // Changes land in the board's copy only: the selected-property `calendar`
+  // does not show events, so it is left alone.
+  const patchEvents = (
+    propertyId: string,
+    fn: (events: PropertyCalendarEvent[]) => PropertyCalendarEvent[],
+  ) => {
+    setAllCalendars((prev) => {
+      const entry = prev.get(propertyId);
+      if (!entry) return prev;
+      const clone = new Map(prev);
+      clone.set(propertyId, { ...entry, events: fn(entry.events ?? []) });
+      return clone;
+    });
+  };
+
+  // Errors are left to throw: the sheet shows them and keeps what was typed.
+  // Each closes only its own sheet, in case another opened meanwhile.
+  const createEvent = async (propertyId: string, input: PropertyCalendarEventInput) => {
+    const event = await createCalendarEvent(propertyId, input);
+    patchEvents(propertyId, (list) => [...list.filter((e) => e.id !== event.id), event]);
+    setEventSheet((cur) => (cur?.kind === 'create' ? null : cur));
+  };
+
+  const updateEvent = async (event: PropertyCalendarEvent, patch: PropertyCalendarEventPatch) => {
+    const updated = await updateCalendarEvent(event.id, patch);
+    patchEvents(event.propertyId, (list) => list.map((e) => (e.id === updated.id ? updated : e)));
+    setEventSheet((cur) => (cur?.kind === 'edit' && cur.event.id === event.id ? null : cur));
+  };
+
+  const deleteEvent = async (event: PropertyCalendarEvent) => {
+    await deleteCalendarEvent(event.id);
+    patchEvents(event.propertyId, (list) => list.filter((e) => e.id !== event.id));
+    setEventSheet((cur) => (cur?.kind === 'edit' && cur.event.id === event.id ? null : cur));
+  };
+
+  /** A dot with one event opens it; with several, the list to pick from. */
+  const handleSelectEvents = (propertyId: string, iso: string) => {
+    const list = eventsOn(propertyId, iso);
+    if (list.length === 1) setEventSheet({ kind: 'edit', event: list[0] });
+    else if (list.length > 1) setEventListCell({ propertyId, iso });
+  };
+
+  /** Today when the board shows this month, otherwise the month's first day —
+   *  kept inside the range the server accepts events in. The board's month
+   *  follows the device clock while today is JST, so either match counts. */
+  const defaultEventDate = (): string => {
+    const today = jstDateString(Date.now());
+    const prefix = format(viewMonth, 'yyyy-MM');
+    if (prefix === format(new Date(), 'yyyy-MM') || today.startsWith(prefix)) return today;
+    const first = `${prefix}-01`;
+    const bounds = eventDateWindow();
+    if (first < bounds.from) return bounds.from;
+    if (first > bounds.to) return bounds.to;
+    return first;
+  };
+
+  const openCreateEvent = () => setEventSheet({ kind: 'create', date: defaultEventDate() });
+
+  // Read live, so the list follows an edit or delete made from it.
+  const eventList = eventListCell ? eventsOn(eventListCell.propertyId, eventListCell.iso) : [];
+
+  // A day opened from a house's row puts that house first in the select.
+  const sheetPropertyId = eventSheet?.kind === 'create' ? eventSheet.propertyId : undefined;
+  const sheetProperties = sheetPropertyId
+    ? [
+      ...eventProperties.filter((p) => p.id === sheetPropertyId),
+      ...eventProperties.filter((p) => p.id !== sheetPropertyId),
+    ]
+    : eventProperties;
 
   /** Block or free a night on any property, not just the selected one. */
   const toggleNight = async (propertyId: string, iso: string) => {
@@ -550,7 +681,7 @@ const HostCalendarPage: React.FC = () => {
         {/* Every property against the month, so "who can I put where" is one glance. */}
         <Card padded={false} className="mb-5">
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-line">
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               <Button
                 variant="ghost"
                 size="sm"
@@ -558,7 +689,7 @@ const HostCalendarPage: React.FC = () => {
                 aria-label="Previous month"
                 onClick={() => setViewMonth((m) => subMonths(m, 1))}
               />
-              <span className="text-[15px] font-bold text-ink min-w-[9.5rem] text-center">
+              <span className="text-[15px] font-bold text-ink min-w-[7.5rem] sm:min-w-[9.5rem] text-center">
                 {format(viewMonth, 'MMMM yyyy')}
               </span>
               <Button
@@ -569,6 +700,15 @@ const HostCalendarPage: React.FC = () => {
                 onClick={() => setViewMonth((m) => addMonths(m, 1))}
               />
               <Button size="sm" className="ml-2" onClick={() => setViewMonth(startOfMonth(new Date()))}>Today</Button>
+              <Button
+                size="sm"
+                icon={Plus}
+                aria-label="Add event"
+                onClick={openCreateEvent}
+                disabled={loadingTimeline || eventProperties.length === 0}
+              >
+                <span className="hidden sm:inline">Add event</span>
+              </Button>
             </div>
             {loadingTimeline && <Loader2 className="h-4 w-4 animate-spin text-ink-muted" />}
           </div>
@@ -589,6 +729,7 @@ const HostCalendarPage: React.FC = () => {
               busyNights={busyDates}
               onToggleNight={toggleNight}
               onSelectBar={handleSelectBar}
+              onSelectEvents={handleSelectEvents}
               onSelectProperty={openSettingsFor}
               activePropertyId={settingsOpen ? selectedPropertyId : undefined}
             />
@@ -599,7 +740,8 @@ const HostCalendarPage: React.FC = () => {
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-hold-tint ring-1 ring-inset ring-hold/30" /> Unpaid hold</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-info-tint ring-1 ring-inset ring-info/25" /> Imported from a channel</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-ink-muted/25 ring-1 ring-inset ring-ink-muted/30" /> Blocked by you</span>
-            <span className="text-ink-muted">Click an empty night to block it, a blocked bar to free it, an imported bar for its raw details.</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-warn" /> Event (does not block)</span>
+            <span className="text-ink-muted">Click an empty night to block it, a blocked bar to free it, an imported bar for its raw details, a dot to see its events.</span>
           </div>
         </Card>
 
@@ -648,6 +790,54 @@ const HostCalendarPage: React.FC = () => {
                 </div>
               )}
               <p className="mt-3 text-[11px] text-ink-muted">Whatever this platform includes in its calendar feed is shown as-is — most platforms send limited guest details for privacy.</p>
+            </div>
+          </div>
+        )}
+
+        {/* A day with several events: pick one to edit, or add another. */}
+        {eventListCell && eventList.length > 0 && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm" onClick={() => setEventListCell(null)}>
+            <div
+              className="w-full max-w-sm rounded-card bg-surface p-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Events on ${eventListCell.iso}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted truncate">
+                    {scopedProperties.find((p) => p.id === eventListCell.propertyId)?.name || eventListCell.propertyId}
+                  </div>
+                  <div className="mt-1 text-[15px] font-semibold text-ink">{format(parseISO(eventListCell.iso), 'EEE, d MMMM')}</div>
+                </div>
+                <button type="button" onClick={() => setEventListCell(null)} className="rounded-control p-1 text-ink-muted hover:bg-subtle" aria-label="Close">
+                  ✕
+                </button>
+              </div>
+              <div className="mt-3 space-y-1.5">
+                {eventList.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => { setEventListCell(null); setEventSheet({ kind: 'edit', event: e }); }}
+                    className="w-full rounded-control border border-line px-3 py-2 text-left hover:bg-subtle transition-colors"
+                  >
+                    <div className="text-[13px] font-semibold text-ink truncate">{eventLine(e)}</div>
+                    {e.note && <div className="text-[12px] text-ink-muted truncate">{e.note}</div>}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEventListCell(null);
+                  setEventSheet({ kind: 'create', date: eventListCell.iso, propertyId: eventListCell.propertyId });
+                }}
+                className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-soft hover:text-ink transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Add event on this day
+              </button>
             </div>
           </div>
         )}
@@ -885,6 +1075,32 @@ const HostCalendarPage: React.FC = () => {
               </div>
             </aside>
           </>
+        )}
+
+        {/* Portalled to the body so the sheet sits above the shell's sidebar
+            and the settings drawer rather than inside the page's stacking. */}
+        {eventSheet && createPortal(
+          eventSheet.kind === 'create' ? (
+            <EventSheet
+              key={`create-${eventSheet.date}-${eventSheet.propertyId ?? ''}`}
+              date={eventSheet.date}
+              properties={sheetProperties}
+              busy={loadingTimeline}
+              onClose={() => setEventSheet(null)}
+              onCreate={createEvent}
+            />
+          ) : (
+            <EventSheet
+              key={eventSheet.event.id}
+              event={eventSheet.event}
+              propertyName={scopedProperties.find((p) => p.id === eventSheet.event.propertyId)?.name || eventSheet.event.propertyId}
+              busy={loadingTimeline}
+              onClose={() => setEventSheet(null)}
+              onUpdate={updateEvent}
+              onDelete={deleteEvent}
+            />
+          ),
+          document.body,
         )}
 
     </AdminShell>
