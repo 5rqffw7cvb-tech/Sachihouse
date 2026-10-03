@@ -18,12 +18,29 @@ export interface CleaningStay {
   isBlock: boolean;
 }
 
+// A host's calendar event as cleaning staff see it — no id and no note, for
+// the same reason a stay carries no guest name: anyone with the link can read it.
+export interface CleaningEvent {
+  propertyId: string;
+  propertyName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  title: string;
+}
+
+export interface CleaningCalendarData {
+  stays: CleaningStay[];
+  events: CleaningEvent[];
+}
+
 // Public: no auth token required, the link's own secret is the credential.
-export async function getCleaningCalendar(token: string, from: string, to: string): Promise<CleaningStay[]> {
-  const res = await apiRequest<{ stays: CleaningStay[] }>(
+export async function getCleaningCalendar(token: string, from: string, to: string): Promise<CleaningCalendarData> {
+  const res = await apiRequest<{ stays: CleaningStay[]; events?: CleaningEvent[] }>(
     `/cleaning-calendar/${encodeURIComponent(token)}?from=${from}&to=${to}`,
   );
-  return res.stays;
+  // An older backend (or a cached proxy response) may not send events at all.
+  return { stays: res.stays, events: res.events ?? [] };
 }
 
 // Host/admin only: fetches (and lazily creates) the one shareable link.

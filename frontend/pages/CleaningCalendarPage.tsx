@@ -15,7 +15,7 @@ import {
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw, X, Zap } from 'lucide-react';
 import { ApiError } from '../services/api';
-import { CleaningStay, getCleaningCalendar } from '../services/cleaningCalendar';
+import { CleaningEvent, CleaningStay, getCleaningCalendar } from '../services/cleaningCalendar';
 import { assignLanes, nightRange } from '../utils/stayLanes';
 import { Seo } from '../components/Seo';
 
@@ -216,6 +216,7 @@ const CleaningCalendarPage: React.FC = () => {
 
   const [viewMonth, setViewMonth] = useState<Date>(startOfMonth(new Date()));
   const [stays, setStays] = useState<CleaningStay[]>([]);
+  const [events, setEvents] = useState<CleaningEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -244,7 +245,8 @@ const CleaningCalendarPage: React.FC = () => {
       const to = format(gridDays[gridDays.length - 1], 'yyyy-MM-dd');
       const data = await getCleaningCalendar(token, from, to);
       if (requestIdRef.current !== requestId) return;
-      setStays(data);
+      setStays(data.stays);
+      setEvents(data.events);
     } catch (err) {
       if (requestIdRef.current !== requestId) return;
       if (err instanceof ApiError && err.status === 404) {
@@ -265,6 +267,17 @@ const CleaningCalendarPage: React.FC = () => {
 
   const dayMap = useMemo(() => buildDayMap(stays), [stays]);
   const { map: bandMap, laneCounts } = useMemo(() => buildStayBandMap(stays), [stays]);
+  // Events per day, in the order the backend sent them. They are only shown
+  // (a dot on the cell, a line in the sheet) — never a turnover or a busy day.
+  const eventsByDay = useMemo(() => {
+    const map = new Map<string, CleaningEvent[]>();
+    for (const ev of events) {
+      const list = map.get(ev.date) ?? [];
+      list.push(ev);
+      map.set(ev.date, list);
+    }
+    return map;
+  }, [events]);
 
   // Stable, alphabetical order — each property always renders in the same
   // band row across every day and every reload, so position alone tells
@@ -273,10 +286,15 @@ const CleaningCalendarPage: React.FC = () => {
   const properties = useMemo(() => {
     const map = new Map<string, string>();
     for (const stay of stays) map.set(stay.propertyId, stay.propertyName);
+    // A property with only events this month still needs a chip, a legend
+    // entry and a colour for its dots; a stay's name wins when both exist.
+    for (const ev of events) {
+      if (!map.has(ev.propertyId)) map.set(ev.propertyId, ev.propertyName || ev.propertyId);
+    }
     return Array.from(map.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [stays]);
+  }, [stays, events]);
 
   // Stable index per property (keyed off the alphabetical list, not the
   // filtered one) so a property's color never shifts as filters toggle.
@@ -288,8 +306,9 @@ const CleaningCalendarPage: React.FC = () => {
   const visibleIds = activePropertyIds ?? new Set(properties.map((p) => p.id));
   const propertyRows = properties.filter((p) => visibleIds.has(p.id));
   // One band per lane. A property holding one party at a time contributes
-  // exactly one, so an ordinary week looks exactly as it did.
-  const laneRows = propertyRows.flatMap((prop) => Array.from(
+  // exactly one, so an ordinary week looks exactly as it did. A property with
+  // only events has no band, so it gets no row either.
+  const laneRows = propertyRows.filter((p) => laneCounts.has(p.id)).flatMap((prop) => Array.from(
     { length: laneCounts.get(prop.id) ?? 1 },
     (_, lane) => ({ prop, lane }),
   ));
@@ -301,6 +320,9 @@ const CleaningCalendarPage: React.FC = () => {
   const selectedOngoing = (selectedDate ? bandMap.get(selectedDate) ?? [] : [])
     .filter((seg) => visibleIds.has(seg.stay.propertyId) && !seg.isStart && !seg.isEnd);
   const selectedVisibleCheckouts = (selectedActivity?.checkouts ?? []).filter((s) => visibleIds.has(s.propertyId));
+  const selectedEvents = selectedDate
+    ? (eventsByDay.get(selectedDate) ?? []).filter((ev) => visibleIds.has(ev.propertyId))
+    : [];
 
   const togglePropertyFilter = (id: string) => {
     setActivePropertyIds((prev) => {
@@ -396,9 +418,10 @@ const CleaningCalendarPage: React.FC = () => {
                 const activity = dayMap.get(iso);
                 const checkouts = (activity?.checkouts ?? []).filter((s) => visibleIds.has(s.propertyId));
                 const daySegs = (bandMap.get(iso) ?? []).filter((seg) => visibleIds.has(seg.stay.propertyId));
+                const dayEvents = (eventsByDay.get(iso) ?? []).filter((ev) => visibleIds.has(ev.propertyId));
                 const isWeekStart = day.getDay() === 0;
                 const isWeekEnd = day.getDay() === 6;
-                const hasAnything = daySegs.length > 0;
+                const hasAnything = daySegs.length > 0 || dayEvents.length > 0;
                 const hasCleaning = checkouts.length > 0;
                 // 2+ properties both needing a turnaround the same day is a
                 // real capacity problem for staff — call it out distinctly
@@ -415,6 +438,7 @@ const CleaningCalendarPage: React.FC = () => {
                   <button
                     key={iso}
                     type="button"
+                    data-date={iso}
                     onClick={() => setSelectedDate(iso)}
                     disabled={!hasAnything}
                     style={{ minHeight: `${30 + rowCount * 16}px` }}
@@ -446,6 +470,26 @@ const CleaningCalendarPage: React.FC = () => {
                         </span>
                       )}
                     </span>
+
+                    {/* One dot per event in its house's colour, at most three —
+                        the sheet lists them all. Pulled into the gap so a day
+                        with events is no taller than one without. */}
+                    {dayEvents.length > 0 && (
+                      <span
+                        aria-hidden="true"
+                        title={`${dayEvents.length} event${dayEvents.length === 1 ? '' : 's'}`}
+                        className="flex h-1 -my-1 max-w-full items-center justify-center gap-px overflow-hidden"
+                      >
+                        {dayEvents.slice(0, 3).map((ev, i) => (
+                          <span
+                            key={`${ev.propertyId}|${ev.date}|${ev.startTime}|${ev.endTime}|${ev.title}|${i}`}
+                            data-event-dot
+                            className="block w-1 h-1 shrink-0 rounded-full"
+                            style={{ backgroundColor: propertyColor(propertyColorMap.get(ev.propertyId) ?? 0) }}
+                          />
+                        ))}
+                      </span>
+                    )}
 
                     <div className="flex flex-col gap-[2px] w-full px-px">
                       {laneRows.map(({ prop, lane }) => {
@@ -522,6 +566,7 @@ const CleaningCalendarPage: React.FC = () => {
             <span>🧹4 cleaning, guests leaving</span>
             <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-[#f59e0b]" /> turnover</span>
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded ring-1 ring-inset ring-[#fb923c] bg-[#fff1e6]" /> busy (2+)</span>
+            <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#44474c]" /> event (house colour)</span>
             {properties.map((p) => {
               const idx = propertyColorMap.get(p.id) ?? 0;
               return (
@@ -545,8 +590,32 @@ const CleaningCalendarPage: React.FC = () => {
               </button>
             </div>
 
-            {!selectedActivity?.checkouts.length && !selectedActivity?.checkins.length && !selectedOngoing.length && (
+            {!selectedActivity?.checkouts.length && !selectedActivity?.checkins.length && !selectedOngoing.length && !selectedEvents.length && (
               <p className="text-[13px] text-[#9ca3af]">No activity this day.</p>
+            )}
+
+            {selectedEvents.length > 0 && (
+              <div data-sheet-events className="mb-3 space-y-1.5">
+                {selectedEvents.map((ev, i) => {
+                  const color = propertyColor(propertyColorMap.get(ev.propertyId) ?? 0);
+                  return (
+                    <div
+                      key={`${ev.propertyId}|${ev.date}|${ev.startTime}|${ev.endTime}|${ev.title}|${i}`}
+                      data-sheet-event
+                      className="flex items-start gap-2 rounded-xl border-l-4 bg-[#f9fafb] px-3 py-2"
+                      style={{ borderLeftColor: color }}
+                    >
+                      <span className="h-2 w-2 mt-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[12px] font-semibold text-[#1b1c1d]">{ev.propertyName}</div>
+                        <div className="text-[12.5px] text-[#44474c] break-words [overflow-wrap:anywhere]">
+                          📌 {ev.startTime}–{ev.endTime} · {ev.title}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
             {selectedVisibleCheckouts.length > 1 && (
