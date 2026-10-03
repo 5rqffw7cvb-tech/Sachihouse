@@ -740,7 +740,7 @@ const HostCalendarPage: React.FC = () => {
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-hold-tint ring-1 ring-inset ring-hold/30" /> Unpaid hold</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-info-tint ring-1 ring-inset ring-info/25" /> Imported from a channel</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-ink-muted/25 ring-1 ring-inset ring-ink-muted/30" /> Blocked by you</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-warn" /> Event (does not block)</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm bg-[#fef9c3] ring-1 ring-inset ring-[#facc15]" /> Event (does not block)</span>
             <span className="text-ink-muted">Click an empty night to block it, a blocked bar to free it, an imported bar for its raw details, a dot to see its events.</span>
           </div>
         </Card>

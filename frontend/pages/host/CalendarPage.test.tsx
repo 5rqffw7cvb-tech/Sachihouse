@@ -356,6 +356,19 @@ describe('host events on the calendar', () => {
     expect(dateRow!.querySelector('[data-event-dot]')).toBeNull();
   });
 
+  it('washes a day with an event in yellow, and drops it once the day is selected', async () => {
+    renderWith([], [], [calEvent({})]);
+
+    await waitFor(() => expect(dots(dayCell(12))).toHaveLength(1));
+    expect(dayCell(12)).toHaveClass('bg-[#fef9c3]');
+    expect(dayCell(13)).not.toHaveClass('bg-[#fef9c3]');
+
+    await tapDay(12);
+    // Selected wins: the brand ring, not the yellow.
+    expect(dayCell(12)).toHaveClass('bg-brand-tint');
+    expect(dayCell(12)).not.toHaveClass('bg-[#fef9c3]');
+  });
+
   it('leaves out the events of a house the host has hidden', async () => {
     renderHouses({
       s01: [calEvent({ title: 'Plumber visit' })],

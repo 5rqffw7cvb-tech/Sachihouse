@@ -442,7 +442,7 @@ const CleaningCalendarPage: React.FC = () => {
                     onClick={() => setSelectedDate(iso)}
                     disabled={!hasAnything}
                     style={{ minHeight: `${30 + rowCount * 16}px` }}
-                    className={`relative border-b-2 py-1 flex flex-col items-center gap-1 text-[12px] transition-colors ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} ${!inMonth ? 'opacity-30' : ''} ${hasAnything ? 'hover:bg-[#f5f5f5] cursor-pointer' : 'cursor-default'} ${isBusy ? 'bg-[#fff1e6] ring-1 ring-inset ring-[#fb923c]' : isToday ? 'bg-[#eaf1fd]' : ''}`}
+                    className={`relative border-b-2 py-1 flex flex-col items-center gap-1 text-[12px] transition-colors ${isToday ? 'border-[#0b57d0]' : 'border-transparent'} ${!inMonth ? 'opacity-30' : ''} ${hasAnything ? 'hover:bg-[#f5f5f5] cursor-pointer' : 'cursor-default'} ${isBusy ? 'bg-[#fff1e6] ring-1 ring-inset ring-[#fb923c]' : dayEvents.length > 0 ? 'bg-[#fef9c3]' : isToday ? 'bg-[#eaf1fd]' : ''}`}
                   >
                     <span className="flex items-center gap-0.5 leading-none">
                       {/* The filled circle is the universal calendar convention for
@@ -566,7 +566,7 @@ const CleaningCalendarPage: React.FC = () => {
             <span>🧹4 cleaning, guests leaving</span>
             <span className="inline-flex items-center gap-1"><Zap className="h-3 w-3 text-[#f59e0b]" /> turnover</span>
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded ring-1 ring-inset ring-[#fb923c] bg-[#fff1e6]" /> busy (2+)</span>
-            <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#44474c]" /> event (house colour)</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded ring-1 ring-inset ring-[#facc15] bg-[#fef9c3]" /> event (dot = house)</span>
             {properties.map((p) => {
               const idx = propertyColorMap.get(p.id) ?? 0;
               return (

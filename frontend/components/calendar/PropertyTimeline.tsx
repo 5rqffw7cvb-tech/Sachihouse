@@ -165,6 +165,12 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
             }
           }
 
+          // Days with an event get a yellow wash across the whole cell, so
+          // they read from across the board; the corner dot opens them.
+          const eventDays = new Set(
+            (row.events ?? []).filter((marker) => marker.count > 0).map((marker) => marker.iso),
+          );
+
           const rowStyle: React.CSSProperties = {
             ...gridStyle,
             gridTemplateRows: `repeat(${laneCount}, ${LANE_H}px)`,
@@ -210,7 +216,9 @@ export const PropertyTimeline: React.FC<PropertyTimelineProps> = ({
                   button that blocks it; an occupied one is inert background
                   that keeps the column rules visible under the bars. */}
               {days.map((iso, i) => {
-                const tone = iso === todayIso ? 'bg-brand-tint/60' : isWeekend(iso) ? 'bg-subtle' : '';
+                const tone = eventDays.has(iso)
+                  ? 'bg-[#fef9c3]'
+                  : iso === todayIso ? 'bg-brand-tint/60' : isWeekend(iso) ? 'bg-subtle' : '';
                 const cellStyle: React.CSSProperties = { gridRow: fullHeight, gridColumn: i + 2 };
 
                 if (occupied.has(iso) || !onToggleNight) {

@@ -56,6 +56,10 @@ const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
  *  or by a channel manager whose feed only says "not available". */
 const BLOCKED_COLOR = '#6b7280';
 
+/** A pale yellow wash over a day with a host's event, so the day shows from
+ *  across the month; the dots under the date still say whose it is. */
+const EVENT_DAY_CLASS = 'bg-[#fef9c3]';
+
 interface Segment {
   stay: HostStay;
   isStart: boolean;
@@ -517,7 +521,13 @@ const CalendarPage: React.FC = () => {
                     style={{ minHeight: `${30 + rowCount * 16}px` }}
                     className={`relative flex flex-col items-center gap-1 py-1 rounded-[8px] transition-colors ${
                       !inMonth ? 'opacity-40' : ''
-                    } ${isSelected ? 'bg-brand-tint ring-2 ring-inset ring-brand' : 'active:bg-subtle'}`}
+                    } ${
+                      isSelected
+                        ? 'bg-brand-tint ring-2 ring-inset ring-brand'
+                        : dayEvents.length > 0
+                          ? `${EVENT_DAY_CLASS} active:bg-subtle`
+                          : 'active:bg-subtle'
+                    }`}
                   >
                     <span className="flex items-center gap-0.5 leading-none">
                       <span
@@ -660,7 +670,7 @@ const CalendarPage: React.FC = () => {
               <span className="text-[12px] text-ink-soft">Turnover</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-ink-muted" />
+              <span className={`w-2.5 h-2.5 rounded-[2px] ring-1 ring-inset ring-[#facc15] ${EVENT_DAY_CLASS}`} />
               <span className="text-[12px] text-ink-soft">Event</span>
             </span>
             <span className="text-[12px] text-ink-muted">Tap a day to see it, a second to pick a range</span>

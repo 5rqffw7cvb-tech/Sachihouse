@@ -143,10 +143,13 @@ describe('CleaningCalendarPage — events are display only', () => {
     expect(cell(12).textContent).toContain('🧹');
     expect(cell(12).textContent).toContain('4+2');
     expect(cell(12).className).toContain('bg-[#fff1e6]');
+    // A busy day stays orange even with an event on it.
+    expect(cell(12).className).not.toContain('bg-[#fef9c3]');
     expect(dots(cell(12))).toHaveLength(1);
 
     expect(cell(14).textContent).not.toContain('🧹');
     expect(cell(14).className).not.toContain('bg-[#fff1e6]');
+    expect(cell(14).className).toContain('bg-[#fef9c3]');
     expect(dots(cell(14))).toHaveLength(1);
 
     fireEvent.click(cell(12));
@@ -227,9 +230,13 @@ describe('CleaningCalendarPage — events are display only', () => {
     expect(cell(5).style.minHeight).toBe('46px');
     expect(cell(14).style.minHeight).toBe('46px');
 
+    expect(cell(14).className).toContain('bg-[#fef9c3]');
+    expect(cell(5).className).not.toContain('bg-[#fef9c3]');
+
     fireEvent.click(chip);
     expect(dots(cell(14))).toHaveLength(0);
     expect(cell(14)).toBeDisabled();
+    expect(cell(14).className).not.toContain('bg-[#fef9c3]');
     // House A's stay is still there.
     expect(within(cell(5)).getByText('In')).toBeInTheDocument();
 
@@ -312,7 +319,7 @@ describe('CleaningCalendarPage — events are display only', () => {
     expect(sheet().querySelector('[data-sheet-events]')).toBeNull();
     expect(within(sheet()).queryByText('No activity this day.')).toBeNull();
     expect(screen.getByText('busy (2+)')).toBeInTheDocument();
-    expect(screen.getByText('event (house colour)')).toBeInTheDocument();
+    expect(screen.getByText('event (dot = house)')).toBeInTheDocument();
     // A single house: no filter chips.
     expect(screen.queryByRole('button', { name: 'House A' })).toBeNull();
   });

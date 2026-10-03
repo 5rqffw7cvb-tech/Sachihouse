@@ -97,6 +97,21 @@ describe('PropertyTimeline event dots', () => {
     expect(dot.parentElement).toBe(night.parentElement);
   });
 
+  it('washes the event day yellow in its own row only, over the today tint', () => {
+    renderTimeline(rows({ events: [marker('2026-10-05', 1), marker('2026-10-01', 1)] }));
+
+    const night = (house: string, iso: string) =>
+      screen.getByRole('button', { name: `${house}, ${iso}, available — block this night` });
+    expect(night('House A', '2026-10-05')).toHaveClass('bg-[#fef9c3]');
+    // Today (10-01) with an event shows the event wash, not the today tint.
+    expect(night('House A', '2026-10-01')).toHaveClass('bg-[#fef9c3]');
+    expect(night('House A', '2026-10-01')).not.toHaveClass('bg-brand-tint/60');
+    // Same day, other house: untouched; other day, same house: untouched.
+    expect(night('House B', '2026-10-05')).not.toHaveClass('bg-[#fef9c3]');
+    expect(night('House B', '2026-10-01')).toHaveClass('bg-brand-tint/60');
+    expect(night('House A', '2026-10-06')).not.toHaveClass('bg-[#fef9c3]');
+  });
+
   it('(c) a free night with a dot can still be blocked', () => {
     const { onToggleNight, onSelectEvents } = renderTimeline(rows({ events: [marker('2026-10-05', 2)] }));
 
