@@ -19,6 +19,7 @@ import { QuoteSheet } from '../../components/host/QuoteSheet';
 import { StayDetailSheet } from '../../components/host/StayDetailSheet';
 import { HOST_TAB_BAR_HEIGHT } from '../../components/host/HostTabBar';
 import { addBlockedDates, removeBlockedDates } from '../../services/calendar';
+import type { PropertyCalendarEvent } from '../../services/calendar';
 import {
   arrivalsOn,
   channelColor,
@@ -179,6 +180,31 @@ const CalendarPage: React.FC = () => {
   const visibleProperties = properties.filter((property) => !hiddenIds.has(property.id));
   const { bands, laneCounts } = useMemo(() => buildBands(calendars), [calendars]);
 
+  // A host's own appointments, grouped by day in the order the day runs. The
+  // full property list is walked, not the visible one, so each event keeps
+  // the colour its property has on the filter chips.
+  const eventsByDate = useMemo(() => {
+    const byDate = new Map<string, Array<{
+      event: PropertyCalendarEvent;
+      color: string;
+      propertyName: string;
+      order: number;
+    }>>();
+    properties.forEach((property, index) => {
+      if (hiddenIds.has(property.id)) return;
+      (calendars.get(property.id)?.events ?? []).forEach((event) => {
+        const list = byDate.get(event.date) ?? [];
+        list.push({ event, color: propertyColor(index), propertyName: property.name, order: index });
+        byDate.set(event.date, list);
+      });
+    });
+    byDate.forEach((list) => list.sort((a, b) =>
+      a.event.startTime.localeCompare(b.event.startTime)
+      || a.event.endTime.localeCompare(b.event.endTime)
+      || a.order - b.order));
+    return byDate;
+  }, [properties, hiddenIds, calendars]);
+
   const days = useMemo(
     () => eachDayOfInterval({ start: startOfWeek(startOfMonth(month)), end: endOfWeek(endOfMonth(month)) }),
     [month],
@@ -230,6 +256,10 @@ const CalendarPage: React.FC = () => {
    * cell the host had just pointed at was the one thing they could not open.
    * A night in progress is an entry like any other; so is a night the host
    * took off the market, which is the other reason a cell is not free.
+   *
+   * The host's own events lead the list: they are what the host put on the
+   * day themselves, and they never hold a night, so they sit apart from the
+   * bookings and blocks below rather than among them.
    */
   const detailRows = useMemo(() => {
     if (!detailIso) return [];
@@ -241,6 +271,7 @@ const CalendarPage: React.FC = () => {
       propertyName: string;
       channel: string | null;
       note: string | null;
+      color?: string;
     }> = [];
 
     const fromStay = (stay: HostStay, label: string) => ({
@@ -251,6 +282,16 @@ const CalendarPage: React.FC = () => {
       channel: stay.channel,
       note: stay.kind === 'hold' ? 'Unpaid hold' : stay.kind === 'imported-block' ? 'No guest' : null,
     });
+
+    (eventsByDate.get(detailIso) ?? []).forEach(({ event, color, propertyName }) => rows.push({
+      key: `event-${event.id}`,
+      label: `${event.startTime}–${event.endTime} · ${event.title}`,
+      stay: null,
+      propertyName,
+      channel: null,
+      note: event.note || null,
+      color,
+    }));
 
     // Check-out first: the morning happens before the afternoon, and it is the
     // one that decides whether anybody has to be in the building.
@@ -285,7 +326,7 @@ const CalendarPage: React.FC = () => {
     }
 
     return rows;
-  }, [allStays, detailIso, visibleProperties, calendars]);
+  }, [allStays, detailIso, visibleProperties, calendars, eventsByDate]);
 
   // One rendered band per lane. A property holding one party at a time still
   // contributes exactly one, so a month with no overlap looks as it always did.
@@ -394,6 +435,7 @@ const CalendarPage: React.FC = () => {
                   ({ property, lane }) => (bands.get(`${property.id}|${lane}|${iso}`) ?? [])
                     .some((seg) => seg.isEnd),
                 ).length;
+                const dayEvents = eventsByDate.get(iso) ?? [];
 
                 return (
                   <button
@@ -419,6 +461,26 @@ const CalendarPage: React.FC = () => {
                         <Zap className="w-2.5 h-2.5 text-warn" aria-label={`${turnovers} turnovers`} />
                       )}
                     </span>
+
+                    {/* Event dots get their own row, tucked into the gap-1
+                        between the date row and the bands: -my-1 cancels
+                        the extra gap this row adds, so the cell keeps its
+                        height. */}
+                    {dayEvents.length > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="flex h-1 -my-1 max-w-full items-center justify-center gap-px overflow-hidden"
+                      >
+                        {dayEvents.slice(0, 3).map(({ event, color }) => (
+                          <span
+                            key={event.id}
+                            data-event-dot
+                            className="block w-1 h-1 shrink-0 rounded-full"
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </span>
+                    )}
 
                     <span className="flex flex-col gap-[2px] w-full px-px">
                       {laneRows.map(({ property, lane }) => {
@@ -525,6 +587,10 @@ const CalendarPage: React.FC = () => {
               <Zap className="w-3 h-3 text-warn" />
               <span className="text-[12px] text-ink-soft">Turnover</span>
             </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-ink-muted" />
+              <span className="text-[12px] text-ink-soft">Event</span>
+            </span>
             <span className="text-[12px] text-ink-muted">Tap a day to see it, a second to pick a range</span>
           </div>
 
@@ -537,7 +603,7 @@ const CalendarPage: React.FC = () => {
                   <>
                     <span
                       className="w-1 h-8 rounded-sm shrink-0"
-                      style={{ background: row.channel ? channelColor(row.channel) : BLOCKED_COLOR }}
+                      style={{ background: row.color ?? (row.channel ? channelColor(row.channel) : BLOCKED_COLOR) }}
                     />
                     <span className="flex-1 min-w-0 flex flex-col">
                       <span className="text-[14px] font-semibold text-ink truncate">
@@ -554,9 +620,9 @@ const CalendarPage: React.FC = () => {
                   index === detailRows.length - 1 ? '' : 'border-b border-line'
                 }`;
 
-                // A manual block is the one row with nothing behind it to open.
-                // Rendering it as a button that does nothing would promise a
-                // detail screen that does not exist.
+                // A manual block and a host's event are the rows with nothing
+                // behind them to open here. Rendering them as buttons that do
+                // nothing would promise a detail screen that does not exist.
                 return row.stay ? (
                   <button
                     type="button"
