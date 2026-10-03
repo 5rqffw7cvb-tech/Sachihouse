@@ -10,6 +10,8 @@ import { jstDateString, ONE_DAY_MS } from '../../utils/eventDraft';
 
 const loadCalendars = vi.fn();
 const createCalendarEvent = vi.fn();
+const updateCalendarEvent = vi.fn();
+const deleteCalendarEvent = vi.fn();
 vi.mock('../../services/hostApp', async (importOriginal) => ({
   // Only the fetch is faked. arrivalsOn, departuresOn, stayingOn and
   // stayNights are what decides which rows a day has, so they stay real.
@@ -22,6 +24,8 @@ vi.mock('../../services/calendar', () => ({
   addBlockedDates: vi.fn(),
   removeBlockedDates: vi.fn(),
   createCalendarEvent: (...args: unknown[]) => createCalendarEvent(...args),
+  updateCalendarEvent: (...args: unknown[]) => updateCalendarEvent(...args),
+  deleteCalendarEvent: (...args: unknown[]) => deleteCalendarEvent(...args),
 }));
 
 const user: ApiUser = {
@@ -270,19 +274,21 @@ describe('host events on the calendar', () => {
     expect(within(card).queryByText(/Nothing on this day/)).toBeNull();
   });
 
-  it('does not call a day with only an event empty, and the event is not a button', async () => {
+  it('does not call a day with only an event empty, and the event row opens it', async () => {
     renderWith([], [], [calEvent({})]);
     await tapDay(12);
 
     const card = panel(12);
     expect(within(card).getByText('10:00–11:00 · Plumber visit')).toBeInTheDocument();
     expect(within(card).queryByText(/Nothing on this day/)).toBeNull();
-    // Nothing behind the row to open yet: the one button in the card is the
-    // Add event action under the rows. Part 2c-2 will change this when an
-    // event becomes editable from here.
+    // Two buttons: the event row, which opens the event, then Add event.
     const buttons = within(card).getAllByRole('button');
-    expect(buttons).toHaveLength(1);
-    expect(buttons[0]).toHaveAccessibleName(/Add event/);
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]).toHaveTextContent('10:00–11:00 · Plumber visit');
+    expect(buttons[1]).toHaveAccessibleName(/Add event/);
+
+    fireEvent.click(buttons[0]);
+    expect(await screen.findByRole('dialog', { name: 'Edit event' })).toBeInTheDocument();
   });
 
   it('orders events by start, then end, then house order', async () => {
@@ -426,6 +432,33 @@ const saveButton = (dialog: HTMLElement) =>
 const typeTitle = (dialog: HTMLElement, value: string) =>
   fireEvent.change(within(dialog).getByLabelText('Title *'), { target: { value } });
 
+/** Taps the day, then the event row with this label, and waits for the sheet
+ *  that edits it. */
+async function openEditSheet(day = 12, label = '10:00–11:00 · Plumber visit') {
+  await tapDay(day);
+  const text = await within(panel(day)).findByText(label);
+  fireEvent.click(text.closest('button')!);
+  return screen.findByRole('dialog', { name: 'Edit event' });
+}
+
+const deleteButton = (dialog: HTMLElement) =>
+  within(dialog).getByRole('button', { name: /Delete event/ });
+
+type LoadResult = { calendars: Map<string, HostCalendarData>; failedPropertyIds: string[] };
+
+/** Makes the next load wait for the test, keeping its per-house callback. */
+function holdNextLoad() {
+  const load = deferred<LoadResult>();
+  const held: { onProperty?: OnProperty } = {};
+  loadCalendars.mockImplementation((_ids, cb) => {
+    held.onProperty = cb as OnProperty;
+    return load.promise;
+  });
+  return { load, held };
+}
+
+const editDialog = () => screen.queryByRole('dialog', { name: 'Edit event' });
+
 describe('adding an event from the day card', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -454,8 +487,8 @@ describe('adding an event from the day card', () => {
     const card = panel(12);
     const buttons = within(card).getAllByRole('button');
     const add = addButton(12);
-    // The stay row is a button too, so Add event being the last button puts
-    // it after that row; the event row is a div, so it is checked by position.
+    // The stay row and the event row are buttons too, so Add event being the
+    // last button puts it after both; the event row is checked by position as well.
     expect(buttons.length).toBeGreaterThan(1);
     expect(buttons[buttons.length - 1]).toBe(add);
     const eventRow = within(card).getByText('10:00–11:00 · Plumber visit');
@@ -689,12 +722,444 @@ describe('adding an event from the day card', () => {
     expect(within(panel(12)).getAllByText(label)).toHaveLength(1);
     expect(dots(dayCell(12))).toHaveLength(1);
 
-    // Fourth load: E is gone on the server (removed elsewhere). Once a load
-    // has brought it back it is no longer held, so it goes too.
+    // Fourth load: E is gone on the server (removed elsewhere). The op was
+    // dropped by the third load, which started after the POST returned, so
+    // nothing holds E and it goes too.
     loadAnswers(calendarData());
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     await waitFor(() => expect(loadCalendars).toHaveBeenCalledTimes(4));
     await waitFor(() => expect(within(panel(12)).queryByText(label)).toBeNull());
     expect(dots(dayCell(12))).toHaveLength(0);
+  });
+
+  it('lets go of a new event once a load started after the save answers without it', async () => {
+    renderWith([]);
+    const dialog = await openEventSheet();
+    createCalendarEvent.mockResolvedValue(calEvent({ id: 'e-new', title: 'Cleaner' }));
+    typeTitle(dialog, 'Cleaner');
+    fireEvent.click(saveButton(dialog));
+
+    const label = '10:00–11:00 · Cleaner';
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New event' })).toBeNull());
+    expect(within(panel(12)).getByText(label)).toBeInTheDocument();
+    expect(dots(dayCell(12))).toHaveLength(1);
+
+    // The server no longer has it (removed elsewhere). This load started after
+    // the POST returned, so it is the truth and the event goes.
+    loadAnswers(calendarData());
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(loadCalendars).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(addButton(12)).toBeEnabled());
+    expect(within(panel(12)).queryByText(label)).toBeNull();
+    expect(dots(dayCell(12))).toHaveLength(0);
+  });
+
+  it('saves to a house still on the calendar when a refresh loses the one the sheet had', async () => {
+    renderHouses({});
+    const dialog = await openEventSheet();
+    expect((within(dialog).getByRole('combobox') as HTMLSelectElement).value).toBe('s01');
+
+    // s01 fails this round, so only s02 is left to put an event on.
+    const s02 = { ...calendarData(), propertyId: 's02' };
+    loadCalendars.mockImplementation(async (_ids, onProperty) => {
+      (onProperty as OnProperty)('s02', s02);
+      return { calendars: new Map([['s02', s02]]), failedPropertyIds: ['s01'] };
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(loadCalendars).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(saveButton(dialog)).toBeEnabled());
+
+    createCalendarEvent.mockResolvedValue(calEvent({ propertyId: 's02', title: 'Cleaner' }));
+    typeTitle(dialog, 'Cleaner');
+    fireEvent.click(saveButton(dialog));
+    await waitFor(() => expect(createCalendarEvent).toHaveBeenCalledTimes(1));
+    expect(createCalendarEvent.mock.calls[0][0]).toBe('s02');
+  });
+
+  it('will not close while the POST is in flight, then closes once it lands', async () => {
+    renderWith([]);
+    const dialog = await openEventSheet();
+    const post = deferred<PropertyCalendarEvent>();
+    createCalendarEvent.mockReturnValue(post.promise);
+    typeTitle(dialog, 'Cleaner');
+    fireEvent.click(saveButton(dialog));
+    await waitFor(() => expect(saveButton(dialog)).toBeDisabled());
+
+    fireEvent.click(dialog.parentElement!);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(screen.getByRole('dialog', { name: 'New event' })).toBe(dialog);
+
+    await act(async () => { post.resolve(calEvent({ title: 'Cleaner' })); });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New event' })).toBeNull());
+  });
+
+  it('still closes on the backdrop and on Close when nothing is being sent', async () => {
+    renderWith([]);
+    let dialog = await openEventSheet();
+    fireEvent.click(dialog.parentElement!);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New event' })).toBeNull());
+
+    fireEvent.click(addButton(12));
+    dialog = await screen.findByRole('dialog', { name: 'New event' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New event' })).toBeNull());
+  });
+
+  it('has no Delete in the sheet that makes a new event', async () => {
+    renderWith([]);
+    const dialog = await openEventSheet();
+    expect(within(dialog).queryByRole('button', { name: /Delete event/ })).toBeNull();
+  });
+});
+
+describe('changing and removing an event from the day card', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    createCalendarEvent.mockReset();
+    updateCalendarEvent.mockReset();
+    deleteCalendarEvent.mockReset();
+  });
+
+  const label = '10:00–11:00 · Plumber visit';
+
+  it('opens the event with every field filled in, the house named and no house to pick', async () => {
+    const event = calEvent({
+      id: 'e-2',
+      propertyId: 's02',
+      note: 'Bring the spare key',
+      startTime: '09:30',
+      endTime: '10:15',
+    });
+    renderHouses({ s02: [event] });
+    const dialog = await openEditSheet(12, '09:30–10:15 · Plumber visit');
+
+    expect(screen.queryByRole('dialog', { name: 'New event' })).toBeNull();
+    expect(within(dialog).getByRole('heading', { name: 'Edit event' })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Title *')).toHaveValue('Plumber visit');
+    expect(within(dialog).getByLabelText('Note')).toHaveValue('Bring the spare key');
+    expect(within(dialog).getByLabelText('Date *')).toHaveValue(dayIso(12));
+    expect(within(dialog).getByLabelText('Starts')).toHaveValue('09:30');
+    expect(within(dialog).getByLabelText('Ends')).toHaveValue('10:15');
+    expect(within(dialog).queryByRole('combobox')).toBeNull();
+    expect(within(dialog).getByText('Sachi House 02')).toBeInTheDocument();
+    expect(deleteButton(dialog)).toBeInTheDocument();
+  });
+
+  it('checks the changes the same way a new event is checked', async () => {
+    const event = calEvent({ id: 'e-2', propertyId: 's02', startTime: '09:30', endTime: '10:15' });
+    renderHouses({ s02: [event] });
+    const dialog = await openEditSheet(12, '09:30–10:15 · Plumber visit');
+    await waitFor(() => expect(saveButton(dialog)).toBeEnabled());
+
+    typeTitle(dialog, '');
+    fireEvent.click(saveButton(dialog));
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Give the event a title.');
+
+    typeTitle(dialog, 'Plumber visit');
+    fireEvent.change(within(dialog).getByLabelText('Ends'), { target: { value: '09:30' } });
+    fireEvent.click(saveButton(dialog));
+    expect(within(dialog).getByRole('alert'))
+      .toHaveTextContent('The end time has to be after the start time.');
+
+    fireEvent.change(within(dialog).getByLabelText('Ends'), { target: { value: '10:15' } });
+    fireEvent.change(within(dialog).getByLabelText('Date *'), {
+      target: { value: jstDateString(Date.now() + 400 * ONE_DAY_MS) },
+    });
+    fireEvent.click(saveButton(dialog));
+    expect(within(dialog).getByRole('alert'))
+      .toHaveTextContent('Events can only be added from 3 months back to a year ahead.');
+    expect(updateCalendarEvent).not.toHaveBeenCalled();
+  });
+
+  it('saves the trimmed changes and shows them at once, without reloading', async () => {
+    const event = calEvent({ id: 'e-1' });
+    renderWith([], [], [event]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(saveButton(dialog)).toBeEnabled());
+
+    typeTitle(dialog, '  Cleaner  ');
+    fireEvent.change(within(dialog).getByLabelText('Note'), { target: { value: 'Back door' } });
+    fireEvent.change(within(dialog).getByLabelText('Ends'), { target: { value: '12:00' } });
+    updateCalendarEvent.mockResolvedValue({
+      ...event, title: 'Cleaner', note: 'Back door', endTime: '12:00', updatedAt: 1,
+    });
+    fireEvent.click(saveButton(dialog));
+
+    await waitFor(() => expect(editDialog()).toBeNull());
+    expect(updateCalendarEvent).toHaveBeenCalledTimes(1);
+    expect(updateCalendarEvent).toHaveBeenCalledWith('e-1', {
+      title: 'Cleaner',
+      note: 'Back door',
+      date: dayIso(12),
+      startTime: '10:00',
+      endTime: '12:00',
+    });
+    const card = panel(12);
+    expect(within(card).getByText('10:00–12:00 · Cleaner')).toBeInTheDocument();
+    expect(within(card).queryByText(label)).toBeNull();
+    expect(within(card).queryByText(/Plumber visit/)).toBeNull();
+    expect(dots(dayCell(12))).toHaveLength(1);
+    expect(loadCalendars).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves the event to the new day when its date is changed', async () => {
+    const event = calEvent({ id: 'e-1' });
+    renderWith([], [], [event]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(saveButton(dialog)).toBeEnabled());
+
+    fireEvent.change(within(dialog).getByLabelText('Date *'), { target: { value: dayIso(14) } });
+    updateCalendarEvent.mockResolvedValue({ ...event, date: dayIso(14), updatedAt: 1 });
+    fireEvent.click(saveButton(dialog));
+
+    await waitFor(() => expect(editDialog()).toBeNull());
+    expect(updateCalendarEvent.mock.calls[0][1]).toMatchObject({ date: dayIso(14) });
+    expect(within(panel(12)).getByText(/Nothing on this day/)).toBeInTheDocument();
+    expect(dots(dayCell(12))).toHaveLength(0);
+    expect(dots(dayCell(14))).toHaveLength(1);
+    expect(loadCalendars).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes the event after the host confirms, without reloading', async () => {
+    const event = calEvent({ id: 'e-1' });
+    renderWith([], [], [event]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(deleteButton(dialog)).toBeEnabled());
+    expect(dots(dayCell(12))).toHaveLength(1);
+
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    deleteCalendarEvent.mockResolvedValue(undefined);
+    fireEvent.click(deleteButton(dialog));
+
+    await waitFor(() => expect(editDialog()).toBeNull());
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledWith('Delete this event? This cannot be undone.');
+    expect(deleteCalendarEvent).toHaveBeenCalledTimes(1);
+    expect(deleteCalendarEvent).toHaveBeenCalledWith('e-1');
+    expect(within(panel(12)).queryByText(label)).toBeNull();
+    expect(dots(dayCell(12))).toHaveLength(0);
+    expect(loadCalendars).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing when the host backs out of the confirm', async () => {
+    renderWith([], [], [calEvent({ id: 'e-1' })]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(deleteButton(dialog)).toBeEnabled());
+
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fireEvent.click(deleteButton(dialog));
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(deleteCalendarEvent).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Edit event' })).toBe(dialog);
+    expect(deleteButton(dialog)).toBeEnabled();
+    expect(within(panel(12)).getByText(label)).toBeInTheDocument();
+    expect(dots(dayCell(12))).toHaveLength(1);
+  });
+
+  it('keeps the form and the row when the server refuses the change', async () => {
+    renderWith([], [], [calEvent({ id: 'e-1' })]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(saveButton(dialog)).toBeEnabled());
+    updateCalendarEvent.mockRejectedValue(new Error('Calendar event not found.'));
+    typeTitle(dialog, 'Cleaner');
+    fireEvent.click(saveButton(dialog));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Calendar event not found.');
+    expect(screen.getByRole('dialog', { name: 'Edit event' })).toBe(dialog);
+    expect(within(dialog).getByLabelText('Title *')).toHaveValue('Cleaner');
+    expect(saveButton(dialog)).toBeEnabled();
+    expect(within(panel(12)).getByText(label)).toBeInTheDocument();
+    expect(within(panel(12)).queryByText(/Cleaner/)).toBeNull();
+  });
+
+  it('keeps the sheet and the row when the server refuses the delete', async () => {
+    renderWith([], [], [calEvent({ id: 'e-1' })]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(deleteButton(dialog)).toBeEnabled());
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    deleteCalendarEvent.mockRejectedValue(new Error('Calendar event not found.'));
+    fireEvent.click(deleteButton(dialog));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Calendar event not found.');
+    expect(screen.getByRole('dialog', { name: 'Edit event' })).toBe(dialog);
+    expect(deleteButton(dialog)).toBeEnabled();
+    expect(within(panel(12)).getByText(label)).toBeInTheDocument();
+    expect(dots(dayCell(12))).toHaveLength(1);
+  });
+
+  it('holds Save and Delete while the change is being sent', async () => {
+    renderWith([], [], [calEvent({ id: 'e-1' })]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(saveButton(dialog)).toBeEnabled());
+    const patch = deferred<PropertyCalendarEvent>();
+    updateCalendarEvent.mockReturnValue(patch.promise);
+    typeTitle(dialog, 'Cleaner');
+    fireEvent.click(saveButton(dialog));
+
+    await waitFor(() => expect(saveButton(dialog)).toBeDisabled());
+    expect(deleteButton(dialog)).toBeDisabled();
+    await act(async () => { patch.reject(new Error('Server said no')); });
+    expect(saveButton(dialog)).toBeEnabled();
+    expect(deleteButton(dialog)).toBeEnabled();
+  });
+
+  it('opens the event while the calendar loads, but holds Save and Delete until it is done', async () => {
+    const data = calendarData([calEvent({ id: 'e-1' })]);
+    loadCalendars.mockImplementation((_ids, onProperty) => {
+      (onProperty as OnProperty)('s01', data);
+      return new Promise(() => {});
+    });
+    render(<CalendarPage />);
+    const dialog = await openEditSheet();
+
+    expect(saveButton(dialog)).toBeDisabled();
+    expect(deleteButton(dialog)).toBeDisabled();
+    expect(within(dialog).getByText('Updating calendar…')).toBeInTheDocument();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fireEvent.click(deleteButton(dialog));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(deleteCalendarEvent).not.toHaveBeenCalled();
+  });
+
+  it('holds Save and Delete when a refresh starts under the open sheet', async () => {
+    renderWith([], [], [calEvent({ id: 'e-1' })]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(saveButton(dialog)).toBeEnabled());
+    expect(deleteButton(dialog)).toBeEnabled();
+
+    loadCalendars.mockImplementation(() => new Promise(() => {}));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+
+    await waitFor(() => expect(saveButton(dialog)).toBeDisabled());
+    expect(deleteButton(dialog)).toBeDisabled();
+    expect(within(dialog).getByText('Updating calendar…')).toBeInTheDocument();
+  });
+
+  it('will not close while the PATCH is in flight, then closes once it lands', async () => {
+    const event = calEvent({ id: 'e-1' });
+    renderWith([], [], [event]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(saveButton(dialog)).toBeEnabled());
+    const patch = deferred<PropertyCalendarEvent>();
+    updateCalendarEvent.mockReturnValue(patch.promise);
+    typeTitle(dialog, 'Cleaner');
+    fireEvent.click(saveButton(dialog));
+    await waitFor(() => expect(saveButton(dialog)).toBeDisabled());
+
+    fireEvent.click(dialog.parentElement!);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(screen.getByRole('dialog', { name: 'Edit event' })).toBe(dialog);
+
+    await act(async () => { patch.resolve({ ...event, title: 'Cleaner', updatedAt: 1 }); });
+    await waitFor(() => expect(editDialog()).toBeNull());
+  });
+
+  it('will not close while the DELETE is in flight, then closes once it lands', async () => {
+    renderWith([], [], [calEvent({ id: 'e-1' })]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(deleteButton(dialog)).toBeEnabled());
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const del = deferred<void>();
+    deleteCalendarEvent.mockReturnValue(del.promise);
+    fireEvent.click(deleteButton(dialog));
+    await waitFor(() => expect(deleteButton(dialog)).toBeDisabled());
+
+    fireEvent.click(dialog.parentElement!);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(screen.getByRole('dialog', { name: 'Edit event' })).toBe(dialog);
+
+    await act(async () => { del.resolve(); });
+    await waitFor(() => expect(editDialog()).toBeNull());
+  });
+
+  it('closes on the backdrop and on Close when nothing is being sent', async () => {
+    renderWith([], [], [calEvent({ id: 'e-1' })]);
+    let dialog = await openEditSheet();
+    fireEvent.click(dialog.parentElement!);
+    await waitFor(() => expect(editDialog()).toBeNull());
+
+    fireEvent.click(within(panel(12)).getByText(label).closest('button')!);
+    dialog = await screen.findByRole('dialog', { name: 'Edit event' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(editDialog()).toBeNull());
+    expect(updateCalendarEvent).not.toHaveBeenCalled();
+    expect(deleteCalendarEvent).not.toHaveBeenCalled();
+  });
+
+  it('does not bring back a deleted event through a load that read the server before the delete', async () => {
+    const event = calEvent({ id: 'e-1' });
+    renderWith([], [], [event]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(deleteButton(dialog)).toBeEnabled());
+
+    // A: the DELETE, held open.
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const del = deferred<void>();
+    deleteCalendarEvent.mockReturnValue(del.promise);
+    fireEvent.click(deleteButton(dialog));
+    await waitFor(() => expect(deleteButton(dialog)).toBeDisabled());
+
+    // B: a refresh started while the DELETE is in flight. It read the server
+    // while the event was still there.
+    const { load, held } = holdNextLoad();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(loadCalendars).toHaveBeenCalledTimes(2));
+
+    await act(async () => { del.resolve(); });
+    await waitFor(() => expect(editDialog()).toBeNull());
+    expect(within(panel(12)).queryByText(label)).toBeNull();
+
+    // B lands with the event, per house and then in the reconcile.
+    const stale = calendarData([event]);
+    await act(async () => {
+      held.onProperty!('s01', stale);
+      load.resolve({ calendars: new Map([['s01', stale]]), failedPropertyIds: [] });
+    });
+    await waitFor(() => expect(addButton(12)).toBeEnabled());
+    expect(within(panel(12)).queryByText(label)).toBeNull();
+    expect(dots(dayCell(12))).toHaveLength(0);
+
+    // A later load, from a server without it: still gone.
+    loadAnswers(calendarData());
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(loadCalendars).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(addButton(12)).toBeEnabled());
+    expect(within(panel(12)).queryByText(label)).toBeNull();
+    expect(dots(dayCell(12))).toHaveLength(0);
+  });
+
+  it('does not undo a change through a load that read the server before the PATCH', async () => {
+    const event = calEvent({ id: 'e-1' });
+    renderWith([], [], [event]);
+    const dialog = await openEditSheet();
+    await waitFor(() => expect(saveButton(dialog)).toBeEnabled());
+
+    const patch = deferred<PropertyCalendarEvent>();
+    updateCalendarEvent.mockReturnValue(patch.promise);
+    typeTitle(dialog, 'Cleaner');
+    fireEvent.click(saveButton(dialog));
+    await waitFor(() => expect(saveButton(dialog)).toBeDisabled());
+
+    const { load, held } = holdNextLoad();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(loadCalendars).toHaveBeenCalledTimes(2));
+
+    const changed = { ...event, title: 'Cleaner', updatedAt: 1 };
+    const newLabel = '10:00–11:00 · Cleaner';
+    await act(async () => { patch.resolve(changed); });
+    await waitFor(() => expect(editDialog()).toBeNull());
+    expect(within(panel(12)).getByText(newLabel)).toBeInTheDocument();
+
+    // B lands with the old title.
+    const stale = calendarData([event]);
+    await act(async () => {
+      held.onProperty!('s01', stale);
+      load.resolve({ calendars: new Map([['s01', stale]]), failedPropertyIds: [] });
+    });
+    await waitFor(() => expect(addButton(12)).toBeEnabled());
+    expect(within(panel(12)).getAllByText(newLabel)).toHaveLength(1);
+    expect(within(panel(12)).queryByText(/Plumber visit/)).toBeNull();
+    expect(dots(dayCell(12))).toHaveLength(1);
   });
 });

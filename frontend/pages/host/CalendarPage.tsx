@@ -19,9 +19,20 @@ import { EventSheet } from '../../components/host/EventSheet';
 import { QuoteSheet } from '../../components/host/QuoteSheet';
 import { StayDetailSheet } from '../../components/host/StayDetailSheet';
 import { HOST_TAB_BAR_HEIGHT } from '../../components/host/HostTabBar';
-import { addBlockedDates, createCalendarEvent, removeBlockedDates } from '../../services/calendar';
-import type { PropertyCalendarEvent, PropertyCalendarEventInput } from '../../services/calendar';
 import {
+  addBlockedDates,
+  createCalendarEvent,
+  deleteCalendarEvent,
+  removeBlockedDates,
+  updateCalendarEvent,
+} from '../../services/calendar';
+import type {
+  PropertyCalendarEvent,
+  PropertyCalendarEventInput,
+  PropertyCalendarEventPatch,
+} from '../../services/calendar';
+import {
+  applyEventOp,
   arrivalsOn,
   channelColor,
   datesInRange,
@@ -29,8 +40,10 @@ import {
   HostCalendarData,
   HostStay,
   loadCalendars,
-  mergePendingEvents,
+  type PendingEventOp,
   propertyColor,
+  putPendingOp,
+  reconcilePendingEventOps,
   stayingOn,
   stayNights,
   toIsoDate,
@@ -114,6 +127,13 @@ interface Selection {
   end: string;
 }
 
+type SheetState =
+  | { kind: 'block' }
+  | { kind: 'quote' }
+  | { kind: 'create' }
+  | { kind: 'edit'; event: PropertyCalendarEvent }
+  | null;
+
 const CalendarPage: React.FC = () => {
   const { properties, propertiesError } = useHostContext();
   const today = todayIso();
@@ -122,16 +142,19 @@ const CalendarPage: React.FC = () => {
   const [calendars, setCalendars] = useState<Map<string, HostCalendarData>>(new Map());
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [sheet, setSheet] = useState<'block' | 'quote' | 'event' | null>(null);
+  const [sheet, setSheet] = useState<SheetState>(null);
   const [openStay, setOpenStay] = useState<HostStay | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  // Events created here that a load has not yet been seen to return. A load
-  // can read the server before the POST commits and land after it; without
-  // this, the event the host just saved would vanish until the next refresh.
-  const pendingCreatedRef = useRef<PropertyCalendarEvent[]>([]);
+  // Events created, changed or removed here, until a load that started after
+  // the change has answered. A load can read the server before the request
+  // commits and land after it; without these, what the host just saved or
+  // deleted would snap back until the next refresh. loadSeqRef numbers the
+  // loads, so each op knows which loads are too old to trust.
+  const loadSeqRef = useRef(0);
+  const pendingOpsRef = useRef<PendingEventOp[]>([]);
 
   const propertyIds = useMemo(() => properties.map((property) => property.id), [properties]);
 
@@ -141,6 +164,7 @@ const CalendarPage: React.FC = () => {
       return;
     }
     let cancelled = false;
+    const seq = ++loadSeqRef.current;
     setError(null);
     // The grid is drawn from whatever has arrived, so the first property to
     // answer ends the blank screen instead of the last one. The spinner in
@@ -150,8 +174,8 @@ const CalendarPage: React.FC = () => {
 
     loadCalendars(propertyIds, (id, data) => {
       if (cancelled) return;
-      const merged = mergePendingEvents(new Map([[id, data]]), pendingCreatedRef.current);
-      pendingCreatedRef.current = merged.stillPending;
+      const merged = reconcilePendingEventOps(new Map([[id, data]]), pendingOpsRef.current, seq);
+      pendingOpsRef.current = merged.stillPending;
       setCalendars((prev) => new Map(prev).set(id, merged.calendars.get(id)!));
       setIsLoading(false);
     }, { refresh: reloadKey > 0 })
@@ -159,8 +183,8 @@ const CalendarPage: React.FC = () => {
         if (cancelled) return;
         // Reconcile: a property that has since been removed, or one that
         // failed this round, must not linger from the previous load.
-        const merged = mergePendingEvents(result.calendars, pendingCreatedRef.current);
-        pendingCreatedRef.current = merged.stillPending;
+        const merged = reconcilePendingEventOps(result.calendars, pendingOpsRef.current, seq);
+        pendingOpsRef.current = merged.stillPending;
         setCalendars(merged.calendars);
         if (result.failedPropertyIds.length > 0) {
           const names = result.failedPropertyIds
@@ -257,13 +281,33 @@ const CalendarPage: React.FC = () => {
     reload();
   };
 
-  // No reload: the new event is put straight into the calendar it belongs
-  // to, and kept pending so a load already in flight cannot wipe it.
+  // No reload after an event change: the change is put straight into the
+  // calendar it belongs to, and kept pending so a load already in flight
+  // cannot undo it. Each op takes the number of the latest load after the
+  // request has returned — a load started later read the server after it.
+  const recordOp = (op: PendingEventOp) => {
+    pendingOpsRef.current = putPendingOp(pendingOpsRef.current, op);
+    setCalendars((prev) => applyEventOp(prev, op));
+  };
+
+  // Each closes only its own sheet: by the time the request returns, the
+  // host may already be looking at another one.
   const createEvent = async (propertyId: string, input: PropertyCalendarEventInput) => {
     const event = await createCalendarEvent(propertyId, input);
-    pendingCreatedRef.current = [...pendingCreatedRef.current, event];
-    setCalendars((prev) => mergePendingEvents(prev, [event]).calendars);
-    setSheet(null);
+    recordOp({ kind: 'upsert', event, seq: loadSeqRef.current });
+    setSheet((current) => (current?.kind === 'create' ? null : current));
+  };
+
+  const updateEvent = async (event: PropertyCalendarEvent, patch: PropertyCalendarEventPatch) => {
+    const updated = await updateCalendarEvent(event.id, patch);
+    recordOp({ kind: 'upsert', event: updated, seq: loadSeqRef.current });
+    setSheet((current) => (current?.kind === 'edit' && current.event.id === event.id ? null : current));
+  };
+
+  const deleteEvent = async (event: PropertyCalendarEvent) => {
+    await deleteCalendarEvent(event.id);
+    recordOp({ kind: 'delete', id: event.id, propertyId: event.propertyId, seq: loadSeqRef.current });
+    setSheet((current) => (current?.kind === 'edit' && current.event.id === event.id ? null : current));
   };
 
   const allStays = useMemo(
@@ -292,6 +336,7 @@ const CalendarPage: React.FC = () => {
       key: string;
       label: string;
       stay: HostStay | null;
+      event: PropertyCalendarEvent | null;
       propertyName: string;
       channel: string | null;
       note: string | null;
@@ -302,6 +347,7 @@ const CalendarPage: React.FC = () => {
       key: `${label}-${stay.key}`,
       label,
       stay,
+      event: null,
       propertyName: stay.propertyName,
       channel: stay.channel,
       note: stay.kind === 'hold' ? 'Unpaid hold' : stay.kind === 'imported-block' ? 'No guest' : null,
@@ -311,6 +357,7 @@ const CalendarPage: React.FC = () => {
       key: `event-${event.id}`,
       label: `${event.startTime}–${event.endTime} · ${event.title}`,
       stay: null,
+      event,
       propertyName,
       channel: null,
       note: event.note || null,
@@ -342,6 +389,7 @@ const CalendarPage: React.FC = () => {
           key: `manual-${property.id}`,
           label: 'Blocked',
           stay: null,
+          event: null,
           propertyName: property.name,
           channel: null,
           note: 'Blocked here',
@@ -645,14 +693,27 @@ const CalendarPage: React.FC = () => {
                     index === detailRows.length - 1 ? '' : 'border-b border-line'
                   }`;
 
-                  // A manual block and a host's event are the rows with nothing
-                  // behind them to open here. Rendering them as buttons that do
-                  // nothing would promise a detail screen that does not exist.
-                  return row.stay ? (
+                  // A manual block is the row with nothing behind it to open
+                  // here. Rendering it as a button that does nothing would
+                  // promise a detail screen that does not exist.
+                  if (row.stay) {
+                    return (
+                      <button
+                        type="button"
+                        key={row.key}
+                        onClick={() => setOpenStay(row.stay)}
+                        className={`${className} active:bg-subtle`}
+                      >
+                        {body}
+                        <ChevronRight className="w-[18px] h-[18px] text-line-strong shrink-0" />
+                      </button>
+                    );
+                  }
+                  return row.event ? (
                     <button
                       type="button"
                       key={row.key}
-                      onClick={() => setOpenStay(row.stay)}
+                      onClick={() => setSheet({ kind: 'edit', event: row.event! })}
                       className={`${className} active:bg-subtle`}
                     >
                       {body}
@@ -667,7 +728,7 @@ const CalendarPage: React.FC = () => {
                     <button
                       type="button"
                       disabled={isRefreshing}
-                      onClick={() => setSheet('event')}
+                      onClick={() => setSheet({ kind: 'create' })}
                       className="w-full h-12 flex items-center justify-center gap-1.5 text-[14px] font-semibold text-brand active:bg-subtle disabled:opacity-50"
                     >
                       <Plus className="w-4 h-4" /> Add event
@@ -701,14 +762,14 @@ const CalendarPage: React.FC = () => {
             </span>
             <button
               type="button"
-              onClick={() => setSheet('block')}
+              onClick={() => setSheet({ kind: 'block' })}
               className="h-11 px-3.5 rounded-control bg-white/15 flex items-center gap-1.5 text-[13px] font-semibold"
             >
               <Ban className="w-4 h-4" /> Block
             </button>
             <button
               type="button"
-              onClick={() => setSheet('quote')}
+              onClick={() => setSheet({ kind: 'quote' })}
               className="h-11 px-3.5 rounded-control bg-surface text-ink flex items-center gap-1.5 text-[13px] font-semibold"
             >
               <Tag className="w-4 h-4" /> Quote
@@ -725,7 +786,7 @@ const CalendarPage: React.FC = () => {
         </div>
       )}
 
-      {sheet === 'block' && (
+      {sheet?.kind === 'block' && (
         <BlockSheet
           dates={selectedDates}
           properties={visibleProperties}
@@ -735,7 +796,7 @@ const CalendarPage: React.FC = () => {
         />
       )}
 
-      {sheet === 'quote' && (
+      {sheet?.kind === 'quote' && (
         <QuoteSheet
           dates={selectedDates}
           properties={visibleProperties}
@@ -745,13 +806,25 @@ const CalendarPage: React.FC = () => {
         />
       )}
 
-      {sheet === 'event' && detailIso && (
+      {sheet?.kind === 'create' && detailIso && (
         <EventSheet
           date={detailIso}
           properties={eventProperties}
           busy={isRefreshing}
           onClose={() => setSheet(null)}
           onCreate={createEvent}
+        />
+      )}
+
+      {sheet?.kind === 'edit' && (
+        <EventSheet
+          key={sheet.event.id}
+          event={sheet.event}
+          propertyName={properties.find((property) => property.id === sheet.event.propertyId)?.name ?? ''}
+          busy={isRefreshing}
+          onClose={() => setSheet(null)}
+          onUpdate={updateEvent}
+          onDelete={deleteEvent}
         />
       )}
 

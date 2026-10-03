@@ -7,9 +7,12 @@ import {
   formatMoney,
   HostCalendarData,
   HostStay,
-  mergePendingEvents,
+  applyEventOp,
   nightsBetween,
+  type PendingEventOp,
   propertyColor,
+  putPendingOp,
+  reconcilePendingEventOps,
   stayingOn,
   stayNights,
   toIsoDate,
@@ -206,7 +209,7 @@ describe('property colours', () => {
   });
 });
 
-describe('mergePendingEvents', () => {
+describe('pending event ops', () => {
   const event = (over: Partial<PropertyCalendarEvent>): PropertyCalendarEvent => ({
     id: 'e1',
     propertyId: 'p1',
@@ -228,79 +231,221 @@ describe('mergePendingEvents', () => {
     events,
   });
 
-  it('puts a missing event back and keeps it pending', () => {
-    const p1 = entry('p1');
-    const calendars = new Map([['p1', p1]]);
-    const created = event({ id: 'new' });
+  const upsert = (e: PropertyCalendarEvent, seq = 1): PendingEventOp => ({ kind: 'upsert', event: e, seq });
+  const remove = (id: string, propertyId = 'p1', seq = 1): PendingEventOp =>
+    ({ kind: 'delete', id, propertyId, seq });
 
-    const result = mergePendingEvents(calendars, [created]);
+  describe('reconcilePendingEventOps', () => {
+    it('puts a missing event back and keeps it pending when the load is no newer than the op', () => {
+      const calendars = new Map([['p1', entry('p1')]]);
+      const created = event({ id: 'new' });
+      const ops = [upsert(created, 3)];
 
-    expect(result.calendars).not.toBe(calendars);
-    expect(result.calendars.get('p1')!.events).toEqual([created]);
-    expect(result.stillPending).toEqual([created]);
+      const result = reconcilePendingEventOps(calendars, ops, 3);
+
+      expect(result.calendars).not.toBe(calendars);
+      expect(result.calendars.get('p1')!.events).toEqual([created]);
+      expect(result.stillPending).toEqual(ops);
+    });
+
+    it('drops an op once a load started after it, without applying it or doubling the event', () => {
+      const created = event({ id: 'new' });
+      const calendars = new Map([['p1', entry('p1', [created])]]);
+
+      const result = reconcilePendingEventOps(calendars, [upsert(created, 1)], 2);
+
+      expect(result.calendars).toBe(calendars);
+      expect(result.calendars.get('p1')!.events).toEqual([created]);
+      expect(result.stillPending).toEqual([]);
+    });
+
+    it('does not apply an op a newer load has replaced: the load is the truth', () => {
+      // The server says the event is gone (removed elsewhere after the save):
+      // the stale upsert must not bring it back.
+      const calendars = new Map([['p1', entry('p1')]]);
+
+      const result = reconcilePendingEventOps(calendars, [upsert(event({ id: 'new' }), 1)], 2);
+
+      expect(result.calendars.get('p1')!.events).toEqual([]);
+      expect(result.stillPending).toEqual([]);
+    });
+
+    it('keeps an op pending, and invents no entry, when its property has not loaded', () => {
+      const calendars = new Map([['p1', entry('p1')]]);
+      const elsewhere = upsert(event({ id: 'x', propertyId: 'p2' }), 1);
+      const gone = remove('y', 'p2', 1);
+
+      // Even a load newer than the ops keeps them: it said nothing about p2.
+      const result = reconcilePendingEventOps(calendars, [elsewhere, gone], 5);
+
+      expect(result.calendars).toBe(calendars);
+      expect(result.calendars.has('p2')).toBe(false);
+      expect(result.calendars.get('p1')!.events).toEqual([]);
+      expect(result.stillPending).toEqual([elsewhere, gone]);
+    });
+
+    it('mutates neither the map, the entry nor the ops, and keeps the other fields by reference', () => {
+      const existing = event({ id: 'old' });
+      const p1 = entry('p1', [existing]);
+      const p2 = entry('p2');
+      const calendars = new Map([['p1', p1], ['p2', p2]]);
+      const ops = [upsert(event({ id: 'new' }), 1)];
+      const opsCopy = [...ops];
+
+      const result = reconcilePendingEventOps(calendars, ops, 1);
+
+      // Inputs untouched.
+      expect(calendars.get('p1')).toBe(p1);
+      expect(calendars.get('p2')).toBe(p2);
+      expect(calendars.size).toBe(2);
+      expect(p1.events).toEqual([existing]);
+      expect(ops).toEqual(opsCopy);
+      expect(result.stillPending).not.toBe(ops);
+      // The changed entry is a new object sharing the untouched parts.
+      const next = result.calendars.get('p1')!;
+      expect(next).not.toBe(p1);
+      expect(next.events.map((e) => e.id)).toEqual(['old', 'new']);
+      expect(next.stays).toBe(p1.stays);
+      expect(next.blockedDates).toBe(p1.blockedDates);
+      expect(next.manualBlockedDates).toBe(p1.manualBlockedDates);
+      // An entry nothing was applied to is passed through as is.
+      expect(result.calendars.get('p2')).toBe(p2);
+    });
+
+    it('hands back the very same map when nothing changes', () => {
+      const created = event({ id: 'new' });
+      const calendars = new Map([['p1', entry('p1', [created])]]);
+
+      expect(reconcilePendingEventOps(calendars, [], 1).calendars).toBe(calendars);
+      // An upsert identical to what is there, by reference and by value.
+      expect(reconcilePendingEventOps(calendars, [upsert(created, 1)], 1).calendars).toBe(calendars);
+      expect(reconcilePendingEventOps(calendars, [upsert({ ...created }, 1)], 1).calendars).toBe(calendars);
+      // A property with no entry.
+      expect(reconcilePendingEventOps(calendars, [upsert(event({ propertyId: 'p9' }), 1)], 1).calendars)
+        .toBe(calendars);
+      // A delete of an id that is not there.
+      expect(reconcilePendingEventOps(calendars, [remove('missing', 'p1', 1)], 1).calendars).toBe(calendars);
+    });
+
+    it('applying the same upsert twice leaves one copy', () => {
+      const created = event({ id: 'new' });
+      const calendars = new Map([['p1', entry('p1')]]);
+
+      const once = reconcilePendingEventOps(calendars, [upsert(created, 1)], 1);
+      const twice = reconcilePendingEventOps(once.calendars, once.stillPending, 1);
+
+      expect(twice.calendars.get('p1')!.events).toEqual([created]);
+      expect(twice.calendars).toBe(once.calendars);
+      expect(twice.stillPending).toHaveLength(1);
+    });
+
+    it('replaces an event with the same id by the upserted one, in place', () => {
+      const before = event({ id: 'e1', title: 'Plumber visit' });
+      const other = event({ id: 'e2', title: 'Other' });
+      const calendars = new Map([['p1', entry('p1', [before, other])]]);
+      const after = event({ id: 'e1', title: 'Cleaner', updatedAt: 5 });
+
+      const result = reconcilePendingEventOps(calendars, [upsert(after, 2)], 2);
+
+      const events = result.calendars.get('p1')!.events;
+      expect(events).toHaveLength(2);
+      expect(events.filter((e) => e.id === 'e1')).toEqual([after]);
+      expect(events[0].title).toBe('Cleaner');
+      expect(events[1]).toBe(other);
+      expect(result.stillPending).toHaveLength(1);
+    });
+
+    it('removes exactly the deleted id and keeps the rest', () => {
+      const gone = event({ id: 'e1' });
+      const kept = event({ id: 'e2' });
+      const calendars = new Map([['p1', entry('p1', [gone, kept])]]);
+      const op = remove('e1', 'p1', 2);
+
+      const result = reconcilePendingEventOps(calendars, [op], 2);
+
+      expect(result.calendars.get('p1')!.events).toEqual([kept]);
+      expect(result.stillPending).toEqual([op]);
+    });
+
+    it('drops a delete once a newer load answers, leaving the event the server sent', () => {
+      const back = event({ id: 'e1' });
+      const calendars = new Map([['p1', entry('p1', [back])]]);
+
+      const result = reconcilePendingEventOps(calendars, [remove('e1', 'p1', 1)], 2);
+
+      expect(result.calendars).toBe(calendars);
+      expect(result.calendars.get('p1')!.events).toEqual([back]);
+      expect(result.stillPending).toEqual([]);
+    });
+
+    it('decides each op on its own seq', () => {
+      const calendars = new Map([['p1', entry('p1', [event({ id: 'old' })])]]);
+      const stale = upsert(event({ id: 'a' }), 1);
+      const fresh = remove('old', 'p1', 2);
+
+      const result = reconcilePendingEventOps(calendars, [stale, fresh], 2);
+
+      expect(result.calendars.get('p1')!.events).toEqual([]);
+      expect(result.stillPending).toEqual([fresh]);
+    });
   });
 
-  it('drops an event from pending once a load has brought it back, without doubling it', () => {
-    const created = event({ id: 'new' });
-    const calendars = new Map([['p1', entry('p1', [created])]]);
+  describe('applyEventOp', () => {
+    it('applies whatever the seq, and leaves a missing property alone', () => {
+      const calendars = new Map([['p1', entry('p1')]]);
+      const e = event({ id: 'n' });
 
-    const result = mergePendingEvents(calendars, [created]);
+      expect(applyEventOp(calendars, upsert(e, -100)).get('p1')!.events).toEqual([e]);
+      expect(applyEventOp(calendars, upsert(event({ propertyId: 'p2' }), 1))).toBe(calendars);
+      expect(applyEventOp(calendars, remove('x', 'p2', 1))).toBe(calendars);
+      expect(calendars.get('p1')!.events).toEqual([]);
+    });
 
-    expect(result.calendars.get('p1')!.events).toHaveLength(1);
-    expect(result.stillPending).toEqual([]);
+    it('copies only the touched entry on delete, keeping its other fields by reference', () => {
+      const p1 = entry('p1', [event({ id: 'e1' })]);
+      const p2 = entry('p2');
+      const calendars = new Map([['p1', p1], ['p2', p2]]);
+
+      const next = applyEventOp(calendars, remove('e1'));
+
+      expect(next).not.toBe(calendars);
+      expect(p1.events).toHaveLength(1);
+      expect(next.get('p1')!.events).toEqual([]);
+      expect(next.get('p1')!.stays).toBe(p1.stays);
+      expect(next.get('p1')!.blockedDates).toBe(p1.blockedDates);
+      expect(next.get('p1')!.manualBlockedDates).toBe(p1.manualBlockedDates);
+      expect(next.get('p2')).toBe(p2);
+    });
   });
 
-  it('keeps an event pending, and invents no entry, when its property has not loaded', () => {
-    const calendars = new Map([['p1', entry('p1')]]);
-    const elsewhere = event({ id: 'x', propertyId: 'p2' });
+  describe('putPendingOp', () => {
+    it('keeps only the newest upsert for an event', () => {
+      const first = upsert(event({ id: 'e1', title: 'A' }), 1);
+      const second = upsert(event({ id: 'e1', title: 'B' }), 2);
 
-    const result = mergePendingEvents(calendars, [elsewhere]);
+      const ops = putPendingOp(putPendingOp([], first), second);
 
-    expect(result.calendars.has('p2')).toBe(false);
-    expect(result.calendars.get('p1')!.events).toEqual([]);
-    expect(result.stillPending).toEqual([elsewhere]);
-  });
+      expect(ops).toEqual([second]);
+    });
 
-  it('mutates neither the map nor the entry, and keeps the other fields by reference', () => {
-    const existing = event({ id: 'old' });
-    const p1 = entry('p1', [existing]);
-    const p2 = entry('p2');
-    const calendars = new Map([['p1', p1], ['p2', p2]]);
-    const pending = [event({ id: 'new' })];
+    it('turns an upsert followed by a delete into the one delete', () => {
+      const created = upsert(event({ id: 'e1' }), 1);
+      const gone = remove('e1', 'p1', 2);
 
-    const result = mergePendingEvents(calendars, pending);
+      expect(putPendingOp([created], gone)).toEqual([gone]);
+    });
 
-    // Inputs untouched.
-    expect(calendars.get('p1')).toBe(p1);
-    expect(p1.events).toEqual([existing]);
-    expect(pending).toHaveLength(1);
-    // The changed entry is a new object sharing the untouched parts.
-    const next = result.calendars.get('p1')!;
-    expect(next).not.toBe(p1);
-    expect(next.events.map((e) => e.id)).toEqual(['old', 'new']);
-    expect(next.stays).toBe(p1.stays);
-    expect(next.blockedDates).toBe(p1.blockedDates);
-    expect(next.manualBlockedDates).toBe(p1.manualBlockedDates);
-    // An entry nothing was added to is passed through as is.
-    expect(result.calendars.get('p2')).toBe(p2);
-  });
+    it('keeps ops for other events, and does not mutate the list', () => {
+      const a = upsert(event({ id: 'a' }), 1);
+      const b = remove('b', 'p1', 1);
+      const list = [a, b];
+      const c = upsert(event({ id: 'c' }), 2);
 
-  it('hands back the very same map when nothing is inserted', () => {
-    const created = event({ id: 'new' });
-    const calendars = new Map([['p1', entry('p1', [created])]]);
+      const result = putPendingOp(list, c);
 
-    expect(mergePendingEvents(calendars, []).calendars).toBe(calendars);
-    expect(mergePendingEvents(calendars, [created]).calendars).toBe(calendars);
-    expect(mergePendingEvents(calendars, [event({ propertyId: 'p9' })]).calendars).toBe(calendars);
-  });
-
-  it('inserts an id listed twice in pending only once', () => {
-    const created = event({ id: 'new' });
-    const calendars = new Map([['p1', entry('p1')]]);
-
-    const result = mergePendingEvents(calendars, [created, { ...created }]);
-
-    expect(result.calendars.get('p1')!.events).toHaveLength(1);
-    expect(result.stillPending).toHaveLength(1);
+      expect(result).toEqual([a, b, c]);
+      expect(list).toEqual([a, b]);
+      expect(result).not.toBe(list);
+    });
   });
 });

@@ -297,46 +297,117 @@ function toCalendarData(calendar: PropertyCalendar): HostCalendarData {
 }
 
 /**
- * Put events this screen just created back into calendars that lack them.
+ * A change this screen made to an event, held until a load can be trusted to
+ * show it.
  *
- * A load can read the server before the POST that created an event commits,
- * and then lands after it — wiping the event the host just watched appear.
- * Each pending event is added to its property's entry when missing; once a
- * load has brought it back on its own, it is dropped from `stillPending`.
- * An event whose property has no entry is kept pending and not inserted:
- * creating an entry here would invent a calendar that never loaded.
- *
- * Neither argument is mutated. When nothing is inserted the input map itself
- * comes back, so a caller can tell nothing changed.
+ * A load can read the server before a POST, PATCH or DELETE commits and then
+ * land after it, putting back what the host just watched change. `seq` is the
+ * number of the latest load that had started when the op was recorded, read
+ * after the API call returned — so any load numbered higher started once the
+ * change was on the server, and its answer is the authoritative one.
  */
-export function mergePendingEvents(
+export type PendingEventOp =
+  | { kind: 'upsert'; event: PropertyCalendarEvent; seq: number }
+  | { kind: 'delete'; id: string; propertyId: string; seq: number };
+
+/** The event an op is about. One event has at most one pending op. */
+export function pendingEventOpId(op: PendingEventOp): string {
+  return op.kind === 'upsert' ? op.event.id : op.id;
+}
+
+/**
+ * Record an op, replacing any earlier one for the same event: only the latest
+ * thing done to an event decides how it should look. The list is not mutated.
+ */
+export function putPendingOp(ops: PendingEventOp[], op: PendingEventOp): PendingEventOp[] {
+  const id = pendingEventOpId(op);
+  return [...ops.filter((existing) => pendingEventOpId(existing) !== id), op];
+}
+
+function pendingOpPropertyId(op: PendingEventOp): string {
+  return op.kind === 'upsert' ? op.event.propertyId : op.propertyId;
+}
+
+function sameEvent(a: PropertyCalendarEvent, b: PropertyCalendarEvent): boolean {
+  return a.id === b.id
+    && a.propertyId === b.propertyId
+    && a.title === b.title
+    && a.note === b.note
+    && a.date === b.date
+    && a.startTime === b.startTime
+    && a.endTime === b.endTime
+    && a.createdAt === b.createdAt
+    && a.updatedAt === b.updatedAt;
+}
+
+/**
+ * Apply one op to the calendars, whatever its seq.
+ *
+ * An upsert replaces the event with the same id where it stands, or adds it
+ * at the end; a delete removes it. A property with no entry is left alone:
+ * creating one here would invent a calendar that never loaded.
+ *
+ * Nothing is mutated. When the op changes nothing the input map itself comes
+ * back, so a caller can tell; otherwise only the touched entry is copied, and
+ * it keeps its stays and date sets by reference.
+ */
+export function applyEventOp(
   calendars: Map<string, HostCalendarData>,
-  pending: PropertyCalendarEvent[],
-): { calendars: Map<string, HostCalendarData>; stillPending: PropertyCalendarEvent[] } {
-  const stillPending: PropertyCalendarEvent[] = [];
-  const added = new Map<string, PropertyCalendarEvent[]>();
-  const seen = new Set<string>();
+  op: PendingEventOp,
+): Map<string, HostCalendarData> {
+  const propertyId = pendingOpPropertyId(op);
+  const entry = calendars.get(propertyId);
+  if (!entry) return calendars;
 
-  pending.forEach((event) => {
-    if (seen.has(event.id)) return;
-    seen.add(event.id);
-    const entry = calendars.get(event.propertyId);
-    if (!entry) {
-      stillPending.push(event);
-      return;
+  let events: PropertyCalendarEvent[];
+  if (op.kind === 'upsert') {
+    const index = entry.events.findIndex((existing) => existing.id === op.event.id);
+    if (index === -1) {
+      events = [...entry.events, op.event];
+    } else {
+      const existing = entry.events[index];
+      if (existing === op.event || sameEvent(existing, op.event)) return calendars;
+      events = entry.events.map((event, i) => (i === index ? op.event : event));
     }
-    if (entry.events.some((existing) => existing.id === event.id)) return;
-    added.set(event.propertyId, [...(added.get(event.propertyId) ?? []), event]);
-    stillPending.push(event);
-  });
-
-  if (added.size === 0) return { calendars, stillPending };
+  } else {
+    if (!entry.events.some((existing) => existing.id === op.id)) return calendars;
+    events = entry.events.filter((existing) => existing.id !== op.id);
+  }
 
   const next = new Map(calendars);
-  added.forEach((events, propertyId) => {
-    const entry = calendars.get(propertyId)!;
-    next.set(propertyId, { ...entry, events: [...entry.events, ...events] });
+  next.set(propertyId, { ...entry, events });
+  return next;
+}
+
+/**
+ * Lay the pending ops over calendars a load just brought back.
+ *
+ * An op whose property has no entry is kept and not applied. An op recorded
+ * before load `loadSeq` started is dropped and not applied: that load read the
+ * server after the change and already shows it. Every other op is applied and
+ * kept, since the load may have read the server before it.
+ *
+ * Neither argument is mutated. When nothing changes the input map itself
+ * comes back.
+ */
+export function reconcilePendingEventOps(
+  calendars: Map<string, HostCalendarData>,
+  ops: PendingEventOp[],
+  loadSeq: number,
+): { calendars: Map<string, HostCalendarData>; stillPending: PendingEventOp[] } {
+  let next = calendars;
+  const stillPending: PendingEventOp[] = [];
+
+  ops.forEach((op) => {
+    if (!calendars.has(pendingOpPropertyId(op))) {
+      stillPending.push(op);
+      return;
+    }
+    if (loadSeq > op.seq) return;
+    next = applyEventOp(next, op);
+    stillPending.push(op);
   });
+
   return { calendars: next, stillPending };
 }
 
