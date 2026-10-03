@@ -1,5 +1,5 @@
 import { ApiUser } from './api';
-import { CalendarFetchOptions, getPropertyCalendar, PropertyCalendar } from './calendar';
+import { CalendarFetchOptions, getPropertyCalendar, PropertyCalendar, type PropertyCalendarEvent } from './calendar';
 import { getAllProperties } from './storage';
 import { PricingConfig } from '../types';
 
@@ -277,6 +277,9 @@ export interface HostCalendarData {
   /** Every unavailable night: manual blocks, imports, and booked nights. What
    *  a quote has to check before it promises a guest anything. */
   blockedDates: Set<string>;
+  /** The host's own appointments. They sit alongside the stays but take no
+   *  night, so they are deliberately not in blockedDates. */
+  events: PropertyCalendarEvent[];
 }
 
 function toCalendarData(calendar: PropertyCalendar): HostCalendarData {
@@ -284,7 +287,13 @@ function toCalendarData(calendar: PropertyCalendar): HostCalendarData {
   const manual = new Set(calendar.manualBlockedDates);
   const blocked = new Set<string>([...manual, ...calendar.importedBlockedDates]);
   stays.forEach((stay) => stayNights(stay).forEach((night) => blocked.add(night)));
-  return { propertyId: calendar.propertyId, stays, manualBlockedDates: manual, blockedDates: blocked };
+  return {
+    propertyId: calendar.propertyId,
+    stays,
+    manualBlockedDates: manual,
+    blockedDates: blocked,
+    events: calendar.events ?? [],
+  };
 }
 
 /**

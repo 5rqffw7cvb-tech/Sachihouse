@@ -43,6 +43,32 @@ export interface ImportedCalendarEvent {
   guestCount: number | null;
 }
 
+// A host's own appointment or task on a property's calendar. It never blocks
+// a night, so it stays out of blockedDates and the .ics export. `note` is
+// always a string ('' when empty); `date` is YYYY-MM-DD, times are HH:mm.
+export interface PropertyCalendarEvent {
+  id: string;
+  propertyId: string;
+  title: string;
+  note: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// The property travels on the URL, not in the body.
+export interface PropertyCalendarEventInput {
+  title: string;
+  note?: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
+export type PropertyCalendarEventPatch = Partial<PropertyCalendarEventInput>;
+
 export interface PropertyCalendar {
   propertyId: string;
   propertyName: string;
@@ -59,6 +85,9 @@ export interface PropertyCalendar {
   directBookings: DirectBooking[];
   icalFeeds: ICalFeed[];
   exportUrl: string;
+  // Host appointments. Optional because an older backend may not send it, and
+  // the server only returns a JST window of -90/+365 days. Read with `?? []`.
+  events?: PropertyCalendarEvent[];
 }
 
 /** Whether to make the server pull the iCal feeds before it answers.
@@ -102,6 +131,34 @@ export async function removeBlockedDates(propertyId: string, dates: string[]): P
     body: JSON.stringify({ dates }),
   });
   return res.manualBlockedDates;
+}
+
+export async function createCalendarEvent(
+  propertyId: string,
+  input: PropertyCalendarEventInput,
+): Promise<PropertyCalendarEvent> {
+  const res = await apiRequest<{ event: PropertyCalendarEvent }>(`/properties/${propertyId}/events`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return res.event;
+}
+
+// Note the route prefix: an event is addressed by its own id once it exists,
+// not under the property it was created on.
+export async function updateCalendarEvent(
+  eventId: string,
+  patch: PropertyCalendarEventPatch,
+): Promise<PropertyCalendarEvent> {
+  const res = await apiRequest<{ event: PropertyCalendarEvent }>(`/calendar-events/${eventId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+  return res.event;
+}
+
+export async function deleteCalendarEvent(eventId: string): Promise<void> {
+  await apiRequest<void>(`/calendar-events/${eventId}`, { method: 'DELETE' });
 }
 
 export async function updateIcalFeeds(propertyId: string, feeds: ICalFeed[]): Promise<ICalFeed[]> {

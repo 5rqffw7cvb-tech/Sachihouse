@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PropertyCalendar } from './calendar';
+import { PropertyCalendar, type PropertyCalendarEvent } from './calendar';
 
 const getPropertyCalendar = vi.fn<(id: string) => Promise<PropertyCalendar>>();
 vi.mock('./calendar', () => ({ getPropertyCalendar: (id: string) => getPropertyCalendar(id) }));
@@ -89,5 +89,54 @@ describe('loading every property calendar', () => {
     expect(delivered.get('a')).toEqual(['2026-09-02']);
     expect(delivered.get('b')).toEqual(['2026-09-04']);
     expect(result.stays).toHaveLength(2);
+  });
+});
+
+describe('host calendar events in loadCalendars', () => {
+  const event: PropertyCalendarEvent = {
+    id: 'e1',
+    propertyId: 'a',
+    title: 'Plumber visit',
+    note: '',
+    date: '2026-10-20',
+    startTime: '10:00',
+    endTime: '11:30',
+    createdAt: 1,
+    updatedAt: 1,
+  };
+
+  it('carries the events the server sent through to the calendar data', async () => {
+    getPropertyCalendar.mockImplementation(async (id) => ({ ...calendar(id, '2026-09-02'), events: [event] }));
+
+    const result = await loadCalendars(['a']);
+
+    expect(result.failedPropertyIds).toEqual([]);
+    expect(result.calendars.get('a')!.events).toEqual([event]);
+  });
+
+  it('falls back to an empty list when an older backend sends no events', async () => {
+    getPropertyCalendar.mockImplementation(async (id) => calendar(id, '2026-09-02'));
+
+    const result = await loadCalendars(['a']);
+
+    expect(result.calendars.get('a')!.events).toEqual([]);
+  });
+
+  it('never lets an event block a night or change the stays', async () => {
+    getPropertyCalendar.mockImplementation(async (id) => (
+      id === 'with'
+        ? { ...calendar(id, '2026-09-02'), events: [{ ...event, propertyId: id }] }
+        : calendar(id, '2026-09-02')
+    ));
+
+    const result = await loadCalendars(['with', 'without']);
+    const withEvents = result.calendars.get('with')!;
+    const withoutEvents = result.calendars.get('without')!;
+
+    expect(withEvents.events).toHaveLength(1);
+    expect(withEvents.manualBlockedDates).toEqual(withoutEvents.manualBlockedDates);
+    expect(withEvents.blockedDates).toEqual(withoutEvents.blockedDates);
+    expect(withEvents.blockedDates.has('2026-10-20')).toBe(false);
+    expect(withEvents.stays).toHaveLength(withoutEvents.stays.length);
   });
 });

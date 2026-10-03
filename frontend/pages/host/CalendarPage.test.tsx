@@ -71,6 +71,7 @@ function renderWith(stays: HostStay[], manualBlockedDates: string[] = []) {
     stays,
     manualBlockedDates: new Set(manualBlockedDates),
     blockedDates: new Set(manualBlockedDates),
+    events: [],
   };
   loadCalendars.mockImplementation(async (_ids, onProperty) => {
     (onProperty as ((id: string, d: HostCalendarData) => void) | undefined)?.('s01', data);
