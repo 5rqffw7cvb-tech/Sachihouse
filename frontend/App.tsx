@@ -48,6 +48,7 @@ const HostStaysPage = lazy(() => import('./pages/host/StaysPage'));
 const HostAppCalendarPage = lazy(() => import('./pages/host/CalendarPage'));
 const HostCheckInsPage = lazy(() => import('./pages/host/CheckInsPage'));
 const HostReceiptPage = lazy(() => import('./pages/host/ReceiptPage'));
+const HostFinancePage = lazy(() => import('./pages/host/FinancePage'));
 const HostAccountPage = lazy(() => import('./pages/host/AccountPage'));
 
 const HostAppFallback = (
@@ -654,6 +655,7 @@ const App: React.FC = () => {
                             <Route path="calendar" element={<HostAppCalendarPage />} />
                             <Route path="checkins" element={<HostCheckInsPage />} />
                             <Route path="receipt" element={<HostReceiptPage />} />
+                            <Route path="finance" element={<HostFinancePage />} />
                             <Route path="account" element={<HostAccountPage />} />
                             <Route path="*" element={<Navigate to="/app" replace />} />
                         </Route>

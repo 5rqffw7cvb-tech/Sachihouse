@@ -1,11 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { BedDouble, CalendarDays, ClipboardCheck, Receipt, User } from 'lucide-react';
+import { BedDouble, CalendarDays, ClipboardCheck, Receipt, User, Wallet } from 'lucide-react';
 import { ApiUser } from '../../services/api';
 import { AdminAccess, hasAccess } from '../../services/permissions';
 
 /**
- * The host app's only navigation. Five destinations, always on screen — the
+ * The host app's only navigation. Up to six destinations, always on screen — the
  * console's MobileBottomNav hides half its entries behind an account dropdown,
  * which is the thing that made hosts stop using it on a phone.
  *
@@ -30,14 +30,15 @@ const TABS: Tab[] = [
   { to: '/app/calendar', label: 'Calendar', Icon: CalendarDays },
   { to: '/app/checkins', label: 'Check-in', Icon: ClipboardCheck, access: 'checkins' },
   { to: '/app/receipt', label: 'Receipt', Icon: Receipt, access: 'finance' },
+  { to: '/app/finance', label: 'Finance', Icon: Wallet, access: 'finance' },
   { to: '/app/account', label: 'Account', Icon: User },
 ];
 
 export const HostTabBar: React.FC<{ user: ApiUser | null }> = ({ user }) => {
-  // A host below level 4 has no finance access and one below level 3 no
-  // check-in access, so the bar is four or three wide for them. Rendering the
-  // tab and letting the page refuse would be a nav that lies about where it
-  // can go.
+  // Admins and level-4 hosts get all six. A host below level 4 has no finance
+  // access (Receipt and Finance) and one below level 3 no check-in access, so
+  // the bar is four or three wide for them. Rendering the tab and letting the
+  // page refuse would be a nav that lies about where it can go.
   const tabs = TABS.filter((tab) => !tab.access || hasAccess(user, tab.access));
 
   return (
@@ -65,7 +66,7 @@ export const HostTabBar: React.FC<{ user: ApiUser | null }> = ({ user }) => {
             <>
               <Icon className="w-[22px] h-[22px]" />
               <span
-                className={`font-['Plus_Jakarta_Sans'] text-[10px] leading-none tracking-[0.01em] ${
+                className={`max-w-full truncate font-['Plus_Jakarta_Sans'] text-[10px] leading-none tracking-[0.01em] ${
                   isActive ? 'font-bold' : 'font-medium'
                 }`}
               >
