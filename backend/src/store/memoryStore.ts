@@ -1186,6 +1186,11 @@ export class MemoryStore implements DataStore {
     return structuredClone(txns.sort((a, b) => a.transactionDate.localeCompare(b.transactionDate)));
   }
 
+  async getFinancialTransaction(id: string): Promise<FinancialTransaction | null> {
+    const found = this.assertState().financialTransactions.find((t) => t.id === id);
+    return found ? structuredClone(found) : null;
+  }
+
   async createFinancialTransaction(input: FinancialTransactionInput, _actor: AuthUser): Promise<FinancialTransaction> {
     const state = this.assertState();
     const now = Date.now();

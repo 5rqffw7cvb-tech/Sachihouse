@@ -15,6 +15,10 @@ async function login(email = 'admin@sachihouse.com', password = 'admin123'): Pro
 
 /** A level-4 host with finance access, assigned to no property. */
 async function outsiderToken(): Promise<string> {
+  return (await outsider()).token;
+}
+
+async function outsider(): Promise<{ token: string; userId: number }> {
   const admin = await login();
   const created = await request(app)
     .post('/api/users')
@@ -27,7 +31,22 @@ async function outsiderToken(): Promise<string> {
     .set({ Authorization: `Bearer ${admin}` })
     .send({ level: 4 })
     .expect(200);
-  return login('mainhost@example.com', 'password123');
+  return { token: await login('mainhost@example.com', 'password123'), userId };
+}
+
+async function assignHost(adminToken: string, propertyId: string, userId: number) {
+  await request(app)
+    .post(`/api/properties/${propertyId}/hosts/${userId}`)
+    .set({ Authorization: `Bearer ${adminToken}` })
+    .expect(204);
+}
+
+async function listIds(adminToken: string, propertyId: string): Promise<string[]> {
+  const res = await request(app)
+    .get(`/api/finance/transactions?propertyIds=${propertyId}`)
+    .set({ Authorization: `Bearer ${adminToken}` })
+    .expect(200);
+  return res.body.map((t: { id: string }) => t.id);
 }
 
 async function createTxn(token: string, propertyId = 'main') {
@@ -111,5 +130,104 @@ describe('PUT /api/finance/transactions/:id — moving a transaction to another 
       .set({ Authorization: `Bearer ${host}` })
       .send({ propertyId: 'list_shin' })
       .expect(403);
+  });
+});
+
+describe('PUT/DELETE /api/finance/transactions/:id — ownership of the existing row', () => {
+  it('answers 404 when an admin edits a transaction that does not exist', async () => {
+    const admin = await login();
+    const res = await request(app)
+      .put('/api/finance/transactions/does-not-exist')
+      .set({ Authorization: `Bearer ${admin}` })
+      .send({ description: 'Ghost' })
+      .expect(404);
+    expect(res.body).toEqual({ error: 'Transaction not found.' });
+  });
+
+  it('answers 404 when an admin deletes a transaction that does not exist', async () => {
+    const admin = await login();
+    const res = await request(app)
+      .delete('/api/finance/transactions/does-not-exist')
+      .set({ Authorization: `Bearer ${admin}` })
+      .expect(404);
+    expect(res.body).toEqual({ error: 'Transaction not found.' });
+  });
+
+  it('rejects an unassigned host editing a transaction of another property, leaving it unchanged', async () => {
+    const admin = await login();
+    const txn = await createTxn(admin, 'main');
+    const host = await outsiderToken();
+
+    const res = await request(app)
+      .put(`/api/finance/transactions/${txn.id}`)
+      .set({ Authorization: `Bearer ${host}` })
+      .send({ description: 'Hacked' })
+      .expect(403);
+    expect(res.body).toEqual({ error: 'Access denied to this property.' });
+
+    const list = await request(app)
+      .get('/api/finance/transactions?propertyIds=main')
+      .set({ Authorization: `Bearer ${admin}` })
+      .expect(200);
+    const row = list.body.find((t: { id: string }) => t.id === txn.id);
+    expect(row).toBeDefined();
+    expect(row.description).toBe('Towels');
+  });
+
+  it('rejects an unassigned host deleting a transaction of another property, leaving it in place', async () => {
+    const admin = await login();
+    const txn = await createTxn(admin, 'main');
+    const host = await outsiderToken();
+
+    const res = await request(app)
+      .delete(`/api/finance/transactions/${txn.id}`)
+      .set({ Authorization: `Bearer ${host}` })
+      .expect(403);
+    expect(res.body).toEqual({ error: 'Access denied to this property.' });
+    expect(await listIds(admin, 'main')).toContain(txn.id);
+  });
+
+  it('lets a host assigned to the property edit its transaction', async () => {
+    const admin = await login();
+    const txn = await createTxn(admin, 'main');
+    const { token, userId } = await outsider();
+    await assignHost(admin, 'main', userId);
+
+    const res = await request(app)
+      .put(`/api/finance/transactions/${txn.id}`)
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ description: 'Edited' })
+      .expect(200);
+    expect(res.body.description).toBe('Edited');
+    expect(res.body.propertyId).toBe('main');
+  });
+
+  it('rejects a host assigned to the source property moving the transaction to an unassigned one', async () => {
+    const admin = await login();
+    const txn = await createTxn(admin, 'main');
+    const { token, userId } = await outsider();
+    await assignHost(admin, 'main', userId);
+
+    const res = await request(app)
+      .put(`/api/finance/transactions/${txn.id}`)
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ propertyId: 'list_shin' })
+      .expect(403);
+    expect(res.body).toEqual({ error: 'Access denied to the target property.' });
+    expect(await listIds(admin, 'main')).toContain(txn.id);
+    expect(await listIds(admin, 'list_shin')).not.toContain(txn.id);
+  });
+
+  it('lets a host assigned to the property delete its transaction', async () => {
+    const admin = await login();
+    const txn = await createTxn(admin, 'main');
+    const { token, userId } = await outsider();
+    await assignHost(admin, 'main', userId);
+
+    await request(app)
+      .delete(`/api/finance/transactions/${txn.id}`)
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(204);
+    expect(await listIds(admin, 'main')).not.toContain(txn.id);
   });
 });

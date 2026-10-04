@@ -1026,6 +1026,9 @@ export interface DataStore {
   // Looks up the booking a Checkout Session belongs to.
   getBookingByStripeSessionId(sessionId: string): Promise<Booking | null>;
   listFinancialTransactions(propertyIds: string[], year?: number): Promise<FinancialTransaction[]>;
+  // One row by id, whatever property it belongs to. The edit/delete routes use
+  // it to learn whose it is before letting the caller touch it.
+  getFinancialTransaction(id: string): Promise<FinancialTransaction | null>;
   createFinancialTransaction(input: FinancialTransactionInput, actor: AuthUser): Promise<FinancialTransaction>;
   updateFinancialTransaction(id: string, input: Partial<FinancialTransactionInput>, actor: AuthUser): Promise<FinancialTransaction>;
   deleteFinancialTransaction(id: string, actor: AuthUser): Promise<FinancialTransaction | null>;

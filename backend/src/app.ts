@@ -4975,11 +4975,22 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return res.status(201).json(txn);
   });
 
+  // Finance access is a level, not a scope: without loading the row first, a
+  // host could edit or delete another property's journal entry just by knowing
+  // its id. These answer 403 for someone else's row (unlike the pending routes,
+  // which answer 404) by choice.
   // PUT /api/finance/transactions/:id — update transaction
   app.put('/api/finance/transactions/:id', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
     const id = req.params.id as string;
     const { propertyId, transactionNo, transactionDate, debitAccount, debitAmount, creditAccount, creditAmount, description, receiptUrl } = req.body;
+    const existing = await store.getFinancialTransaction(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Transaction not found.' });
+    }
+    if (actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(existing.propertyId)) {
+      return res.status(403).json({ error: 'Access denied to this property.' });
+    }
     if (propertyId !== undefined && actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(propertyId)) {
       return res.status(403).json({ error: 'Access denied to the target property.' });
     }
@@ -5001,7 +5012,15 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
   // DELETE /api/finance/transactions/:id
   app.delete('/api/finance/transactions/:id', requireFinanceAccess, async (req, res) => {
     const actor = req.authUser!;
-    const deleted = await store.deleteFinancialTransaction(req.params.id as string, actor);
+    const id = req.params.id as string;
+    const existing = await store.getFinancialTransaction(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Transaction not found.' });
+    }
+    if (actor.role !== 'ADMIN' && !actor.assignedPropertyIds.includes(existing.propertyId)) {
+      return res.status(403).json({ error: 'Access denied to this property.' });
+    }
+    const deleted = await store.deleteFinancialTransaction(id, actor);
     // Also remove the receipt image from object storage (best-effort).
     if (deleted?.receiptUrl) {
       objectStorage.deleteEvidenceObject(deleted.receiptUrl).catch((err) => {

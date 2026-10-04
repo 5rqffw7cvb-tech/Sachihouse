@@ -2154,6 +2154,11 @@ export class PostgresStore implements DataStore {
     return result.rows.map((row: Parameters<typeof this.mapFinancialTransaction>[0]) => this.mapFinancialTransaction(row));
   }
 
+  async getFinancialTransaction(id: string): Promise<FinancialTransaction | null> {
+    const result = await this.pool.query('SELECT * FROM financial_transactions WHERE id = $1', [id]);
+    return result.rows[0] ? this.mapFinancialTransaction(result.rows[0]) : null;
+  }
+
   async createFinancialTransaction(input: FinancialTransactionInput, actor: AuthUser): Promise<FinancialTransaction> {
     const now = Date.now();
     const result = await this.pool.query(
