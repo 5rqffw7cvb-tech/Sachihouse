@@ -24,7 +24,7 @@ interface JournalProps {
 type SortDirection = 'asc' | 'desc';
 interface SortConfig { key: string; direction: SortDirection; }
 
-type EditingEntry = Partial<JournalEntry> & { _dbId?: string; receiptUrl?: string };
+type EditingEntry = Partial<JournalEntry> & { _dbId?: string; receiptUrl?: string; _targetPropertyId?: string };
 
 // Per-column width hints so the fixed-layout table distributes space sensibly
 // (摘要 takes the remaining space). Keeps the table within the container — never scrolls.
@@ -303,7 +303,7 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
   const openEditModal = (entry: JournalEntry) => {
     const isRevenue = ACCOUNT_TYPE_MAP[entry.creditAccount] === AccountType.Revenue;
     setTransactionType(isRevenue ? 'revenue' : 'expense');
-    setEditingEntry({ ...entry, _dbId: entry.rawData['_id'] || undefined, receiptUrl: entry.rawData['証憑'] || "" });
+    setEditingEntry({ ...entry, _dbId: entry.rawData['_id'] || undefined, receiptUrl: entry.rawData['証憑'] || "", _targetPropertyId: entry.rawData['_propertyId'] || propertyId });
     setReceiptOcr(null);
     setIsModalOpen(true);
   };
@@ -355,8 +355,8 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
     try {
       const dbId = editingEntry._dbId || editingEntry.rawData?.['_id'];
       const dateValue = (editingEntry.date || '').replace(/\//g, '-');
-      // Existing entries keep their own property; new entries go to the chosen write target.
-      const targetPropertyId = dbId ? (editingEntry.rawData?.['_propertyId'] || propertyId) : writeTargetId;
+      // Existing entries use the property chosen in the modal; new entries go to the chosen write target.
+      const targetPropertyId = dbId ? (editingEntry._targetPropertyId || editingEntry.rawData?.['_propertyId'] || propertyId) : writeTargetId;
       const payload = {
         propertyId: targetPropertyId,
         transactionNo: editingEntry.id || '',
@@ -384,7 +384,7 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
 
   const handleReceiptUpload = async (file: File) => {
     const dbId = editingEntry?._dbId || editingEntry?.rawData?.['_id'];
-    const uploadPropertyId = dbId ? (editingEntry?.rawData?.['_propertyId'] || propertyId) : writeTargetId;
+    const uploadPropertyId = dbId ? (editingEntry?._targetPropertyId || editingEntry?.rawData?.['_propertyId'] || propertyId) : writeTargetId;
     if (!uploadPropertyId) return;
     setIsUploadingReceipt(true);
     try {
@@ -805,6 +805,18 @@ const Journal: React.FC<JournalProps> = ({ report: initialReport, propertyId, pr
                       className="px-2 py-1 bg-white border border-rose-300 rounded-lg text-[11px] font-bold text-[#1b1c1d] outline-none focus:ring-1 focus:ring-rose-400"
                     >
                       {writeTargetOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    </select>
+                  </div>
+                ) : editingEntry?._dbId && (allProperties?.length ?? 0) > 0 ? (
+                  /* Existing entry → allow moving it to another property. */
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-[#74777d]">プロパティ:</span>
+                    <select
+                      value={editingEntry._targetPropertyId || ''}
+                      onChange={e => setEditingEntry(prev => ({ ...prev, _targetPropertyId: e.target.value }))}
+                      className="px-2 py-1 bg-white border border-[#ccc9ca] rounded-lg text-[11px] font-bold text-[#1b1c1d] outline-none focus:ring-1 focus:ring-blue-400"
+                    >
+                      {(allProperties ?? []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                 ) : (
