@@ -791,7 +791,7 @@ const CheckInPage: React.FC<CheckInPageProps> = ({ data, propertyId }) => {
       const backendMessage = error instanceof ApiError ? error.message : '';
       const message = backendMessage.toLowerCase().includes('too large')
         ? t('checkin_err_photo_too_large')
-        : error instanceof ApiError
+        : error instanceof ApiError && error.status < 500
         ? error.message
         : error instanceof Error && CHECKIN_IMG_ERR_KEYS[error.message]
           ? t(CHECKIN_IMG_ERR_KEYS[error.message])

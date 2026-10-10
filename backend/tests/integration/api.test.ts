@@ -1,6 +1,7 @@
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app.js';
+import { IdOcrUnavailableError, IdProcessingService } from '../../src/services/idProcessing.js';
 import { MemoryStore } from '../../src/store/memoryStore.js';
 
 let app: ReturnType<typeof createApp>;
@@ -777,5 +778,82 @@ describe('API integration', () => {
       .get('/api/checkins')
       .set('Authorization', `Bearer ${guestToken}`)
       .expect(403);
+  });
+});
+
+describe('POST /api/properties/:id/checkins/ocr when the OCR service fails', () => {
+  const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5iN2sAAAAASUVORK5CYII=';
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('answers 503 with a guest-safe message when OCR is unavailable', async () => {
+    const spy = vi.spyOn(IdProcessingService.prototype, 'processIdDocument')
+      .mockRejectedValue(new IdOcrUnavailableError());
+
+    const started = await request(app)
+      .post('/api/properties/main/checkins/start')
+      .expect(201);
+
+    const response = await request(app)
+      .post('/api/properties/main/checkins/ocr')
+      .send({ imageBase64: tinyPng, guestId: 'guest_503', checkinToken: started.body.checkinToken })
+      .expect(503);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(response.body).toEqual({
+      error: 'We could not read this document. Please try again with a clearer photo.',
+    });
+    expect(response.text).not.toMatch(/gemini/i);
+  });
+
+  it('keeps the internal reason out of the 503 body even when the error carries one', async () => {
+    vi.spyOn(IdProcessingService.prototype, 'processIdDocument')
+      .mockRejectedValue(new IdOcrUnavailableError('Gemini returned no JSON payload.'));
+
+    const started = await request(app)
+      .post('/api/properties/main/checkins/start')
+      .expect(201);
+
+    const response = await request(app)
+      .post('/api/properties/main/checkins/ocr')
+      .send({ imageBase64: tinyPng, guestId: 'guest_503b', checkinToken: started.body.checkinToken })
+      .expect(503);
+
+    expect(response.body.error).toBe('We could not read this document. Please try again with a clearer photo.');
+    expect(response.text).not.toMatch(/gemini/i);
+    expect(response.text).not.toContain('JSON payload');
+  });
+
+  it('does not turn other OCR errors into the 503 answer', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(IdProcessingService.prototype, 'processIdDocument')
+      .mockRejectedValue(new Error('Gemini API key is not configured.'));
+
+    const started = await request(app)
+      .post('/api/properties/main/checkins/start')
+      .expect(201);
+
+    const response = await request(app)
+      .post('/api/properties/main/checkins/ocr')
+      .send({ imageBase64: tinyPng, guestId: 'guest_500', checkinToken: started.body.checkinToken });
+
+    expect(response.status).not.toBe(503);
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(response.body.error).not.toBe('We could not read this document. Please try again with a clearer photo.');
+  });
+
+  it('still answers 201 when the service succeeds', async () => {
+    const started = await request(app)
+      .post('/api/properties/main/checkins/start')
+      .expect(201);
+
+    const response = await request(app)
+      .post('/api/properties/main/checkins/ocr')
+      .send({ imageBase64: tinyPng, guestId: 'guest_ok', checkinToken: started.body.checkinToken })
+      .expect(201);
+
+    expect(response.body.guest.id).toBe('guest_ok');
   });
 });

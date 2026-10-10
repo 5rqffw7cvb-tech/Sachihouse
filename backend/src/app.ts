@@ -66,7 +66,7 @@ import {
   yearsOf,
 } from './domain/receiptDuplicates.js';
 import { buildPropertyIcs } from './services/icsExport.js';
-import { IdProcessingService } from './services/idProcessing.js';
+import { IdOcrUnavailableError, IdProcessingService } from './services/idProcessing.js';
 import { ObjectStorageService } from './services/objectStorage.js';
 import { ReceiptProcessingService } from './services/receiptProcessing.js';
 import { TranslationService } from './services/translationService.js';
@@ -3489,7 +3489,15 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     // Deferred upload: do NOT push to GCS here. The image stays on the client as a
     // local data URI and is compressed + uploaded only when the guest confirms (submit).
     // This keeps each scan fast (OCR only, no storage round-trip).
-    const ai = await idProcessing.processIdDocument(compressed.buffer.toString('base64'), compressed.mimeType);
+    let ai: Awaited<ReturnType<typeof idProcessing.processIdDocument>>;
+    try {
+      ai = await idProcessing.processIdDocument(compressed.buffer.toString('base64'), compressed.mimeType);
+    } catch (error) {
+      if (error instanceof IdOcrUnavailableError) {
+        return res.status(503).json({ error: 'We could not read this document. Please try again with a clearer photo.' });
+      }
+      throw error;
+    }
     if (!ai.isIdDocument) {
       return res.status(422).json({
         error: ai.rejectionReason || 'Uploaded image is not a supported ID document.',

@@ -40,6 +40,8 @@ vi.mock('../utils/checkinPhotoStore', () => ({
 }));
 
 const { default: CheckInPage } = await import('./CheckInPage');
+const { ocrGuestDocument } = await import('../services/checkin');
+const { ApiError } = await import('../services/api');
 
 const property = {
   id: 's01',
@@ -207,5 +209,114 @@ describe('CheckInPage stay dates', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Check-out' }).textContent).toBe(before);
+  });
+});
+
+describe('CheckInPage document scan errors', () => {
+  const GENERIC = 'Unable to process this image. Please upload a clear government-issued ID.';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // jsdom never decodes an image, so `new Image()` would neither load nor
+    // fail and the page would wait on it forever. Failing the decode sends the
+    // page down its own fallback: a small JPEG is passed to the OCR call as is.
+    vi.stubGlobal('Image', class {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        queueMicrotask(() => this.onerror?.());
+      }
+    });
+    if (typeof URL.createObjectURL !== 'function') {
+      URL.createObjectURL = () => 'blob:test';
+    }
+    if (typeof URL.revokeObjectURL !== 'function') {
+      URL.revokeObjectURL = () => {};
+    }
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** Renders the form as a visitor from abroad, the only path that scans an ID. */
+  async function renderForeignForm() {
+    const view = render(
+      <MemoryRouter>
+        <LanguageProvider>
+          <CheckInPage data={property} propertyId="s01" />
+        </LanguageProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: "No, I'm visiting from abroad" }));
+    await screen.findByRole('button', { name: 'Check-in' });
+    // The upload input stays disabled until the check-in session has a token.
+    await waitFor(() => {
+      const input = view.container.querySelector('input[type="file"]') as HTMLInputElement | null;
+      expect(input).not.toBeNull();
+      expect(input).not.toBeDisabled();
+    });
+    return view;
+  }
+
+  function uploadId(container: HTMLElement) {
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File([new Uint8Array([1, 2, 3, 4])], 'passport.jpg', { type: 'image/jpeg' });
+    fireEvent.change(input, { target: { files: [file] } });
+  }
+
+  it('shows the translated generic message, not the server one, on a 503', async () => {
+    const serverMessage = 'We could not read this document. Please try again with a clearer photo.';
+    vi.mocked(ocrGuestDocument).mockRejectedValue(new ApiError(serverMessage, 503));
+
+    const { container } = await renderForeignForm();
+    uploadId(container);
+
+    expect(await screen.findByText(GENERIC)).toBeInTheDocument();
+    expect(ocrGuestDocument).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(serverMessage)).not.toBeInTheDocument();
+  });
+
+  it('hides an internal 500 message such as the old Gemini one', async () => {
+    vi.mocked(ocrGuestDocument).mockRejectedValue(new ApiError('Gemini returned no JSON payload.', 500));
+
+    const { container } = await renderForeignForm();
+    uploadId(container);
+
+    expect(await screen.findByText(GENERIC)).toBeInTheDocument();
+    expect(screen.queryByText(/gemini/i)).not.toBeInTheDocument();
+  });
+
+  it('still shows the server message on a 4xx', async () => {
+    const serverMessage = 'Uploaded image is not a supported ID document.';
+    vi.mocked(ocrGuestDocument).mockRejectedValue(new ApiError(serverMessage, 422));
+
+    const { container } = await renderForeignForm();
+    uploadId(container);
+
+    expect(await screen.findByText(serverMessage)).toBeInTheDocument();
+    expect(screen.queryByText(GENERIC)).not.toBeInTheDocument();
+  });
+
+  it('still shows the rate-limit message on a 429', async () => {
+    const serverMessage = 'Too many OCR requests. Please try again later.';
+    vi.mocked(ocrGuestDocument).mockRejectedValue(new ApiError(serverMessage, 429));
+
+    const { container } = await renderForeignForm();
+    uploadId(container);
+
+    expect(await screen.findByText(serverMessage)).toBeInTheDocument();
+    expect(screen.queryByText(GENERIC)).not.toBeInTheDocument();
+  });
+
+  it('still maps a "too large" answer to its own translation', async () => {
+    vi.mocked(ocrGuestDocument).mockRejectedValue(new ApiError('Image is too large. Max 8MB.', 400));
+
+    const { container } = await renderForeignForm();
+    uploadId(container);
+
+    expect(await screen.findByText(/^Photo is too large\./)).toBeInTheDocument();
+    expect(screen.queryByText('Image is too large. Max 8MB.')).not.toBeInTheDocument();
   });
 });

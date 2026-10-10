@@ -26,6 +26,18 @@ export interface IdProcessingResult {
 }
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+// Worst case is GEMINI_MAX_ATTEMPTS * GEMINI_TIMEOUT_MS = 90s, which must stay under ~100s.
+const GEMINI_TIMEOUT_MS = 45_000;
+const GEMINI_MAX_ATTEMPTS = 2;
+const GEMINI_MAX_OUTPUT_TOKENS = 8192;
+
+// Thrown when Gemini gave no usable JSON (empty, truncated, or timed out) after all attempts.
+export class IdOcrUnavailableError extends Error {
+  constructor(message = 'ID document OCR is temporarily unavailable.') {
+    super(message);
+    this.name = 'IdOcrUnavailableError';
+  }
+}
 
 function extractJsonObject(text: string): string | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -239,52 +251,40 @@ export class IdProcessingService {
       'No explanation, no markdown.',
     ].join('\n');
 
-    const response = await fetch(`${GEMINI_URL}/${this.model}:generateContent?key=${encodeURIComponent(this.apiKey)}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: prompt },
-              {
-                inlineData: {
-                  mimeType,
-                  data: imageBase64,
-                },
+    const requestBody = JSON.stringify({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType,
+                data: imageBase64,
               },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.1,
+            },
+          ],
         },
-      }),
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: 'application/json',
+        maxOutputTokens: GEMINI_MAX_OUTPUT_TOKENS,
+        // thinkingBudget: 0 is only accepted by the 2.5 flash family; other models reject it
+        // (2.5-pro cannot disable thinking, newer models use a different field), so it is
+        // sent only when GEMINI_MODEL is one of those.
+        ...(/gemini-2\.5-flash/i.test(this.model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+      },
     });
 
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`Gemini request failed: ${response.status} ${body}`);
+    let parsed: Record<string, unknown> | null = null;
+    for (let attempt = 1; attempt <= GEMINI_MAX_ATTEMPTS && !parsed; attempt += 1) {
+      parsed = await this.requestIdJson(requestBody, attempt);
+    }
+    if (!parsed) {
+      throw new IdOcrUnavailableError();
     }
 
-    const body = await response.json() as {
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{ text?: string }>;
-        };
-      }>;
-    };
-
-    const text = body.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('\n') ?? '';
-    const jsonPayload = extractJsonObject(text);
-    if (!jsonPayload) {
-      throw new Error('Gemini returned no JSON payload.');
-    }
-
-    const parsed = JSON.parse(jsonPayload) as Record<string, unknown>;
     const isIdDocument = Boolean(parsed.isIdDocument);
     const documentType = toNormalizedDocumentType(parsed.documentType);
     const address = normalizeString(parsed.address);
@@ -326,5 +326,74 @@ export class IdProcessingService {
       },
       ocrText,
     };
+  }
+
+  // One Gemini call. Returns the parsed JSON object, or null when the call produced no usable
+  // JSON (empty, truncated/unparseable, or timed out) so the caller can retry.
+  private async requestIdJson(requestBody: string, attempt: number): Promise<Record<string, unknown> | null> {
+    let body: {
+      candidates?: Array<{
+        finishReason?: string;
+        content?: {
+          parts?: Array<{ text?: string; thought?: boolean }>;
+        };
+      }>;
+      promptFeedback?: { blockReason?: string };
+      usageMetadata?: unknown;
+    };
+
+    try {
+      const response = await fetch(`${GEMINI_URL}/${this.model}:generateContent?key=${encodeURIComponent(this.apiKey)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: requestBody,
+        signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Gemini request failed: ${response.status} ${errorBody}`);
+      }
+
+      body = await response.json() as typeof body;
+    } catch (error) {
+      const name = error instanceof Error ? error.name : '';
+      if (name !== 'TimeoutError' && name !== 'AbortError') {
+        throw error;
+      }
+      console.error(`[Gemini ID OCR] attempt ${attempt}/${GEMINI_MAX_ATTEMPTS} timed out after ${GEMINI_TIMEOUT_MS}ms`);
+      return null;
+    }
+
+    // Thinking models return thought parts alongside the actual output; skip them.
+    const text = body.candidates?.[0]?.content?.parts
+      ?.filter((part) => !part.thought)
+      .map((part) => part.text ?? '')
+      .join('\n') ?? '';
+
+    let reason = 'no JSON payload';
+    const jsonPayload = extractJsonObject(text);
+    if (jsonPayload) {
+      try {
+        const parsed: unknown = JSON.parse(jsonPayload);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+        reason = 'JSON payload is not an object';
+      } catch {
+        reason = 'invalid JSON payload';
+      }
+    }
+
+    // Never log the text itself: it is OCR output of a personal ID document.
+    console.error(`[Gemini ID OCR] attempt ${attempt}/${GEMINI_MAX_ATTEMPTS} failed: ${reason}`, JSON.stringify({
+      finishReason: body.candidates?.[0]?.finishReason ?? null,
+      blockReason: body.promptFeedback?.blockReason ?? null,
+      usageMetadata: body.usageMetadata ?? null,
+      textLength: text.length,
+    }));
+    return null;
   }
 }
