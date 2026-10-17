@@ -7,7 +7,7 @@ import {
   deleteCleaningPayout,
   listCleaningPayouts,
 } from '../../services/cleaningPayouts';
-import { copyText, HostProperty, HostStay, loadStays, nightsBetween, todayIso } from '../../services/hostApp';
+import { copyText, HostProperty, HostStay, loadStays, todayIso } from '../../services/hostApp';
 import {
   calculateCleaningPay,
   DEFAULT_CLEANING_FEE,
@@ -22,7 +22,8 @@ import {
   stayRef,
   stayWho,
 } from '../../utils/cleaningPay';
-import { fieldClass, labelClass, selectClass, sheetBackdropClass, sheetPanelClass } from './sheetControls';
+import { fieldClass, labelClass, sheetBackdropClass, sheetPanelClass } from './sheetControls';
+import { MANUAL_STAY, StayPicker } from './StayPicker';
 
 /**
  * Works out what to pay for one cleaning job and records it as paid.
@@ -38,8 +39,6 @@ export interface CleaningCalculatorSheetProps {
   properties: HostProperty[];
   onClose: () => void;
 }
-
-const MANUAL = 'manual';
 
 const YenField: React.FC<{
   label: string;
@@ -123,7 +122,7 @@ export const CleaningCalculatorSheet: React.FC<CleaningCalculatorSheetProps> = (
 
   const selectedStay = stays?.find((stay) => stayRef(stay) === selection) ?? null;
   const selectedPayout = selectedStay ? paidByRef.get(stayRef(selectedStay)) ?? null : null;
-  const isManual = selection === MANUAL;
+  const isManual = selection === MANUAL_STAY;
 
   const pay = calculateCleaningPay({ cleaningFee, isCoHost, coHostPercent, guestPayment, bonus, supplies });
   const ratePercent = `${parsePercent(coHostPercent)}%`;
@@ -250,49 +249,21 @@ export const CleaningCalculatorSheet: React.FC<CleaningCalculatorSheetProps> = (
             </div>
           )}
 
-          <label className="block">
+          <div>
             <span className={labelClass}>ゲスト / Stay</span>
-            {stays === null ? (
-              <div className={`${fieldClass} flex items-center gap-2 text-ink-muted`}>
-                <Loader2 className="w-4 h-4 animate-spin" /> Loading stays…
-              </div>
-            ) : (
-              <select
-                value={selection}
-                onChange={(event) => handleSelect(event.target.value)}
-                className={selectClass}
-              >
-                <option value="">— Choose a stay —</option>
-                {stays.map((stay) => {
-                  const ref = stayRef(stay);
-                  const paid = paidByRef.has(ref);
-                  const staying = stay.checkOutDate > today;
-                  return (
-                    <option key={stay.key} value={ref}>
-                      {`${paid ? '✓ PAID · ' : staying ? '● ' : ''}${shortDateRange(stay.checkInDate, stay.checkOutDate)} `
-                        + `${stay.propertyName} · ${stayWho(stay)}`}
-                    </option>
-                  );
-                })}
-                <option value={MANUAL}>Enter by hand (no matching stay)</option>
-              </select>
-            )}
-            <span className="block mt-1.5 text-[12px] text-ink-muted leading-snug">
-              {`Stays in the house now (●) and those that left in the last ${PAYABLE_PAST_DAYS} days.`}
+            <StayPicker
+              stays={stays}
+              paidByRef={paidByRef}
+              today={today}
+              value={selection}
+              onChange={handleSelect}
+            />
+            <span className="block mt-1.5 text-[12px] text-ink-muted leading-snug truncate">
+              {selectedStay?.summary
+                ? selectedStay.summary
+                : `In the house now, or checked out in the last ${PAYABLE_PAST_DAYS} days.`}
             </span>
-          </label>
-
-          {selectedStay && (
-            <div className="rounded-control border border-line bg-subtle px-3.5 py-3 flex flex-col gap-1 text-[13px] text-ink-soft">
-              <span className="text-[15px] font-semibold text-ink truncate">{stayWho(selectedStay)}</span>
-              <span className="truncate">{selectedStay.propertyName}</span>
-              <span>
-                {`${selectedStay.checkInDate} → ${selectedStay.checkOutDate} · `
-                  + `${nightsBetween(selectedStay.checkInDate, selectedStay.checkOutDate)} nights`}
-              </span>
-              {selectedStay.summary && <span className="truncate text-ink-muted">{selectedStay.summary}</span>}
-            </div>
-          )}
+          </div>
 
           {selectedPayout && (
             <div className="rounded-control border border-ok/20 bg-ok-tint px-3.5 py-3 flex items-start gap-2.5">
