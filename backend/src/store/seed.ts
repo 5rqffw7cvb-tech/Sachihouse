@@ -198,6 +198,47 @@ export const blogPostsSeed: BlogPost[] = [
   }
 ];
 
+/**
+ * Demo accounts with passwords published in this repository. Only the
+ * in-memory store (local runs and tests) may use them — a database that
+ * persists must never start with them.
+ */
+export const DEMO_CREDENTIALS = [
+  { email: 'admin@sachihouse.com', password: 'admin123' },
+  { email: 'host@sachihouse.com', password: 'host123' },
+];
+
+const MIN_INITIAL_ADMIN_PASSWORD_LENGTH = 12;
+
+/**
+ * The first administrator of an empty database, taken from SEED_ADMIN_EMAIL
+ * and SEED_ADMIN_PASSWORD. Returns nothing when they are unset, so a fresh
+ * database starts with no accounts rather than with a guessable one.
+ */
+export async function createInitialAdminFromEnv(): Promise<StoredUser[]> {
+  const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.SEED_ADMIN_PASSWORD ?? '';
+  if (!email || !password) return [];
+  if (password.length < MIN_INITIAL_ADMIN_PASSWORD_LENGTH) {
+    throw new Error(`SEED_ADMIN_PASSWORD must be at least ${MIN_INITIAL_ADMIN_PASSWORD_LENGTH} characters.`);
+  }
+  if (DEMO_CREDENTIALS.some((demo) => demo.password === password)) {
+    throw new Error('SEED_ADMIN_PASSWORD must not be one of the published demo passwords.');
+  }
+  return [
+    {
+      id: 1,
+      name: 'Sachi Operations Admin',
+      email,
+      role: 'ADMIN',
+      canEditBlog: true,
+      assignedPropertyIds: propertiesSeed.map((property) => property.id),
+      hostLevel: null,
+      passwordHash: await bcrypt.hash(password, 10)
+    }
+  ];
+}
+
 export async function createUserSeed(): Promise<StoredUser[]> {
   return [
     {

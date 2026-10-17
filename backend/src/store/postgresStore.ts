@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import { randomBytes } from 'node:crypto';
-import { blogPostsSeed, blockedDatesSeed, createUserSeed, propertiesSeed, siteSettingsSeed } from './seed.js';
+import { blogPostsSeed, blockedDatesSeed, createInitialAdminFromEnv, DEMO_CREDENTIALS, propertiesSeed, siteSettingsSeed } from './seed.js';
 import {
   ACTIVE_BOOKING_STATUSES,
   AuthUser,
@@ -453,10 +453,20 @@ export class PostgresStore implements DataStore {
 
     const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
     if (existing.rows[0]?.count !== '0') {
+      await this.warnAboutDemoAccounts();
       return;
     }
 
-    const users = await createUserSeed();
+    // Never the demo accounts: their passwords are in the repository. The
+    // first admin comes from SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD, or not
+    // at all.
+    const users = await createInitialAdminFromEnv();
+    if (users.length === 0) {
+      console.warn(
+        'Database has no users and SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD are not set; '
+        + 'no account was created. Set them and restart to create the first admin.',
+      );
+    }
     for (const user of users) {
       await this.pool.query(
         'INSERT INTO users (id, name, email, role, password_hash) VALUES ($1, $2, $3, $4, $5)',
@@ -505,6 +515,28 @@ export class PostgresStore implements DataStore {
         await this.pool.query(
           'INSERT INTO property_assignments (host_user_id, property_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
           [host.id, propertyId],
+        );
+      }
+    }
+  }
+
+  /**
+   * Databases created before the demo accounts were taken out of the Postgres
+   * seed may still hold them. Deleting a live account at boot could lock the
+   * owner out, so this only says so, loudly, on every start until fixed.
+   */
+  private async warnAboutDemoAccounts(): Promise<void> {
+    const result = await this.pool.query<{ email: string; password_hash: string }>(
+      'SELECT email, password_hash FROM users WHERE lower(email) = ANY($1::text[]) AND archived_at IS NULL',
+      [DEMO_CREDENTIALS.map((demo) => demo.email)],
+    );
+    const bcrypt = await import('bcryptjs');
+    for (const row of result.rows) {
+      const demo = DEMO_CREDENTIALS.find((entry) => entry.email === row.email.toLowerCase());
+      if (demo && await bcrypt.default.compare(demo.password, row.password_hash)) {
+        console.warn(
+          `SECURITY: account ${row.email} still has its published demo password. `
+          + 'Change its password or archive it.',
         );
       }
     }

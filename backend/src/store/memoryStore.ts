@@ -92,6 +92,11 @@ export class MemoryStore implements DataStore {
       return;
     }
 
+    // The seed below signs in with passwords published in this repository.
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('STORE_MODE=memory is for local runs and tests; it cannot run with NODE_ENV=production.');
+    }
+
     this.state = {
       users: await createUserSeed(),
       properties: structuredClone(propertiesSeed),

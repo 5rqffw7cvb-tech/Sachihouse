@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import cron from 'node-cron';
 import { createApp } from './app.js';
+import { assertJwtSecretConfigured } from './auth/jwt.js';
 import { loadEnvironment } from './env.js';
 import { ObjectStorageService } from './services/objectStorage.js';
 import { CheckInSubmission } from './store/types.js';
@@ -28,6 +29,8 @@ async function purgeExpiredCheckIns(params: {
 }
 
 async function main() {
+  assertJwtSecretConfigured();
+
   const store = STORE_MODE === 'memory'
     ? new MemoryStore()
     : new PostgresStore(new Pool({ connectionString: process.env.DATABASE_URL }));

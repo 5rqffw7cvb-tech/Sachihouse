@@ -1,7 +1,39 @@
 import jwt from 'jsonwebtoken';
 import { AuthUser } from '../store/types.js';
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret-change-me';
+// Only development and test runs may fall back to a known secret. Anywhere
+// else a missing JWT_SECRET would mean signing sessions with a string that is
+// published in this repository, so the server refuses instead.
+const DEV_FALLBACK_SECRET = 'dev-secret-change-me';
+const FALLBACK_ALLOWED_ENVS = new Set(['development', 'test']);
+
+let cachedSecret: string | null = null;
+
+// Read on first use rather than at import: index.ts loads .env after its
+// imports are evaluated, so a module-level read would miss a local .env.
+function jwtSecret(): string {
+  if (cachedSecret) return cachedSecret;
+  const configured = process.env.JWT_SECRET?.trim();
+  if (configured) {
+    if (configured.length < 32) {
+      console.warn('JWT_SECRET is shorter than 32 characters; use a long random value.');
+    }
+    cachedSecret = configured;
+  } else if (FALLBACK_ALLOWED_ENVS.has(process.env.NODE_ENV ?? '')) {
+    cachedSecret = DEV_FALLBACK_SECRET;
+  } else {
+    throw new Error(
+      'JWT_SECRET is not set. Set it in the environment (or backend/.env for local runs, '
+      + 'or NODE_ENV=development to use the insecure dev secret).',
+    );
+  }
+  return cachedSecret;
+}
+
+/** Fails fast at startup instead of on the first sign-in. */
+export function assertJwtSecretConfigured(): void {
+  jwtSecret();
+}
 
 const HOUR = 60 * 60;
 const DAY = 24 * HOUR;
@@ -54,13 +86,13 @@ export function signToken(user: AuthUser, remember = false): string {
     ...(remember ? { rem: 1 as const } : {}),
   };
 
-  return jwt.sign(payload, JWT_SECRET, {
+  return jwt.sign(payload, jwtSecret(), {
     expiresIn: remember ? REMEMBERED_SESSION_TTL_SECONDS : SESSION_TTL_SECONDS,
   });
 }
 
 export function verifyToken(token: string): TokenPayload {
-  return jwt.verify(token, JWT_SECRET) as unknown as TokenPayload;
+  return jwt.verify(token, jwtSecret()) as unknown as TokenPayload;
 }
 
 /**
@@ -87,9 +119,9 @@ export function signCheckInToken(propertyId: string, expiresInSeconds: number): 
     purpose: 'checkin',
   };
 
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: expiresInSeconds });
+  return jwt.sign(payload, jwtSecret(), { expiresIn: expiresInSeconds });
 }
 
 export function verifyCheckInToken(token: string): CheckInTokenPayload {
-  return jwt.verify(token, JWT_SECRET) as unknown as CheckInTokenPayload;
+  return jwt.verify(token, jwtSecret()) as unknown as CheckInTokenPayload;
 }
