@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2,
+  Calculator,
   Check,
   ChevronDown,
   ChevronRight,
@@ -22,6 +23,7 @@ import { EntryCodeSheet } from '../../components/host/EntryCodeSheet';
 import { InvoiceSheet } from '../../components/host/InvoiceSheet';
 import { InvoiceSettingsSheet } from '../../components/host/InvoiceSettingsSheet';
 import { CouponSheet } from '../../components/host/CouponSheet';
+import { CleaningCalculatorSheet } from '../../components/host/CleaningCalculatorSheet';
 import { logout } from '../../services/auth';
 import { getCleaningCalendarLink } from '../../services/cleaningCalendar';
 import { copyText, HostProperty } from '../../services/hostApp';
@@ -60,6 +62,7 @@ const AccountPage: React.FC = () => {
   const [showInvoice, setShowInvoice] = useState(false);
   const [showInvoiceSettings, setShowInvoiceSettings] = useState(false);
   const [showCoupons, setShowCoupons] = useState(false);
+  const [showCalculator, setShowCalculator] = useState(false);
   const [cleaningLinkState, setCleaningLinkState] = useState<'idle' | 'loading' | 'copied'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -184,6 +187,13 @@ const AccountPage: React.FC = () => {
         )}
 
         <Row
+          Icon={Calculator}
+          label="Calculator"
+          value="清掃費"
+          onClick={() => setShowCalculator(true)}
+        />
+
+        <Row
           Icon={FileText}
           label="Booking confirmations"
           onClick={() => openInConsole('/admin/booking-confirm')}
@@ -260,6 +270,10 @@ const AccountPage: React.FC = () => {
 
       {showInvoiceSettings && (
         <InvoiceSettingsSheet onClose={() => setShowInvoiceSettings(false)} />
+      )}
+
+      {showCalculator && (
+        <CleaningCalculatorSheet onClose={() => setShowCalculator(false)} />
       )}
 
       {showCoupons && (
