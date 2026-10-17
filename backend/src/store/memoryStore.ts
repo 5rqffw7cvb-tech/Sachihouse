@@ -13,6 +13,9 @@ import {
   BookingListFilters,
   BookingStatusPatch,
   CalendarEvent,
+  CleaningPayout,
+  CleaningPayoutInput,
+  CleaningPayoutListFilters,
   CalendarEventInput,
   CalendarEventListFilters,
   CalendarEventPatch,
@@ -82,6 +85,7 @@ interface MemoryState {
   // invoice_sequences row the SQL store locks.
   invoiceSequences: Map<string, number>;
   calendarEvents: CalendarEvent[];
+  cleaningPayouts: CleaningPayout[];
 }
 
 export class MemoryStore implements DataStore {
@@ -119,6 +123,7 @@ export class MemoryStore implements DataStore {
       invoices: [],
       invoiceSequences: new Map(),
       calendarEvents: [],
+      cleaningPayouts: [],
     };
   }
 
@@ -442,6 +447,10 @@ export class MemoryStore implements DataStore {
     const state = this.assertState();
     state.properties = state.properties.filter((item) => item.id !== propertyId);
     state.calendarEvents = state.calendarEvents.filter((event) => event.propertyId !== propertyId);
+    // The payment happened whatever became of the property, so the record stays.
+    state.cleaningPayouts = state.cleaningPayouts.map((payout) => (
+      payout.propertyId === propertyId ? { ...payout, propertyId: null } : payout
+    ));
   }
 
   async getSiteSettings(): Promise<SiteSettings> {
@@ -778,6 +787,49 @@ export class MemoryStore implements DataStore {
     const before = state.calendarEvents.length;
     state.calendarEvents = state.calendarEvents.filter((item) => item.id !== id);
     return state.calendarEvents.length !== before;
+  }
+
+  async listCleaningPayouts(filters: CleaningPayoutListFilters): Promise<CleaningPayout[]> {
+    const { fromDate, propertyIds, paidByUserId } = filters;
+    const fromMs = Date.parse(`${fromDate}T00:00:00+09:00`);
+    return structuredClone(
+      this.assertState().cleaningPayouts
+        .filter((payout) => (payout.propertyId
+          ? propertyIds === 'all' || propertyIds.includes(payout.propertyId)
+          : propertyIds === 'all' || payout.paidByUserId === paidByUserId))
+        .filter((payout) => (payout.checkOutDate ? payout.checkOutDate >= fromDate : payout.paidAt >= fromMs))
+        .sort((a, b) => b.paidAt - a.paidAt),
+    );
+  }
+
+  async getCleaningPayout(id: string): Promise<CleaningPayout | null> {
+    const payout = this.assertState().cleaningPayouts.find((item) => item.id === id);
+    return payout ? structuredClone(payout) : null;
+  }
+
+  async createCleaningPayout(input: CleaningPayoutInput, actor: AuthUser): Promise<CleaningPayout> {
+    const state = this.assertState();
+    if (input.stayRef && state.cleaningPayouts.some((item) => (
+      item.propertyId === input.propertyId && item.stayRef === input.stayRef
+    ))) {
+      throw new Error('Stay already paid.');
+    }
+    const next: CleaningPayout = {
+      ...input,
+      id: `pay_${randomBytes(8).toString('hex')}`,
+      paidAt: Date.now(),
+      paidByUserId: actor.id,
+      paidByName: actor.name || actor.email,
+    };
+    state.cleaningPayouts.push(next);
+    return structuredClone(next);
+  }
+
+  async deleteCleaningPayout(id: string, _actor: AuthUser): Promise<boolean> {
+    const state = this.assertState();
+    const before = state.cleaningPayouts.length;
+    state.cleaningPayouts = state.cleaningPayouts.filter((item) => item.id !== id);
+    return state.cleaningPayouts.length !== before;
   }
 
   async assignHost(propertyId: string, hostUserId: number): Promise<void> {

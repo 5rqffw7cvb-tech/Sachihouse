@@ -15,6 +15,9 @@ import {
   BookingStatus,
   BookingStatusPatch,
   CalendarEvent,
+  CleaningPayout,
+  CleaningPayoutInput,
+  CleaningPayoutListFilters,
   CalendarEventInput,
   CalendarEventListFilters,
   CalendarEventPatch,
@@ -449,6 +452,31 @@ export class PostgresStore implements DataStore {
 
       CREATE INDEX IF NOT EXISTS idx_calendar_events_property_date
       ON calendar_events(property_id, event_date);
+
+      -- property_id is SET NULL rather than CASCADE: the money was paid
+      -- whatever later becomes of the property.
+      CREATE TABLE IF NOT EXISTS cleaning_payouts (
+        id TEXT PRIMARY KEY,
+        property_id TEXT REFERENCES properties(id) ON DELETE SET NULL,
+        stay_ref TEXT,
+        label TEXT NOT NULL DEFAULT '',
+        check_in_date DATE,
+        check_out_date DATE,
+        cleaning_fee INTEGER NOT NULL,
+        co_host_percent NUMERIC(6,3),
+        guest_payment INTEGER NOT NULL,
+        co_host_share INTEGER NOT NULL,
+        bonus INTEGER NOT NULL,
+        supplies INTEGER NOT NULL,
+        total INTEGER NOT NULL,
+        paid_at BIGINT NOT NULL,
+        paid_by_user_id INTEGER NOT NULL,
+        paid_by_name TEXT NOT NULL
+      );
+
+      -- One payout per stay. Manual payouts have no stay_ref and are exempt.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_cleaning_payouts_stay
+      ON cleaning_payouts(property_id, stay_ref) WHERE stay_ref IS NOT NULL;
     `);
 
     const existing = await this.pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
@@ -1453,6 +1481,105 @@ export class PostgresStore implements DataStore {
 
   // event_date is always selected as text so node-pg doesn't turn it into a
   // Date at local midnight (which can shift the day when serialised).
+  private static readonly CLEANING_PAYOUT_COLUMNS =
+    'id, property_id, stay_ref, label, check_in_date::text AS check_in_date, check_out_date::text AS check_out_date, '
+    + 'cleaning_fee, co_host_percent::float8 AS co_host_percent, guest_payment, co_host_share, bonus, supplies, total, '
+    + 'paid_at, paid_by_user_id, paid_by_name';
+
+  private mapCleaningPayout(row: {
+    id: string;
+    property_id: string | null;
+    stay_ref: string | null;
+    label: string;
+    check_in_date: string | null;
+    check_out_date: string | null;
+    cleaning_fee: number;
+    co_host_percent: number | null;
+    guest_payment: number;
+    co_host_share: number;
+    bonus: number;
+    supplies: number;
+    total: number;
+    paid_at: number | string;
+    paid_by_user_id: number;
+    paid_by_name: string;
+  }): CleaningPayout {
+    return {
+      id: row.id,
+      propertyId: row.property_id,
+      stayRef: row.stay_ref,
+      label: row.label,
+      checkInDate: row.check_in_date,
+      checkOutDate: row.check_out_date,
+      cleaningFee: row.cleaning_fee,
+      coHostPercent: row.co_host_percent,
+      guestPayment: row.guest_payment,
+      coHostShare: row.co_host_share,
+      bonus: row.bonus,
+      supplies: row.supplies,
+      total: row.total,
+      paidAt: Number(row.paid_at),
+      paidByUserId: row.paid_by_user_id,
+      paidByName: row.paid_by_name,
+    };
+  }
+
+  async listCleaningPayouts(filters: CleaningPayoutListFilters): Promise<CleaningPayout[]> {
+    const fromMs = Date.parse(`${filters.fromDate}T00:00:00+09:00`);
+    const params: unknown[] = [filters.fromDate, fromMs];
+    let scope = 'TRUE';
+    if (filters.propertyIds !== 'all') {
+      params.push(filters.propertyIds, filters.paidByUserId ?? -1);
+      scope = `(property_id = ANY($3::text[]) OR (property_id IS NULL AND paid_by_user_id = $4))`;
+    }
+    const result = await this.pool.query(
+      `SELECT ${PostgresStore.CLEANING_PAYOUT_COLUMNS} FROM cleaning_payouts
+       WHERE ${scope}
+         AND (CASE WHEN check_out_date IS NOT NULL THEN check_out_date >= $1::date ELSE paid_at >= $2 END)
+       ORDER BY paid_at DESC`,
+      params,
+    );
+    return result.rows.map((row: Parameters<typeof this.mapCleaningPayout>[0]) => this.mapCleaningPayout(row));
+  }
+
+  async getCleaningPayout(id: string): Promise<CleaningPayout | null> {
+    const result = await this.pool.query(
+      `SELECT ${PostgresStore.CLEANING_PAYOUT_COLUMNS} FROM cleaning_payouts WHERE id = $1`,
+      [id],
+    );
+    return result.rows.length ? this.mapCleaningPayout(result.rows[0]) : null;
+  }
+
+  async createCleaningPayout(input: CleaningPayoutInput, actor: AuthUser): Promise<CleaningPayout> {
+    const id = `pay_${randomBytes(8).toString('hex')}`;
+    try {
+      const result = await this.pool.query(
+        `INSERT INTO cleaning_payouts (id, property_id, stay_ref, label, check_in_date, check_out_date,
+           cleaning_fee, co_host_percent, guest_payment, co_host_share, bonus, supplies, total,
+           paid_at, paid_by_user_id, paid_by_name)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+         RETURNING ${PostgresStore.CLEANING_PAYOUT_COLUMNS}`,
+        [id, input.propertyId, input.stayRef, input.label, input.checkInDate, input.checkOutDate,
+          input.cleaningFee, input.coHostPercent, input.guestPayment, input.coHostShare, input.bonus,
+          input.supplies, input.total, Date.now(), actor.id, actor.name || actor.email],
+      );
+      await this.writeAudit(actor.id, 'CREATE', 'cleaning_payout', id);
+      return this.mapCleaningPayout(result.rows[0]);
+    } catch (error) {
+      if (typeof error === 'object' && error && (error as { code?: string }).code === '23505') {
+        throw new Error('Stay already paid.');
+      }
+      throw error;
+    }
+  }
+
+  async deleteCleaningPayout(id: string, actor: AuthUser): Promise<boolean> {
+    const result = await this.pool.query('DELETE FROM cleaning_payouts WHERE id = $1', [id]);
+    if (!result.rowCount) return false;
+    await this.writeAudit(actor.id, 'DELETE', 'cleaning_payout', id);
+    return true;
+  }
+
   private static readonly CALENDAR_EVENT_COLUMNS =
     'id, property_id, title, note, event_date::text AS event_date, start_time, end_time, created_at, updated_at';
 

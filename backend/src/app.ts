@@ -1688,6 +1688,128 @@ export function createApp(store: DataStore, deps: AppDependencies = {}) {
     return res.status(204).send();
   });
 
+  // Cleaning payouts — what the host app's calculator records when a cleaning
+  // job is paid, so the same stay is not paid twice. Amounts are whole yen;
+  // the co-host share and total are recomputed here, not trusted from the body.
+  const CLEANING_PAYOUT_AMOUNT_MAX = 10_000_000;
+  const CLEANING_PAYOUT_DEFAULT_PAST_DAYS = 30;
+  const CLEANING_PAYOUT_MAX_PAST_DAYS = 366;
+
+  function parseYenAmount(value: unknown): number | null {
+    if (value === undefined || value === null || value === '') return 0;
+    const amount = typeof value === 'number' ? value : Number(value);
+    return Number.isInteger(amount) && amount >= 0 && amount <= CLEANING_PAYOUT_AMOUNT_MAX ? amount : null;
+  }
+
+  app.get('/api/cleaning-payouts', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const now = Date.now();
+    const earliest = toJstDateString(now - CLEANING_PAYOUT_MAX_PAST_DAYS * ONE_DAY_MS);
+    const requested = isIsoDate(req.query.from)
+      ? req.query.from
+      : toJstDateString(now - CLEANING_PAYOUT_DEFAULT_PAST_DAYS * ONE_DAY_MS);
+    const payouts = await store.listCleaningPayouts({
+      fromDate: requested < earliest ? earliest : requested,
+      propertyIds: actor.role === 'ADMIN' ? 'all' : actor.assignedPropertyIds,
+      paidByUserId: actor.id,
+    });
+    res.json({ payouts });
+  });
+
+  // Body: { propertyId?, stayRef?, label?, checkInDate?, checkOutDate?,
+  //         cleaningFee, coHostPercent?, guestPayment?, bonus?, supplies? }.
+  // A stayRef needs a propertyId; without one the payout is a manual entry.
+  app.post('/api/cleaning-payouts', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const body = req.body ?? {};
+
+    const propertyId = normalizeText(body.propertyId) || null;
+    const stayRef = normalizeText(body.stayRef) || null;
+    if (stayRef && !propertyId) {
+      return res.status(400).json({ error: 'stayRef needs a propertyId.' });
+    }
+    if (stayRef && stayRef.length > 300) {
+      return res.status(400).json({ error: 'stayRef is too long.' });
+    }
+    if (propertyId) {
+      const property = await store.getProperty(propertyId);
+      if (!property) {
+        return res.status(404).json({ error: 'Property not found.' });
+      }
+      if (!canAccessProperty(actor, property.id)) {
+        return res.status(403).json({ error: 'Not allowed for this property.' });
+      }
+    }
+
+    const label = normalizeText(body.label).slice(0, 200);
+    const checkInDate = body.checkInDate == null || body.checkInDate === '' ? null : body.checkInDate;
+    const checkOutDate = body.checkOutDate == null || body.checkOutDate === '' ? null : body.checkOutDate;
+    if ((checkInDate !== null && !isIsoDate(checkInDate)) || (checkOutDate !== null && !isIsoDate(checkOutDate))) {
+      return res.status(400).json({ error: 'checkInDate and checkOutDate must be YYYY-MM-DD.' });
+    }
+
+    const cleaningFee = parseYenAmount(body.cleaningFee);
+    const guestPayment = parseYenAmount(body.guestPayment);
+    const bonus = parseYenAmount(body.bonus);
+    const supplies = parseYenAmount(body.supplies);
+    if (cleaningFee === null || guestPayment === null || bonus === null || supplies === null) {
+      return res.status(400).json({ error: 'Amounts must be whole yen between 0 and 10,000,000.' });
+    }
+    let coHostPercent: number | null = null;
+    if (body.coHostPercent !== undefined && body.coHostPercent !== null && body.coHostPercent !== '') {
+      const percent = Number(body.coHostPercent);
+      if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+        return res.status(400).json({ error: 'coHostPercent must be between 0 and 100.' });
+      }
+      coHostPercent = Math.round(percent * 1000) / 1000;
+    }
+    const coHostShare = coHostPercent ? Math.round(guestPayment * coHostPercent / 100) : 0;
+    const total = cleaningFee + coHostShare + bonus + supplies;
+    if (total <= 0) {
+      return res.status(400).json({ error: 'Nothing to pay.' });
+    }
+
+    try {
+      const payout = await store.createCleaningPayout({
+        propertyId,
+        stayRef,
+        label,
+        checkInDate,
+        checkOutDate,
+        cleaningFee,
+        coHostPercent,
+        guestPayment,
+        coHostShare,
+        bonus,
+        supplies,
+        total,
+      }, actor);
+      return res.status(201).json({ payout });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Stay already paid.') {
+        return res.status(409).json({ error: 'This stay has already been paid.' });
+      }
+      if (pgErrorCode(error) === '23503') {
+        return res.status(404).json({ error: 'Property not found.' });
+      }
+      throw error;
+    }
+  });
+
+  // Undoes a payout recorded by mistake. The payer or an admin only.
+  app.delete('/api/cleaning-payouts/:payoutId', requireAuth, requireHostOrAdmin, async (req, res) => {
+    const actor = req.authUser!;
+    const existing = await store.getCleaningPayout(getParam(req.params.payoutId));
+    if (!existing) {
+      return res.status(404).json({ error: 'Payout not found.' });
+    }
+    if (actor.role !== 'ADMIN' && existing.paidByUserId !== actor.id) {
+      return res.status(403).json({ error: 'Only the person who recorded this payout can undo it.' });
+    }
+    await store.deleteCleaningPayout(existing.id, actor);
+    return res.status(204).send();
+  });
+
   // Replaces the property's iCal import feeds. Body: { feeds: [{ id, name, url, lastSynced }] }.
   // SAFETY: If all feeds are cleared (feeds array becomes empty), the import system will NOT
   // delete existing imported events. This prevents accidental data loss if feeds are cleared.

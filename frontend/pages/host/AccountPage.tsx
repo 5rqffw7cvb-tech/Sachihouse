@@ -273,7 +273,11 @@ const AccountPage: React.FC = () => {
       )}
 
       {showCalculator && (
-        <CleaningCalculatorSheet onClose={() => setShowCalculator(false)} />
+        <CleaningCalculatorSheet
+          user={user}
+          properties={properties}
+          onClose={() => setShowCalculator(false)}
+        />
       )}
 
       {showCoupons && (

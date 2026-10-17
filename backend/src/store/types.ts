@@ -522,6 +522,41 @@ export type CalendarEventListFilters = {
   toDate?: string;
 };
 
+// A cleaning job that has been paid out, recorded from the host app's
+// calculator so the next person does not pay the same stay twice.
+// `stayRef` identifies the calendar stay it was for (see the frontend's
+// stayRef()); null for a job typed in by hand that matched no stay.
+export interface CleaningPayout {
+  id: string;
+  propertyId: string | null;
+  stayRef: string | null;
+  /** Who/what it was for, as shown when it was paid: "Tanaka · Airbnb". */
+  label: string;
+  checkInDate: string | null;
+  checkOutDate: string | null;
+  cleaningFee: number;
+  coHostPercent: number | null;
+  guestPayment: number;
+  coHostShare: number;
+  bonus: number;
+  supplies: number;
+  total: number;
+  paidAt: number;
+  paidByUserId: number;
+  paidByName: string;
+}
+
+export type CleaningPayoutInput = Omit<CleaningPayout, 'id' | 'paidAt' | 'paidByUserId' | 'paidByName'>;
+
+export type CleaningPayoutListFilters = {
+  /** Payouts whose stay checked out on or after this date, plus manual ones
+   *  paid on or after it. */
+  fromDate: string;
+  /** Property scope; manual payouts (no property) are matched by payer. */
+  propertyIds: string[] | 'all';
+  paidByUserId?: number;
+};
+
 export interface PropertyData {
   id?: string;
   metalink?: string;
@@ -985,6 +1020,12 @@ export interface DataStore {
   createCalendarEvent(input: CalendarEventInput, actor: AuthUser): Promise<CalendarEvent>;
   updateCalendarEvent(id: string, patch: CalendarEventPatch, actor: AuthUser): Promise<CalendarEvent | null>;
   deleteCalendarEvent(id: string, actor: AuthUser): Promise<boolean>;
+  // Cleaning payouts. create throws 'Stay already paid.' when a payout with
+  // the same propertyId + stayRef exists, so a stay is paid at most once.
+  listCleaningPayouts(filters: CleaningPayoutListFilters): Promise<CleaningPayout[]>;
+  getCleaningPayout(id: string): Promise<CleaningPayout | null>;
+  createCleaningPayout(input: CleaningPayoutInput, actor: AuthUser): Promise<CleaningPayout>;
+  deleteCleaningPayout(id: string, actor: AuthUser): Promise<boolean>;
   assignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void>;
   unassignHost(propertyId: string, hostUserId: number, actor: AuthUser): Promise<void>;
   createCheckInSubmission(input: CheckInSubmissionInput): Promise<CheckInSubmission>;
