@@ -38,6 +38,9 @@
   --color-brand: #041627;
   --color-brand-tint: #efedef;
   --color-link: #003580;
+  /* Warm gold accent — sparingly, on the brand navy (hero eyebrow, search button) */
+  --color-accent: #d4a64a;
+  --color-accent-soft: #ecd29b;
 
   /* Status — one hue per meaning, used by Badge and Alert */
   --color-ok: #166534;

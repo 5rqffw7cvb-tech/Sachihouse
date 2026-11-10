@@ -649,8 +649,23 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
       .map((property) => property.id),
   );
 
+  // The hero borrows a real photo of one of the homes rather than stock art.
+  const heroImageUrl = properties
+    .map((property) => property.galleryImages?.find((img) => img && img.showOnHome)?.url)
+    .find(Boolean);
+  const areaCount = new Set(
+    properties
+      .map((property) => property.location?.provinceCode?.toUpperCase())
+      .filter(Boolean),
+  ).size;
+  const selectedProvinceName = provinceOptions.find(
+    (province) => province.provinceCode === selectedProvinceCode,
+  )?.provinceName;
+  const selectedGuestTotal = selectedAdults + selectedChildren;
+  const showHostCta = !isAdmin && !isHost;
+
   return (
-    <div className="bg-[#e8e5e6] text-[#1b1c1d] font-['Inter'] min-h-screen flex flex-col">
+    <div className="bg-page text-ink font-['Inter'] min-h-screen flex flex-col">
       <Seo title={pageTitle} description={pageDescription} />
       {bookingProperty && stayCheckIn && stayCheckOut && (
         <Suspense fallback={null}>
@@ -706,40 +721,99 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         mobileActionButton={<LanguageSwitcher compact />}
       />
 
-      {/* Main Content Canvas */}
-      <main className="flex-1 w-full max-w-[1280px] mx-auto px-3 md:px-6 py-12 md:py-16 pt-6 md:pt-[120px] pb-24 md:pb-12">
-        {/* Header Section */}
-        <div className="mb-6">
-          <div>
-            <h1 className="font-['Plus_Jakarta_Sans'] text-[28px] md:text-[36px] font-bold text-[#1b1c1d] leading-[1.2] mb-2">{settings.headerTitle}</h1>
-            <p className="text-[16px] text-[#44474c] leading-[1.6] whitespace-pre-wrap">{settings.headerSubtitle}</p>
-          </div>
-        </div>
-
-        {bookingConflicts.length > 0 && (
-          <div className="mb-4 flex items-start gap-2 rounded-xl border border-[#f5c563] bg-[#fef3c7] px-4 py-3 text-[13px] text-[#92400e]">
-            <span className="flex-1">{t('book_err_conflict')} {bookingConflicts.join(', ')}</span>
-            <button
-              type="button"
-              onClick={() => setBookingConflicts([])}
-              aria-label={t('search_modal_back')}
-              className="shrink-0 rounded p-0.5 hover:bg-[#92400e]/10"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+      {/* Hero — search is the primary action on this page */}
+      <section
+        aria-labelledby="home-hero-title"
+        className="relative isolate overflow-hidden bg-brand text-white"
+      >
+        {heroImageUrl && (
+          <img
+            src={buildOptimizedImageUrl(heroImageUrl, 1280)}
+            alt=""
+            aria-hidden="true"
+            decoding="async"
+            className="absolute inset-0 -z-20 h-full w-full object-cover opacity-45"
+          />
         )}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(4,22,39,0.55)_0%,rgba(4,22,39,0.82)_60%,#041627_100%)]"
+        />
+        <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6 pt-8 pb-20 md:pt-[136px] md:pb-28">
+          <p className="mb-3 flex flex-wrap items-center gap-x-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-accent-soft">
+            <span>{t('listing_stays_count').replace('{count}', String(properties.length))}</span>
+            {areaCount > 0 && (
+              <>
+                <span aria-hidden="true" className="h-1 w-1 rounded-full bg-accent" />
+                <span>{t('listing_areas_count').replace('{count}', String(areaCount))}</span>
+              </>
+            )}
+          </p>
+          <h1
+            id="home-hero-title"
+            className="max-w-[22ch] text-balance font-['Plus_Jakarta_Sans'] text-[30px] md:text-[48px] font-bold leading-[1.12] tracking-tight text-white"
+          >
+            {settings.headerTitle}
+          </h1>
+          {settings.headerSubtitle && (
+            <p className="mt-3 max-w-[60ch] whitespace-pre-wrap text-[15px] md:text-[17px] leading-[1.6] text-white/80">
+              {settings.headerSubtitle}
+            </p>
+          )}
 
-        <button
-          type="button"
-          onClick={openSearchModal}
-          className="mb-4 flex w-full items-center gap-2.5 rounded-full border border-[#c4c6cd] bg-white px-5 py-3 text-left shadow-sm transition-colors hover:bg-[#f5f3f4] md:w-auto"
-        >
-          <Search className="h-4 w-4 shrink-0 text-[#63768a]" />
-          <span className="truncate text-[14px] font-semibold text-[#1b1c1d]">{t('search_modal_title')}</span>
-        </button>
+          {/* Search bar: one button that opens the search sheet, showing what is already chosen */}
+          <button
+            type="button"
+            onClick={openSearchModal}
+            aria-haspopup="dialog"
+            className="group mt-7 flex w-full max-w-[820px] cursor-pointer items-center gap-3 rounded-full bg-surface p-2 pl-5 text-left text-ink shadow-[0_18px_50px_-20px_rgba(0,0,0,0.6)] transition-shadow duration-200 hover:shadow-[0_22px_60px_-18px_rgba(0,0,0,0.7)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/60"
+          >
+            {/* Mobile: one line */}
+            <span className="flex min-w-0 flex-1 flex-col md:hidden">
+              <span className="truncate text-[15px] font-semibold">{t('search_modal_title')}</span>
+              <span className="truncate text-[12.5px] text-ink-muted">
+                {[
+                  selectedProvinceName || t('listing_all_provinces'),
+                  datesActive ? `${selectedCheckIn} → ${selectedCheckOut}` : t('listing_select_dates'),
+                ].join(' · ')}
+              </span>
+            </span>
+            {/* Desktop: three segments */}
+            <span className="hidden min-w-0 flex-1 items-center md:flex">
+              <span className="flex min-w-0 flex-1 flex-col pr-4">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">{t('listing_where')}</span>
+                <span className="truncate text-[15px] font-semibold">{selectedProvinceName || t('listing_all_provinces')}</span>
+              </span>
+              <span aria-hidden="true" className="h-9 w-px bg-line" />
+              <span className="flex min-w-0 flex-1 flex-col px-4">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
+                  {t('listing_checkin')} – {t('listing_checkout')}
+                </span>
+                <span className="truncate text-[15px] font-semibold">
+                  {datesActive ? `${selectedCheckIn} → ${selectedCheckOut}` : t('listing_select_dates')}
+                </span>
+              </span>
+              <span aria-hidden="true" className="h-9 w-px bg-line" />
+              <span className="flex min-w-0 flex-[0.7] flex-col px-4">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">{t('listing_guests')}</span>
+                <span className="truncate text-[15px] font-semibold">
+                  {selectedGuestTotal > 0 ? selectedGuestTotal : t('listing_any')}
+                </span>
+              </span>
+            </span>
+            <span className="flex h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-brand px-4 text-white transition-colors duration-200 group-hover:bg-[#0b2a45] md:h-14 md:px-6">
+              <Search aria-hidden="true" className="h-5 w-5 text-accent-soft" />
+              <span className="hidden text-[15px] font-semibold md:inline">{t('search_modal_title')}</span>
+            </span>
+          </button>
+        </div>
+      </section>
 
-        <div className="mb-4 md:hidden">
+      {/* Main Content Canvas */}
+      <main className="relative flex-1 w-full max-w-[1280px] mx-auto px-3 md:px-6 pb-24 md:pb-16">
+        {/* Filter toolbar — floats over the bottom edge of the hero */}
+        <div className="relative z-10 -mt-12 mb-8 rounded-card border border-line bg-surface p-3 shadow-[0_12px_40px_-18px_rgba(4,22,39,0.35)] md:-mt-14 md:p-4">
+        <div className="md:hidden">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -762,7 +836,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
           </div>
 
           {isMobileFiltersOpen && (
-            <div className="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-[#e4e2e3] bg-white p-3">
+            <div className="mt-3 grid grid-cols-1 gap-3 border-t border-line pt-3">
               <div>
                 <label htmlFor="mobile-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_country')}</label>
                 <select
@@ -848,7 +922,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
           )}
         </div>
 
-        <div className="mb-8 hidden flex-wrap items-center gap-2 md:flex">
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
           <select
             id="desktop-listing-country"
             aria-label={t('listing_country')}
@@ -942,51 +1016,87 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             </div>
           )}
         </div>
+        </div>
 
-        {isHost && activeScope === 'mine' && (
-          <div className="mb-6 text-[14px] text-[#44474c]">
-            {t('listing_scope_mine_desc')}
-          </div>
-        )}
-
-        {/* Active date range summary */}
-        {datesActive && (
-          <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14px] text-[#44474c]">
-            <span className="inline-flex items-center gap-1.5 font-semibold text-[#1b1c1d]">
-              <Calendar className="h-4 w-4 text-[#041627]" />
-              {selectedCheckIn} → {selectedCheckOut}
-            </span>
-            {isCheckingAvailability ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                {t('listing_checking_availability')}
-              </span>
-            ) : availability ? (
-              <span>· {displayedProperties.length}</span>
-            ) : null}
+        {bookingConflicts.length > 0 && (
+          <div role="alert" className="mb-5 flex items-start gap-2 rounded-xl border border-[#f5c563] bg-warn-tint px-4 py-3 text-[13px] text-warn">
+            <span className="flex-1">{t('book_err_conflict')} {bookingConflicts.join(', ')}</span>
             <button
               type="button"
-              onClick={() => updateQueryParams({ checkIn: null, checkOut: null })}
-              className="text-[13px] font-semibold text-[#041627] underline underline-offset-2 hover:text-[#041627]/80"
+              onClick={() => setBookingConflicts([])}
+              aria-label={t('search_modal_back')}
+              className="shrink-0 cursor-pointer rounded p-1 hover:bg-warn/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warn"
             >
-              {t('listing_clear_dates')}
+              <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
+        {/* Results header */}
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+          <div>
+            <h2 className="font-['Plus_Jakarta_Sans'] text-[20px] md:text-[24px] font-bold text-ink">
+              {datesActive && isCheckingAvailability
+                ? t('listing_checking_availability')
+                : t('listing_stays_count').replace('{count}', String(displayedProperties.length))}
+            </h2>
+            {isHost && activeScope === 'mine' && (
+              <p className="mt-1 text-[14px] text-ink-soft">{t('listing_scope_mine_desc')}</p>
+            )}
+          </div>
+
+          {datesActive && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14px] text-ink-soft" aria-live="polite">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 font-semibold text-ink">
+                <Calendar aria-hidden="true" className="h-4 w-4 text-brand" />
+                {selectedCheckIn} → {selectedCheckOut}
+              </span>
+              <button
+                type="button"
+                onClick={() => updateQueryParams({ checkIn: null, checkOut: null })}
+                className="cursor-pointer rounded text-[13px] font-semibold text-brand underline underline-offset-2 hover:text-brand/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                {t('listing_clear_dates')}
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Property Grid */}
         {datesActive && isCheckingAvailability ? (
-          <div className="bg-white border border-[#e4e2e3] rounded-xl px-6 py-10 text-center text-[#44474c]">
-            <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#041627]" />
-            {t('listing_checking_availability')}
+          <div aria-hidden="true" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {[0, 1, 2].map((key) => (
+              <div key={key} className="overflow-hidden rounded-card border border-line bg-surface">
+                <div className="aspect-[4/3] w-full animate-pulse bg-subtle motion-reduce:animate-none" />
+                <div className="space-y-2.5 p-5">
+                  <div className="h-4 w-2/3 animate-pulse rounded bg-subtle motion-reduce:animate-none" />
+                  <div className="h-3 w-1/2 animate-pulse rounded bg-subtle motion-reduce:animate-none" />
+                  <div className="h-3 w-1/3 animate-pulse rounded bg-subtle motion-reduce:animate-none" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : displayedProperties.length === 0 ? (
-          <div className="bg-white border border-[#e4e2e3] rounded-xl px-6 py-10 text-center text-[#44474c]">
-            {datesActive
-              ? (availabilityError || t('listing_no_availability'))
-              : isHost && activeScope === 'mine'
-                ? t('listing_empty_mine')
-                : t('listing_empty_all')}
+          <div className="flex flex-col items-center rounded-card border border-dashed border-line-strong bg-surface px-6 py-12 text-center">
+            <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-subtle">
+              <Search aria-hidden="true" className="h-5 w-5 text-ink-muted" />
+            </span>
+            <p className="max-w-[48ch] text-[15px] text-ink-soft">
+              {datesActive
+                ? (availabilityError || t('listing_no_availability'))
+                : isHost && activeScope === 'mine'
+                  ? t('listing_empty_mine')
+                  : t('listing_empty_all')}
+            </p>
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="mt-4 cursor-pointer rounded-full border border-brand px-5 py-2.5 text-[14px] font-semibold text-brand transition-colors hover:bg-brand-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+              >
+                {t('listing_clear_filter')}
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -1011,10 +1121,13 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             const propertyHref = `/${property.metalink || property.id}${stayQuery}`;
 
             return (
-              <div key={property.id} className="bg-[#ffffff] rounded-2xl md:rounded-xl border border-[#ecebea] md:border-[#e4e2e3] shadow-[0_2px_10px_rgba(15,23,42,0.05)] md:shadow-[0_4px_20px_rgba(0,0,0,0.05)] md:hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] active:scale-[0.99] md:active:scale-100 overflow-hidden transition-all duration-300 flex flex-col h-full relative group">
-                <Link to={propertyHref} className="flex flex-row md:flex-col flex-grow cursor-pointer p-3 md:p-0">
-                  {/* Image Container */}
-                  <div className="relative w-[104px] h-[104px] shrink-0 rounded-xl md:rounded-none md:w-full md:h-auto md:aspect-[4/3] overflow-hidden bg-[#e4e2e3]">
+              <div key={property.id} className="group relative flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface shadow-[0_1px_2px_rgba(4,22,39,0.04)] transition-shadow duration-200 hover:shadow-[0_16px_40px_-18px_rgba(4,22,39,0.32)]">
+                <Link
+                  to={propertyHref}
+                  className="flex flex-grow cursor-pointer flex-col rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+                >
+                  {/* Image */}
+                  <div className="relative aspect-[16/11] w-full overflow-hidden bg-subtle md:aspect-[4/3]">
                     <img
                       src={imageSrc}
                       srcSet={imageSrcSet}
@@ -1023,104 +1136,74 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                       loading={index < 2 ? "eager" : "lazy"}
                       fetchPriority={index === 0 ? "high" : "auto"}
                       decoding="async"
-                      className="absolute md:relative inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      className="h-full w-full object-cover transition-transform duration-500 ease-out motion-safe:group-hover:scale-[1.04]"
                     />
-                    {/* Badges */}
-                    <div className="absolute top-2 left-2 md:top-3 md:left-3 flex gap-2">
-                      {property.isSuperhost && (
-                        <span className="bg-[#1b4332]/90 backdrop-blur-sm text-white px-1.5 py-0.5 md:px-2 md:py-1 rounded-full md:rounded text-[9.5px] md:text-[12px] tracking-[0.05em] font-bold md:font-semibold flex items-center gap-1 shadow-sm leading-none">
-                          <Star className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 fill-white" />
+                    <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
+                      {property.isSuperhost ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-surface/95 px-2.5 py-1 text-[12px] font-semibold leading-none text-brand shadow-sm backdrop-blur-sm">
+                          <Star aria-hidden="true" className="h-3.5 w-3.5 fill-accent text-accent" />
                           {t('listing_superhost')}
                         </span>
-                      )}
+                      ) : <span />}
+                      <span className="inline-flex items-center gap-1 rounded-full bg-surface/95 px-2.5 py-1 text-[12px] font-semibold leading-none text-ink shadow-sm backdrop-blur-sm">
+                        <Star aria-hidden="true" className="h-3.5 w-3.5 fill-[#eab308] text-[#eab308]" />
+                        4.96
+                      </span>
                     </div>
-                    <span className="md:hidden absolute bottom-2 left-2 flex items-center gap-1 bg-white/95 backdrop-blur-sm px-1.5 py-0.5 rounded-full text-[10px] font-bold text-[#1b1c1d] shadow-sm">
-                      <Star className="w-2.5 h-2.5 text-[#eab308] fill-[#eab308]" />
-                      4.96
-                    </span>
                   </div>
 
                   {/* Content */}
-                  <div className="pl-3 py-0 md:p-6 flex flex-col flex-grow min-w-0 justify-center md:justify-start">
-                    <div className="flex justify-between items-start mb-0 md:mb-1.5">
-                      <h2 className="font-['Plus_Jakarta_Sans'] font-semibold tracking-tight md:tracking-normal text-[14.5px] md:text-[18px]/[1.4] text-[#041627] line-clamp-1 pr-2">{property.name}</h2>
-                      <div className="hidden md:flex items-center gap-1 text-[#1b1c1d] shrink-0">
-                        <Star className="w-4 h-4 text-[#eab308] fill-[#eab308]" />
-                        <span className="font-semibold text-[14px]/[1.4]">4.96</span>
-                      </div>
-                    </div>
-                    <p className="hidden md:block text-[14px]/[1.4] text-[#44474c] mb-1.5 line-clamp-1">{property.subtitle || t('listing_property_in_tokyo')}</p>
-                    <div className="mt-1 md:mt-0 md:mb-1.5 flex items-center gap-1 md:gap-1.5 text-[11.5px] md:text-[12px] text-[#74777d] md:font-semibold md:uppercase md:tracking-[0.06em]">
-                      <MapPin className="h-3 w-3 md:h-3.5 md:w-3.5 shrink-0 text-[#9ea3ab] md:text-[#74777d]" />
-                      <span className="line-clamp-1">
-                        {property.location
-                          ? `${property.location.provinceName}, ${property.location.countryName}`
-                          : property.address || t('listing_location_not_set')}
-                      </span>
-                    </div>
-                    {(property.accessInfo?.nearestStationName || property.accessInfo?.nearestStationDistance) && (
-                      <div className="mt-1 md:mt-0 md:mb-1.5 flex items-center gap-1 md:gap-1.5 text-[11px] md:text-[12px] font-semibold text-[#5b3f00]">
-                        <Train className="h-3 w-3 md:h-3.5 md:w-3.5 shrink-0" />
+                  <div className="flex min-w-0 flex-grow flex-col p-4 md:p-5">
+                    <h3 className="line-clamp-1 font-['Plus_Jakarta_Sans'] text-[17px] md:text-[18px] font-semibold leading-[1.35] text-brand">{property.name}</h3>
+                    <p className="mt-0.5 line-clamp-1 text-[14px] text-ink-soft">{property.subtitle || t('listing_property_in_tokyo')}</p>
+
+                    <div className="mt-2.5 flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 text-[13px] text-ink-muted">
+                        <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                         <span className="line-clamp-1">
-                          {property.accessInfo?.nearestStationDistance || t('listing_nearby')}
-                          {` ${t('listing_from')} `}
-                          {property.accessInfo?.nearestStationName || t('listing_nearest_station')}
+                          {property.location
+                            ? `${property.location.provinceName}, ${property.location.countryName}`
+                            : property.address || t('listing_location_not_set')}
                         </span>
                       </div>
-                    )}
+                      {(property.accessInfo?.nearestStationName || property.accessInfo?.nearestStationDistance) && (
+                        <div className="flex items-center gap-1.5 text-[13px] font-medium text-[#5b3f00]">
+                          <Train aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                          <span className="line-clamp-1">
+                            {property.accessInfo?.nearestStationDistance || t('listing_nearby')}
+                            {` ${t('listing_from')} `}
+                            {property.accessInfo?.nearestStationName || t('listing_nearest_station')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
 
                     {/* From price for the selected date range */}
                     {fromPrice !== null && (
-                      <div className="mt-2 flex items-baseline gap-1">
-                        <span className="text-[10.5px] md:text-[11px] font-semibold uppercase tracking-[0.06em] text-[#74777d]">{t('listing_price_from')}</span>
-                        <span className="text-[15px] md:text-[18px] font-bold text-[#041627]">¥{fromPrice.toLocaleString()}</span>
-                        <span className="text-[10.5px] md:text-[11px] text-[#74777d]">{t('listing_per_night')}</span>
+                      <div className="mt-3 flex items-baseline gap-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-muted">{t('listing_price_from')}</span>
+                        <span className="text-[18px] font-bold tabular-nums text-brand">¥{fromPrice.toLocaleString()}</span>
+                        <span className="text-[12px] text-ink-muted">{t('listing_per_night')}</span>
                       </div>
                     )}
 
-                    {/* Mobile: compact pill badges */}
-                    <div className="flex md:hidden items-center gap-1.5 mt-2 text-[10.5px] font-semibold text-[#44474c]">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f3f4] px-2 py-0.5" title={`${property.maxGuests} guests`}>
-                        <Users className="w-3 h-3" />
-                        {property.maxGuests}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f3f4] px-2 py-0.5" title={`${property.bedrooms} bedrooms`}>
-                        <BedSingle className="w-3 h-3" />
-                        {property.bedrooms}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f3f4] px-2 py-0.5" title={bathLabel}>
-                        <Bath className="w-3 h-3" />
-                        {property.baths}
-                      </span>
-                    </div>
-
-                    {/* Desktop: evenly distributed stat blocks */}
-                    <div className="hidden md:flex items-stretch justify-between mt-auto pt-3 border-t border-[#efedef]">
-                      <div className="flex flex-1 flex-col items-center gap-1" title={`${property.maxGuests} guests`}>
-                        <Users className="w-4 h-4 text-[#74777d]" />
-                        <span className="text-[13px] font-bold text-[#1b1c1d]">{property.maxGuests}</span>
-                      </div>
-                      <div className="w-px bg-[#efedef]" />
-                      <div className="flex flex-1 flex-col items-center gap-1" title={`${property.bedrooms} bedrooms`}>
-                        <BedSingle className="w-4 h-4 text-[#74777d]" />
-                        <span className="text-[13px] font-bold text-[#1b1c1d]">{property.bedrooms}</span>
-                      </div>
-                      <div className="w-px bg-[#efedef]" />
-                      <div className="flex flex-1 flex-col items-center gap-1" title={`${property.beds} beds`}>
-                        <BedDouble className="w-4 h-4 text-[#74777d]" />
-                        <span className="text-[13px] font-bold text-[#1b1c1d]">{property.beds}</span>
-                      </div>
-                      <div className="w-px bg-[#efedef]" />
-                      <div className="flex flex-1 flex-col items-center gap-1" title={bathLabel}>
-                        <Bath className="w-4 h-4 text-[#74777d]" />
-                        <span className="text-[13px] font-bold text-[#1b1c1d]">{property.baths}</span>
-                      </div>
-                      <div className="w-px bg-[#efedef]" />
-                      <div className="flex flex-1 flex-col items-center gap-1" title={`${property.toilets} toilets`}>
-                        <Toilet className="w-4 h-4 text-[#74777d]" />
-                        <span className="text-[13px] font-bold text-[#1b1c1d]">{property.toilets}</span>
-                      </div>
-                    </div>
+                    {/* Capacity at a glance */}
+                    <div aria-hidden="true" className="min-h-4 flex-grow" />
+                    <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line pt-3.5 text-[13px] font-semibold text-ink-soft">
+                      {[
+                        { Icon: Users, value: property.maxGuests, label: `${property.maxGuests} guests` },
+                        { Icon: BedSingle, value: property.bedrooms, label: `${property.bedrooms} bedrooms` },
+                        { Icon: BedDouble, value: property.beds, label: `${property.beds} beds` },
+                        { Icon: Bath, value: property.baths, label: bathLabel },
+                        { Icon: Toilet, value: property.toilets, label: `${property.toilets} toilets` },
+                      ].map(({ Icon, value, label }) => (
+                        <li key={label} className="inline-flex items-center gap-1.5" title={label}>
+                          <Icon aria-hidden="true" className="h-4 w-4 text-ink-muted" />
+                          <span aria-hidden="true">{value}</span>
+                          <span className="sr-only">{label}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </Link>
 
@@ -1282,6 +1365,33 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             );
             })}
           </div>
+        )}
+
+        {/* Closing CTA for visitors who own a place */}
+        {showHostCta && (
+          <section
+            aria-labelledby="home-host-cta-title"
+            className="mt-14 flex flex-col items-start gap-5 overflow-hidden rounded-card bg-brand px-6 py-8 text-white md:mt-20 md:flex-row md:items-center md:justify-between md:px-10 md:py-10"
+          >
+            <div className="flex items-start gap-4">
+              <span className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 md:flex">
+                <Home aria-hidden="true" className="h-6 w-6 text-accent-soft" />
+              </span>
+              <div>
+                <h2 id="home-host-cta-title" className="font-['Plus_Jakarta_Sans'] text-[20px] md:text-[24px] font-bold text-white">
+                  {t('listing_host_cta_title')}
+                </h2>
+                <p className="mt-1 text-[15px] text-white/75">{t('listing_host_cta_body')}</p>
+              </div>
+            </div>
+            <Link
+              to="/become-host"
+              className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full bg-accent px-6 py-3 text-[15px] font-semibold text-brand transition-colors duration-200 hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/50"
+            >
+              {t('listing_host_cta_button')}
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          </section>
         )}
       </main>
 
