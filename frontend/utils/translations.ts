@@ -353,12 +353,7 @@ export const translations = {
     listing_price_from: "From",
     listing_per_night: "/ night",
     listing_clear_dates: "Clear dates",
-    listing_stays_count: "{count} stays",
-    listing_areas_count: "{count} areas",
     listing_where: "Where",
-    listing_host_cta_title: "Own a place? Host it with us",
-    listing_host_cta_body: "See the plans and start listing your property.",
-    listing_host_cta_button: "Become a host",
 
     // Home Page (extra)
     home_see_photos: "See Photos",
@@ -805,12 +800,7 @@ export const translations = {
     listing_price_from: "Từ",
     listing_per_night: "/ đêm",
     listing_clear_dates: "Xóa ngày",
-    listing_stays_count: "{count} chỗ ở",
-    listing_areas_count: "{count} khu vực",
     listing_where: "Khu vực",
-    listing_host_cta_title: "Bạn có nhà? Cho thuê cùng chúng tôi",
-    listing_host_cta_body: "Xem các gói và bắt đầu đăng nhà của bạn.",
-    listing_host_cta_button: "Trở thành chủ nhà",
 
     // Home Page (extra)
     home_see_photos: "Xem ảnh",
@@ -1257,12 +1247,7 @@ export const translations = {
     listing_price_from: "最安",
     listing_per_night: "/ 泊",
     listing_clear_dates: "日付をクリア",
-    listing_stays_count: "{count}件の宿",
-    listing_areas_count: "{count}エリア",
     listing_where: "エリア",
-    listing_host_cta_title: "物件をお持ちですか？一緒にホストを始めましょう",
-    listing_host_cta_body: "プランを確認して、物件の掲載を始めましょう。",
-    listing_host_cta_button: "ホストになる",
 
     // Home Page (extra)
     home_see_photos: "写真を見る",
@@ -1709,12 +1694,7 @@ export const translations = {
     listing_price_from: "最低",
     listing_per_night: "/ 晚",
     listing_clear_dates: "清除日期",
-    listing_stays_count: "{count} 处住宿",
-    listing_areas_count: "{count} 个地区",
     listing_where: "地点",
-    listing_host_cta_title: "有房源？和我们一起出租",
-    listing_host_cta_body: "查看方案，开始发布您的房源。",
-    listing_host_cta_button: "成为房东",
 
     // Home Page (extra)
     home_see_photos: "查看照片",
@@ -2161,12 +2141,7 @@ export const translations = {
     listing_price_from: "최저",
     listing_per_night: "/ 박",
     listing_clear_dates: "날짜 지우기",
-    listing_stays_count: "숙소 {count}곳",
-    listing_areas_count: "{count}개 지역",
     listing_where: "위치",
-    listing_host_cta_title: "숙소가 있으신가요? 함께 호스팅하세요",
-    listing_host_cta_body: "요금제를 확인하고 숙소 등록을 시작하세요.",
-    listing_host_cta_button: "호스트 되기",
 
     // Home Page (extra)
     home_see_photos: "사진 보기",

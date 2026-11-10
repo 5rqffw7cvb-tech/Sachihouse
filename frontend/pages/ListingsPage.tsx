@@ -12,7 +12,6 @@ import { MobileBottomNav } from '../components/MobileBottomNav';
 import { Footer } from '../components/Footer';
 import SearchBookingModal, { SearchModalValues } from '../components/SearchBookingModal';
 import StayPriceSummary from '../components/StayPriceSummary';
-import DateRangeField from '../components/DateRangeField';
 import { calculateHomestayPrice } from '../utils/pricing';
 import { forgetSearch, recallSearch, rememberSearch } from '../utils/searchMemory';
 import { ApiUser } from '../services/api';
@@ -56,7 +55,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const [coHostOpenId, setCoHostOpenId] = useState<string | null>(null);
   const [coHostQuery, setCoHostQuery] = useState('');
   const [visibleCardCount, setVisibleCardCount] = useState(3);
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   // Blocked nights per property, so the prompt's calendar can grey out days on
   // which nothing in the chosen area is free. Null means "not known" — the
@@ -71,15 +69,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   const [bookingProperty, setBookingProperty] = useState<(PropertyData & { id: string }) | null>(null);
   const [bookingConflicts, setBookingConflicts] = useState<string[]>([]);
   const [availabilityNonce, setAvailabilityNonce] = useState(0);
-  // Set the first time any calendar is opened, so the availability lookup is
-  // paid for only by visitors who actually open one.
-  const [calendarDataWanted, setCalendarDataWanted] = useState(false);
-  const [draftCountryCode, setDraftCountryCode] = useState('');
-  const [draftProvinceCode, setDraftProvinceCode] = useState('');
-  const [draftMinBedrooms, setDraftMinBedrooms] = useState('');
-  const [draftMinGuests, setDraftMinGuests] = useState('');
-  const [draftCheckIn, setDraftCheckIn] = useState('');
-  const [draftCheckOut, setDraftCheckOut] = useState('');
 
   // Availability lookup for the selected date range (null = no dates applied)
   const [availability, setAvailability] = useState<{ ids: Set<string>; priceById: Map<string, number> } | null>(null);
@@ -114,15 +103,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   useEffect(() => {
     setEditingSettings(settings);
   }, [settings]);
-
-  useEffect(() => {
-    setDraftCountryCode(selectedCountryCode);
-    setDraftProvinceCode(selectedProvinceCode);
-    setDraftMinBedrooms(minBedrooms > 0 ? String(minBedrooms) : '');
-    setDraftMinGuests(minGuests > 0 ? String(minGuests) : '');
-    setDraftCheckIn(selectedCheckIn);
-    setDraftCheckOut(selectedCheckOut);
-  }, [selectedCountryCode, selectedProvinceCode, minBedrooms, minGuests, selectedCheckIn, selectedCheckOut]);
 
   // Look up which properties are free for the applied date range.
   useEffect(() => {
@@ -354,7 +334,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     new Map(allowedLocations.map((location) => [location.countryCode, location])).values(),
   );
   const provinceOptions = allowedLocations.filter((location) => location.countryCode === selectedCountryCode);
-  const draftProvinceOptions = allowedLocations.filter((location) => location.countryCode === draftCountryCode);
 
   // "Is this property in that area?" — shared by the listings filter and the
   // search prompt's calendar, which must agree on the set of properties or the
@@ -391,10 +370,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     ? properties.filter((property) => authUser?.assignedPropertyIds?.includes(property.id))
     : properties;
 
-  const maxBedrooms = scopedProperties.reduce((max, property) => Math.max(max, property.bedrooms || 0), 0);
   const maxGuestsAvailable = scopedProperties.reduce((max, property) => Math.max(max, property.maxGuests || 0), 0);
-  const bedroomOptions = Array.from({ length: Math.max(maxBedrooms, 1) }, (_, index) => index + 1);
-  const guestOptions = Array.from({ length: Math.max(maxGuestsAvailable, 1) }, (_, index) => index + 1);
 
   const filteredProperties = scopedProperties.filter((property) => {
     if (!matchesArea(property, selectedCountryCode, selectedProvinceCode)) {
@@ -425,25 +401,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     datesActive ? 'dates' : '',
   ].filter(Boolean).length;
 
-  const applyDraftFilters = () => {
-    updateQueryParams({
-      countryCode: draftCountryCode || null,
-      provinceCode: draftProvinceCode || null,
-      minBedrooms: draftMinBedrooms || null,
-      minGuests: draftMinGuests || null,
-      checkIn: draftCheckIn && draftCheckOut && draftCheckIn < draftCheckOut ? draftCheckIn : null,
-      checkOut: draftCheckIn && draftCheckOut && draftCheckIn < draftCheckOut ? draftCheckOut : null,
-    });
-    setIsMobileFiltersOpen(false);
-  };
-
   const clearAllFilters = () => {
-    setDraftCountryCode('');
-    setDraftProvinceCode('');
-    setDraftMinBedrooms('');
-    setDraftMinGuests('');
-    setDraftCheckIn('');
-    setDraftCheckOut('');
     updateQueryParams({
       countryCode: null, provinceCode: null, minBedrooms: null, minGuests: null,
       checkIn: null, checkOut: null, adults: null, children: null, infants: null,
@@ -451,7 +409,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     // Clearing the filters is an explicit "start again", so the remembered
     // search goes with them rather than reappearing on the next visit.
     forgetSearch();
-    setIsMobileFiltersOpen(false);
   };
 
   const markSearchModalSeen = () => {
@@ -544,7 +501,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
   // one go and intersected on the client, so narrowing the area re-marks the
   // calendar instantly instead of costing another round trip.
   useEffect(() => {
-    if ((!isSearchModalOpen && !calendarDataWanted) || blockedByProperty) return;
+    if (!isSearchModalOpen || blockedByProperty) return;
 
     let cancelled = false;
     const from = new Date();
@@ -565,7 +522,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
     return () => {
       cancelled = true;
     };
-  }, [isSearchModalOpen, calendarDataWanted, blockedByProperty]);
+  }, [isSearchModalOpen, blockedByProperty]);
 
   useEffect(() => {
     const initialCount = Math.min(3, displayedProperties.length);
@@ -641,28 +598,10 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
   const isSearchDateUnavailable = makeDateUnavailableChecker(searchAreaPropertyIds);
 
-  // The filter's own calendar answers for the area being edited in the filter
-  // bar, which is not necessarily the one the prompt was last set to.
-  const draftAreaDateUnavailable = makeDateUnavailableChecker(
-    properties
-      .filter((property) => matchesArea(property, draftCountryCode, draftProvinceCode))
-      .map((property) => property.id),
-  );
-
-  // The hero borrows a real photo of one of the homes rather than stock art.
-  const heroImageUrl = properties
-    .map((property) => property.galleryImages?.find((img) => img && img.showOnHome)?.url)
-    .find(Boolean);
-  const areaCount = new Set(
-    properties
-      .map((property) => property.location?.provinceCode?.toUpperCase())
-      .filter(Boolean),
-  ).size;
   const selectedProvinceName = provinceOptions.find(
     (province) => province.provinceCode === selectedProvinceCode,
   )?.provinceName;
   const selectedGuestTotal = selectedAdults + selectedChildren;
-  const showHostCta = !isAdmin && !isHost;
 
   return (
     <div className="bg-page text-ink font-['Inter'] min-h-screen flex flex-col">
@@ -721,61 +660,35 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
         mobileActionButton={<LanguageSwitcher compact />}
       />
 
-      {/* Hero — search is the primary action on this page */}
-      <section
-        aria-labelledby="home-hero-title"
-        className="relative isolate overflow-hidden bg-brand text-white"
-      >
-        {heroImageUrl && (
-          <img
-            src={buildOptimizedImageUrl(heroImageUrl, 1280)}
-            alt=""
-            aria-hidden="true"
-            decoding="async"
-            className="absolute inset-0 -z-20 h-full w-full object-cover opacity-45"
-          />
-        )}
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(4,22,39,0.55)_0%,rgba(4,22,39,0.82)_60%,#041627_100%)]"
-        />
-        <div className="mx-auto w-full max-w-[1280px] px-4 md:px-6 pt-8 pb-20 md:pt-[136px] md:pb-28">
-          <p className="mb-3 flex flex-wrap items-center gap-x-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-accent-soft">
-            <span>{t('listing_stays_count').replace('{count}', String(properties.length))}</span>
-            {areaCount > 0 && (
-              <>
-                <span aria-hidden="true" className="h-1 w-1 rounded-full bg-accent" />
-                <span>{t('listing_areas_count').replace('{count}', String(areaCount))}</span>
-              </>
-            )}
-          </p>
-          <h1
-            id="home-hero-title"
-            className="max-w-[22ch] text-balance font-['Plus_Jakarta_Sans'] text-[30px] md:text-[48px] font-bold leading-[1.12] tracking-tight text-white"
-          >
+      {/* Main Content Canvas — sized so both homes fit on one screen */}
+      <main className="flex-1 w-full max-w-[1080px] mx-auto px-4 md:px-6 pt-3 pb-24 md:pt-[96px] md:pb-12">
+        {/* Header: title + search, the one primary action */}
+        <div className="mb-4 md:mb-6">
+          <h1 className="text-balance font-['Plus_Jakarta_Sans'] text-[22px] md:text-[32px] font-bold leading-[1.2] tracking-tight text-ink">
             {settings.headerTitle}
           </h1>
           {settings.headerSubtitle && (
-            <p className="mt-3 max-w-[60ch] whitespace-pre-wrap text-[15px] md:text-[17px] leading-[1.6] text-white/80">
+            <p className="mt-1 line-clamp-2 max-w-[65ch] whitespace-pre-wrap text-[14px] md:text-[16px] leading-[1.5] text-ink-soft">
               {settings.headerSubtitle}
             </p>
           )}
 
-          {/* Search bar: one button that opens the search sheet, showing what is already chosen */}
           <button
             type="button"
             onClick={openSearchModal}
             aria-haspopup="dialog"
-            className="group mt-7 flex w-full max-w-[820px] cursor-pointer items-center gap-3 rounded-full bg-surface p-2 pl-5 text-left text-ink shadow-[0_18px_50px_-20px_rgba(0,0,0,0.6)] transition-shadow duration-200 hover:shadow-[0_22px_60px_-18px_rgba(0,0,0,0.7)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/60"
+            className="group mt-3 md:mt-5 flex w-full max-w-[760px] cursor-pointer items-center gap-3 rounded-full border border-line bg-surface p-1.5 pl-4 md:pl-5 text-left text-ink shadow-[0_6px_24px_-12px_rgba(4,22,39,0.35)] transition-shadow duration-200 hover:shadow-[0_10px_30px_-12px_rgba(4,22,39,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
           >
             {/* Mobile: one line */}
             <span className="flex min-w-0 flex-1 flex-col md:hidden">
-              <span className="truncate text-[15px] font-semibold">{t('search_modal_title')}</span>
-              <span className="truncate text-[12.5px] text-ink-muted">
+              <span className="truncate text-[14px] font-semibold">
+                {datesActive || selectedProvinceName ? (selectedProvinceName || t('listing_all_provinces')) : t('search_modal_title')}
+              </span>
+              <span className="truncate text-[12px] text-ink-muted">
                 {[
-                  selectedProvinceName || t('listing_all_provinces'),
                   datesActive ? `${selectedCheckIn} → ${selectedCheckOut}` : t('listing_select_dates'),
-                ].join(' · ')}
+                  selectedGuestTotal > 0 ? `${selectedGuestTotal} ${t('listing_guests')}` : null,
+                ].filter(Boolean).join(' · ')}
               </span>
             </span>
             {/* Desktop: three segments */}
@@ -784,7 +697,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">{t('listing_where')}</span>
                 <span className="truncate text-[15px] font-semibold">{selectedProvinceName || t('listing_all_provinces')}</span>
               </span>
-              <span aria-hidden="true" className="h-9 w-px bg-line" />
+              <span aria-hidden="true" className="h-8 w-px bg-line" />
               <span className="flex min-w-0 flex-1 flex-col px-4">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
                   {t('listing_checkin')} – {t('listing_checkout')}
@@ -793,7 +706,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                   {datesActive ? `${selectedCheckIn} → ${selectedCheckOut}` : t('listing_select_dates')}
                 </span>
               </span>
-              <span aria-hidden="true" className="h-9 w-px bg-line" />
+              <span aria-hidden="true" className="h-8 w-px bg-line" />
               <span className="flex min-w-0 flex-[0.7] flex-col px-4">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">{t('listing_guests')}</span>
                 <span className="truncate text-[15px] font-semibold">
@@ -801,225 +714,54 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                 </span>
               </span>
             </span>
-            <span className="flex h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-brand px-4 text-white transition-colors duration-200 group-hover:bg-[#0b2a45] md:h-14 md:px-6">
+            <span className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-brand px-4 text-white transition-colors duration-200 group-hover:bg-[#0b2a45] md:h-12 md:px-6">
               <Search aria-hidden="true" className="h-5 w-5 text-accent-soft" />
               <span className="hidden text-[15px] font-semibold md:inline">{t('search_modal_title')}</span>
             </span>
           </button>
-        </div>
-      </section>
 
-      {/* Main Content Canvas */}
-      <main className="relative flex-1 w-full max-w-[1280px] mx-auto px-3 md:px-6 pb-24 md:pb-16">
-        {/* Filter toolbar — floats over the bottom edge of the hero */}
-        <div className="relative z-10 -mt-12 mb-8 rounded-card border border-line bg-surface p-3 shadow-[0_12px_40px_-18px_rgba(4,22,39,0.35)] md:-mt-14 md:p-4">
-        <div className="md:hidden">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsMobileFiltersOpen((prev) => !prev)}
-              className="flex min-w-0 flex-1 items-center justify-between rounded-xl border border-[#c4c6cd] bg-white px-4 py-3 text-left text-[14px] font-semibold text-[#1b1c1d]"
-            >
-              <span>
-                {t('listing_filters')}
-                {activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-              </span>
-              {isMobileFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={clearAllFilters}
-              className="shrink-0 rounded-xl border border-[#c4c6cd] bg-white px-3 py-3 text-[13px] font-semibold text-[#44474c] transition-colors hover:bg-[#efedef]"
-            >
-              {t('listing_clear_filter')}
-            </button>
-          </div>
-
-          {isMobileFiltersOpen && (
-            <div className="mt-3 grid grid-cols-1 gap-3 border-t border-line pt-3">
-              <div>
-                <label htmlFor="mobile-listing-country" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_country')}</label>
-                <select
-                  id="mobile-listing-country"
-                  value={draftCountryCode}
-                  onChange={(event) => {
-                    setDraftCountryCode(event.target.value.toUpperCase());
-                    setDraftProvinceCode('');
-                  }}
-                  className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-                >
-                  <option value="">{t('listing_all_countries')}</option>
-                  {countryOptions.map((country) => (
-                    <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="mobile-listing-province" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_province')}</label>
-                <select
-                  id="mobile-listing-province"
-                  value={draftProvinceCode}
-                  disabled={!draftCountryCode}
-                  onChange={(event) => {
-                    setDraftProvinceCode(event.target.value.toUpperCase());
-                  }}
-                  className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] disabled:bg-[#f5f3f4] disabled:text-[#8a8d92]"
-                >
-                  <option value="">{t('listing_all_provinces')}</option>
-                  {draftProvinceOptions.map((province) => (
-                    <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="mobile-listing-bedrooms" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_bedrooms')}</label>
-                <select
-                  id="mobile-listing-bedrooms"
-                  value={draftMinBedrooms}
-                  onChange={(event) => setDraftMinBedrooms(event.target.value)}
-                  className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-                >
-                  <option value="">{t('listing_any')}</option>
-                  {bedroomOptions.map((value) => (
-                    <option key={value} value={value}>{value}+</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="mobile-listing-guests" className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">{t('listing_guests')}</label>
-                <select
-                  id="mobile-listing-guests"
-                  value={draftMinGuests}
-                  onChange={(event) => setDraftMinGuests(event.target.value)}
-                  className="w-full rounded-lg border border-[#c4c6cd] bg-white px-3 py-2 text-[14px] text-[#1b1c1d] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-                >
-                  <option value="">{t('listing_any')}</option>
-                  {guestOptions.map((value) => (
-                    <option key={value} value={value}>{value}+</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <span className="mb-1 block text-[12px] font-semibold uppercase tracking-[0.08em] text-[#44474c]">
-                  {t('listing_checkin')} – {t('listing_checkout')}
+          {/* Active search: what is applied, and a way out */}
+          {(activeFilterCount > 0 || isHost) && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-ink-soft" aria-live="polite">
+              {datesActive && isCheckingAvailability && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
+                  {t('listing_checking_availability')}
                 </span>
-                <DateRangeField
-                  checkIn={draftCheckIn}
-                  checkOut={draftCheckOut}
-                  onChange={(from, to) => { setDraftCheckIn(from); setDraftCheckOut(to); }}
-                  isDateUnavailable={draftAreaDateUnavailable}
-                  onOpen={() => setCalendarDataWanted(true)}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={applyDraftFilters}
-                className="rounded-lg bg-[#041627] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
-              >
-                {t('listing_apply_filter')}
-              </button>
+              )}
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="cursor-pointer rounded font-semibold text-brand underline underline-offset-2 hover:text-brand/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                >
+                  {t('listing_clear_filter')}
+                </button>
+              )}
+              {isHost && (
+                <div className="ml-auto inline-flex items-center gap-1 rounded-full bg-subtle p-1">
+                  {(['all', 'mine'] as const).map((scope) => (
+                    <button
+                      key={scope}
+                      type="button"
+                      onClick={() => handleScopeChange(scope)}
+                      aria-pressed={activeScope === scope}
+                      className={`cursor-pointer rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors ${activeScope === scope ? 'bg-brand text-white shadow-sm' : 'text-ink-soft hover:text-ink'}`}
+                    >
+                      {scope === 'all' ? t('listing_scope_all') : t('listing_my_properties')}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-        </div>
-
-        <div className="hidden flex-wrap items-center gap-2 md:flex">
-          <select
-            id="desktop-listing-country"
-            aria-label={t('listing_country')}
-            value={draftCountryCode}
-            onChange={(event) => {
-              setDraftCountryCode(event.target.value.toUpperCase());
-              setDraftProvinceCode('');
-            }}
-            className="h-10 min-w-[150px] flex-1 rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-          >
-            <option value="">{t('listing_all_countries')}</option>
-            {countryOptions.map((country) => (
-              <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>
-            ))}
-          </select>
-          <select
-            id="desktop-listing-province"
-            aria-label={t('listing_province')}
-            value={draftProvinceCode}
-            disabled={!draftCountryCode}
-            onChange={(event) => {
-              setDraftProvinceCode(event.target.value.toUpperCase());
-            }}
-            className="h-10 min-w-[150px] flex-1 rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627] disabled:cursor-not-allowed disabled:border-[#e3e5e9] disabled:bg-[#f5f3f4] disabled:text-[#8a8d92] disabled:hover:border-[#e3e5e9]"
-          >
-            <option value="">{t('listing_all_provinces')}</option>
-            {draftProvinceOptions.map((province) => (
-              <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
-            ))}
-          </select>
-          <select
-            id="desktop-listing-bedrooms"
-            aria-label={t('listing_bedrooms')}
-            value={draftMinBedrooms}
-            onChange={(event) => setDraftMinBedrooms(event.target.value)}
-            className="h-10 w-[130px] rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-          >
-            <option value="">{t('listing_bedrooms')}</option>
-            {bedroomOptions.map((value) => (
-              <option key={value} value={value}>{value}+ {t('listing_bedrooms')}</option>
-            ))}
-          </select>
-          <select
-            id="desktop-listing-guests"
-            aria-label={t('listing_guests')}
-            value={draftMinGuests}
-            onChange={(event) => setDraftMinGuests(event.target.value)}
-            className="h-10 w-[130px] rounded-lg border border-[#d7dae0] bg-white px-3 text-[14px] text-[#1b1c1d] transition-colors hover:border-[#a9adb5] focus:outline-none focus:border-[#041627] focus:ring-1 focus:ring-[#041627]"
-          >
-            <option value="">{t('listing_guests')}</option>
-            {guestOptions.map((value) => (
-              <option key={value} value={value}>{value}+ {t('listing_guests')}</option>
-            ))}
-          </select>
-          <DateRangeField
-            checkIn={draftCheckIn}
-            checkOut={draftCheckOut}
-            onChange={(from, to) => { setDraftCheckIn(from); setDraftCheckOut(to); }}
-            isDateUnavailable={draftAreaDateUnavailable}
-            onOpen={() => setCalendarDataWanted(true)}
-            className="w-[190px]"
-          />
-          <button
-            type="button"
-            onClick={applyDraftFilters}
-            className="h-10 rounded-lg bg-[#041627] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#041627]/90"
-          >
-            {t('listing_apply_filter')}
-          </button>
-          <button
-            type="button"
-            onClick={clearAllFilters}
-            className="h-10 rounded-lg px-3 text-[13px] font-semibold text-[#63768a] transition-colors hover:bg-[#efedef] hover:text-[#1b1c1d]"
-          >
-            {t('listing_clear_filter')}
-          </button>
-          {isHost && (
-            <div className="ml-auto inline-flex items-center gap-1 rounded-lg bg-[#f5f3f4] p-1">
-              <button
-                onClick={() => handleScopeChange('all')}
-                className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${activeScope === 'all' ? 'bg-[#041627] text-white shadow-sm' : 'text-[#44474c] hover:text-[#1b1c1d]'}`}
-              >
-                {t('listing_scope_all')}
-              </button>
-              <button
-                onClick={() => handleScopeChange('mine')}
-                className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors ${activeScope === 'mine' ? 'bg-[#041627] text-white shadow-sm' : 'text-[#44474c] hover:text-[#1b1c1d]'}`}
-              >
-                {t('listing_my_properties')}
-              </button>
-            </div>
+          {isHost && activeScope === 'mine' && (
+            <p className="mt-2 text-[13px] text-ink-soft">{t('listing_scope_mine_desc')}</p>
           )}
-        </div>
         </div>
 
         {bookingConflicts.length > 0 && (
-          <div role="alert" className="mb-5 flex items-start gap-2 rounded-xl border border-[#f5c563] bg-warn-tint px-4 py-3 text-[13px] text-warn">
+          <div role="alert" className="mb-4 flex items-start gap-2 rounded-xl border border-[#f5c563] bg-warn-tint px-4 py-3 text-[13px] text-warn">
             <span className="flex-1">{t('book_err_conflict')} {bookingConflicts.join(', ')}</span>
             <button
               type="button"
@@ -1032,43 +774,13 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
           </div>
         )}
 
-        {/* Results header */}
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-          <div>
-            <h2 className="font-['Plus_Jakarta_Sans'] text-[20px] md:text-[24px] font-bold text-ink">
-              {datesActive && isCheckingAvailability
-                ? t('listing_checking_availability')
-                : t('listing_stays_count').replace('{count}', String(displayedProperties.length))}
-            </h2>
-            {isHost && activeScope === 'mine' && (
-              <p className="mt-1 text-[14px] text-ink-soft">{t('listing_scope_mine_desc')}</p>
-            )}
-          </div>
-
-          {datesActive && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[14px] text-ink-soft" aria-live="polite">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 font-semibold text-ink">
-                <Calendar aria-hidden="true" className="h-4 w-4 text-brand" />
-                {selectedCheckIn} → {selectedCheckOut}
-              </span>
-              <button
-                type="button"
-                onClick={() => updateQueryParams({ checkIn: null, checkOut: null })}
-                className="cursor-pointer rounded text-[13px] font-semibold text-brand underline underline-offset-2 hover:text-brand/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-              >
-                {t('listing_clear_dates')}
-              </button>
-            </div>
-          )}
-        </div>
-
         {/* Property Grid */}
         {datesActive && isCheckingAvailability ? (
-          <div aria-hidden="true" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {[0, 1, 2].map((key) => (
-              <div key={key} className="overflow-hidden rounded-card border border-line bg-surface">
-                <div className="aspect-[4/3] w-full animate-pulse bg-subtle motion-reduce:animate-none" />
-                <div className="space-y-2.5 p-5">
+          <div aria-hidden="true" className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
+            {[0, 1].map((key) => (
+              <div key={key} className="flex overflow-hidden rounded-card border border-line bg-surface md:flex-col">
+                <div className="m-3 h-[112px] w-[112px] shrink-0 animate-pulse rounded-xl bg-subtle motion-reduce:animate-none md:m-0 md:h-auto md:w-full md:rounded-none md:aspect-[16/10]" />
+                <div className="flex-1 space-y-2.5 py-4 pr-3 md:p-5">
                   <div className="h-4 w-2/3 animate-pulse rounded bg-subtle motion-reduce:animate-none" />
                   <div className="h-3 w-1/2 animate-pulse rounded bg-subtle motion-reduce:animate-none" />
                   <div className="h-3 w-1/3 animate-pulse rounded bg-subtle motion-reduce:animate-none" />
@@ -1099,7 +811,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
             {visibleProperties.map((property, index) => {
             const imageUrl = property.galleryImages
               ?.find((img) => img && img.showOnHome)
@@ -1124,21 +836,21 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
               <div key={property.id} className="group relative flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface shadow-[0_1px_2px_rgba(4,22,39,0.04)] transition-shadow duration-200 hover:shadow-[0_16px_40px_-18px_rgba(4,22,39,0.32)]">
                 <Link
                   to={propertyHref}
-                  className="flex flex-grow cursor-pointer flex-col rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+                  className="flex flex-grow cursor-pointer flex-row rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand md:flex-col"
                 >
-                  {/* Image */}
-                  <div className="relative aspect-[16/11] w-full overflow-hidden bg-subtle md:aspect-[4/3]">
+                  {/* Image — small square beside the text on mobile, full width on desktop */}
+                  <div className="relative m-3 h-[112px] w-[112px] shrink-0 overflow-hidden rounded-xl bg-subtle md:m-0 md:h-auto md:w-full md:rounded-none md:aspect-[16/10]">
                     <img
                       src={imageSrc}
                       srcSet={imageSrcSet}
-                      sizes="(max-width: 767px) 92vw, (max-width: 1023px) 46vw, 30vw"
+                      sizes="(max-width: 767px) 112px, (max-width: 1079px) 46vw, 520px"
                       alt={property.name}
                       loading={index < 2 ? "eager" : "lazy"}
                       fetchPriority={index === 0 ? "high" : "auto"}
                       decoding="async"
                       className="h-full w-full object-cover transition-transform duration-500 ease-out motion-safe:group-hover:scale-[1.04]"
                     />
-                    <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
+                    <div className="absolute inset-x-3 top-3 hidden items-start justify-between gap-2 md:flex">
                       {property.isSuperhost ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-surface/95 px-2.5 py-1 text-[12px] font-semibold leading-none text-brand shadow-sm backdrop-blur-sm">
                           <Star aria-hidden="true" className="h-3.5 w-3.5 fill-accent text-accent" />
@@ -1153,12 +865,18 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                   </div>
 
                   {/* Content */}
-                  <div className="flex min-w-0 flex-grow flex-col p-4 md:p-5">
-                    <h3 className="line-clamp-1 font-['Plus_Jakarta_Sans'] text-[17px] md:text-[18px] font-semibold leading-[1.35] text-brand">{property.name}</h3>
-                    <p className="mt-0.5 line-clamp-1 text-[14px] text-ink-soft">{property.subtitle || t('listing_property_in_tokyo')}</p>
+                  <div className="flex min-w-0 flex-grow flex-col py-3 pr-3 md:p-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <h2 className="line-clamp-1 font-['Plus_Jakarta_Sans'] text-[16px] md:text-[18px] font-semibold leading-[1.35] text-brand">{property.name}</h2>
+                      <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold text-ink md:hidden">
+                        <Star aria-hidden="true" className="h-3 w-3 fill-[#eab308] text-[#eab308]" />
+                        4.96
+                      </span>
+                    </div>
+                    <p className="mt-0.5 hidden text-[14px] text-ink-soft md:line-clamp-1">{property.subtitle || t('listing_property_in_tokyo')}</p>
 
-                    <div className="mt-2.5 flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5 text-[13px] text-ink-muted">
+                    <div className="mt-1 flex flex-col gap-0.5 md:mt-2.5 md:gap-1">
+                      <div className="flex items-center gap-1.5 text-[12.5px] text-ink-muted md:text-[13px]">
                         <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                         <span className="line-clamp-1">
                           {property.location
@@ -1167,7 +885,7 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
                         </span>
                       </div>
                       {(property.accessInfo?.nearestStationName || property.accessInfo?.nearestStationDistance) && (
-                        <div className="flex items-center gap-1.5 text-[13px] font-medium text-[#5b3f00]">
+                        <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-[#5b3f00] md:text-[13px]">
                           <Train aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                           <span className="line-clamp-1">
                             {property.accessInfo?.nearestStationDistance || t('listing_nearby')}
@@ -1180,25 +898,25 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
 
                     {/* From price for the selected date range */}
                     {fromPrice !== null && (
-                      <div className="mt-3 flex items-baseline gap-1">
+                      <div className="mt-1.5 flex items-baseline gap-1 md:mt-3">
                         <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-muted">{t('listing_price_from')}</span>
-                        <span className="text-[18px] font-bold tabular-nums text-brand">¥{fromPrice.toLocaleString()}</span>
+                        <span className="text-[16px] font-bold tabular-nums text-brand md:text-[18px]">¥{fromPrice.toLocaleString()}</span>
                         <span className="text-[12px] text-ink-muted">{t('listing_per_night')}</span>
                       </div>
                     )}
 
                     {/* Capacity at a glance */}
-                    <div aria-hidden="true" className="min-h-4 flex-grow" />
-                    <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line pt-3.5 text-[13px] font-semibold text-ink-soft">
+                    <div aria-hidden="true" className="min-h-2 flex-grow md:min-h-4" />
+                    <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-2 text-[12.5px] font-semibold text-ink-soft md:gap-x-4 md:pt-3.5 md:text-[13px]">
                       {[
                         { Icon: Users, value: property.maxGuests, label: `${property.maxGuests} guests` },
                         { Icon: BedSingle, value: property.bedrooms, label: `${property.bedrooms} bedrooms` },
-                        { Icon: BedDouble, value: property.beds, label: `${property.beds} beds` },
+                        { Icon: BedDouble, value: property.beds, label: `${property.beds} beds`, desktopOnly: true },
                         { Icon: Bath, value: property.baths, label: bathLabel },
-                        { Icon: Toilet, value: property.toilets, label: `${property.toilets} toilets` },
-                      ].map(({ Icon, value, label }) => (
-                        <li key={label} className="inline-flex items-center gap-1.5" title={label}>
-                          <Icon aria-hidden="true" className="h-4 w-4 text-ink-muted" />
+                        { Icon: Toilet, value: property.toilets, label: `${property.toilets} toilets`, desktopOnly: true },
+                      ].map(({ Icon, value, label, desktopOnly }: { Icon: React.ElementType; value: number; label: string; desktopOnly?: boolean }) => (
+                        <li key={label} className={`${desktopOnly ? 'hidden md:inline-flex' : 'inline-flex'} items-center gap-1`} title={label}>
+                          <Icon aria-hidden="true" className="h-3.5 w-3.5 text-ink-muted md:h-4 md:w-4" />
                           <span aria-hidden="true">{value}</span>
                           <span className="sr-only">{label}</span>
                         </li>
@@ -1365,33 +1083,6 @@ const ListingsPage: React.FC<ListingsPageProps> = ({ properties: initialProperti
             );
             })}
           </div>
-        )}
-
-        {/* Closing CTA for visitors who own a place */}
-        {showHostCta && (
-          <section
-            aria-labelledby="home-host-cta-title"
-            className="mt-14 flex flex-col items-start gap-5 overflow-hidden rounded-card bg-brand px-6 py-8 text-white md:mt-20 md:flex-row md:items-center md:justify-between md:px-10 md:py-10"
-          >
-            <div className="flex items-start gap-4">
-              <span className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 md:flex">
-                <Home aria-hidden="true" className="h-6 w-6 text-accent-soft" />
-              </span>
-              <div>
-                <h2 id="home-host-cta-title" className="font-['Plus_Jakarta_Sans'] text-[20px] md:text-[24px] font-bold text-white">
-                  {t('listing_host_cta_title')}
-                </h2>
-                <p className="mt-1 text-[15px] text-white/75">{t('listing_host_cta_body')}</p>
-              </div>
-            </div>
-            <Link
-              to="/become-host"
-              className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full bg-accent px-6 py-3 text-[15px] font-semibold text-brand transition-colors duration-200 hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/50"
-            >
-              {t('listing_host_cta_button')}
-              <ArrowRight aria-hidden="true" className="h-4 w-4" />
-            </Link>
-          </section>
         )}
       </main>
 
