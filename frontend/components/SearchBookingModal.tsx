@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
-import { CalendarDays, ChevronDown, ChevronLeft, MapPin, Minus, Plus, Search, X } from 'lucide-react';
+import { AlertCircle, CalendarDays, ChevronDown, ChevronLeft, MapPin, Minus, Plus, Search, X } from 'lucide-react';
 import { BookingDateSelection, applyDatePick } from '../utils/dateRange';
 import DateRangeCalendar from './DateRangeCalendar';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -72,6 +72,14 @@ const fromYmd = (value: string): Date | null => {
 // the whole width, while everything else answers in place.
 type ModalView = 'form' | 'calendar';
 
+// One visible focus treatment for every control in the dialog. It only shows
+// for keyboard focus, so a tap does not leave a ring behind.
+const FOCUS_RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
+
+// Round icon button for the header. 44px hit area on touch screens (Apple HIG),
+// 36px under a pointer, where the 24px WCAG minimum is met comfortably.
+const ICON_BUTTON = `flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-subtle hover:text-ink active:bg-line sm:h-9 sm:w-9 ${FOCUS_RING}`;
+
 // One cell of the grouped search box: a caption above its value, with the whole
 // cell acting as the click target.
 const Cell: React.FC<{
@@ -80,26 +88,31 @@ const Cell: React.FC<{
   children: React.ReactNode;
   onClick?: () => void;
   className?: string;
-  active?: boolean;
-}> = ({ icon: Icon, label, children, onClick, className = '', active = false }) => {
+}> = ({ icon: Icon, label, children, onClick, className = '' }) => {
   const body = (
     <>
-      <span className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-        <Icon className="h-3.5 w-3.5" /> {label}
+      <span className="mb-1 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-muted">
+        <Icon className="h-3.5 w-3.5" aria-hidden="true" /> {label}
       </span>
       {children}
     </>
   );
 
   if (!onClick) {
-    return <div className={`px-4 py-3 ${className}`}>{body}</div>;
+    // Holds a native select. The ring is drawn on the cell, since the select
+    // itself is borderless and a ring hugging its text would look stray.
+    return (
+      <div className={`min-h-[64px] px-4 py-3 transition-colors hover:bg-subtle has-[select:focus-visible]:bg-subtle has-[select:focus-visible]:ring-2 has-[select:focus-visible]:ring-inset has-[select:focus-visible]:ring-brand ${className}`}>
+        {body}
+      </div>
+    );
   }
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`block w-full cursor-pointer px-4 py-3 text-left transition-colors hover:bg-subtle ${active ? 'bg-subtle' : ''} ${className}`}
+      className={`block min-h-[64px] w-full cursor-pointer px-4 py-3 text-left transition-colors hover:bg-subtle active:bg-line/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ${className}`}
     >
       {body}
     </button>
@@ -107,6 +120,9 @@ const Cell: React.FC<{
 };
 
 const VALUE_TEXT = 'block truncate text-[15px] font-semibold text-ink';
+
+// 44px on touch, 36px under a pointer — same reasoning as ICON_BUTTON.
+const STEPPER_BUTTON = `flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-line-strong bg-surface text-ink-soft transition-colors hover:border-ink hover:text-ink active:bg-subtle disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line-strong disabled:hover:text-ink-soft sm:h-9 sm:w-9 ${FOCUS_RING}`;
 
 // A guest row: title, the rule that applies to it, and a round -/+ pair. Laid
 // out to match the booking widget on each property page, so the control a guest
@@ -121,29 +137,33 @@ const GuestRow: React.FC<{
   canIncrease: boolean;
 }> = ({ title, hint, value, min, onChange, canIncrease }) => (
   <div className="flex items-center justify-between gap-4 px-4 py-3">
-    <div>
-      <div className="text-[15px] font-bold text-ink">{title}</div>
-      <div className="text-[12px] text-ink-muted">{hint}</div>
+    <div className="min-w-0">
+      <div className="text-[15px] font-semibold text-ink">{title}</div>
+      <div className="text-[12px] leading-[1.45] text-ink-muted">{hint}</div>
     </div>
-    <div className="flex items-center gap-4">
+    <div className="flex shrink-0 items-center gap-2 sm:gap-3">
       <button
         type="button"
         onClick={() => onChange(value - 1)}
         disabled={value <= min}
         aria-label={`${title} −`}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-line-strong text-ink-soft transition-colors hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-line-strong disabled:hover:text-ink-soft"
+        className={STEPPER_BUTTON}
       >
-        <Minus className="h-4 w-4" />
+        <Minus className="h-4 w-4" aria-hidden="true" />
       </button>
-      <span className="w-6 text-center text-[16px] font-semibold text-ink">{value}</span>
+      {/* Announced on change, so a screen reader hears the new count after
+          −/+ without focus having to move. */}
+      <span aria-live="polite" className="w-6 text-center text-[16px] font-semibold tabular-nums text-ink">
+        {value}
+      </span>
       <button
         type="button"
         onClick={() => onChange(value + 1)}
         disabled={!canIncrease}
         aria-label={`${title} +`}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-line-strong text-ink-soft transition-colors hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-line-strong disabled:hover:text-ink-soft"
+        className={STEPPER_BUTTON}
       >
-        <Plus className="h-4 w-4" />
+        <Plus className="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
   </div>
@@ -162,6 +182,8 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
   const { t, language } = useLanguage();
   const dateLocale = getDateFnsLocale(language);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const [view, setView] = useState<ModalView>('form');
   // Start in the area the site actually operates in rather than "everywhere":
@@ -231,12 +253,36 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
     if (open) setView('form');
   }, [open]);
 
-  // Escape to dismiss, and keep the page behind from scrolling under the sheet.
+  // Escape to dismiss, Tab kept inside the dialog, and the page behind held
+  // still. Focus goes back to whatever had it before, so a keyboard user who
+  // reopened the prompt from the search bar lands back on that bar.
   useEffect(() => {
     if (!open) return;
 
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), select:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === dialogRef.current)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener('keydown', handleKeyDown);
 
@@ -249,8 +295,15 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = previousOverflow;
+      // Only hand focus back if the element is still on the page.
+      if (previouslyFocused && previouslyFocused !== document.body && document.contains(previouslyFocused)) {
+        previouslyFocused.focus({ preventScroll: true });
+      }
     };
-  }, [open, onClose]);
+    // Keyed on `open` alone. The parent hands over a fresh onClose on every
+    // render, and re-running this would yank focus back to the dialog in the
+    // middle of a guest using the steppers, and lose the element to return to.
+  }, [open]);
 
   if (!open) return null;
 
@@ -275,69 +328,87 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
     setView('calendar');
   };
 
+  const nights = datesValid
+    ? Math.round((checkOut!.getTime() - checkIn!.getTime()) / 86_400_000)
+    : 0;
+
   const headerTitle = view === 'calendar'
     ? (selection.selecting === 'checkIn' ? t('search_modal_pick_checkin') : t('search_modal_pick_checkout'))
     : t('search_modal_title');
 
   return (
     <div
-      className="animate-dialog-backdrop fixed inset-0 z-[60] flex items-end justify-center bg-ink/60 px-3 py-4 backdrop-blur-sm sm:items-center sm:px-4"
+      className="animate-dialog-backdrop fixed inset-0 z-[60] flex items-end justify-center bg-ink/60 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
       role="presentation"
     >
+      {/* A bottom sheet on phones (thumb reach, and it reads as dismissible),
+          a centred card from the small breakpoint up. The body scrolls on its
+          own between a fixed header and footer, so the search button never
+          drops out of view however many rows the form grows. */}
       <div
         ref={dialogRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="search-modal-title"
+        aria-describedby={view === 'form' ? 'search-modal-subtitle' : undefined}
         onClick={(event) => event.stopPropagation()}
-        className="animate-dialog-panel relative max-h-full w-full max-w-md overflow-y-auto rounded-3xl bg-surface shadow-2xl outline-none"
+        className="animate-dialog-panel relative flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-surface shadow-2xl outline-none sm:max-h-[min(720px,90dvh)] sm:rounded-3xl"
       >
+        {/* Grabber: says "sheet over the page", not "new page". Decorative —
+            dismissal is the close button, the backdrop and Escape. */}
+        <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden="true">
+          <span className="h-1 w-10 rounded-full bg-line-strong" />
+        </div>
+
         {/* Header. The photo that used to fill 140px here was decoration in a
             dialog whose whole job is to take three answers and get out of the
             way — on a phone it pushed the search button below the fold. */}
-        <div className="flex items-start gap-3 px-5 pt-5 sm:px-6 sm:pt-6">
+        <div className="flex items-start gap-2 px-5 pt-3 sm:px-6 sm:pt-5">
           {view === 'calendar' && (
             <button
               type="button"
               onClick={() => setView('form')}
               aria-label={t('search_modal_back')}
-              className="-ml-1.5 shrink-0 rounded-full p-1.5 text-ink-soft transition-colors hover:bg-subtle hover:text-ink"
+              className={`-ml-2 ${ICON_BUTTON}`}
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
             </button>
           )}
 
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 py-1.5 sm:py-1">
             <h2
               id="search-modal-title"
-              className="font-['Plus_Jakarta_Sans'] text-[19px] font-bold leading-[1.25] text-ink"
+              className="font-['Plus_Jakarta_Sans'] text-[20px] font-bold leading-[1.25] tracking-[-0.01em] text-ink"
             >
               {headerTitle}
             </h2>
             {view === 'form' && (
-              <p className="mt-0.5 text-[13px] leading-[1.5] text-ink-muted">
-                {soleLocation
-                  ? `${soleLocation.provinceName}, ${soleLocation.countryName}`
-                  : t('search_modal_subtitle')}
+              <p id="search-modal-subtitle" className="mt-1 flex items-start gap-1.5 text-[13px] leading-[1.5] text-ink-muted">
+                {soleLocation && <MapPin className="mt-[3px] h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />}
+                <span>
+                  {soleLocation
+                    ? `${soleLocation.provinceName}, ${soleLocation.countryName}`
+                    : t('search_modal_subtitle')}
+                </span>
               </p>
             )}
           </div>
 
-          {view === 'form' && (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={t('search_modal_skip')}
-              className="-mr-1.5 shrink-0 rounded-full p-1.5 text-ink-muted transition-colors hover:bg-subtle hover:text-ink"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          )}
+          {/* On both panels: the calendar is still the same dialog, and
+              leaving it should not take two steps. */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('search_modal_skip')}
+            className={`-mr-2 ${ICON_BUTTON}`}
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
         </div>
 
-        <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-4 sm:px-6">
           {view === 'form' && (
             <>
               {/* One grouped box rather than loose fields — it reads as a
@@ -361,7 +432,7 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
                             <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>
                           ))}
                         </select>
-                        <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+                        <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
                       </span>
                     </Cell>
                     <Cell icon={MapPin} label={t('listing_province')}>
@@ -378,7 +449,7 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
                             <option key={province.provinceCode} value={province.provinceCode}>{province.provinceName}</option>
                           ))}
                         </select>
-                        <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+                        <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
                       </span>
                     </Cell>
                   </div>
@@ -398,6 +469,13 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
                     onClick={() => openCalendar('checkOut')}
                   >
                     <span className={VALUE_TEXT}>{formatDate(checkOut)}</span>
+                    {/* Length of stay: the number a guest checks a range
+                        against, without counting days in their head. */}
+                    {nights > 0 && (
+                      <span className="mt-0.5 block text-[12px] font-medium tabular-nums text-ink-muted">
+                        {nights} {t('book_nights')}
+                      </span>
+                    )}
                   </Cell>
                 </div>
 
@@ -438,27 +516,14 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
                 </p>
               )}
 
+              {/* Icon as well as colour, so the warning does not depend on
+                  telling red from grey. */}
               {!datesValid && (
-                <p className="mt-3 text-[13px] text-danger">{t('search_modal_date_error')}</p>
+                <p role="alert" className="mt-3 flex items-start gap-1.5 text-[13px] leading-[1.5] text-danger">
+                  <AlertCircle className="mt-[2px] h-4 w-4 shrink-0" aria-hidden="true" />
+                  {t('search_modal_date_error')}
+                </p>
               )}
-
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!datesValid}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-control bg-brand px-4 py-3.5 text-[15px] font-bold tracking-[0.02em] text-white transition-colors hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Search className="h-4 w-4" />
-                {t('search_modal_submit')}
-              </button>
-
-              <button
-                type="button"
-                onClick={onClose}
-                className="mt-2 w-full rounded-control px-4 py-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:bg-subtle hover:text-ink"
-              >
-                {t('search_modal_skip')}
-              </button>
             </>
           )}
 
@@ -476,15 +541,15 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
                 }}
               />
 
-              <div className="mt-4 flex items-center gap-4 border-t border-line pt-4 text-[12px] text-ink-muted">
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3 text-[12px] text-ink-muted">
                 <span className="flex items-center gap-1.5">
-                  <span className="flex h-3.5 w-3.5 items-center justify-center rounded bg-subtle">
+                  <span className="flex h-3.5 w-3.5 items-center justify-center rounded bg-subtle" aria-hidden="true">
                     <X className="h-2.5 w-2.5" strokeWidth={3} />
                   </span>
                   {t('search_modal_legend_full')}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-3.5 w-3.5 rounded bg-brand" />
+                  <span className="h-3.5 w-3.5 rounded bg-brand" aria-hidden="true" />
                   {t('sim_legend_selected')}
                 </span>
                 {/* Half a range narrows the calendar to the nights that stay
@@ -493,22 +558,46 @@ const SearchBookingModal: React.FC<SearchBookingModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelection({ checkIn: null, checkOut: null, selecting: 'checkIn' })}
-                  className="ml-auto underline transition-colors hover:text-ink"
+                  className={`ml-auto min-h-[36px] cursor-pointer rounded-control px-2 font-semibold underline underline-offset-2 transition-colors hover:text-ink ${FOCUS_RING}`}
                 >
                   {t('sim_clear_dates')}
                 </button>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setView('form')}
-                className="mt-4 w-full rounded-control bg-brand px-4 py-3 text-[15px] font-bold text-white transition-colors hover:bg-brand/90"
-              >
-                {t('sim_done')}
-              </button>
             </>
           )}
+        </div>
 
+        {/* Footer: the one primary action, always in reach. Clears the home
+            indicator on phones that have one. */}
+        <div className="border-t border-line bg-surface px-5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-4">
+          {view === 'form' ? (
+            <>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!datesValid}
+                className={`flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-control bg-brand px-4 py-3 text-[15px] font-bold tracking-[0.01em] text-white shadow-sm transition-[background-color,transform] duration-150 hover:bg-brand/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 ${FOCUS_RING}`}
+              >
+                <Search className="h-4 w-4 text-accent-soft" aria-hidden="true" />
+                {t('search_modal_submit')}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className={`mt-1 min-h-[44px] w-full cursor-pointer rounded-control px-4 py-2 text-[13px] font-semibold text-ink-soft underline-offset-2 transition-colors hover:text-ink hover:underline ${FOCUS_RING}`}
+              >
+                {t('search_modal_skip')}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setView('form')}
+              className={`min-h-[48px] w-full cursor-pointer rounded-control bg-brand px-4 py-3 text-[15px] font-bold text-white transition-[background-color,transform] duration-150 hover:bg-brand/90 active:scale-[0.98] ${FOCUS_RING}`}
+            >
+              {t('sim_done')}
+            </button>
+          )}
         </div>
       </div>
     </div>
